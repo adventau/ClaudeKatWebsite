@@ -155,14 +155,15 @@ function applyUserData(me, other) {
   if (vaultOtherTab) vaultOtherTab.textContent = oName + "'s Files";
 
   // Wallpaper — shared between users, toggle is per-user
-  const wpRes = await fetch('/api/wallpaper').then(r => r.json()).catch(() => ({}));
-  if (me.wallpaperEnabled && wpRes.wallpaper) {
-    applyWallpaper(wpRes.wallpaper);
-    document.getElementById('toggle-wallpaper').checked = true;
-    const mwt = document.getElementById('modal-wallpaper-toggle');
-    if (mwt) mwt.checked = true;
-    document.getElementById('wallpaper-upload-row').style.display = '';
-  }
+  fetch('/api/wallpaper').then(r => r.json()).then(wpRes => {
+    if (me.wallpaperEnabled && wpRes.wallpaper) {
+      applyWallpaper(wpRes.wallpaper);
+      document.getElementById('toggle-wallpaper').checked = true;
+      const mwt = document.getElementById('modal-wallpaper-toggle');
+      if (mwt) mwt.checked = true;
+      document.getElementById('wallpaper-upload-row').style.display = '';
+    }
+  }).catch(() => {});
   if (!me.gifEnabled) {
     document.getElementById('gif-btn').style.display = 'none';
     document.getElementById('toggle-gif').checked = false;
