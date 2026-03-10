@@ -2954,13 +2954,13 @@ function setupActivityTracking() {
   inactivityTimer = setInterval(checkActivity, 10000);
 }
 
-let _isAutoIdle = false; // true when auto-set to idle by inactivity
-const IDLE_MS = 3 * 60 * 1000; // 3 minutes idle → auto away
+let _isAutoIdle = false;    // 'idle' or 'invisible' when auto-set
+const IDLE_MS = 3 * 60 * 1000;       // 3 min → Idle (yellow)
+const INVISIBLE_MS = 5 * 60 * 1000;  // 5 min → Invisible (gray + last seen)
 
 function resetActivity() {
   lastActivity = Date.now();
   document.getElementById('inactivity-warning').style.display = 'none';
-  // If we auto-set idle due to inactivity, restore to online
   if (_isAutoIdle) {
     _isAutoIdle = false;
     socket.emit('user-active', { user: currentUser });
@@ -2977,9 +2977,15 @@ function checkActivity() {
     document.getElementById('logout-countdown').textContent = remaining;
     document.getElementById('inactivity-warning').style.display = 'block';
   }
-  // Auto-idle after 3 minutes of inactivity → show as Idle (yellow)
-  if (elapsed >= IDLE_MS && !_isAutoIdle) {
-    _isAutoIdle = true;
+  // Tier 1: 3 min → Idle (yellow)
+  // Tier 2: 5 min → Invisible (gray, shows last seen to others)
+  if (elapsed >= INVISIBLE_MS && _isAutoIdle !== 'invisible') {
+    _isAutoIdle = 'invisible';
+    socket.emit('user-invisible', { user: currentUser });
+    setStatusDot('my-status-dot', 'invisible');
+    updateStatusText('invisible');
+  } else if (elapsed >= IDLE_MS && !_isAutoIdle) {
+    _isAutoIdle = 'idle';
     socket.emit('user-idle', { user: currentUser });
     setStatusDot('my-status-dot', 'idle');
     updateStatusText('idle');

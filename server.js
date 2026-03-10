@@ -848,6 +848,13 @@ io.on('connection', socket => {
     else onlineUsers[user] = { socketId: socket.id, state: 'idle' };
     socket.broadcast.emit('user-presence', { user, state: 'idle' });
   });
+  socket.on('user-invisible', ({ user }) => {
+    // User idle 5+ min — treat as offline, save lastSeen
+    const users = rd(F.users);
+    if (users && users[user]) { users[user].lastSeen = Date.now(); wd(F.users, users); }
+    delete onlineUsers[user];
+    socket.broadcast.emit('user-presence', { user, state: 'offline' });
+  });
   socket.on('typing',       d => socket.broadcast.emit('user-typing',   d));
   socket.on('stop-typing',  d => socket.broadcast.emit('user-stop-typing', d));
   socket.on('status-change', d => { socket.broadcast.emit('status-changed', d); });
