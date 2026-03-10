@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Royal K&K Vault — Guest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: 'Inter', sans-serif; overflow: hidden; -webkit-font-smoothing: antialiased; }
+
+    :root {
+      --bg:        #0c0912;
+      --surface:   #120e1c;
+      --border:    rgba(200,150,120,0.18);
+      --accent:    #c8967a;
+      --accent2:   #e8c9a0;
+      --text:      #f0e8e0;
+      --muted:     rgba(240,232,224,0.45);
+      --glow:      rgba(200,150,122,0.22);
+      --msg-self:  linear-gradient(135deg,#7c3aed,#a855a0);
+      --msg-other: rgba(255,255,255,0.06);
+      --radius:    14px;
+    }
+    body { background: var(--bg); color: var(--text); }
+
+    #app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Header ────────────────────────────────────────────── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px; height: 58px;
+      background: rgba(18,14,28,0.97);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 24px rgba(0,0,0,0.4);
+      flex-shrink: 0;
+      backdrop-filter: blur(16px);
+    }
+    .header-brand {
+      font-family: 'Cinzel', serif; font-size: 0.85rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; letter-spacing: 0.1em;
+    }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .guest-badge {
+      background: rgba(200,150,122,0.12); border: 1px solid rgba(200,150,122,0.25);
+      border-radius: 9999px; padding: 4px 13px;
+      font-size: 0.7rem; color: var(--accent); letter-spacing: 0.07em; font-weight: 500;
+    }
+    .leave-btn {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: 0.78rem; font-family: 'Inter', sans-serif;
+      padding: 5px 10px; border-radius: 8px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .leave-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+
+    /* ── Channel tabs ──────────────────────────────────────── */
+    .channel-bar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 10px 16px; background: var(--surface);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+      overflow-x: auto;
+    }
+    .channel-bar::-webkit-scrollbar { height: 0; }
+    .channel-tab {
+      padding: 7px 16px; border-radius: 9px; cursor: pointer;
+      font-size: 0.82rem; color: var(--muted); white-space: nowrap;
+      transition: background 0.18s, color 0.18s;
+      border: 1px solid transparent; font-weight: 500; letter-spacing: 0.01em;
+    }
+    .channel-tab:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .channel-tab.active {
+      background: rgba(200,150,122,0.12);
+      color: var(--accent); border-color: rgba(200,150,122,0.25);
+    }
+
+    /* ── Messages ──────────────────────────────────────────── */
+    .messages-area {
+      flex: 1; overflow-y: auto; padding: 18px 16px 10px;
+      display: flex; flex-direction: column; gap: 4px;
+      scroll-behavior: smooth;
+    }
+    .msg-row { display: flex; gap: 8px; animation: msgIn 0.2s ease; max-width: 100%; padding: 1px 0; }
+    .msg-row.self { flex-direction: row-reverse; }
+    @keyframes msgIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+
+    .msg-content-wrap { display: flex; flex-direction: column; max-width: 66%; }
+    .msg-row.self .msg-content-wrap { align-items: flex-end; }
+
+    .msg-bubble {
+      padding: 9px 13px; border-radius: var(--radius);
+      font-size: 0.875rem; line-height: 1.55; word-break: break-word;
+      max-width: 100%;
+    }
+    .msg-bubble.self {
+      background: var(--msg-self); color: #fff;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 2px 12px rgba(124,58,237,0.3);
+    }
+    .msg-bubble.other {
+      background: var(--msg-other); color: var(--text);
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    .msg-sender { font-size: 0.67rem; color: var(--accent); margin-bottom: 3px; font-weight: 600; letter-spacing: 0.02em; }
+    .msg-time   { font-size: 0.62rem; color: var(--muted); margin-top: 4px; }
+    .msg-row.self .msg-time { text-align: right; }
+
+    .msg-avatar {
+      width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.68rem; font-weight: 700; align-self: flex-end;
+      color: #fff; margin-bottom: 3px;
+    }
+
+    /* ── Input area ────────────────────────────────────────── */
+    .input-area {
+      padding: 10px 16px 14px; background: var(--surface);
+      border-top: 1px solid var(--border); display: flex; gap: 8px;
+      align-items: flex-end; flex-shrink: 0;
+    }
+    .input-wrap {
+      flex: 1; background: rgba(255,255,255,0.04);
+      border: 1.5px solid var(--border); border-radius: 13px;
+      display: flex; flex-direction: column;
+      padding: 8px 12px 6px; transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .input-wrap:focus-within {
+      border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow);
+    }
+    .emoji-row { display: flex; gap: 1px; margin-bottom: 6px; }
+    .eq {
+      background: none; border: none; font-size: 1.1rem; cursor: pointer;
+      padding: 3px 5px; border-radius: 7px; transition: background 0.15s; line-height: 1;
+    }
+    .eq:hover { background: rgba(255,255,255,0.09); }
+    textarea {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text); font-size: 0.88rem; font-family: 'Inter', sans-serif;
+      resize: none; max-height: 110px; min-height: 32px; line-height: 1.55; padding: 0;
+    }
+    textarea::placeholder { color: var(--muted); }
+
+    .send-btn {
+      width: 38px; height: 38px; border-radius: 11px;
+      background: linear-gradient(135deg, var(--accent), #a85580);
+      border: none; color: #fff; font-size: 0.9rem; cursor: pointer;
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      transition: transform 0.18s, box-shadow 0.18s;
+      box-shadow: 0 2px 10px var(--glow);
+    }
+    .send-btn:hover { transform: scale(1.08); box-shadow: 0 4px 16px var(--glow); }
+    .send-btn:active { transform: scale(0.95); }
+
+    /* ── Watermark ─────────────────────────────────────────── */
+    .vault-watermark {
+      text-align: center; padding: 7px;
+      font-family: 'Cormorant Garamond', serif; font-style: italic;
+      font-size: 0.72rem; color: var(--muted); flex-shrink: 0;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Welcome ───────────────────────────────────────────── */
+    #welcome-banner {
+      background: linear-gradient(135deg, rgba(124,58,237,0.1), rgba(200,150,122,0.1));
+      border: 1px solid rgba(200,150,122,0.2); border-radius: var(--radius);
+      padding: 20px; margin: 8px 0; text-align: center;
+      animation: fadeIn 0.5s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    .welcome-crown { font-size: 1.8rem; margin-bottom: 8px; }
+    .welcome-title { font-family: 'Cinzel', serif; font-size: 1rem; margin-bottom: 6px; }
+    .welcome-sub { font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
+    .by-line {
+      font-family: 'Cormorant Garamond', serif; font-style: italic;
+      font-size: 0.78rem; color: var(--accent); margin-top: 10px;
+    }
+
+    /* ── Typing indicator ──────────────────────────────────── */
+    .typing-row { display: flex; gap: 8px; padding: 3px 0; }
+    .typing-bubble {
+      background: var(--msg-other); border: 1px solid var(--border);
+      border-radius: 12px; padding: 8px 13px;
+      display: flex; gap: 4px; align-items: center;
+    }
+    .t-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); animation: typePulse 1.4s ease infinite; }
+    .t-dot:nth-child(2) { animation-delay: 0.18s; }
+    .t-dot:nth-child(3) { animation-delay: 0.36s; }
+    @keyframes typePulse { 0%,60%,100% { opacity:0.3;transform:translateY(0); } 30% { opacity:1;transform:translateY(-4px); } }
+
+    /* ── Scrollbar ─────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(200,150,122,0.25); border-radius: 9999px; }
+
+    /* ── Toast ─────────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      background: rgba(18,14,28,0.95); border: 1px solid rgba(200,150,122,0.3);
+      border-radius: 10px; padding: 8px 18px; font-size: 0.82rem; z-index: 100;
+      animation: fadeIn 0.25s ease; pointer-events: none;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    /* ── Header icon btn ──────────────────────────────────── */
+    .header-icon-btn {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      transition: color 0.2s, background 0.2s;
+    }
+    .header-icon-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+
+    /* ── Settings overlay ─────────────────────────────────── */
+    .settings-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
+      display: none; align-items: center; justify-content: center;
+      animation: fadeIn 0.2s ease;
+    }
+    .settings-overlay.open { display: flex; }
+    .settings-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 18px; width: 340px; max-width: 90vw;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+      animation: settingsSlide 0.25s cubic-bezier(0.4,0,0.2,1);
+    }
+    @keyframes settingsSlide { from { opacity:0; transform:scale(0.95) translateY(10px); } to { opacity:1; transform:scale(1) translateY(0); } }
+    .settings-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+    }
+    .settings-title { font-weight: 600; font-size: 0.95rem; }
+    .settings-close {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: 1.3rem; width: 28px; height: 28px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      transition: color 0.2s, background 0.2s;
+    }
+    .settings-close:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+    .settings-body { padding: 16px 20px; }
+    .settings-group { padding: 4px 0; }
+    .settings-label { font-size: 0.8rem; font-weight: 500; margin-bottom: 8px; color: var(--text); }
+    .settings-hint { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .settings-divider { height: 1px; background: var(--border); margin: 12px 0; }
+    .settings-input-row { display: flex; gap: 8px; }
+    .settings-input {
+      flex: 1; background: rgba(255,255,255,0.04); border: 1.5px solid var(--border);
+      border-radius: 10px; padding: 8px 12px; font-size: 0.82rem;
+      color: var(--text); font-family: 'Inter', sans-serif; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .settings-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow); }
+    .settings-save-btn {
+      background: linear-gradient(135deg, var(--accent), #a85580);
+      border: none; color: #fff; padding: 8px 16px; border-radius: 10px;
+      font-size: 0.78rem; font-weight: 500; cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .settings-save-btn:hover { transform: scale(1.04); box-shadow: 0 2px 12px var(--glow); }
+    .settings-toggle-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    /* Toggle switch */
+    .toggle-switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0; cursor: pointer;
+      background: rgba(255,255,255,0.1); border-radius: 24px;
+      transition: background 0.25s;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; left: 3px; top: 3px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; transition: transform 0.25s;
+    }
+    .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+    /* ── Guest theme buttons ──────────────────────────────── */
+    .guest-theme-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1);
+      border-radius: 10px; padding: 10px 14px; cursor: pointer; transition: all 0.2s;
+      color: var(--muted); font-size: 0.72rem; font-weight: 500; min-width: 70px;
+    }
+    .guest-theme-btn:hover { border-color: rgba(255,255,255,0.25); }
+    .guest-theme-btn.active { border-color: var(--accent); color: var(--text); }
+    .guest-theme-preview {
+      width: 36px; height: 36px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+
+    /* ── Light theme overrides ────────────────────────────── */
+    body.light-theme {
+      --bg: #f5f3f0; --surface: #ffffff; --border: rgba(0,0,0,0.1);
+      --text: #1a1a1a; --muted: rgba(0,0,0,0.45); --msg-other: rgba(0,0,0,0.04);
+      --glow: rgba(200,150,122,0.15);
+    }
+    body.light-theme header { background: rgba(255,255,255,0.97); }
+    body.light-theme .channel-bar { background: #fafaf8; }
+    body.light-theme .input-area { background: #fafaf8; }
+    body.light-theme .settings-panel { background: #fff; }
+    body.light-theme .settings-input { background: rgba(0,0,0,0.03); }
+    body.light-theme .msg-bubble.other { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }
+
+    /* ── Host theme overrides (creator's theme) ────────── */
+    body.host-theme-kaliph {
+      --bg: #08051a; --surface: #0d0a1a; --border: rgba(124,58,237,0.2);
+      --accent: #7c3aed; --accent2: #3b82f6; --text: #e8e4f0; --muted: rgba(232,228,240,0.45);
+      --glow: rgba(124,58,237,0.22); --msg-self: linear-gradient(135deg,#7c3aed,#3b82f6);
+    }
+    body.host-theme-kathrine {
+      --bg: #0d0716; --surface: #120e1f; --border: rgba(139,92,246,0.2);
+      --accent: #8b5cf6; --accent2: #c084fc; --text: #f0e8f8; --muted: rgba(240,232,248,0.45);
+      --glow: rgba(139,92,246,0.22); --msg-self: linear-gradient(135deg,#8b5cf6,#c084fc);
+    }
+    body.host-theme-royal {
+      --bg: #0a0703; --surface: #12100a; --border: rgba(185,28,28,0.2);
+      --accent: #b91c1c; --accent2: #d97706; --text: #f0e8e0; --muted: rgba(240,232,224,0.45);
+      --glow: rgba(185,28,28,0.22); --msg-self: linear-gradient(135deg,#b91c1c,#d97706);
+    }
+    body.host-theme-heaven {
+      --bg: #fafaf8; --surface: #ffffff; --border: rgba(200,169,110,0.2);
+      --accent: #c8a96e; --accent2: #8b7a5e; --text: #2a2520; --muted: rgba(42,37,32,0.45);
+      --glow: rgba(200,169,110,0.22); --msg-self: linear-gradient(135deg,#c8a96e,#8b7a5e); --msg-other: rgba(0,0,0,0.04);
+    }
+    body.host-theme-heaven header { background: rgba(255,255,255,0.97); }
+    body.host-theme-heaven .channel-bar { background: #fafaf8; }
+    body.host-theme-heaven .input-area { background: #fafaf8; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Header -->
+  <header>
+    <div class="header-brand">The Royal K&K Vault</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="guest-badge" id="guest-name-badge">Guest</span>
+      <button class="header-icon-btn" onclick="toggleGuestSettings()" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button class="leave-btn" onclick="logout()">Leave</button>
+    </div>
+  </header>
+
+  <!-- Channel tabs -->
+  <div class="channel-bar">
+    <div class="channel-tab active" data-target="group" onclick="switchChannel('group',this)">Group Chat</div>
+    <div class="channel-tab" data-target="kaliph" onclick="switchChannel('kaliph',this)">Message Kaliph</div>
+    <div class="channel-tab" data-target="kathrine" onclick="switchChannel('kathrine',this)">Message Kathrine</div>
+  </div>
+
+  <!-- Messages -->
+  <div class="messages-area" id="messages-area">
+    <!-- Welcome banner -->
+    <div id="welcome-banner">
+      <div class="welcome-title" style="margin-top:8px">Welcome to the Vault</div>
+      <div class="welcome-sub">You've been granted guest access.<br>Use the tabs above to chat with us!</div>
+      <div class="by-line">By Kathrine &amp; Kaliph</div>
+    </div>
+  </div>
+
+  <!-- Typing indicator -->
+  <div class="typing-row" id="typing-row" style="display:none;padding:4px 1rem">
+    <div class="msg-avatar">K</div>
+    <div class="typing-bubble"><div class="t-dot"></div><div class="t-dot"></div><div class="t-dot"></div></div>
+  </div>
+
+  <!-- Input -->
+  <div class="input-area">
+    <div class="input-wrap">
+      <div class="emoji-row">
+        <button class="eq" onclick="insertEmoji('😊')">😊</button>
+        <button class="eq" onclick="insertEmoji('❤️')">❤️</button>
+        <button class="eq" onclick="insertEmoji('😂')">😂</button>
+        <button class="eq" onclick="insertEmoji('🙏')">🙏</button>
+        <button class="eq" onclick="insertEmoji('✨')">✨</button>
+        <button class="eq" onclick="insertEmoji('💜')">💜</button>
+        <button class="eq" onclick="insertEmoji('🔥')">🔥</button>
+      </div>
+      <textarea id="msg-input" placeholder="Type a message…" rows="1"></textarea>
+    </div>
+    <button class="send-btn" onclick="sendMsg()">➤</button>
+  </div>
+
+  <!-- Watermark -->
+  <div class="vault-watermark">
+    Private Guest Access — <em>The Royal Kat &amp; Kai Vault</em> · By Kathrine &amp; Kaliph
+  </div>
+
+  <!-- Settings Overlay -->
+  <div class="settings-overlay" id="guest-settings" onclick="if(event.target===this)toggleGuestSettings()">
+    <div class="settings-panel">
+      <div class="settings-header">
+        <span class="settings-title">Settings</span>
+        <button class="settings-close" onclick="toggleGuestSettings()">&times;</button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-group">
+          <label class="settings-label">Display Name</label>
+          <div class="settings-input-row">
+            <input type="text" id="guest-display-name" class="settings-input" placeholder="Enter your name..." maxlength="20">
+            <button class="settings-save-btn" onclick="saveGuestName()">Save</button>
+          </div>
+        </div>
+        <div class="settings-divider"></div>
+        <div class="settings-group">
+          <div class="settings-label" style="margin-bottom:8px">Theme</div>
+          <div class="settings-hint" style="margin-bottom:10px">Choose your appearance</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap" id="guest-theme-grid">
+            <button class="guest-theme-btn active" data-theme="dark" onclick="setGuestTheme('dark')">
+              <div class="guest-theme-preview" style="background:#1a0f2e"></div>
+              <span>Dark</span>
+            </button>
+            <button class="guest-theme-btn" data-theme="light" onclick="setGuestTheme('light')">
+              <div class="guest-theme-preview" style="background:#f8fafc"></div>
+              <span>Light</span>
+            </button>
+            <button class="guest-theme-btn" data-theme="host" onclick="setGuestTheme('host')" id="host-theme-btn" style="display:none">
+              <div class="guest-theme-preview" id="host-theme-preview"></div>
+              <span id="host-theme-name">Host</span>
+            </button>
+          </div>
+        </div>
+        <div class="settings-divider"></div>
+        <div class="settings-group">
+          <div class="settings-toggle-row">
+            <div>
+              <div class="settings-label">Sound Effects</div>
+              <div class="settings-hint">Play sounds for new messages</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-sound" checked onchange="toggleSound()">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+  let guestId   = null;
+  let guestName = sessionStorage.getItem('guestName') || 'Guest';
+  let channel   = 'group'; // 'kaliph', 'kathrine', 'group'
+  let channelMessages = { kaliph: [], kathrine: [], group: [] };
+  let allowedChannels = ['kaliph', 'kathrine', 'group'];
+  let creatorTheme = null;
+
+  // ── Init ────────────────────────────────────────────────────────
+  async function init() {
+    const r = await fetch('/api/auth/session');
+    const data = await r.json();
+    if (!data.isGuest || !data.guestId) { window.location.href = '/'; return; }
+    guestId = data.guestId;
+    document.getElementById('guest-name-badge').textContent = guestName;
+
+    // Load existing messages + channel permissions
+    const guestData = await fetch(`/api/guests/${guestId}`).then(r => r.json()).catch(() => null);
+    if (guestData) {
+      if (guestData.messages) channelMessages = guestData.messages;
+      if (guestData.channels) allowedChannels = guestData.channels;
+      if (guestData.createdBy) creatorTheme = guestData.createdBy;
+      applyChannelPermissions();
+      renderChannel();
+      // Load creator's theme info for guest settings
+      loadCreatorTheme();
+    }
+
+    // Real-time — single handler per channel (no duplicates)
+    socket.on(`guest-msg-${guestId}-kaliph`,   msg => { channelMessages.kaliph.push(msg); if (channel === 'kaliph') appendMsg(msg); else showBadge('kaliph'); });
+    socket.on(`guest-msg-${guestId}-kathrine`, msg => { channelMessages.kathrine.push(msg); if (channel === 'kathrine') appendMsg(msg); else showBadge('kathrine'); });
+    socket.on(`guest-msg-${guestId}-group`,    msg => { channelMessages.group.push(msg); if (channel === 'group') appendMsg(msg); else showBadge('group'); });
+
+    socket.on('user-typing', ({ user }) => {
+      document.getElementById('typing-row').style.display = 'flex';
+      clearTimeout(window._typingTimer);
+      window._typingTimer = setTimeout(() => document.getElementById('typing-row').style.display = 'none', 2000);
+    });
+
+    // Immediate logout if guest access is revoked
+    socket.on('guest-revoked', ({ guestId: revokedId }) => {
+      if (revokedId === guestId) {
+        alert('Your guest access has been revoked.');
+        fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.href = '/');
+      }
+    });
+    socket.on('force-logout', () => {
+      window.location.href = '/';
+    });
+  }
+
+  // ── Channel permissions ──────────────────────────────────────────
+  function applyChannelPermissions() {
+    const tabs = document.querySelectorAll('.channel-tab');
+    tabs.forEach(tab => {
+      const target = tab.getAttribute('data-target');
+      if (!allowedChannels.includes(target)) {
+        tab.style.display = 'none';
+      }
+    });
+    // If current channel is not allowed, switch to first allowed
+    if (!allowedChannels.includes(channel)) {
+      channel = allowedChannels[0] || 'group';
+      // Activate the right tab
+      tabs.forEach(t => {
+        t.classList.remove('active');
+        if (t.getAttribute('data-target') === channel) t.classList.add('active');
+      });
+    }
+  }
+
+  async function loadCreatorTheme() {
+    if (!creatorTheme) return;
+    try {
+      const users = await fetch('/api/users').then(r => r.json());
+      const creator = users[creatorTheme];
+      if (creator && creator.theme) {
+        // Show creator theme option in settings
+        const hostBtn = document.getElementById('host-theme-btn');
+        const hostPreview = document.getElementById('host-theme-preview');
+        const hostName = document.getElementById('host-theme-name');
+        if (hostBtn) {
+          hostBtn.style.display = '';
+          const themePreviewColors = {
+            kaliph: 'linear-gradient(135deg,#08051a,#7c3aed,#3b82f6)',
+            kathrine: 'linear-gradient(135deg,#0d0716,#8b5cf6,#e9d5ff)',
+            royal: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)',
+            heaven: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)',
+          };
+          if (hostPreview) hostPreview.style.background = themePreviewColors[creator.theme] || 'var(--accent)';
+          if (hostName) hostName.textContent = capitalize(creatorTheme) + "'s Theme";
+          hostBtn.setAttribute('data-theme', creator.theme);
+        }
+      }
+    } catch(e) {}
+  }
+
+  // ── Channel switching ────────────────────────────────────────────
+  function switchChannel(ch, el) {
+    channel = ch;
+    document.querySelectorAll('.channel-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    el.style.removeProperty('background'); // clear badge color
+    renderChannel();
+  }
+
+  function renderChannel() {
+    const area = document.getElementById('messages-area');
+    area.innerHTML = '';
+    // Welcome
+    const wb = document.createElement('div');
+    wb.id = 'welcome-banner'; wb.className = '';
+    wb.style.cssText = 'text-align:center;padding:1rem;color:var(--muted);font-size:0.8rem;font-style:italic';
+    wb.innerHTML = channel === 'group'
+      ? '<strong style="color:var(--accent)">Group Chat</strong> — with Kaliph &amp; Kathrine'
+      : channel === 'kaliph'
+        ? 'Direct message with <strong style="color:var(--accent)">Kaliph</strong>'
+        : 'Direct message with <strong style="color:var(--accent)">Kathrine</strong>';
+    area.appendChild(wb);
+    (channelMessages[channel] || []).forEach(m => area.appendChild(buildMsgEl(m)));
+    area.scrollTop = area.scrollHeight;
+  }
+
+  function appendMsg(msg) {
+    const area = document.getElementById('messages-area');
+    area.appendChild(buildMsgEl(msg));
+    area.scrollTop = area.scrollHeight;
+  }
+
+  function buildMsgEl(msg) {
+    const isSelf = msg.sender === guestName;
+    const row = document.createElement('div');
+    row.className = `msg-row ${isSelf ? 'self' : 'other'}`;
+    const avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = (msg.sender || 'G')[0].toUpperCase();
+    if (!isSelf) avatar.style.background = msg.sender === 'kaliph'
+      ? 'linear-gradient(135deg,#7c3aed,#3b82f6)'
+      : 'linear-gradient(135deg,#8b5cf6,#c084fc)';
+    const content = document.createElement('div');
+    content.innerHTML = `
+      <div class="msg-sender">${isSelf ? 'You' : msg.sender}</div>
+      <div class="msg-bubble ${isSelf ? 'self' : 'other'}">${escHtml(msg.text)}</div>
+      <div class="msg-time">${formatTime(msg.timestamp)}</div>`;
+    if (isSelf) { row.appendChild(content); row.appendChild(avatar); }
+    else { row.appendChild(avatar); row.appendChild(content); }
+    return row;
+  }
+
+  function showBadge(ch) {
+    const tab = document.querySelector(`[data-target="${ch}"]`);
+    if (tab) tab.style.borderColor = 'var(--accent)';
+  }
+
+  // ── Send ─────────────────────────────────────────────────────────
+  let isSending = false;
+  async function sendMsg() {
+    if (isSending) return;
+    const input = document.getElementById('msg-input');
+    const text = input.value.trim();
+    if (!text) return;
+    isSending = true;
+    input.value = '';
+    input.style.height = 'auto';
+    const msg = { text, target: channel, sender: guestName };
+    try {
+      await fetch(`/api/guests/${guestId}/message`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(msg)
+      });
+    } finally {
+      isSending = false;
+    }
+  }
+
+  function insertEmoji(e) {
+    const t = document.getElementById('msg-input');
+    const p = t.selectionStart;
+    t.value = t.value.slice(0, p) + e + t.value.slice(p);
+    t.selectionStart = t.selectionEnd = p + e.length;
+    t.focus();
+  }
+
+  // ── Utility ──────────────────────────────────────────────────────
+  function escHtml(t) { return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function formatTime(ts) { return new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); }
+  function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+  function logout() { fetch('/api/auth/logout', { method:'POST' }).then(() => window.location.href = '/'); }
+
+  // ── Settings ─────────────────────────────────────────────────────
+  let soundEnabled = sessionStorage.getItem('guestSound') !== 'false';
+  let darkMode = sessionStorage.getItem('guestTheme') !== 'light';
+
+  function toggleGuestSettings() {
+    const overlay = document.getElementById('guest-settings');
+    const isOpen = overlay.classList.contains('open');
+    if (!isOpen) {
+      document.getElementById('guest-display-name').value = guestName === 'Guest' ? '' : guestName;
+      document.getElementById('toggle-sound').checked = soundEnabled;
+      // Mark active theme button
+      document.querySelectorAll('.guest-theme-btn').forEach(b => b.classList.toggle('active', b.dataset.theme === currentGuestTheme));
+    }
+    overlay.classList.toggle('open');
+  }
+
+  function saveGuestName() {
+    const input = document.getElementById('guest-display-name');
+    const name = input.value.trim();
+    if (!name) return;
+    guestName = name;
+    sessionStorage.setItem('guestName', name);
+    document.getElementById('guest-name-badge').textContent = guestName;
+    showToast('Name updated');
+  }
+
+  let currentGuestTheme = 'dark';
+
+  function setGuestTheme(theme) {
+    currentGuestTheme = theme;
+    sessionStorage.setItem('guestTheme', theme);
+    document.body.classList.remove('light-theme', 'host-theme-kaliph', 'host-theme-kathrine', 'host-theme-royal', 'host-theme-heaven');
+    if (theme === 'light') {
+      document.body.classList.add('light-theme');
+    } else if (theme === 'host') {
+      // Apply creator's theme colors
+      const hostBtn = document.getElementById('host-theme-btn');
+      const hostThemeId = hostBtn?.getAttribute('data-theme');
+      if (hostThemeId) {
+        document.body.classList.add('host-theme-' + hostThemeId);
+      }
+    }
+    // Update active button
+    document.querySelectorAll('.guest-theme-btn').forEach(b => b.classList.toggle('active', b.dataset.theme === theme));
+  }
+
+  function toggleSound() {
+    soundEnabled = document.getElementById('toggle-sound').checked;
+    sessionStorage.setItem('guestSound', soundEnabled ? 'true' : 'false');
+  }
+
+  function showToast(text) {
+    const t = document.createElement('div');
+    t.className = 'toast'; t.textContent = text;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2000);
+  }
+
+  // Apply saved theme on load
+  const savedTheme = sessionStorage.getItem('guestTheme') || 'dark';
+  setGuestTheme(savedTheme);
+
+  // Auto-resize textarea
+  document.getElementById('msg-input').addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+  });
+  document.getElementById('msg-input').addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') sendMsg();
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+  });
+
+  init();
+</script>
+</body>
+</html>

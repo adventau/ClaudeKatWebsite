@@ -1,0 +1,9 @@
+node_modules/
+.env
+data/*.json
+data/sessions/
+public/uploads/*
+!public/uploads/.gitkeep
+*.log
+.DS_Store
+.claude/

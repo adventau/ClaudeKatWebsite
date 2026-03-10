@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Royal Kat & Kai Vault</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0612;
+      --card: rgba(255,255,255,0.05);
+      --border: rgba(255,255,255,0.1);
+      --text: #e2d9f3;
+      --muted: rgba(226,217,243,0.5);
+      --accent: #7c3aed;
+      --accent2: #3b82f6;
+      --glow: rgba(124,58,237,0.4);
+    }
+
+    body {
+      min-height: 100vh; background: var(--bg); color: var(--text);
+      font-family: 'Inter', sans-serif; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Particle Canvas ────────────────────────────────────────────── */
+    #canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+    /* ── Screens ────────────────────────────────────────────────────── */
+    .screen {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10; transition: opacity 0.6s, transform 0.6s;
+    }
+    .screen.hidden { opacity: 0; pointer-events: none; transform: scale(0.96); }
+
+    /* ── Crown / Title ──────────────────────────────────────────────── */
+    .vault-title {
+      text-align: center; margin-bottom: 2rem;
+    }
+    .crown { font-size: 2.6rem; animation: float 3.5s ease-in-out infinite; display: block; margin-bottom: 0.6rem; }
+    .vault-title h1 {
+      font-family: 'Cinzel', serif; font-size: 1.5rem; font-weight: 700;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa, #c084fc);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 0.12em; line-height: 1.35;
+    }
+    .vault-title p {
+      font-family: 'Inter', sans-serif;
+      color: var(--muted); font-size: 0.8rem; margin-top: 0.5rem;
+      letter-spacing: 0.12em; text-transform: uppercase; font-weight: 400;
+    }
+
+    /* ── Glass Card ─────────────────────────────────────────────────── */
+    .glass {
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(24px) saturate(1.6);
+      -webkit-backdrop-filter: blur(24px) saturate(1.6);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 22px; padding: 2.2rem 2rem;
+      width: 380px; max-width: 92vw;
+      box-shadow: 0 0 80px var(--glow), 0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+      animation: fadeUp 0.7s cubic-bezier(0.34,1.2,0.64,1) both;
+    }
+
+    /* ── Input ──────────────────────────────────────────────────────── */
+    .input-wrap {
+      position: relative; margin-bottom: 1.2rem;
+    }
+    .input-wrap input {
+      width: 100%; background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(124,58,237,0.4);
+      border-radius: 12px; padding: 0.9rem 3rem 0.9rem 1rem;
+      color: var(--text); font-size: 1rem; font-family: 'Inter', sans-serif;
+      outline: none; transition: border-color 0.3s, box-shadow 0.3s;
+      letter-spacing: 0.1em;
+    }
+    .input-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 20px rgba(124,58,237,0.3);
+    }
+    .input-wrap input::placeholder { color: var(--muted); letter-spacing: 0.05em; }
+    .eye-btn {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: 1.1rem; padding: 4px; transition: color 0.2s;
+    }
+    .eye-btn:hover { color: var(--text); }
+
+    /* ── Submit button ──────────────────────────────────────────────── */
+    .btn-submit {
+      width: 100%; padding: 11px;
+      background: linear-gradient(135deg, #7c3aed, #3b82f6);
+      border: none; border-radius: 12px; color: #fff;
+      font-size: 0.95rem; font-family: 'Inter', sans-serif; font-weight: 600;
+      cursor: pointer; transition: transform 0.18s, box-shadow 0.18s;
+      letter-spacing: 0.04em;
+      box-shadow: 0 4px 24px rgba(124,58,237,0.4);
+    }
+    .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 36px rgba(124,58,237,0.55); }
+    .btn-submit:active { transform: translateY(0); }
+    .btn-submit.loading { opacity: 0.65; pointer-events: none; }
+
+    /* ── Error ──────────────────────────────────────────────────────── */
+    .error-msg {
+      color: #f87171; font-size: 0.85rem; text-align: center;
+      margin-top: 0.8rem; min-height: 1.2em; transition: opacity 0.3s;
+    }
+    .error-msg.hidden { opacity: 0; }
+
+    /* ── Profile Select ─────────────────────────────────────────────── */
+    .profile-grid {
+      display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center;
+      padding: 1.5rem 1rem;
+    }
+
+    .profile-card {
+      position: relative; width: 240px; height: 320px;
+      border-radius: 22px; cursor: pointer; overflow: hidden;
+      transition: transform 0.35s cubic-bezier(0.34,1.4,0.64,1), box-shadow 0.35s;
+      animation: fadeUp 0.85s cubic-bezier(0.34,1.2,0.64,1) both;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .profile-card:hover {
+      transform: translateY(-10px) scale(1.02);
+    }
+    .profile-card:nth-child(2) { animation-delay: 0.12s; }
+
+    /* Kaliph card */
+    .card-kaliph { background: linear-gradient(145deg, #0f0a1a, #1a0f35, #0d1b3e); }
+    .card-kaliph:hover { box-shadow: 0 20px 60px rgba(124,58,237,0.5), 0 0 100px rgba(59,130,246,0.2); }
+
+    /* Kathrine card */
+    .card-kathrine { background: linear-gradient(145deg, #130920, #2d1255, #1a0a2e); }
+    .card-kathrine:hover { box-shadow: 0 20px 60px rgba(192,132,252,0.5), 0 0 100px rgba(139,92,246,0.2); }
+
+    .card-bg-particles {
+      position: absolute; inset: 0; overflow: hidden; border-radius: 24px;
+    }
+    .card-glow {
+      position: absolute; inset: -50%;
+      opacity: 0; transition: opacity 0.4s;
+      border-radius: 50%; filter: blur(40px);
+    }
+    .card-kaliph .card-glow {
+      background: radial-gradient(circle, rgba(124,58,237,0.6) 0%, rgba(59,130,246,0.4) 50%, transparent 70%);
+    }
+    .card-kathrine .card-glow {
+      background: radial-gradient(circle, rgba(192,132,252,0.6) 0%, rgba(139,92,246,0.4) 50%, transparent 70%);
+    }
+    .profile-card:hover .card-glow { opacity: 1; }
+
+    .card-content {
+      position: relative; z-index: 2; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .card-avatar {
+      width: 80px; height: 80px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; margin-bottom: 1.2rem;
+      border: 2px solid rgba(255,255,255,0.2);
+      transition: transform 0.4s, box-shadow 0.4s;
+      position: relative; overflow: hidden;
+    }
+    .card-kaliph .card-avatar {
+      background: linear-gradient(135deg, #7c3aed, #3b82f6);
+      box-shadow: 0 0 20px rgba(124,58,237,0.4);
+    }
+    .card-kathrine .card-avatar {
+      background: linear-gradient(135deg, #8b5cf6, #c084fc);
+      box-shadow: 0 0 20px rgba(139,92,246,0.4);
+    }
+    .profile-card:hover .card-avatar {
+      transform: scale(1.1);
+      box-shadow: 0 0 40px rgba(124,58,237,0.6);
+    }
+
+    .card-name {
+      font-size: 2rem; font-weight: 700; letter-spacing: 0.05em;
+      margin-bottom: 0.4rem; transition: transform 0.3s;
+    }
+    .card-kaliph .card-name {
+      font-family: 'Orbitron', monospace;
+      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .card-kathrine .card-name {
+      font-family: 'Cormorant Garamond', serif;
+      background: linear-gradient(135deg, #e9d5ff, #c084fc);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .profile-card:hover .card-name { transform: scale(1.05); }
+
+    .card-theme-label {
+      font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase;
+      color: rgba(255,255,255,0.4); margin-bottom: 1rem;
+    }
+    .card-kaliph .card-theme-label { color: rgba(167,139,250,0.6); }
+    .card-kathrine .card-theme-label { color: rgba(192,132,252,0.6); }
+
+    .card-status {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.8rem; color: rgba(255,255,255,0.5);
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
+      box-shadow: 0 0 8px #22c55e;
+    }
+
+    .card-enter-hint {
+      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%) translateY(4px);
+      font-size: 0.68rem; color: rgba(255,255,255,0.45);
+      letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap;
+      opacity: 0; transition: opacity 0.25s, transform 0.25s;
+    }
+    .profile-card:hover .card-enter-hint { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Theme preview swatches */
+    .card-swatches {
+      display: flex; gap: 4px; margin-top: 0.8rem;
+    }
+    .swatch {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    /* ── Select header ───────────────────────────────────────────────── */
+    .select-header {
+      text-align: center; margin-bottom: 1.5rem;
+      animation: fadeUp 0.5s cubic-bezier(0.34,1.2,0.64,1) both;
+    }
+    .select-header h2 {
+      font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 600;
+      color: rgba(226,217,243,0.55);
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .select-header p { color: var(--muted); font-size: 0.8rem; margin-top: 0.3rem; }
+
+    /* ── AVNT badge (shown on Kaliph card) ─────────────────────────── */
+    .avnt-badge {
+      position: absolute; top: 12px; right: 12px;
+      font-family: 'Orbitron', monospace; font-size: 0.55rem;
+      letter-spacing: 0.2em; color: rgba(167,139,250,0.6);
+      border: 1px solid rgba(167,139,250,0.3);
+      border-radius: 4px; padding: 2px 6px;
+      text-transform: uppercase;
+    }
+
+    /* ── Animations ─────────────────────────────────────────────────── */
+    @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes shimmer {
+      0% { transform: translateX(-100%) rotate(45deg); }
+      100% { transform: translateX(200%) rotate(45deg); }
+    }
+
+    /* Shimmer on cards */
+    .profile-card::before {
+      content: ''; position: absolute; inset: 0; z-index: 3;
+      background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.06) 50%, transparent 70%);
+      transform: translateX(-100%) rotate(45deg);
+      transition: none;
+    }
+    .profile-card:hover::before { animation: shimmer 0.6s ease; }
+
+    /* Ripple */
+    .ripple {
+      position: absolute; border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      transform: scale(0); animation: ripple-anim 0.6s linear;
+      pointer-events: none;
+    }
+    @keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+
+    /* Loading spinner */
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+      vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <!-- ── PASSWORD SCREEN ─────────────────────────────────────────────── -->
+  <div id="pw-screen" class="screen">
+    <div class="glass">
+      <div class="vault-title">
+        <span class="crown">👑</span>
+        <h1>The Royal Kat<br>&amp; Kai Vault</h1>
+        <p>Private &amp; Encrypted</p>
+      </div>
+      <div class="input-wrap">
+        <input type="password" id="pw-input" placeholder="Enter vault password…" autocomplete="off" autofocus>
+        <button class="eye-btn" id="eye-btn" title="Toggle visibility">🙈</button>
+      </div>
+      <button class="btn-submit" id="pw-btn">Unlock Vault</button>
+      <div class="error-msg hidden" id="pw-error">Incorrect password. Try again.</div>
+    </div>
+  </div>
+
+  <!-- ── PROFILE SELECT SCREEN ────────────────────────────────────────── -->
+  <div id="profile-screen" class="screen hidden">
+    <div>
+      <div class="select-header">
+        <h2>Who are you?</h2>
+        <p>Select your profile to enter the vault</p>
+      </div>
+      <div class="profile-grid">
+        <!-- Kaliph -->
+        <div class="profile-card card-kaliph" id="card-kaliph" data-profile="kaliph">
+          <div class="card-bg-particles"></div>
+          <div class="card-glow"></div>
+          <div class="card-content">
+            <div class="card-avatar" id="kaliph-avatar">K</div>
+            <div class="card-name">Kaliph</div>
+            <div class="card-theme-label" id="kaliph-theme-label" style="display:none"></div>
+            <div class="card-status">
+              <span class="status-dot" id="kaliph-status-dot"></span>
+              <span id="kaliph-status-text">Online</span>
+            </div>
+          </div>
+          <div class="card-enter-hint">Click to enter →</div>
+        </div>
+
+        <!-- Kathrine -->
+        <div class="profile-card card-kathrine" id="card-kathrine" data-profile="kathrine">
+          <div class="card-bg-particles"></div>
+          <div class="card-glow"></div>
+          <div class="card-content">
+            <div class="card-avatar" id="kathrine-avatar">K</div>
+            <div class="card-name">Kathrine</div>
+            <div class="card-theme-label" id="kathrine-theme-label" style="display:none"></div>
+            <div class="card-status">
+              <span class="status-dot" id="kathrine-status-dot"></span>
+              <span id="kathrine-status-text">Online</span>
+            </div>
+          </div>
+          <div class="card-enter-hint">Click to enter →</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PROFILE PASSCODE OVERLAY ────────────────────────────────────── -->
+  <div id="passcode-overlay" style="
+    position:fixed; inset:0; z-index:90;
+    background:rgba(0,0,0,0.7); backdrop-filter:blur(12px);
+    display:none; align-items:center; justify-content:center;
+  " onclick="if(event.target===this)closePasscodeOverlay()">
+    <div id="passcode-card" style="
+      background:rgba(15,10,30,0.95); border:1px solid rgba(124,58,237,0.3);
+      border-radius:20px; padding:2.5rem 2rem; width:320px; text-align:center;
+      box-shadow:0 20px 60px rgba(0,0,0,0.5);
+    ">
+      <div style="font-size:2rem;margin-bottom:0.5rem">🔒</div>
+      <h3 style="color:#e8e0f0;margin-bottom:0.3rem;font-family:'Space Grotesk',sans-serif" id="passcode-title">Enter Passcode</h3>
+      <p style="color:rgba(232,224,240,0.5);font-size:0.8rem;margin-bottom:1.5rem">This profile is locked with a PIN</p>
+      <div style="display:flex;gap:10px;justify-content:center;margin-bottom:1.2rem" id="passcode-dots">
+        <input type="password" id="passcode-digit-1" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="
+          width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;
+          background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);
+          border-radius:12px;color:#e8e0f0;outline:none;letter-spacing:0;
+          font-family:'Space Grotesk',sans-serif;
+        " oninput="passcodeDigitInput(this,1)" onkeydown="passcodeDigitKeydown(event,1)">
+        <input type="password" id="passcode-digit-2" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="
+          width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;
+          background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);
+          border-radius:12px;color:#e8e0f0;outline:none;letter-spacing:0;
+          font-family:'Space Grotesk',sans-serif;
+        " oninput="passcodeDigitInput(this,2)" onkeydown="passcodeDigitKeydown(event,2)">
+        <input type="password" id="passcode-digit-3" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="
+          width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;
+          background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);
+          border-radius:12px;color:#e8e0f0;outline:none;letter-spacing:0;
+          font-family:'Space Grotesk',sans-serif;
+        " oninput="passcodeDigitInput(this,3)" onkeydown="passcodeDigitKeydown(event,3)">
+        <input type="password" id="passcode-digit-4" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="
+          width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;
+          background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);
+          border-radius:12px;color:#e8e0f0;outline:none;letter-spacing:0;
+          font-family:'Space Grotesk',sans-serif;
+        " oninput="passcodeDigitInput(this,4)" onkeydown="passcodeDigitKeydown(event,4)">
+      </div>
+      <div id="passcode-error" style="color:#ef4444;font-size:0.8rem;margin-bottom:1rem;min-height:1.2em"></div>
+      <button id="passcode-unlock-btn" style="
+        width:100%;padding:10px;border:none;border-radius:12px;cursor:pointer;
+        background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;
+        font-family:'Space Grotesk',sans-serif;font-size:0.9rem;font-weight:600;
+      " onclick="submitPasscode()">Unlock</button>
+      <button style="
+        width:100%;padding:8px;border:none;background:transparent;cursor:pointer;
+        color:rgba(232,224,240,0.4);font-size:0.8rem;margin-top:0.5rem;
+      " onclick="closePasscodeOverlay()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ── TRANSITION OVERLAY ────────────────────────────────────────────── -->
+  <div id="transition-overlay" style="
+    position:fixed; inset:0; z-index:100;
+    background:radial-gradient(circle, #7c3aed 0%, #0a0612 100%);
+    opacity:0; pointer-events:none;
+    transition: opacity 0.5s;
+  "></div>
+
+  <script>
+    // ── Particle background ──────────────────────────────────────────
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let W, H, particles = [];
+
+    function resize() {
+      W = canvas.width  = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    class Particle {
+      constructor() { this.reset(); }
+      reset() {
+        this.x = Math.random() * W; this.y = Math.random() * H;
+        this.r = Math.random() * 1.5 + 0.5;
+        this.vx = (Math.random() - 0.5) * 0.3; this.vy = (Math.random() - 0.5) * 0.3;
+        this.a = Math.random(); this.da = (Math.random() - 0.5) * 0.005;
+        const c = [[124,58,237],[59,130,246],[192,132,252]];
+        this.color = c[Math.floor(Math.random() * c.length)];
+      }
+      update() {
+        this.x += this.vx; this.y += this.vy;
+        this.a += this.da;
+        if (this.a <= 0 || this.a >= 1) this.da *= -1;
+        if (this.x < 0 || this.x > W || this.y < 0 || this.y > H) this.reset();
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${this.color[0]},${this.color[1]},${this.color[2]},${this.a})`;
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < 120; i++) particles.push(new Particle());
+
+    function animate() {
+      ctx.clearRect(0, 0, W, H);
+      particles.forEach(p => { p.update(); p.draw(); });
+      // Draw lines between close particles
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist < 100) {
+            ctx.strokeStyle = `rgba(124,58,237,${0.1 * (1 - dist/100)})`;
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    // ── Eye toggle ──────────────────────────────────────────────────
+    const pwInput = document.getElementById('pw-input');
+    const eyeBtn  = document.getElementById('eye-btn');
+    eyeBtn.addEventListener('click', () => {
+      const show = pwInput.type === 'password';
+      pwInput.type = show ? 'text' : 'password';
+      eyeBtn.textContent = show ? '👁️' : '🙈';
+    });
+
+    // ── Password submit ─────────────────────────────────────────────
+    const pwBtn   = document.getElementById('pw-btn');
+    const pwError = document.getElementById('pw-error');
+    const pwScreen      = document.getElementById('pw-screen');
+    const profileScreen = document.getElementById('profile-screen');
+
+    async function tryPassword() {
+      const pw = pwInput.value.trim();
+      if (!pw) return shake(document.querySelector('.glass'));
+      pwBtn.innerHTML = '<span class="spinner"></span>Unlocking…';
+      pwBtn.classList.add('loading');
+      pwError.classList.add('hidden');
+
+      const r = await fetch('/api/auth/password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw })
+      });
+      const data = await r.json();
+      pwBtn.innerHTML = 'Unlock Vault';
+      pwBtn.classList.remove('loading');
+
+      if (data.success) {
+        if (data.isGuest) {
+          // Store guest name and redirect
+          sessionStorage.setItem('guestName', data.guestName);
+          doTransition(() => window.location.href = '/guest');
+        } else {
+          // Show profile select
+          pwScreen.classList.add('hidden');
+          profileScreen.classList.remove('hidden');
+          loadUserPreviews();
+          loadProfileLocks();
+        }
+      } else {
+        pwError.textContent = data.error || 'Incorrect password.';
+        pwError.classList.remove('hidden');
+        shake(document.querySelector('.glass'));
+        pwInput.value = '';
+        pwInput.focus();
+      }
+    }
+
+    pwBtn.addEventListener('click', tryPassword);
+    pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryPassword(); });
+
+    // ── Load user data for profile cards ───────────────────────────
+    const themeColors = {
+      kaliph:   { bg: '#0d0820', accent: '#7c3aed', glow: 'rgba(124,58,237,0.3)', border: 'rgba(124,58,237,0.25)', swatches: ['#7c3aed','#5b21b6','#a78bfa'] },
+      kathrine: { bg: '#0d0716', accent: '#8b5cf6', glow: 'rgba(139,92,246,0.3)', border: 'rgba(139,92,246,0.25)', swatches: ['#6d28d9','#8b5cf6','#c084fc'] },
+      royal:    { bg: '#0a0703', accent: '#d97706', glow: 'rgba(217,119,6,0.3)', border: 'rgba(180,120,30,0.4)', swatches: ['#7f1d1d','#d97706','#b91c1c'] },
+      light:    { bg: '#f8fafc', accent: '#6366f1', glow: 'rgba(99,102,241,0.15)', border: '#e2e8f0', swatches: ['#6366f1','#8b5cf6','#a5b4fc'], textDark: true },
+      dark:     { bg: '#0f172a', accent: '#818cf8', glow: 'rgba(129,140,248,0.2)', border: 'rgba(99,102,241,0.2)', swatches: ['#4f46e5','#818cf8','#c7d2fe'] },
+      heaven:   { bg: '#fafaf8', accent: '#c8a96e', glow: 'rgba(200,169,110,0.2)', border: 'rgba(200,169,110,0.3)', swatches: ['#c8a96e','#b5956b','#e8d5a3'], textDark: true },
+    };
+
+    async function loadUserPreviews() {
+      try {
+        const r = await fetch('/api/users');
+        const users = await r.json();
+        window._cachedUsers = users;
+
+        ['kaliph', 'kathrine'].forEach(name => {
+          const u = users[name];
+          if (!u) return;
+          const card = document.getElementById('card-' + name);
+          const theme = themeColors[u.theme] || themeColors.dark;
+
+          // Avatar
+          if (u.avatar) {
+            document.getElementById(name + '-avatar').innerHTML = `<img src="${u.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+          }
+
+          // Status text: show custom status if set, otherwise just presence
+          const label = document.getElementById(name + '-theme-label');
+          label.textContent = u.customStatus || '';
+          label.style.display = u.customStatus ? '' : 'none';
+
+          // Presence
+          document.getElementById(name + '-status-dot').style.background = getStatusColor(u.status);
+          document.getElementById(name + '-status-dot').style.boxShadow = `0 0 8px ${getStatusColor(u.status)}`;
+          document.getElementById(name + '-status-text').textContent = capitalize(u.status);
+
+          // Apply theme colors to card
+          card.style.background = `linear-gradient(135deg, ${theme.bg} 0%, ${theme.accent}22 100%)`;
+          card.style.borderColor = theme.border;
+          if (theme.textDark) {
+            card.querySelectorAll('.card-name, .card-theme-label, .card-enter-hint').forEach(el => el.style.color = '#1e293b');
+            card.querySelector('.card-status').style.color = '#64748b';
+          }
+
+          // (swatches removed from cards)
+
+          // Card glow
+          const glow = card.querySelector('.card-glow');
+          if (glow) glow.style.background = `radial-gradient(circle, ${theme.accent}33 0%, transparent 70%)`;
+        });
+      } catch {}
+    }
+    function getStatusColor(s) {
+      return { online:'#22c55e', idle:'#f59e0b', dnd:'#ef4444', invisible:'#6b7280' }[s] || '#22c55e';
+    }
+    function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+    // ── Profile passcode state ──────────────────────────────────────
+    let profileLocks = {};
+    let pendingProfile = null;
+
+    async function loadProfileLocks() {
+      try {
+        profileLocks = await fetch('/api/auth/profile-locks').then(r => r.json());
+        // Show lock icons on locked profiles
+        if (profileLocks.kaliph) document.getElementById('card-kaliph').querySelector('.card-enter-hint').textContent = '🔒 Locked';
+        if (profileLocks.kathrine) document.getElementById('card-kathrine').querySelector('.card-enter-hint').textContent = '🔒 Locked';
+      } catch {}
+    }
+    function openPasscodeOverlay(profile) {
+      pendingProfile = profile;
+      const name = capitalize(profile);
+      document.getElementById('passcode-title').textContent = name + ' — Enter PIN';
+      document.getElementById('passcode-error').textContent = '';
+      for (let i = 1; i <= 4; i++) document.getElementById('passcode-digit-' + i).value = '';
+
+      // Theme the lock screen to match the profile's personal theme
+      const users = window._cachedUsers || {};
+      const userThemeId = users[profile]?.theme || 'dark';
+      const theme = themeColors[userThemeId] || themeColors.dark;
+      const card = document.getElementById('passcode-card');
+      const btn = document.getElementById('passcode-unlock-btn');
+      const isLight = theme.textDark;
+      const textColor = isLight ? '#1e293b' : '#e8e0f0';
+      const subtextColor = isLight ? 'rgba(30,41,59,0.5)' : 'rgba(232,224,240,0.5)';
+
+      card.style.background = isLight
+        ? `linear-gradient(135deg, ${theme.bg}, ${theme.accent}15)`
+        : `linear-gradient(135deg, ${theme.bg}, ${theme.accent}22)`;
+      card.style.borderColor = theme.border;
+      document.getElementById('passcode-title').style.color = textColor;
+      card.querySelector('p').style.color = subtextColor;
+      btn.style.background = `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`;
+      btn.style.color = isLight ? '#fff' : '#fff';
+
+      document.querySelectorAll('.pin-digit').forEach(d => {
+        d.style.background = `${theme.accent}15`;
+        d.style.borderColor = `${theme.accent}4d`;
+        d.style.color = textColor;
+      });
+
+      document.getElementById('passcode-overlay').style.display = 'flex';
+      setTimeout(() => document.getElementById('passcode-digit-1').focus(), 100);
+    }
+
+    function closePasscodeOverlay() {
+      document.getElementById('passcode-overlay').style.display = 'none';
+      pendingProfile = null;
+    }
+
+    function passcodeDigitInput(el, idx) {
+      el.value = el.value.replace(/\D/g, '').slice(0, 1);
+      if (el.value && idx < 4) {
+        document.getElementById('passcode-digit-' + (idx + 1)).focus();
+      }
+      // Auto-submit when all 4 digits entered
+      if (idx === 4 && el.value) {
+        const code = [1,2,3,4].map(i => document.getElementById('passcode-digit-' + i).value).join('');
+        if (code.length === 4) submitPasscode();
+      }
+    }
+
+    function passcodeDigitKeydown(e, idx) {
+      if (e.key === 'Backspace' && !e.target.value && idx > 1) {
+        document.getElementById('passcode-digit-' + (idx - 1)).focus();
+      }
+    }
+
+    async function submitPasscode() {
+      const code = [1,2,3,4].map(i => document.getElementById('passcode-digit-' + i).value).join('');
+      if (code.length !== 4) {
+        document.getElementById('passcode-error').textContent = 'Enter all 4 digits';
+        return;
+      }
+      const r = await fetch('/api/auth/profile', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile: pendingProfile, passcode: code })
+      });
+      const data = await r.json();
+      if (data.success) {
+        closePasscodeOverlay();
+        const overlay = document.getElementById('transition-overlay');
+        overlay.style.background = pendingProfile === 'kaliph'
+          ? 'radial-gradient(circle, #7c3aed 0%, #0a0612 100%)'
+          : 'radial-gradient(circle, #8b5cf6 0%, #0a0612 100%)';
+        doTransition(() => window.location.href = '/app');
+      } else {
+        document.getElementById('passcode-error').textContent = data.error || 'Incorrect passcode';
+        // Shake the inputs
+        const dots = document.getElementById('passcode-dots');
+        dots.style.animation = 'shake 0.4s ease';
+        dots.addEventListener('animationend', () => dots.style.animation = '', { once: true });
+        for (let i = 1; i <= 4; i++) document.getElementById('passcode-digit-' + i).value = '';
+        document.getElementById('passcode-digit-1').focus();
+      }
+    }
+
+    // ── Profile card click ──────────────────────────────────────────
+    document.querySelectorAll('.profile-card').forEach(card => {
+      card.addEventListener('click', async function(e) {
+        addRipple(this, e);
+        const profile = this.dataset.profile;
+
+        // Check if profile has a passcode
+        if (profileLocks[profile]) {
+          openPasscodeOverlay(profile);
+          return;
+        }
+
+        // Choose overlay color by profile
+        const overlay = document.getElementById('transition-overlay');
+        overlay.style.background = profile === 'kaliph'
+          ? 'radial-gradient(circle, #7c3aed 0%, #0a0612 100%)'
+          : 'radial-gradient(circle, #8b5cf6 0%, #0a0612 100%)';
+
+        const r = await fetch('/api/auth/profile', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profile })
+        });
+        const data = await r.json();
+        if (data.success) {
+          doTransition(() => window.location.href = '/app');
+        }
+      });
+    });
+
+    function doTransition(cb) {
+      const overlay = document.getElementById('transition-overlay');
+      overlay.style.opacity = '1';
+      overlay.style.pointerEvents = 'all';
+      setTimeout(cb, 500);
+    }
+
+    function addRipple(el, e) {
+      const r = document.createElement('div');
+      r.className = 'ripple';
+      const rect = el.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height);
+      r.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
+      el.appendChild(r);
+      r.addEventListener('animationend', () => r.remove());
+    }
+
+    function shake(el) {
+      el.style.animation = 'shake 0.4s ease';
+      el.addEventListener('animationend', () => el.style.animation = '', { once: true });
+    }
+  </script>
+  <style>
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%,60% { transform: translateX(-8px); }
+      40%,80% { transform: translateX(8px); }
+    }
+  </style>
+</body>
+</html>

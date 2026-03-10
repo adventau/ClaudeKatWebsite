@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Access</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a0a;
+      font-family: 'Courier New', Courier, monospace;
+      color: #c0c0c0;
+      overflow: hidden;
+    }
+
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.08) 2px,
+        rgba(0,0,0,0.08) 4px
+      );
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    /* Subtle red vignette */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 40%, rgba(80,0,0,0.35) 100%);
+      pointer-events: none;
+      z-index: 99;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 420px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* Blinking cursor header */
+    .header-line {
+      font-size: 11px;
+      color: #444;
+      letter-spacing: 0.08em;
+      margin-bottom: 32px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-line::before {
+      content: '■';
+      color: #8b0000;
+      animation: blink 1.2s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    .panel {
+      background: #0f0f0f;
+      border: 1px solid #1e1e1e;
+      border-top: 2px solid #8b0000;
+      padding: 32px 28px;
+      position: relative;
+    }
+
+    .panel-id {
+      position: absolute;
+      top: -1px;
+      right: 16px;
+      font-size: 9px;
+      color: #8b0000;
+      letter-spacing: 0.15em;
+      background: #0f0f0f;
+      padding: 2px 6px;
+      border: 1px solid #8b0000;
+      border-top: none;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-size: 13px;
+      font-weight: normal;
+      color: #999;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 10px;
+      color: #3a3a3a;
+      letter-spacing: 0.12em;
+      margin-bottom: 28px;
+      text-transform: uppercase;
+    }
+
+    .field-label {
+      font-size: 10px;
+      color: #555;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .input-wrap {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    input[type="password"], input[type="text"] {
+      width: 100%;
+      background: #000;
+      border: 1px solid #2a2a2a;
+      border-bottom-color: #444;
+      color: #c0c0c0;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      padding: 10px 40px 10px 12px;
+      outline: none;
+      letter-spacing: 0.08em;
+      transition: border-color 0.2s;
+      -webkit-text-security: disc;
+    }
+    input[type="text"] { -webkit-text-security: none; }
+
+    input:focus {
+      border-color: #8b0000;
+      border-bottom-color: #cc0000;
+      box-shadow: 0 1px 0 #cc0000;
+    }
+
+    .eye-btn {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #444;
+      font-size: 14px;
+      padding: 4px;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .eye-btn:hover { color: #888; }
+
+    .confirm-section {
+      background: #0c0c0c;
+      border: 1px solid #1e1e1e;
+      border-left: 3px solid #8b0000;
+      padding: 14px;
+      margin-bottom: 24px;
+    }
+
+    .confirm-section p {
+      font-size: 11px;
+      color: #666;
+      line-height: 1.7;
+      letter-spacing: 0.04em;
+    }
+
+    .confirm-section strong {
+      color: #cc4444;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      margin-top: 2px;
+      accent-color: #8b0000;
+      cursor: pointer;
+    }
+
+    .checkbox-row label {
+      font-size: 10px;
+      color: #555;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      line-height: 1.5;
+    }
+
+    .btn-destroy {
+      width: 100%;
+      background: #0f0f0f;
+      border: 1px solid #8b0000;
+      color: #8b0000;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-destroy:hover:not(:disabled) {
+      background: #8b0000;
+      color: #fff;
+      box-shadow: 0 0 20px rgba(139,0,0,0.4);
+    }
+
+    .btn-destroy:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .btn-destroy.loading {
+      color: transparent;
+    }
+
+    .btn-destroy.loading::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' stroke='%23cc0000' stroke-width='2' fill='none' stroke-dasharray='30 70' %3E%3CanimateTransform attributeName='transform' type='rotate' from='0 12 12' to='360 12 12' dur='0.8s' repeatCount='indefinite'/%3E%3C/circle%3E%3C/svg%3E") center/20px no-repeat;
+    }
+
+    /* Status/feedback */
+    .status-box {
+      margin-top: 16px;
+      padding: 12px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      display: none;
+    }
+    .status-box.error {
+      display: block;
+      background: rgba(139,0,0,0.1);
+      border: 1px solid #8b0000;
+      color: #cc4444;
+    }
+    .status-box.success {
+      display: block;
+      background: rgba(0,80,0,0.1);
+      border: 1px solid #005000;
+      color: #44aa44;
+    }
+    .status-box.info {
+      display: block;
+      background: rgba(20,20,20,0.8);
+      border: 1px solid #333;
+      color: #888;
+    }
+
+    /* Terminal log */
+    #log {
+      margin-top: 24px;
+      background: #000;
+      border: 1px solid #1a1a1a;
+      padding: 12px;
+      font-size: 10px;
+      color: #3a3a3a;
+      height: 88px;
+      overflow-y: auto;
+      display: none;
+    }
+    #log.active { display: block; }
+    #log .log-line { line-height: 1.8; }
+    #log .log-line.ok { color: #447744; }
+    #log .log-line.err { color: #774444; }
+    #log .log-line.warn { color: #887733; }
+
+    /* Footer */
+    .footer {
+      margin-top: 20px;
+      font-size: 9px;
+      color: #222;
+      text-align: center;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    /* Confirmation overlay */
+    #confirm-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    #confirm-overlay.show { display: flex; }
+
+    .confirm-dialog {
+      background: #0a0a0a;
+      border: 1px solid #8b0000;
+      border-top: 3px solid #cc0000;
+      padding: 32px;
+      max-width: 380px;
+      width: 90%;
+      text-align: center;
+    }
+
+    .confirm-dialog .warn-icon {
+      font-size: 32px;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .confirm-dialog h2 {
+      font-size: 13px;
+      color: #cc4444;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      font-weight: normal;
+      margin-bottom: 12px;
+    }
+
+    .confirm-dialog p {
+      font-size: 11px;
+      color: #555;
+      line-height: 1.7;
+      margin-bottom: 24px;
+      letter-spacing: 0.04em;
+    }
+
+    .confirm-dialog p strong {
+      color: #cc4444;
+    }
+
+    .confirm-buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-cancel-confirm {
+      flex: 1;
+      background: transparent;
+      border: 1px solid #333;
+      color: #555;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-cancel-confirm:hover { border-color: #666; color: #999; }
+
+    .btn-confirm-destroy {
+      flex: 1;
+      background: #8b0000;
+      border: 1px solid #8b0000;
+      color: #fff;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-confirm-destroy:hover { background: #cc0000; border-color: #cc0000; }
+
+    /* Success/Wiped state */
+    #wiped-screen {
+      display: none;
+      text-align: center;
+      padding: 20px 0;
+    }
+    #wiped-screen.show { display: block; }
+    .wiped-icon { font-size: 40px; margin-bottom: 20px; }
+    .wiped-title {
+      font-size: 14px;
+      letter-spacing: 0.25em;
+      color: #447744;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .wiped-sub {
+      font-size: 10px;
+      color: #3a3a3a;
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+
+<div id="confirm-overlay">
+  <div class="confirm-dialog">
+    <span class="warn-icon">⚠</span>
+    <h2>Confirm Destruction</h2>
+    <p>
+      This will <strong>permanently delete ALL data</strong> including messages, notes, contacts, vault files, and user settings.<br><br>
+      A backup will be emailed to <strong>royalkvault@gmail.com</strong> before deletion.
+      <br><br>This action <strong>cannot be undone.</strong>
+    </p>
+    <div class="confirm-buttons">
+      <button class="btn-cancel-confirm" id="btn-cancel-dialog">Abort</button>
+      <button class="btn-confirm-destroy" id="btn-confirm-dialog">Destroy All Data</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="header-line">RESTRICTED SYSTEM ACCESS</div>
+
+  <div class="panel">
+    <span class="panel-id">SYS-DEL</span>
+
+    <div id="main-form">
+      <h1>Data Wipe Terminal</h1>
+      <p class="subtitle">Royal Kat &amp; Kai Vault — Emergency Protocol</p>
+
+      <div class="field-label">Destruction Code</div>
+      <div class="input-wrap">
+        <input type="password" id="code-input" placeholder="Enter access code" autocomplete="off" spellcheck="false" />
+        <button class="eye-btn" id="eye-btn" type="button" title="Toggle visibility">👁</button>
+      </div>
+
+      <div class="confirm-section">
+        <p>
+          Executing this protocol will:<br>
+          • Email a full JSON data backup to <strong>royalkvault@gmail.com</strong><br>
+          • Permanently delete <strong>all messages, files, notes, and user data</strong><br>
+          • Reset the vault to its initial state
+        </p>
+        <div class="checkbox-row">
+          <input type="checkbox" id="understand-check" />
+          <label for="understand-check">I understand this action is irreversible and will wipe all data from the system.</label>
+        </div>
+      </div>
+
+      <button class="btn-destroy" id="btn-destroy" disabled>
+        ⬛ &nbsp; Execute Destruction Protocol
+      </button>
+
+      <div class="status-box" id="status-box"></div>
+
+      <div id="log"></div>
+    </div>
+
+    <div id="wiped-screen">
+      <div class="wiped-icon">✓</div>
+      <div class="wiped-title">System Wiped</div>
+      <div class="wiped-sub">
+        All data has been deleted.<br>
+        Backup emailed to royalkvault@gmail.com.<br><br>
+        The vault has been reset.
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Royal Kat &amp; Kai Vault — Emergency Access</div>
+</div>
+
+<script>
+  const codeInput   = document.getElementById('code-input');
+  const eyeBtn      = document.getElementById('eye-btn');
+  const understandChk = document.getElementById('understand-check');
+  const btnDestroy  = document.getElementById('btn-destroy');
+  const statusBox   = document.getElementById('status-box');
+  const logEl       = document.getElementById('log');
+  const overlay     = document.getElementById('confirm-overlay');
+  const btnCancel   = document.getElementById('btn-cancel-dialog');
+  const btnConfirm  = document.getElementById('btn-confirm-dialog');
+  const mainForm    = document.getElementById('main-form');
+  const wipedScreen = document.getElementById('wiped-screen');
+
+  /* Enable destroy button only when checkbox is checked AND input has value */
+  function updateBtn() {
+    btnDestroy.disabled = !(codeInput.value.trim() && understandChk.checked);
+  }
+  codeInput.addEventListener('input', updateBtn);
+  understandChk.addEventListener('change', updateBtn);
+
+  /* Eye toggle */
+  eyeBtn.addEventListener('click', () => {
+    const isPassword = codeInput.type === 'password';
+    codeInput.type = isPassword ? 'text' : 'password';
+    eyeBtn.textContent = isPassword ? '🙈' : '👁';
+  });
+
+  /* Destroy button → show confirm dialog */
+  btnDestroy.addEventListener('click', () => {
+    if (btnDestroy.disabled) return;
+    overlay.classList.add('show');
+  });
+
+  /* Cancel dialog */
+  btnCancel.addEventListener('click', () => {
+    overlay.classList.remove('show');
+  });
+
+  /* Confirm dialog → execute */
+  btnConfirm.addEventListener('click', async () => {
+    overlay.classList.remove('show');
+    await executeDestruction();
+  });
+
+  /* Close dialog on backdrop click */
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.classList.remove('show');
+  });
+
+  function log(msg, type = '') {
+    logEl.classList.add('active');
+    const line = document.createElement('div');
+    line.className = `log-line ${type}`;
+    line.textContent = `> ${msg}`;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function showStatus(msg, type) {
+    statusBox.textContent = msg;
+    statusBox.className = `status-box ${type}`;
+  }
+
+  async function executeDestruction() {
+    const code = codeInput.value.trim();
+    if (!code) return;
+
+    btnDestroy.disabled = true;
+    btnDestroy.classList.add('loading');
+    showStatus('', '');
+    logEl.innerHTML = '';
+
+    log('Initiating destruction protocol...', 'warn');
+    log('Verifying access code...', '');
+
+    try {
+      log('Bundling data for backup...', '');
+      log('Sending backup to royalkvault@gmail.com...', '');
+
+      const res = await fetch('/api/backdoor/destroy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        log('Access denied — ' + (data.error || 'invalid code'), 'err');
+        showStatus('⛔ ' + (data.error || 'Access denied. Invalid destruction code.'), 'error');
+        btnDestroy.classList.remove('loading');
+        btnDestroy.disabled = false;
+        updateBtn();
+        return;
+      }
+
+      log('Backup email sent.', 'ok');
+      log('Wiping messages...', 'warn');
+      log('Wiping notes and todos...', 'warn');
+      log('Wiping vault files...', 'warn');
+      log('Wiping contacts...', 'warn');
+      log('Wiping calendar events...', 'warn');
+      log('Wiping user settings...', 'warn');
+      log('Re-initializing system...', '');
+      log('DONE — all data destroyed.', 'ok');
+
+      setTimeout(() => {
+        mainForm.style.display = 'none';
+        wipedScreen.classList.add('show');
+      }, 800);
+
+    } catch (err) {
+      log('Network error: ' + err.message, 'err');
+      showStatus('⛔ Network error — could not reach server.', 'error');
+      btnDestroy.classList.remove('loading');
+      btnDestroy.disabled = false;
+      updateBtn();
+    }
+  }
+
+  /* Keyboard: Enter to submit if enabled */
+  codeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !btnDestroy.disabled) {
+      overlay.classList.add('show');
+    }
+  });
+</script>
+</body>
+</html>
