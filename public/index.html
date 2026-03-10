@@ -533,13 +533,14 @@
     pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryPassword(); });
 
     // ── Load user data for profile cards ───────────────────────────
+    // Card colors — always dark cards, theme expressed via accents/glows
     const themeColors = {
-      kaliph:   { bg: '#0d0820', accent: '#7c3aed', glow: 'rgba(124,58,237,0.3)', border: 'rgba(124,58,237,0.25)', swatches: ['#7c3aed','#5b21b6','#a78bfa'] },
-      kathrine: { bg: '#0d0716', accent: '#8b5cf6', glow: 'rgba(139,92,246,0.3)', border: 'rgba(139,92,246,0.25)', swatches: ['#6d28d9','#8b5cf6','#c084fc'] },
-      royal:    { bg: '#0a0703', accent: '#d97706', glow: 'rgba(217,119,6,0.3)', border: 'rgba(180,120,30,0.4)', swatches: ['#7f1d1d','#d97706','#b91c1c'] },
-      light:    { bg: '#f8fafc', accent: '#6366f1', glow: 'rgba(99,102,241,0.15)', border: '#e2e8f0', swatches: ['#6366f1','#8b5cf6','#a5b4fc'], textDark: true },
-      dark:     { bg: '#0f172a', accent: '#818cf8', glow: 'rgba(129,140,248,0.2)', border: 'rgba(99,102,241,0.2)', swatches: ['#4f46e5','#818cf8','#c7d2fe'] },
-      heaven:   { bg: '#fafaf8', accent: '#c8a96e', glow: 'rgba(200,169,110,0.2)', border: 'rgba(200,169,110,0.3)', swatches: ['#c8a96e','#b5956b','#e8d5a3'], textDark: true },
+      kaliph:   { bg: '#0d0820', accent: '#7c3aed', accent2: '#a78bfa', glow: 'rgba(124,58,237,0.3)', border: 'rgba(124,58,237,0.25)' },
+      kathrine: { bg: '#0d0716', accent: '#8b5cf6', accent2: '#c084fc', glow: 'rgba(139,92,246,0.3)', border: 'rgba(139,92,246,0.25)' },
+      royal:    { bg: '#0a0703', accent: '#d97706', accent2: '#f59e0b', glow: 'rgba(217,119,6,0.3)', border: 'rgba(180,120,30,0.4)' },
+      light:    { bg: '#0f1528', accent: '#6366f1', accent2: '#a5b4fc', glow: 'rgba(99,102,241,0.25)', border: 'rgba(99,102,241,0.3)' },
+      dark:     { bg: '#0f172a', accent: '#818cf8', accent2: '#c7d2fe', glow: 'rgba(129,140,248,0.2)', border: 'rgba(99,102,241,0.2)' },
+      heaven:   { bg: '#15120a', accent: '#c8a96e', accent2: '#e8d5a3', glow: 'rgba(200,169,110,0.25)', border: 'rgba(200,169,110,0.35)' },
     };
 
     async function loadUserPreviews() {
@@ -569,19 +570,38 @@
           document.getElementById(name + '-status-dot').style.boxShadow = `0 0 8px ${getStatusColor(u.status)}`;
           document.getElementById(name + '-status-text').textContent = capitalize(u.status);
 
-          // Apply theme colors to card
-          card.style.background = `linear-gradient(135deg, ${theme.bg} 0%, ${theme.accent}22 100%)`;
-          card.style.borderColor = theme.border;
-          if (theme.textDark) {
-            card.querySelectorAll('.card-name, .card-theme-label, .card-enter-hint').forEach(el => el.style.color = '#1e293b');
-            card.querySelector('.card-status').style.color = '#64748b';
-          }
+          // Apply theme — always dark card, accents show personality
+          card.style.background = `linear-gradient(145deg, ${theme.bg}, ${theme.accent}15 50%, ${theme.bg} 100%)`;
+          card.style.border = `1px solid ${theme.border}`;
+          card.style.boxShadow = `0 8px 40px rgba(0,0,0,0.5), 0 0 40px ${theme.accent}15`;
 
-          // (swatches removed from cards)
+          // Name gradient in theme accent
+          const nameEl = card.querySelector('.card-name');
+          nameEl.style.background = `linear-gradient(135deg, ${theme.accent2 || theme.accent}, ${theme.accent})`;
+          nameEl.style.webkitBackgroundClip = 'text';
+          nameEl.style.webkitTextFillColor = 'transparent';
+          nameEl.style.backgroundClip = 'text';
+
+          // Accent-tinted labels
+          card.querySelectorAll('.card-theme-label').forEach(el => el.style.color = `${theme.accent}99`);
+          card.querySelector('.card-enter-hint').style.color = `${theme.accent}88`;
+
+          // Hover glow in theme accent
+          card.addEventListener('mouseenter', () => {
+            card.style.boxShadow = `0 20px 60px rgba(0,0,0,0.4), 0 0 80px ${theme.accent}35`;
+          });
+          card.addEventListener('mouseleave', () => {
+            card.style.boxShadow = `0 8px 40px rgba(0,0,0,0.5), 0 0 40px ${theme.accent}15`;
+          });
 
           // Card glow
           const glow = card.querySelector('.card-glow');
-          if (glow) glow.style.background = `radial-gradient(circle, ${theme.accent}33 0%, transparent 70%)`;
+          if (glow) glow.style.background = `radial-gradient(circle, ${theme.accent}40 0%, ${theme.accent}10 40%, transparent 70%)`;
+
+          // Avatar ring glow in theme accent
+          const avatar = document.getElementById(name + '-avatar');
+          avatar.style.background = `linear-gradient(135deg, ${theme.accent}, ${theme.accent2 || theme.accent})`;
+          avatar.style.boxShadow = `0 0 24px ${theme.accent}50`;
         });
       } catch {}
     }
