@@ -2905,14 +2905,22 @@ function resetInputHeight() {
 // ── Last Seen helpers ─────────────────────────────────────────────────
 function formatLastSeen(ts) {
   if (!ts) return 'Offline';
-  const diff = Date.now() - ts;
+  const date = new Date(ts);
+  const now = new Date();
+  const diff = now - ts;
   const mins = Math.floor(diff / 60000);
+  const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
   if (mins < 1) return 'Last seen just now';
   if (mins < 60) return `Last seen ${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `Last seen ${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `Last seen ${days}d ago`;
+  // Same day — show time
+  if (date.toDateString() === now.toDateString()) return `Last seen today at ${time}`;
+  // Yesterday
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return `Last seen yesterday at ${time}`;
+  // Older — show date and time
+  const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `Last seen ${dateStr} at ${time}`;
 }
 
 let _lastSeenInterval = null;

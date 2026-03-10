@@ -620,13 +620,18 @@
     function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
     function formatLastSeen(ts) {
       if (!ts) return 'Offline';
-      const diff = Date.now() - ts;
-      const mins = Math.floor(diff / 60000);
+      var date = new Date(ts);
+      var now = new Date();
+      var diff = now - ts;
+      var mins = Math.floor(diff / 60000);
+      var time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
       if (mins < 1) return 'Last seen just now';
       if (mins < 60) return 'Last seen ' + mins + 'm ago';
-      const hrs = Math.floor(mins / 60);
-      if (hrs < 24) return 'Last seen ' + hrs + 'h ago';
-      return 'Last seen ' + Math.floor(hrs / 24) + 'd ago';
+      if (date.toDateString() === now.toDateString()) return 'Last seen today at ' + time;
+      var yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+      if (date.toDateString() === yesterday.toDateString()) return 'Last seen yesterday at ' + time;
+      var dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      return 'Last seen ' + dateStr + ' at ' + time;
     }
 
     // ── Profile passcode state ──────────────────────────────────────
