@@ -215,7 +215,24 @@ app.get('/api/auth/session', (req, res) => {
 app.get('/api/users', (req, res) => {
   if (!req.session?.user && !req.session?.isGuest && !req.session?.authenticated)
     return res.status(401).json({ error: 'Unauthorized' });
-  res.json(rd(F.users));
+  const users = rd(F.users);
+  // Inject live online status
+  if (users) {
+    for (const name of Object.keys(users)) {
+      users[name]._online = !!onlineUsers[name];
+    }
+  }
+  res.json(users);
+});
+
+// Save lastSeen (used by sendBeacon on tab close)
+app.post('/api/users/:user/lastseen', (req, res) => {
+  const users = rd(F.users);
+  if (users && users[req.params.user]) {
+    users[req.params.user].lastSeen = Date.now();
+    wd(F.users, users);
+  }
+  res.json({ ok: true });
 });
 
 app.put('/api/users/:user', mainAuth, (req, res) => {

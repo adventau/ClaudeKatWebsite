@@ -570,8 +570,10 @@
           document.getElementById(name + '-status-dot').style.boxShadow = `0 0 8px ${getStatusColor(u.status)}`;
           const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
           const statusText = statusLabels[u.status] || capitalize(u.status);
-          // Show last seen for offline/invisible users
-          if (u.lastSeen && u.status === 'invisible') {
+          // Show last seen for offline users (using _online from server)
+          if (!u._online && u.lastSeen) {
+            document.getElementById(name + '-status-dot').style.background = getStatusColor('invisible');
+            document.getElementById(name + '-status-dot').style.boxShadow = `0 0 8px ${getStatusColor('invisible')}`;
             document.getElementById(name + '-status-text').textContent = formatLastSeen(u.lastSeen);
           } else {
             document.getElementById(name + '-status-text').textContent = statusText;

@@ -142,14 +142,16 @@ function applyUserData(me, other) {
       oWrapper.insertAdjacentHTML('beforeend', `<div class="status-indicator ${other.status||'online'}" id="other-status-dot"></div>`);
     }
   }
-  setStatusDot('other-status-dot', other.status || 'online');
   const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
-  // Show last seen if other user has lastSeen and status is invisible/offline
-  if (other.lastSeen && (!other.status || other.status === 'invisible')) {
+  // Use _online from server to determine real presence
+  if (!other._online && other.lastSeen) {
+    // User is offline — show last seen
+    setStatusDot('other-status-dot', 'invisible');
     document.getElementById('other-status-label').textContent = formatLastSeen(other.lastSeen);
     window._lastSeenTime = other.lastSeen;
     startLastSeenUpdater();
   } else {
+    setStatusDot('other-status-dot', other.status || 'online');
     document.getElementById('other-status-label').textContent = statusLabels[other.status] || 'Online';
   }
 
@@ -837,12 +839,12 @@ function setupSocketEvents() {
   socket.on('user-presence', ({ user, online }) => {
     if (user === otherUser) {
       if (online) {
+        stopLastSeenUpdater();
         setStatusDot('other-status-dot', 'online');
         document.getElementById('other-status-label').textContent = 'Online';
       } else {
         setStatusDot('other-status-dot', 'invisible');
         document.getElementById('other-status-label').textContent = 'Last seen just now';
-        // Start updating the "last seen" text
         window._lastSeenTime = Date.now();
         startLastSeenUpdater();
       }
@@ -2102,11 +2104,29 @@ let callTimer = null;
 let callSeconds = 0;
 let inCall = false;
 
+function setupLocalVideo(stream) {
+  const vid = document.getElementById('call-video-local');
+  vid.srcObject = stream;
+  vid.muted = true;
+  vid.playsInline = true;
+  vid.style.display = 'block';
+  vid.style.transform = 'scaleX(-1)';
+  // Use loadedmetadata to ensure video is ready before playing
+  const tryPlay = () => {
+    vid.play().catch(() => {
+      // Retry after a short delay if play fails
+      setTimeout(() => vid.play().catch(() => {}), 200);
+    });
+  };
+  if (vid.readyState >= 2) { tryPlay(); }
+  else { vid.onloadedmetadata = tryPlay; }
+}
+
 async function startCall(type) {
   if (inCall) { showToast('Already in a call'); return; }
   callType = type;
   callPeer = otherUser;
-  const videoConstraints = type === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false;
+  const videoConstraints = type === 'video' ? { width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 480 }, frameRate: { ideal: 30, min: 15 }, facingMode: 'user' } : false;
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints }).catch(() => null);
   if (!localStream) { showToast('Media device access denied'); return; }
 
@@ -2131,11 +2151,7 @@ async function startCall(type) {
   };
 
   if (type === 'video') {
-    const vid = document.getElementById('call-video-local');
-    vid.srcObject = localStream;
-    vid.style.display = 'block';
-    vid.style.transform = 'scaleX(-1)';
-    vid.play().catch(() => {});
+    setupLocalVideo(localStream);
   }
 
   const offer = await peerConnection.createOffer();
@@ -2154,7 +2170,9 @@ async function handleCallOffer({ offer, type, from }) {
   document.getElementById('incoming-call').style.display = 'block';
   document.getElementById('incoming-call-name').textContent = capitalize(from);
   document.getElementById('incoming-call-type').textContent = type === 'video' ? 'Video Call' : 'Voice Call';
-  document.getElementById('incoming-call-icon').textContent = type === 'video' ? '📹' : '📞';
+  document.getElementById('incoming-call-icon').innerHTML = type === 'video'
+    ? '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2" ry="2"/></svg>'
+    : '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
   SoundSystem.startRingtone('incoming');
   window._pendingOffer = offer;
 }
@@ -2162,7 +2180,7 @@ async function handleCallOffer({ offer, type, from }) {
 async function acceptCall() {
   SoundSystem.stopRingtone();
   document.getElementById('incoming-call').style.display = 'none';
-  const videoConstraints = callType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false;
+  const videoConstraints = callType === 'video' ? { width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 480 }, frameRate: { ideal: 30, min: 15 }, facingMode: 'user' } : false;
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints }).catch(() => null);
   if (!localStream) { showToast('Media access denied'); return; }
 
@@ -2185,11 +2203,7 @@ async function acceptCall() {
   };
 
   if (callType === 'video') {
-    const vid = document.getElementById('call-video-local');
-    vid.srcObject = localStream;
-    vid.style.display = 'block';
-    vid.style.transform = 'scaleX(-1)';
-    vid.play().catch(() => {});
+    setupLocalVideo(localStream);
   }
 
   await peerConnection.setRemoteDescription(window._pendingOffer);
@@ -2900,9 +2914,17 @@ function setupActivityTracking() {
   inactivityTimer = setInterval(checkActivity, 10000);
 }
 
+let _wasSetInvisibleByInactivity = false;
+let _manualStatus = null; // track if user manually set a status
+
 function resetActivity() {
   lastActivity = Date.now();
   document.getElementById('inactivity-warning').style.display = 'none';
+  // If we auto-set invisible due to inactivity, restore to online
+  if (_wasSetInvisibleByInactivity) {
+    _wasSetInvisibleByInactivity = false;
+    setStatus('online');
+  }
 }
 
 function checkActivity() {
@@ -2913,7 +2935,29 @@ function checkActivity() {
     document.getElementById('logout-countdown').textContent = remaining;
     document.getElementById('inactivity-warning').style.display = 'block';
   }
+  // Auto-invisible after 3 minutes of inactivity
+  const IDLE_MS = 3 * 60 * 1000;
+  if (elapsed >= IDLE_MS && !_wasSetInvisibleByInactivity) {
+    _wasSetInvisibleByInactivity = true;
+    setStatus('invisible');
+  }
 }
+
+// Save lastSeen when user closes tab or navigates away
+window.addEventListener('beforeunload', () => {
+  if (typeof socket !== 'undefined' && socket.connected) {
+    socket.emit('heartbeat', { user: currentUser });
+  }
+  // Use sendBeacon to reliably save lastSeen on tab close
+  navigator.sendBeacon('/api/users/' + currentUser + '/lastseen', '');
+});
+
+// Also handle visibility change (tab hidden)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && typeof socket !== 'undefined' && socket.connected) {
+    socket.emit('heartbeat', { user: currentUser });
+  }
+});
 
 // ── Modal helpers ─────────────────────────────────────────────────────
 function openModal(id)  { document.getElementById(id)?.classList.add('open'); }
