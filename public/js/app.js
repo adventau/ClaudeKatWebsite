@@ -743,7 +743,7 @@ function showQuickReact(msgId, btnEl) {
   const content = btnEl.closest('.msg-content');
   const bar = document.createElement('div');
   bar.className = 'msg-quick-react';
-  bar.innerHTML = ['❤️','😂','👍','😮','😢','🔥','💜','✨'].map(e =>
+  bar.innerHTML = ['❤️','😂','👍','😮','😭','🔥','💜','✨'].map(e =>
     `<button onclick="reactToMessage('${msgId}','${e}');this.parentElement.remove()">${e}</button>`
   ).join('');
   content.appendChild(bar);
