@@ -521,6 +521,7 @@
         <div class="settings-panel" id="tab-emails">
           <div class="settings-section">
             <h3>Email Notifications</h3>
+            <div id="email-status-banner" style="display:none;padding:8px 12px;border-radius:8px;font-size:0.8rem;margin-bottom:1rem"></div>
             <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem">Priority messages will email the recipient. Add multiple emails to receive notifications at more than one address.</p>
             <div class="email-person-group">
               <label class="email-person-label">Kaliph's Emails</label>
@@ -532,7 +533,10 @@
               <div id="kathrine-emails-list" class="email-list"></div>
               <button class="btn-ghost email-add-btn" onclick="addEmailField('kathrine')"><i data-lucide="plus" style="width:13px;height:13px"></i> Add Email</button>
             </div>
-            <button class="btn-primary" onclick="saveAllEmails()" style="margin-top:1rem">Save Emails</button>
+            <div style="display:flex;gap:8px;margin-top:1rem">
+              <button class="btn-primary" onclick="saveAllEmails()">Save Emails</button>
+              <button class="btn-ghost" onclick="sendTestEmail()">Send Test Email</button>
+            </div>
           </div>
         </div>
 

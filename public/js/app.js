@@ -559,7 +559,17 @@ async function sendMessage() {
   socket.emit('stop-typing', { user: currentUser });
 
   try {
-    await fetch('/api/messages', { method: 'POST', body: formData });
+    const resp = await fetch('/api/messages', { method: 'POST', body: formData });
+    const result = await resp.json();
+    if (priority && result.emailStatus) {
+      if (result.emailStatus === 'sent') {
+        showToast('📧 Priority email sent!');
+      } else if (result.emailStatus === 'no_recipient') {
+        showToast('⚠️ Priority set but no email configured — go to Settings > Email Notifications');
+      } else if (result.emailStatus === 'failed') {
+        showToast('❌ Priority email failed to send — check email settings');
+      }
+    }
   } finally {
     isSending = false;
   }
@@ -1718,6 +1728,37 @@ async function loadSettings() {
     }
   }
   loadProfilePasscodeState();
+  // Check email system status
+  checkEmailStatus();
+}
+
+async function checkEmailStatus() {
+  try {
+    const status = await fetch('/api/settings/email-status').then(r => r.json());
+    const banner = document.getElementById('email-status-banner');
+    if (!banner) return;
+    if (!status.configured) {
+      banner.style.display = 'block';
+      banner.style.background = 'rgba(239,68,68,0.15)';
+      banner.style.color = '#ef4444';
+      banner.textContent = '⚠ Email not configured — EMAIL_USER and EMAIL_PASS environment variables must be set on the server for priority emails to work.';
+    } else if (!status.canConnect) {
+      banner.style.display = 'block';
+      banner.style.background = 'rgba(245,158,11,0.15)';
+      banner.style.color = '#f59e0b';
+      banner.textContent = '⚠ Email configured but cannot connect — check that EMAIL_PASS is a valid Gmail App Password.';
+    } else if (!status.hasRecipients) {
+      banner.style.display = 'block';
+      banner.style.background = 'rgba(245,158,11,0.15)';
+      banner.style.color = '#f59e0b';
+      banner.textContent = 'Email server connected. Add email addresses below to enable priority notifications.';
+    } else {
+      banner.style.display = 'block';
+      banner.style.background = 'rgba(34,197,94,0.15)';
+      banner.style.color = '#22c55e';
+      banner.textContent = '✓ Email notifications are working.';
+    }
+  } catch {}
 }
 
 function renderEmailList(person, emails) {
@@ -1777,6 +1818,21 @@ async function saveEmails() {
   const body = { emails: { [currentUser]: email } };
   await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   showToast('📧 Email saved!');
+}
+
+async function sendTestEmail() {
+  showToast('📧 Sending test email...');
+  try {
+    const r = await fetch('/api/settings/test-email', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const result = await r.json();
+    if (result.success) {
+      showToast('✅ Test email sent! Check your inbox.');
+    } else {
+      showToast('❌ ' + (result.error || 'Failed to send test email'));
+    }
+  } catch {
+    showToast('❌ Could not reach the server');
+  }
 }
 
 async function saveAllEmails() {

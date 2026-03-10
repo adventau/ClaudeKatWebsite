@@ -106,22 +106,40 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
 // ── Email ─────────────────────────────────────────────────────────────────────
+let _transporter = null;
 function mailer() {
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-  });
+  if (!_transporter) {
+    _transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      pool: true,
+      maxConnections: 3,
+    });
+  }
+  return _transporter;
 }
 async function sendMail(to, subject, html, attachments = []) {
   if (!to) { console.error('Mail error: no recipient email configured'); return false; }
-  if (!process.env.EMAIL_PASS || process.env.EMAIL_PASS === 'your_gmail_app_password_here') {
-    console.error('Mail error: EMAIL_PASS not configured in .env — set a Gmail App Password');
+  if (!process.env.EMAIL_USER) {
+    console.error('Mail error: EMAIL_USER not configured — set your Gmail address in environment variables');
+    return false;
+  }
+  if (!process.env.EMAIL_PASS) {
+    console.error('Mail error: EMAIL_PASS not configured — set a Gmail App Password in environment variables');
     return false;
   }
   try {
     await mailer().sendMail({ from: process.env.EMAIL_USER, to, subject, html, attachments });
+    console.log(`Mail sent successfully to ${to}`);
     return true;
-  } catch (e) { console.error('Mail error:', e.message); return false; }
+  } catch (e) {
+    console.error('Mail error:', e.message);
+    // Reset transporter on auth/connection errors so it reconnects next time
+    if (e.code === 'EAUTH' || e.code === 'ESOCKET' || e.code === 'ECONNECTION') {
+      _transporter = null;
+    }
+    return false;
+  }
 }
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
@@ -324,10 +342,11 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
   wd(F.messages, msgs);
 
   // Priority email (supports multiple emails per person)
+  let emailStatus = null;
   if (message.priority) {
     const sender = req.session.user;
     const recipient = sender === 'kaliph' ? 'kathrine' : 'kaliph';
-    const emailData = settings.emails[recipient];
+    const emailData = settings.emails?.[recipient];
     let emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
     // Fallback: if no per-user email, try shared email, then env EMAIL_USER
     if (emails.length === 0 && settings.emails?.shared) emails = [settings.emails.shared];
@@ -340,10 +359,15 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
          <p style="color:#888">${new Date(message.timestamp).toLocaleString()}</p>`;
     if (emails.length === 0) {
       console.log(`Priority email skipped: no email configured for ${recipient}`);
-    }
-    for (const email of emails) {
-      const sent = await sendMail(email, subject, html);
-      console.log(sent ? `Priority email sent to ${email}` : `Priority email FAILED to ${email}`);
+      emailStatus = 'no_recipient';
+    } else {
+      let anySuccess = false;
+      for (const email of emails) {
+        const sent = await sendMail(email, subject, html);
+        if (sent) anySuccess = true;
+        console.log(sent ? `Priority email sent to ${email}` : `Priority email FAILED to ${email}`);
+      }
+      emailStatus = anySuccess ? 'sent' : 'failed';
     }
   }
 
@@ -363,7 +387,7 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
   }
 
   io.emit('new-message', message);
-  res.json({ success: true, message });
+  res.json({ success: true, message, emailStatus });
 });
 
 async function handleAIMention(triggerMsg, msgs) {
@@ -684,6 +708,38 @@ app.get('/api/settings', mainAuth, (_, res) => {
   res.json({ emails: s.emails, vaultPasscodeSet: !!s.vaultPasscode });
 });
 
+app.get('/api/settings/email-status', mainAuth, async (_, res) => {
+  const configured = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+  let canConnect = false;
+  if (configured) {
+    try {
+      await mailer().verify();
+      canConnect = true;
+    } catch (e) {
+      _transporter = null; // reset on failure
+      canConnect = false;
+    }
+  }
+  const s = rd(F.settings);
+  const hasRecipients = !!(
+    (s.emails?.kaliph && (Array.isArray(s.emails.kaliph) ? s.emails.kaliph.filter(e => e).length : s.emails.kaliph)) ||
+    (s.emails?.kathrine && (Array.isArray(s.emails.kathrine) ? s.emails.kathrine.filter(e => e).length : s.emails.kathrine)) ||
+    s.emails?.shared
+  );
+  res.json({ configured, canConnect, hasRecipients, emailUser: process.env.EMAIL_USER ? '✓ set' : '✗ missing' });
+});
+
+app.post('/api/settings/test-email', mainAuth, async (req, res) => {
+  const s = rd(F.settings);
+  const user = req.session.user;
+  const emailData = s.emails?.[user];
+  let emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
+  if (emails.length === 0 && s.emails?.shared) emails = [s.emails.shared];
+  if (emails.length === 0) return res.json({ success: false, error: 'No email address configured for your account' });
+  const sent = await sendMail(emails[0], '✅ Test Email — Royal Vault', '<h2 style="color:#7c3aed">Email is working!</h2><p>Priority email notifications are configured correctly.</p>');
+  res.json({ success: sent, error: sent ? null : 'Failed to send — check server logs for details' });
+});
+
 app.put('/api/settings', mainAuth, async (req, res) => {
   const s = rd(F.settings);
   if (req.body.newPassword) s.sitePassword = await bcrypt.hash(req.body.newPassword, 10);
@@ -890,10 +946,22 @@ io.on('connection', socket => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`\n🏰 ══════════════════════════════════════════ 🏰`);
   console.log(`   The Royal Kat & Kai Vault`);
   console.log(`   Running on → http://localhost:${PORT}`);
   console.log(`   Backdoor   → http://localhost:${PORT}/backdoor`);
+  // Email status check
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.log(`   Email      → ❌ NOT configured (set EMAIL_USER & EMAIL_PASS)`);
+  } else {
+    try {
+      await mailer().verify();
+      console.log(`   Email      → ✅ Connected as ${process.env.EMAIL_USER}`);
+    } catch (e) {
+      console.log(`   Email      → ⚠️  Config found but connection failed: ${e.message}`);
+      _transporter = null;
+    }
+  }
   console.log(`🏰 ══════════════════════════════════════════ 🏰\n`);
 });
