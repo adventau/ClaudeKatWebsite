@@ -135,6 +135,153 @@
     }
     .eval-table th { color: #00ff88; font-size: 10px; text-transform: uppercase; }
     .eval-table td { color: #aaa; }
+
+    /* ── Settings gear button ── */
+    .settings-btn {
+      margin-left: auto; background: none; border: none; color: #444;
+      cursor: pointer; font-size: 14px; padding: 2px 6px; transition: color 0.2s;
+    }
+    .settings-btn:hover { color: #888; }
+
+    /* ── Settings modal ── */
+    .settings-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 200; align-items: center; justify-content: center;
+    }
+    .settings-overlay.open { display: flex; }
+    .settings-panel {
+      background: #111; border: 1px solid #2a2a2a; border-radius: 6px;
+      width: 380px; max-height: 80vh; overflow-y: auto; padding: 0;
+    }
+    .settings-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; border-bottom: 1px solid #1a1a1a;
+    }
+    .settings-header h2 {
+      font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--accent); margin: 0;
+    }
+    .settings-close {
+      background: none; border: none; color: #555; font-size: 16px;
+      cursor: pointer; padding: 0 4px;
+    }
+    .settings-close:hover { color: #aaa; }
+    .settings-body { padding: 16px 18px; }
+    .settings-section {
+      margin-bottom: 18px;
+    }
+    .settings-section-title {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+      color: #555; margin-bottom: 10px;
+    }
+
+    /* Theme cards */
+    .theme-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+    }
+    .theme-card {
+      background: #0a0a0a; border: 2px solid #1a1a1a; border-radius: 5px;
+      padding: 10px 8px; text-align: center; cursor: pointer; transition: all 0.2s;
+    }
+    .theme-card:hover { border-color: #333; }
+    .theme-card.active { border-color: var(--accent); }
+    .theme-card-preview {
+      height: 32px; border-radius: 3px; margin-bottom: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-family: inherit;
+    }
+    .theme-card-name { font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    /* Setting rows */
+    .setting-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0; border-bottom: 1px solid #111;
+    }
+    .setting-label { font-size: 11px; color: #888; }
+    .setting-control { display: flex; align-items: center; gap: 8px; }
+
+    /* Toggle switch */
+    .toggle {
+      width: 34px; height: 18px; background: #222; border-radius: 9px;
+      position: relative; cursor: pointer; transition: background 0.2s;
+    }
+    .toggle.on { background: var(--accent); }
+    .toggle::after {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 14px; height: 14px; background: #ccc; border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle.on::after { transform: translateX(16px); }
+
+    /* Font size stepper */
+    .stepper {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .stepper button {
+      background: #1a1a1a; border: 1px solid #2a2a2a; color: #888;
+      width: 22px; height: 22px; border-radius: 3px; cursor: pointer;
+      font-family: inherit; font-size: 12px; display: flex; align-items: center; justify-content: center;
+    }
+    .stepper button:hover { background: #222; color: #ccc; }
+    .stepper .stepper-val { font-size: 11px; color: var(--accent); min-width: 28px; text-align: center; }
+
+    /* ── CSS Variables for themes ── */
+    :root {
+      --accent: #00ff88;
+      --accent-dim: rgba(0,255,136,0.1);
+      --bg: #0c0c0c;
+      --panel: #111;
+      --border: #1a1a1a;
+      --text: #c8c8c8;
+      --dim: #444;
+    }
+    body.theme-cyber {
+      --accent: #c084fc;
+      --accent-dim: rgba(192,132,252,0.1);
+      --bg: #0d0a14;
+      --panel: #13101a;
+      --border: #221a33;
+      --text: #d4c8ee;
+      --dim: #4a3d66;
+    }
+    body.theme-amber {
+      --accent: #ffaa00;
+      --accent-dim: rgba(255,170,0,0.1);
+      --bg: #0c0a06;
+      --panel: #12100a;
+      --border: #2a2416;
+      --text: #ccc0a0;
+      --dim: #554d3a;
+    }
+
+    /* Apply theme variables everywhere */
+    body { background: var(--bg); color: var(--text); }
+    .auth-box { background: var(--panel); border-color: var(--border); }
+    .auth-box h1 { color: var(--accent); }
+    .auth-input { background: var(--bg); border-color: var(--border); color: var(--accent); }
+    .auth-input:focus { border-color: var(--accent); }
+    .term-header { background: var(--panel); border-color: var(--border); }
+    .term-header .title { color: var(--accent); }
+    .term-output::-webkit-scrollbar-track { background: var(--bg); }
+    .badge-normal { background: var(--accent-dim); color: var(--accent); }
+    .term-input-wrap { background: var(--panel); border-color: var(--border); }
+    .prompt { color: var(--accent); }
+    .term-input { color: var(--text); }
+    .line-success { color: var(--accent); }
+    .line-header { color: var(--accent); }
+    .line-dim { color: var(--dim); }
+    .ac-dropdown { background: var(--panel); border-color: var(--border); }
+    .ac-item { border-color: var(--border); }
+    .ac-item:hover, .ac-item.selected { background: color-mix(in srgb, var(--panel), white 5%); }
+    .ac-item.selected { border-left-color: var(--accent); }
+    .ac-cmd { color: var(--accent); }
+    .ac-cat { background: var(--bg); border-color: var(--border); }
+    .msg-item { background: var(--panel); border-color: var(--border); }
+    .eval-table th { color: var(--accent); }
+    .eval-table td { border-color: var(--border); }
+    .settings-panel { background: var(--panel); border-color: var(--border); }
+    .settings-header { border-color: var(--border); }
+    .setting-row { border-color: color-mix(in srgb, var(--border), transparent 50%); }
   </style>
 </head>
 <body>
@@ -157,6 +304,7 @@
     <span id="mode-badge" class="mode-badge badge-normal">COMMAND</span>
     <span class="sep">|</span>
     <span id="header-info" style="color:#444">type help for commands</span>
+    <button class="settings-btn" onclick="toggleSettings()" title="Settings">&#9881;</button>
   </div>
   <div class="term-output" id="output"></div>
   <div class="term-input-wrap">
@@ -164,6 +312,75 @@
     <div class="term-input-row">
       <span class="prompt" id="prompt">eval&gt;</span>
       <input type="text" class="term-input" id="cmd-input" placeholder="enter command..." autocomplete="off" spellcheck="false" />
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="settings-overlay" id="settings-overlay">
+  <div class="settings-panel">
+    <div class="settings-header">
+      <h2>Terminal Settings</h2>
+      <button class="settings-close" onclick="toggleSettings()">&times;</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-section">
+        <div class="settings-section-title">Theme</div>
+        <div class="theme-grid">
+          <div class="theme-card" data-theme="hacker" onclick="setTheme('hacker')">
+            <div class="theme-card-preview" style="background:#0c0c0c;color:#00ff88">eval&gt;_</div>
+            <div class="theme-card-name">Hacker</div>
+          </div>
+          <div class="theme-card" data-theme="cyber" onclick="setTheme('cyber')">
+            <div class="theme-card-preview" style="background:#0d0a14;color:#c084fc">eval&gt;_</div>
+            <div class="theme-card-name">Cyberpunk</div>
+          </div>
+          <div class="theme-card" data-theme="amber" onclick="setTheme('amber')">
+            <div class="theme-card-preview" style="background:#0c0a06;color:#ffaa00">eval&gt;_</div>
+            <div class="theme-card-name">Amber</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Display</div>
+        <div class="setting-row">
+          <span class="setting-label">Font Size</span>
+          <div class="stepper">
+            <button onclick="changeFontSize(-1)">-</button>
+            <span class="stepper-val" id="font-size-val">12</span>
+            <button onclick="changeFontSize(1)">+</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Timestamps</span>
+          <div class="toggle" id="toggle-timestamps" onclick="toggleSetting('timestamps')"></div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Autocomplete</span>
+          <div class="toggle on" id="toggle-autocomplete" onclick="toggleSetting('autocomplete')"></div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Sound Effects</span>
+          <div class="toggle" id="toggle-sound" onclick="toggleSetting('sound')"></div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">Behavior</div>
+        <div class="setting-row">
+          <span class="setting-label">Max Output Lines</span>
+          <div class="stepper">
+            <button onclick="changeMaxLines(-50)">-</button>
+            <span class="stepper-val" id="max-lines-val">500</span>
+            <button onclick="changeMaxLines(50)">+</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Confirm Destructive</span>
+          <div class="toggle on" id="toggle-confirm" onclick="toggleSetting('confirm')"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -643,6 +860,137 @@ function showHelp() {
     print('', '');
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════════════════
+const settingsOverlay = document.getElementById('settings-overlay');
+
+const evalSettings = {
+  theme: 'hacker',
+  fontSize: 12,
+  timestamps: false,
+  autocomplete: true,
+  sound: false,
+  maxLines: 500,
+  confirm: true,
+  ...JSON.parse(localStorage.getItem('evalSettings') || '{}'),
+};
+
+function saveSettings() {
+  localStorage.setItem('evalSettings', JSON.stringify(evalSettings));
+}
+
+function toggleSettings() {
+  settingsOverlay.classList.toggle('open');
+  if (settingsOverlay.classList.contains('open')) refreshSettingsUI();
+}
+
+// Close on backdrop click
+settingsOverlay.addEventListener('click', e => {
+  if (e.target === settingsOverlay) toggleSettings();
+});
+
+// Close on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && settingsOverlay.classList.contains('open')) toggleSettings();
+});
+
+function refreshSettingsUI() {
+  // Theme cards
+  document.querySelectorAll('.theme-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.theme === evalSettings.theme);
+  });
+  // Font size
+  document.getElementById('font-size-val').textContent = evalSettings.fontSize;
+  // Toggles
+  document.getElementById('toggle-timestamps').classList.toggle('on', evalSettings.timestamps);
+  document.getElementById('toggle-autocomplete').classList.toggle('on', evalSettings.autocomplete);
+  document.getElementById('toggle-sound').classList.toggle('on', evalSettings.sound);
+  document.getElementById('toggle-confirm').classList.toggle('on', evalSettings.confirm);
+  // Max lines
+  document.getElementById('max-lines-val').textContent = evalSettings.maxLines;
+}
+
+function setTheme(theme) {
+  evalSettings.theme = theme;
+  saveSettings();
+  applyTheme();
+  refreshSettingsUI();
+}
+
+function applyTheme() {
+  document.body.classList.remove('theme-hacker', 'theme-cyber', 'theme-amber');
+  if (evalSettings.theme !== 'hacker') document.body.classList.add('theme-' + evalSettings.theme);
+}
+
+function changeFontSize(delta) {
+  evalSettings.fontSize = Math.max(9, Math.min(18, evalSettings.fontSize + delta));
+  saveSettings();
+  applyFontSize();
+  refreshSettingsUI();
+}
+
+function applyFontSize() {
+  output.style.fontSize = evalSettings.fontSize + 'px';
+  cmdInput.style.fontSize = evalSettings.fontSize + 'px';
+  promptEl.style.fontSize = evalSettings.fontSize + 'px';
+}
+
+function toggleSetting(key) {
+  evalSettings[key] = !evalSettings[key];
+  saveSettings();
+  refreshSettingsUI();
+}
+
+function changeMaxLines(delta) {
+  evalSettings.maxLines = Math.max(100, Math.min(2000, evalSettings.maxLines + delta));
+  saveSettings();
+  refreshSettingsUI();
+}
+
+// Override print to add timestamps and enforce max lines
+const _origPrint = print;
+print = function(text, cls) {
+  if (evalSettings.timestamps && text && cls !== 'cmd') {
+    const now = new Date();
+    const ts = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    text = `[${ts}] ${text}`;
+  }
+  _origPrint(text, cls);
+  // Enforce max lines
+  while (output.children.length > evalSettings.maxLines) {
+    output.removeChild(output.firstChild);
+  }
+  // Sound
+  if (evalSettings.sound && cls === 'cmd') playBeep();
+};
+
+// Override autocomplete to respect setting
+const _origRenderAC = renderAutocomplete;
+renderAutocomplete = function(input) {
+  if (!evalSettings.autocomplete) { acDropdown.classList.remove('open'); return; }
+  _origRenderAC(input);
+};
+
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 800;
+    gain.gain.value = 0.05;
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    osc.stop(ctx.currentTime + 0.08);
+  } catch {}
+}
+
+// Apply saved settings on load
+applyTheme();
+applyFontSize();
 </script>
 </body>
 </html>
