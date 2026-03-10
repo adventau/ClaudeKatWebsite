@@ -2650,6 +2650,9 @@ function setupSearch() {
   const bar = document.getElementById('search-bar');
   const dropdown = document.getElementById('search-results');
 
+  // Clear any browser autofill that may have populated the search bar
+  bar.value = '';
+
   bar.addEventListener('focus', () => {
     if (!bar.value.trim() && !searchPendingFilter && !searchFilters.length) showSearchFilters();
     else if (searchPendingFilter && !bar.value.trim()) showValueSuggestions();
