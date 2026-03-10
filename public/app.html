@@ -18,6 +18,13 @@
     if (t) document.body.className = 'theme-' + t;
   } catch(e) {}
 </script>
+<style>
+  /* Hide chat content until JS loads messages — prevents flash of empty state */
+  #messages-area { visibility: hidden; }
+  #search-bar { visibility: hidden; }
+  .app-loaded #messages-area { visibility: visible; }
+  .app-loaded #search-bar { visibility: visible; }
+</style>
 <div id="app">
 
   <!-- ══════════════════════════════════════════════════════════
