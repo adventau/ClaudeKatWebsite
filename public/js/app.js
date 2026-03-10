@@ -1741,12 +1741,12 @@ async function checkEmailStatus() {
       banner.style.display = 'block';
       banner.style.background = 'rgba(239,68,68,0.15)';
       banner.style.color = '#ef4444';
-      banner.textContent = '⚠ Email not configured — EMAIL_USER and EMAIL_PASS environment variables must be set on the server for priority emails to work.';
+      banner.textContent = '⚠ Email not configured — set RESEND_API_KEY in your server environment variables.';
     } else if (!status.canConnect) {
       banner.style.display = 'block';
       banner.style.background = 'rgba(245,158,11,0.15)';
       banner.style.color = '#f59e0b';
-      banner.textContent = '⚠ Email configured but cannot connect — check that EMAIL_PASS is a valid Gmail App Password.';
+      banner.textContent = '⚠ Email configured but cannot connect — check your ' + (status.provider === 'resend' ? 'RESEND_API_KEY' : 'EMAIL_PASS') + '.';
     } else if (!status.hasRecipients) {
       banner.style.display = 'block';
       banner.style.background = 'rgba(245,158,11,0.15)';
