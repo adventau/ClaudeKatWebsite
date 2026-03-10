@@ -186,12 +186,18 @@ html, body { height: 100%; overflow: hidden; }
   text-align: center; line-height: 1.6;
 }
 
-/* Collapsed sidebar */
+/* Collapsed sidebar: show dot instead of badge */
 #app.sidebar-collapsed .nav-label,
-#app.sidebar-collapsed .nav-badge,
 #app.sidebar-collapsed .nav-section-label,
 #app.sidebar-collapsed .sidebar-user-info,
 #app.sidebar-collapsed .sidebar-footer-text { display: none; }
+#app.sidebar-collapsed .nav-badge {
+  position: absolute; top: 4px; right: 4px;
+  min-width: 10px; width: 10px; height: 10px;
+  padding: 0; font-size: 0; line-height: 0;
+  border: 2px solid var(--bg-primary);
+  box-shadow: 0 0 0 1px var(--accent);
+}
 #app.sidebar-collapsed .nav-item { justify-content: center; padding: 10px; }
 #app.sidebar-collapsed .sidebar-user { justify-content: center; padding: 16px 0; }
 
@@ -276,6 +282,24 @@ html, body { height: 100%; overflow: hidden; }
 }
 .date-sep::before, .date-sep::after {
   content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+/* Discord-style NEW message marker */
+.new-msg-marker {
+  display: flex; align-items: center; gap: 0;
+  padding: 6px 0; position: relative;
+  animation: msgIn 0.3s ease;
+}
+.new-msg-marker-line {
+  flex: 1; height: 1.5px;
+  background: #ef4444;
+}
+.new-msg-marker-badge {
+  background: #ef4444; color: #fff;
+  font-size: 0.58rem; font-weight: 800;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 4px;
+  flex-shrink: 0; line-height: 1.5;
 }
 
 /* ── Message Bubbles (iMessage / ChatGPT hybrid) ───────────────── */

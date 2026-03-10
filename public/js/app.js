@@ -44,6 +44,10 @@ let lastActivity = Date.now();
 const TIMEOUT_MS = 30 * 60 * 1000;
 const WARNING_MS = 29 * 60 * 1000;
 
+// ── Unread tracking ──────────────────────────────────────────────────
+let unreadCount = 0;
+let chatLastReadTs = 0; // Timestamp of last time user viewed chat
+
 const EMOJIS = ['😀','😂','😍','🥰','😎','🤩','😜','🤔','😮','😢','😡','🥳',
   '🎉','🔥','💜','❤️','💙','💚','🖤','🤍','✨','⭐','🌙','☀️','🌈',
   '💫','🦋','🌸','🍀','🎵','🎶','👑','💎','🔮','🎯','💡','🧠','🚀',
@@ -87,10 +91,24 @@ async function init() {
   setStatusDot('my-status-dot', 'online');
   updateStatusText('online');
 
+  // Load last-read timestamp for unread tracking
+  chatLastReadTs = parseInt(localStorage.getItem('chatLastReadTs_' + currentUser) || '0', 10);
+
   // Init Lucide icons early so UI is always visible
   if (window.lucide) lucide.createIcons();
 
   await Promise.all([loadMessages(), loadAnnouncements()]).catch(console.error);
+
+  // Count initial unread messages (from other user, after last read time)
+  if (chatLastReadTs) {
+    unreadCount = allMessages.filter(m =>
+      m.sender !== currentUser && m.sender !== 'ai' && m.timestamp > chatLastReadTs
+    ).length;
+    updateUnreadBadge();
+  }
+  // Mark as read since chat is the default section
+  if (currentSection === 'chat') clearUnreadBadge();
+
   checkAndShowAnnouncements();
   requestNotificationPermission();
 }
@@ -251,12 +269,41 @@ function showSection(name, el) {
   const searchWrap = document.getElementById('search-wrap');
   if (searchWrap) searchWrap.style.display = name === 'chat' ? '' : 'none';
 
+  // Clear unread badge when entering chat
+  if (name === 'chat') {
+    clearUnreadBadge();
+  }
+
   if (name === 'notes')     loadNotes();
   if (name === 'calendar')  renderCalendar();
   if (name === 'contacts')  loadContacts();
   if (name === 'vault')     { resetVault(); }
   if (name === 'announcements') loadAnnouncements();
   if (name === 'guest-messages') loadGuestMessages();
+}
+
+// ── Unread Badge System ─────────────────────────────────────────────
+function updateUnreadBadge() {
+  const badge = document.getElementById('unread-badge');
+  if (!badge) return;
+  if (unreadCount > 0) {
+    badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+  // Also update page title with unread count
+  document.title = unreadCount > 0 ? `(${unreadCount}) Royal K&K Vault` : 'Royal K&K Vault';
+}
+
+function clearUnreadBadge() {
+  unreadCount = 0;
+  chatLastReadTs = Date.now();
+  localStorage.setItem('chatLastReadTs_' + currentUser, chatLastReadTs);
+  updateUnreadBadge();
+  // Remove the NEW marker if present
+  const marker = document.querySelector('.new-msg-marker');
+  if (marker) marker.remove();
 }
 
 function toggleSidebar() {
@@ -289,7 +336,14 @@ function renderMessages(filter = null) {
   if (msgs.length === 0) { area.appendChild(empty); return; }
 
   let lastDate = null;
-  msgs.forEach(msg => {
+  let newMarkerInserted = false;
+
+  // Find the first unread message from the other user (after our last read time)
+  const firstUnreadIdx = chatLastReadTs
+    ? msgs.findIndex(m => m.sender !== currentUser && m.sender !== 'ai' && m.timestamp > chatLastReadTs)
+    : -1;
+
+  msgs.forEach((msg, idx) => {
     const msgDate = new Date(msg.timestamp).toDateString();
     if (msgDate !== lastDate) {
       lastDate = msgDate;
@@ -298,9 +352,26 @@ function renderMessages(filter = null) {
       sep.textContent = formatDate(msg.timestamp);
       area.appendChild(sep);
     }
+
+    // Insert "NEW" marker before the first unread message
+    if (!newMarkerInserted && firstUnreadIdx >= 0 && idx === firstUnreadIdx) {
+      newMarkerInserted = true;
+      const marker = document.createElement('div');
+      marker.className = 'new-msg-marker';
+      marker.innerHTML = '<span class="new-msg-marker-line"></span><span class="new-msg-marker-badge">NEW</span>';
+      area.appendChild(marker);
+    }
+
     area.appendChild(buildMsgElement(msg));
   });
-  area.scrollTop = area.scrollHeight;
+
+  // If there's a NEW marker, scroll to it instead of the bottom
+  const marker = area.querySelector('.new-msg-marker');
+  if (marker) {
+    marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } else {
+    area.scrollTop = area.scrollHeight;
+  }
 }
 
 function buildMsgElement(msg) {
@@ -759,8 +830,10 @@ function setupSocketEvents() {
       SoundSystem.receive();
       markMessageRead(msg.id);
       sendDesktopNotif(`New message from ${capitalize(msg.sender)}`, msg.text?.substring(0, 80) || 'New file');
-      // In-app notification popup when chat isn't active
+      // Track unread & show popup when chat isn't active
       if (currentSection !== 'chat') {
+        unreadCount++;
+        updateUnreadBadge();
         showMsgNotif(msg.sender, msg.text?.substring(0, 80) || 'Sent a file');
       }
     }
