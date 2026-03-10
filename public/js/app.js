@@ -114,6 +114,9 @@ async function init() {
 
   // Reveal chat content now that messages are loaded (prevents flash of empty state)
   document.body.classList.add('app-loaded');
+
+  // Show update log if user hasn't dismissed the latest version
+  checkAndShowUpdateLog();
 }
 
 // Format toolbar + priority row toggles
@@ -740,7 +743,7 @@ function showQuickReact(msgId, btnEl) {
   const content = btnEl.closest('.msg-content');
   const bar = document.createElement('div');
   bar.className = 'msg-quick-react';
-  bar.innerHTML = ['❤️','😂','👍','😮','😢','🔥','💜','✨'].map(e =>
+  bar.innerHTML = ['❤️','😂','👍','😮','😭','🔥','💜','✨'].map(e =>
     `<button onclick="reactToMessage('${msgId}','${e}');this.parentElement.remove()">${e}</button>`
   ).join('');
   content.appendChild(bar);
@@ -1003,6 +1006,16 @@ function setupSocketEvents() {
   socket.on('force-logout', () => {
     showToast('⚠️ Site data was reset. Logging out…');
     setTimeout(() => logout(), 2000);
+  });
+
+  socket.on('messages-cleared', () => {
+    allMessages = [];
+    renderMessages();
+    showToast('Chat history has been erased.');
+  });
+
+  socket.on('force-reload', () => {
+    window.location.reload();
   });
 
   // Shared wallpaper
@@ -3208,6 +3221,69 @@ async function logout() {
   await fetch('/api/auth/logout', { method: 'POST' });
   clearInterval(inactivityTimer);
   window.location.href = '/';
+}
+
+// ── Update / Changelog Log ────────────────────────────────────────────
+const CHANGELOG = [
+  {
+    version: '1.4.0',
+    date: 'Mar 10 2026',
+    improvements: [
+      'Admin eval terminal with 90+ commands',
+      'Eval settings with 3 themes (Hacker, Cyberpunk, Amber)',
+      'Command autocomplete in eval terminal',
+      'Update logs shown on login',
+    ],
+    removed: [
+      'Gmail SMTP (replaced with Brevo email API)',
+    ],
+    fixes: [
+      'Email notifications now use Brevo HTTP API (works on Railway)',
+      'Test emails send to all addresses instead of just the first',
+      'Search bar no longer shows autofill on load',
+      'Chat no longer flashes empty before messages load',
+      'Backdoor: separate option to erase chat history',
+      'Fixed "set banner clear" command being unreachable',
+    ],
+  },
+];
+
+function checkAndShowUpdateLog() {
+  const latest = CHANGELOG[0];
+  if (!latest) return;
+  const key = 'rkk-changelog-dismissed-' + currentUser;
+  const dismissed = localStorage.getItem(key);
+  if (dismissed === latest.version) return;
+
+  const container = document.getElementById('update-log-content');
+  let html = `<div style="color:var(--text-muted);font-size:0.75rem;margin-bottom:0.75rem">v${escapeHtml(latest.version)} — ${escapeHtml(latest.date)}</div>`;
+
+  if (latest.improvements.length) {
+    html += `<div style="font-weight:600;color:var(--accent);margin-bottom:4px">Improvements</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+    latest.improvements.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+    html += `</ul>`;
+  }
+  if (latest.removed.length) {
+    html += `<div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">Removed</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+    latest.removed.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+    html += `</ul>`;
+  }
+  if (latest.fixes.length) {
+    html += `<div style="font-weight:600;color:#34d399;margin-bottom:4px">Bug Fixes</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+    latest.fixes.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+    html += `</ul>`;
+  }
+
+  container.innerHTML = html;
+  openModal('update-log-modal');
+}
+
+function dismissUpdateLog() {
+  const latest = CHANGELOG[0];
+  if (latest) {
+    localStorage.setItem('rkk-changelog-dismissed-' + currentUser, latest.version);
+  }
+  closeModal('update-log-modal');
 }
 
 // ── Start ─────────────────────────────────────────────────────────────

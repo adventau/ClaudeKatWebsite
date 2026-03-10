@@ -732,7 +732,7 @@
   <button class="react-btn" onclick="addReaction('😂')">😂</button>
   <button class="react-btn" onclick="addReaction('👍')">👍</button>
   <button class="react-btn" onclick="addReaction('😮')">😮</button>
-  <button class="react-btn" onclick="addReaction('😢')">😢</button>
+  <button class="react-btn" onclick="addReaction('😭')">😭</button>
   <button class="react-btn" onclick="addReaction('🔥')">🔥</button>
   <button class="react-btn" onclick="addReaction('💜')">💜</button>
   <button class="react-btn" onclick="addReaction('✨')">✨</button>
@@ -993,6 +993,21 @@
     <div style="display:flex;gap:10px;justify-content:center">
       <button class="btn-ghost" id="confirm-cancel-btn" onclick="closeConfirmDialog(false)" style="flex:1;max-width:140px">Cancel</button>
       <button class="btn-danger" id="confirm-ok-btn" onclick="closeConfirmDialog(true)" style="flex:1;max-width:140px">Revoke</button>
+    </div>
+  </div>
+</div>
+
+<!-- Update Log Modal -->
+<div class="modal-overlay" id="update-log-modal">
+  <div class="modal" style="max-width:440px;width:100%">
+    <div class="modal-header">
+      <span class="modal-title">What's New</span>
+      <button class="btn-icon" onclick="dismissUpdateLog()">✕</button>
+    </div>
+    <div id="update-log-content" style="padding:1rem 1.25rem;max-height:60vh;overflow-y:auto;font-size:0.85rem;line-height:1.6">
+    </div>
+    <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--border);text-align:center">
+      <button class="btn-primary" onclick="dismissUpdateLog()" style="min-width:120px">Got it</button>
     </div>
   </div>
 </div>

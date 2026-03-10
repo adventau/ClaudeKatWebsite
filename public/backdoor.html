@@ -400,10 +400,87 @@
       color: #3a3a3a;
       letter-spacing: 0.1em;
     }
+
+    /* ── Mode selector tabs ── */
+    .mode-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 20px;
+      border: 1px solid #2a2a2a;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .mode-tab {
+      flex: 1;
+      padding: 10px 8px;
+      background: #0e0e0e;
+      border: none;
+      color: #555;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mode-tab:not(:last-child) { border-right: 1px solid #2a2a2a; }
+    .mode-tab:hover { background: #161616; color: #888; }
+    .mode-tab.active-destroy {
+      background: rgba(180,30,30,0.15);
+      color: #c0392b;
+      border-bottom: 2px solid #c0392b;
+    }
+    .mode-tab.active-erase {
+      background: rgba(180,120,30,0.15);
+      color: #d4a017;
+      border-bottom: 2px solid #d4a017;
+    }
+
+    /* Erase messages styling */
+    .btn-erase {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(180deg, #6b4a00 0%, #3d2a00 100%);
+      border: 1px solid #8b6914;
+      color: #d4a017;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: all 0.2s;
+    }
+    .btn-erase:hover:not(:disabled) {
+      background: linear-gradient(180deg, #8b6914 0%, #5a3d00 100%);
+      box-shadow: 0 0 12px rgba(212,160,23,0.3);
+    }
+    .btn-erase:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .btn-erase.loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    .confirm-dialog.erase-dialog h2 { color: #d4a017; }
+    .btn-confirm-erase {
+      padding: 10px 22px;
+      background: #6b4a00;
+      border: 1px solid #8b6914;
+      color: #d4a017;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    .btn-confirm-erase:hover { background: #8b6914; }
   </style>
 </head>
 <body>
 
+<!-- Destroy confirm overlay -->
 <div id="confirm-overlay">
   <div class="confirm-dialog">
     <span class="warn-icon">⚠</span>
@@ -420,16 +497,68 @@
   </div>
 </div>
 
+<!-- Erase messages confirm overlay -->
+<div id="erase-confirm-overlay">
+  <div class="confirm-dialog erase-dialog">
+    <span class="warn-icon" style="color:#d4a017">⚠</span>
+    <h2>Confirm Chat Erase</h2>
+    <p>
+      This will <strong>permanently erase all chat messages</strong>.<br><br>
+      A backup will be emailed to <strong>royalkvault@gmail.com</strong> before erasure.
+      <br><br>All other data (notes, contacts, vault, settings) will be <strong>kept intact</strong>.
+    </p>
+    <div class="confirm-buttons">
+      <button class="btn-cancel-confirm" id="btn-cancel-erase">Abort</button>
+      <button class="btn-confirm-erase" id="btn-confirm-erase">Erase Chat History</button>
+    </div>
+  </div>
+</div>
+
 <div class="container">
   <div class="header-line">RESTRICTED SYSTEM ACCESS</div>
 
   <div class="panel">
     <span class="panel-id">SYS-DEL</span>
 
-    <div id="main-form">
-      <h1>Data Wipe Terminal</h1>
-      <p class="subtitle">Royal Kat &amp; Kai Vault — Emergency Protocol</p>
+    <h1>Data Wipe Terminal</h1>
+    <p class="subtitle">Royal Kat &amp; Kai Vault — Emergency Protocol</p>
 
+    <div class="mode-tabs">
+      <button class="mode-tab active-erase" id="tab-erase" onclick="switchMode('erase')">Erase Chat History</button>
+      <button class="mode-tab" id="tab-destroy" onclick="switchMode('destroy')">Destroy All Data</button>
+    </div>
+
+    <!-- ── ERASE MESSAGES FORM ── -->
+    <div id="erase-form">
+      <div class="field-label">Access Code</div>
+      <div class="input-wrap">
+        <input type="password" id="erase-code-input" placeholder="Enter access code" autocomplete="off" spellcheck="false" />
+        <button class="eye-btn" id="erase-eye-btn" type="button" title="Toggle visibility">👁</button>
+      </div>
+
+      <div class="confirm-section">
+        <p>
+          This will:<br>
+          • Email a chat history backup to <strong>royalkvault@gmail.com</strong><br>
+          • Permanently delete <strong>all chat messages</strong><br>
+          • Keep all other data (notes, contacts, vault, settings) intact
+        </p>
+        <div class="checkbox-row">
+          <input type="checkbox" id="erase-check" />
+          <label for="erase-check">I understand this will erase all chat messages.</label>
+        </div>
+      </div>
+
+      <button class="btn-erase" id="btn-erase" disabled>
+        ⬛ &nbsp; Erase Chat History
+      </button>
+
+      <div class="status-box" id="erase-status-box"></div>
+      <div id="erase-log"></div>
+    </div>
+
+    <!-- ── DESTROY ALL FORM ── -->
+    <div id="main-form" style="display:none">
       <div class="field-label">Destruction Code</div>
       <div class="input-wrap">
         <input type="password" id="code-input" placeholder="Enter access code" autocomplete="off" spellcheck="false" />
@@ -454,10 +583,10 @@
       </button>
 
       <div class="status-box" id="status-box"></div>
-
       <div id="log"></div>
     </div>
 
+    <!-- ── SUCCESS SCREENS ── -->
     <div id="wiped-screen">
       <div class="wiped-icon">✓</div>
       <div class="wiped-title">System Wiped</div>
@@ -467,137 +596,220 @@
         The vault has been reset.
       </div>
     </div>
+
+    <div id="erased-screen">
+      <div class="wiped-icon" style="color:#d4a017">✓</div>
+      <div class="wiped-title" style="color:#d4a017">Chat Erased</div>
+      <div class="wiped-sub">
+        All messages have been deleted.<br>
+        Backup emailed to royalkvault@gmail.com.<br><br>
+        All other data is intact.
+      </div>
+    </div>
   </div>
 
   <div class="footer">Royal Kat &amp; Kai Vault — Emergency Access</div>
 </div>
 
 <script>
-  const codeInput   = document.getElementById('code-input');
-  const eyeBtn      = document.getElementById('eye-btn');
+  /* ── Destroy All elements ── */
+  const codeInput     = document.getElementById('code-input');
+  const eyeBtn        = document.getElementById('eye-btn');
   const understandChk = document.getElementById('understand-check');
-  const btnDestroy  = document.getElementById('btn-destroy');
-  const statusBox   = document.getElementById('status-box');
-  const logEl       = document.getElementById('log');
-  const overlay     = document.getElementById('confirm-overlay');
-  const btnCancel   = document.getElementById('btn-cancel-dialog');
-  const btnConfirm  = document.getElementById('btn-confirm-dialog');
-  const mainForm    = document.getElementById('main-form');
-  const wipedScreen = document.getElementById('wiped-screen');
+  const btnDestroy    = document.getElementById('btn-destroy');
+  const statusBox     = document.getElementById('status-box');
+  const logEl         = document.getElementById('log');
+  const overlay       = document.getElementById('confirm-overlay');
+  const btnCancel     = document.getElementById('btn-cancel-dialog');
+  const btnConfirm    = document.getElementById('btn-confirm-dialog');
+  const mainForm      = document.getElementById('main-form');
+  const wipedScreen   = document.getElementById('wiped-screen');
 
-  /* Enable destroy button only when checkbox is checked AND input has value */
+  /* ── Erase Messages elements ── */
+  const eraseCodeInput = document.getElementById('erase-code-input');
+  const eraseEyeBtn    = document.getElementById('erase-eye-btn');
+  const eraseChk       = document.getElementById('erase-check');
+  const btnErase       = document.getElementById('btn-erase');
+  const eraseStatusBox = document.getElementById('erase-status-box');
+  const eraseLogEl     = document.getElementById('erase-log');
+  const eraseOverlay   = document.getElementById('erase-confirm-overlay');
+  const btnCancelErase = document.getElementById('btn-cancel-erase');
+  const btnConfirmErase = document.getElementById('btn-confirm-erase');
+  const eraseForm      = document.getElementById('erase-form');
+  const erasedScreen   = document.getElementById('erased-screen');
+
+  /* ── Mode switching ── */
+  function switchMode(mode) {
+    const tabErase = document.getElementById('tab-erase');
+    const tabDestroy = document.getElementById('tab-destroy');
+    tabErase.className = 'mode-tab' + (mode === 'erase' ? ' active-erase' : '');
+    tabDestroy.className = 'mode-tab' + (mode === 'destroy' ? ' active-destroy' : '');
+    eraseForm.style.display = mode === 'erase' ? 'block' : 'none';
+    mainForm.style.display = mode === 'destroy' ? 'block' : 'none';
+  }
+
+  /* ── Destroy All logic ── */
   function updateBtn() {
     btnDestroy.disabled = !(codeInput.value.trim() && understandChk.checked);
   }
   codeInput.addEventListener('input', updateBtn);
   understandChk.addEventListener('change', updateBtn);
 
-  /* Eye toggle */
   eyeBtn.addEventListener('click', () => {
     const isPassword = codeInput.type === 'password';
     codeInput.type = isPassword ? 'text' : 'password';
     eyeBtn.textContent = isPassword ? '🙈' : '👁';
   });
 
-  /* Destroy button → show confirm dialog */
   btnDestroy.addEventListener('click', () => {
     if (btnDestroy.disabled) return;
     overlay.classList.add('show');
   });
+  btnCancel.addEventListener('click', () => overlay.classList.remove('show'));
+  btnConfirm.addEventListener('click', async () => { overlay.classList.remove('show'); await executeDestruction(); });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('show'); });
 
-  /* Cancel dialog */
-  btnCancel.addEventListener('click', () => {
-    overlay.classList.remove('show');
+  codeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !btnDestroy.disabled) overlay.classList.add('show');
   });
 
-  /* Confirm dialog → execute */
-  btnConfirm.addEventListener('click', async () => {
-    overlay.classList.remove('show');
-    await executeDestruction();
-  });
-
-  /* Close dialog on backdrop click */
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.classList.remove('show');
-  });
-
-  function log(msg, type = '') {
-    logEl.classList.add('active');
+  function logTo(el, msg, type = '') {
+    el.classList.add('active');
     const line = document.createElement('div');
     line.className = `log-line ${type}`;
     line.textContent = `> ${msg}`;
-    logEl.appendChild(line);
-    logEl.scrollTop = logEl.scrollHeight;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
   }
 
-  function showStatus(msg, type) {
-    statusBox.textContent = msg;
-    statusBox.className = `status-box ${type}`;
+  function showStatusOn(el, msg, type) {
+    el.textContent = msg;
+    el.className = `status-box ${type}`;
   }
 
   async function executeDestruction() {
     const code = codeInput.value.trim();
     if (!code) return;
-
     btnDestroy.disabled = true;
     btnDestroy.classList.add('loading');
-    showStatus('', '');
+    showStatusOn(statusBox, '', '');
     logEl.innerHTML = '';
 
-    log('Initiating destruction protocol...', 'warn');
-    log('Verifying access code...', '');
+    logTo(logEl, 'Initiating destruction protocol...', 'warn');
+    logTo(logEl, 'Verifying access code...', '');
 
     try {
-      log('Bundling data for backup...', '');
-      log('Sending backup to royalkvault@gmail.com...', '');
+      logTo(logEl, 'Bundling data for backup...', '');
+      logTo(logEl, 'Sending backup to royalkvault@gmail.com...', '');
 
       const res = await fetch('/api/backdoor/destroy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code })
       });
-
       const data = await res.json();
 
       if (!res.ok) {
-        log('Access denied — ' + (data.error || 'invalid code'), 'err');
-        showStatus('⛔ ' + (data.error || 'Access denied. Invalid destruction code.'), 'error');
+        logTo(logEl, 'Access denied — ' + (data.error || 'invalid code'), 'err');
+        showStatusOn(statusBox, '⛔ ' + (data.error || 'Access denied.'), 'error');
         btnDestroy.classList.remove('loading');
-        btnDestroy.disabled = false;
         updateBtn();
         return;
       }
 
-      log('Backup email sent.', 'ok');
-      log('Wiping messages...', 'warn');
-      log('Wiping notes and todos...', 'warn');
-      log('Wiping vault files...', 'warn');
-      log('Wiping contacts...', 'warn');
-      log('Wiping calendar events...', 'warn');
-      log('Wiping user settings...', 'warn');
-      log('Re-initializing system...', '');
-      log('DONE — all data destroyed.', 'ok');
+      logTo(logEl, 'Backup email sent.', 'ok');
+      logTo(logEl, 'Wiping messages...', 'warn');
+      logTo(logEl, 'Wiping notes and todos...', 'warn');
+      logTo(logEl, 'Wiping vault files...', 'warn');
+      logTo(logEl, 'Wiping contacts...', 'warn');
+      logTo(logEl, 'Wiping calendar events...', 'warn');
+      logTo(logEl, 'Wiping user settings...', 'warn');
+      logTo(logEl, 'Re-initializing system...', '');
+      logTo(logEl, 'DONE — all data destroyed.', 'ok');
 
       setTimeout(() => {
         mainForm.style.display = 'none';
+        document.querySelector('.mode-tabs').style.display = 'none';
         wipedScreen.classList.add('show');
       }, 800);
-
     } catch (err) {
-      log('Network error: ' + err.message, 'err');
-      showStatus('⛔ Network error — could not reach server.', 'error');
+      logTo(logEl, 'Network error: ' + err.message, 'err');
+      showStatusOn(statusBox, '⛔ Network error.', 'error');
       btnDestroy.classList.remove('loading');
-      btnDestroy.disabled = false;
       updateBtn();
     }
   }
 
-  /* Keyboard: Enter to submit if enabled */
-  codeInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !btnDestroy.disabled) {
-      overlay.classList.add('show');
-    }
+  /* ── Erase Messages logic ── */
+  function updateEraseBtn() {
+    btnErase.disabled = !(eraseCodeInput.value.trim() && eraseChk.checked);
+  }
+  eraseCodeInput.addEventListener('input', updateEraseBtn);
+  eraseChk.addEventListener('change', updateEraseBtn);
+
+  eraseEyeBtn.addEventListener('click', () => {
+    const isPassword = eraseCodeInput.type === 'password';
+    eraseCodeInput.type = isPassword ? 'text' : 'password';
+    eraseEyeBtn.textContent = isPassword ? '🙈' : '👁';
   });
+
+  btnErase.addEventListener('click', () => {
+    if (btnErase.disabled) return;
+    eraseOverlay.classList.add('show');
+  });
+  btnCancelErase.addEventListener('click', () => eraseOverlay.classList.remove('show'));
+  btnConfirmErase.addEventListener('click', async () => { eraseOverlay.classList.remove('show'); await executeErase(); });
+  eraseOverlay.addEventListener('click', (e) => { if (e.target === eraseOverlay) eraseOverlay.classList.remove('show'); });
+
+  eraseCodeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !btnErase.disabled) eraseOverlay.classList.add('show');
+  });
+
+  async function executeErase() {
+    const code = eraseCodeInput.value.trim();
+    if (!code) return;
+    btnErase.disabled = true;
+    btnErase.classList.add('loading');
+    showStatusOn(eraseStatusBox, '', '');
+    eraseLogEl.innerHTML = '';
+
+    logTo(eraseLogEl, 'Initiating chat erase protocol...', 'warn');
+    logTo(eraseLogEl, 'Verifying access code...', '');
+
+    try {
+      logTo(eraseLogEl, 'Backing up chat history...', '');
+
+      const res = await fetch('/api/backdoor/erase-messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        logTo(eraseLogEl, 'Access denied — ' + (data.error || 'invalid code'), 'err');
+        showStatusOn(eraseStatusBox, '⛔ ' + (data.error || 'Access denied.'), 'error');
+        btnErase.classList.remove('loading');
+        updateEraseBtn();
+        return;
+      }
+
+      logTo(eraseLogEl, 'Backup email sent.', 'ok');
+      logTo(eraseLogEl, `Erasing ${data.count || 0} messages...`, 'warn');
+      logTo(eraseLogEl, 'DONE — chat history erased.', 'ok');
+
+      setTimeout(() => {
+        eraseForm.style.display = 'none';
+        document.querySelector('.mode-tabs').style.display = 'none';
+        erasedScreen.classList.add('show');
+      }, 800);
+    } catch (err) {
+      logTo(eraseLogEl, 'Network error: ' + err.message, 'err');
+      showStatusOn(eraseStatusBox, '⛔ Network error.', 'error');
+      btnErase.classList.remove('loading');
+      updateEraseBtn();
+    }
+  }
 </script>
 </body>
 </html>
