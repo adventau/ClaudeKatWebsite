@@ -1170,6 +1170,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     return multi(
       [`── ${u.displayName || u.name} ──`, 'header'],
       [`  Status:    ${u.status || 'online'}  (presence: ${presence})`, 'data'],
+      [`  Custom:    ${u.customStatus || '(none)'}`, 'data'],
       [`  Theme:     ${u.theme}`, 'data'],
       [`  Bio:       ${u.bio || '(none)'}`, 'data'],
       [`  Pronouns:  ${u.pronouns || '(none)'}`, 'data'],
@@ -1224,6 +1225,18 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       wd(F.users, users);
       io.emit('user-updated', { user, data: users[user] });
       return lines(`${user} status → ${status}`, 'success');
+    }
+
+    if (prop === 'custom-status') {
+      const user = parts[2]?.toLowerCase();
+      const msg = parts.slice(3).join(' ');
+      if (!user) return lines('Usage: set custom-status <user> <message|clear>', 'warn');
+      const users = rd(F.users);
+      if (!users[user]) return lines(`User "${user}" not found`, 'error');
+      users[user].customStatus = msg === 'clear' ? '' : (msg || '');
+      wd(F.users, users);
+      io.emit('user-updated', { user, data: users[user] });
+      return lines(`${user} custom status → ${msg === 'clear' || !msg ? '(cleared)' : `"${msg}"`}`, 'success');
     }
 
     if (prop === 'theme') {
