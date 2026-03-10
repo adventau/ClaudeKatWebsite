@@ -836,6 +836,13 @@ io.on('connection', socket => {
     onlineUsers[user] = socket.id;
     socket.broadcast.emit('user-presence', { user, online: true });
   });
+  socket.on('user-idle', ({ user }) => {
+    // User went idle (inactivity or tab hidden) — save lastSeen and broadcast offline
+    const users = rd(F.users);
+    if (users && users[user]) { users[user].lastSeen = Date.now(); wd(F.users, users); }
+    delete onlineUsers[user];
+    socket.broadcast.emit('user-presence', { user, online: false });
+  });
   socket.on('typing',       d => socket.broadcast.emit('user-typing',   d));
   socket.on('stop-typing',  d => socket.broadcast.emit('user-stop-typing', d));
   socket.on('status-change', d => { socket.broadcast.emit('status-changed', d); });
