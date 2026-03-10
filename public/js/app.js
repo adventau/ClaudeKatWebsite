@@ -1011,6 +1011,10 @@ function setupSocketEvents() {
     showToast('Chat history has been erased.');
   });
 
+  socket.on('force-reload', () => {
+    window.location.reload();
+  });
+
   // Shared wallpaper
   socket.on('wallpaper-changed', ({ wallpaper }) => {
     const me = allUsers?.[currentUser];

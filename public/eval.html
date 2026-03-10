@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval Terminal</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: #0c0c0c;
+      font-family: 'Courier New', Courier, monospace;
+      color: #c8c8c8;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Auth screen ── */
+    #auth-screen {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+    }
+    .auth-box {
+      background: #111; border: 1px solid #2a2a2a; border-radius: 4px;
+      padding: 32px; width: 340px; text-align: center;
+    }
+    .auth-box h1 { font-size: 14px; color: #00ff88; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 6px; }
+    .auth-box .sub { font-size: 10px; color: #444; margin-bottom: 24px; }
+    .auth-input {
+      width: 100%; padding: 10px 14px; background: #0a0a0a; border: 1px solid #333;
+      color: #00ff88; font-family: inherit; font-size: 13px; border-radius: 3px;
+      outline: none; text-align: center; letter-spacing: 0.1em;
+    }
+    .auth-input:focus { border-color: #00ff88; }
+    .auth-input::placeholder { color: #2a2a2a; }
+    .auth-err { color: #ff4444; font-size: 10px; margin-top: 8px; min-height: 14px; }
+
+    /* ── Terminal ── */
+    #terminal-screen { display: none; flex-direction: column; height: 100vh; }
+    .term-header {
+      background: #111; border-bottom: 1px solid #1a1a1a;
+      padding: 8px 16px; display: flex; align-items: center; gap: 12px;
+      font-size: 11px; color: #555; flex-shrink: 0;
+    }
+    .term-header .title { color: #00ff88; font-weight: bold; letter-spacing: 0.1em; }
+    .term-header .sep { color: #333; }
+    .term-header .mode-badge {
+      padding: 2px 8px; border-radius: 3px; font-size: 9px;
+      text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .badge-normal { background: rgba(0,255,136,0.1); color: #00ff88; }
+    .badge-edit { background: rgba(255,170,0,0.15); color: #ffaa00; }
+    .badge-preview { background: rgba(100,100,255,0.15); color: #8888ff; }
+
+    .term-output {
+      flex: 1; overflow-y: auto; padding: 12px 16px;
+      font-size: 12px; line-height: 1.6;
+    }
+    .term-output::-webkit-scrollbar { width: 6px; }
+    .term-output::-webkit-scrollbar-track { background: #0c0c0c; }
+    .term-output::-webkit-scrollbar-thumb { background: #222; border-radius: 3px; }
+
+    .line { white-space: pre-wrap; word-break: break-all; }
+    .line-info { color: #888; }
+    .line-success { color: #00ff88; }
+    .line-error { color: #ff4444; }
+    .line-warn { color: #ffaa00; }
+    .line-cmd { color: #00aaff; }
+    .line-header { color: #00ff88; font-weight: bold; }
+    .line-dim { color: #444; }
+    .line-highlight { color: #c084fc; }
+    .line-data { color: #66ccff; }
+
+    .term-input-row {
+      flex-shrink: 0; display: flex; align-items: center;
+      padding: 8px 16px; background: #111; border-top: 1px solid #1a1a1a;
+    }
+    .prompt { color: #00ff88; margin-right: 8px; font-size: 13px; white-space: nowrap; }
+    .term-input {
+      flex: 1; background: transparent; border: none; color: #c8c8c8;
+      font-family: inherit; font-size: 13px; outline: none;
+    }
+    .term-input::placeholder { color: #333; }
+
+    /* ── Edit mode message list ── */
+    .msg-item {
+      background: #111; border: 1px solid #1a1a1a; border-radius: 4px;
+      padding: 8px 12px; margin: 4px 0; display: flex; align-items: flex-start; gap: 10px;
+    }
+    .msg-item:hover { border-color: #333; }
+    .msg-meta { font-size: 10px; color: #555; white-space: nowrap; }
+    .msg-sender { font-size: 11px; font-weight: bold; }
+    .msg-sender.kaliph { color: #7c3aed; }
+    .msg-sender.kathrine { color: #c084fc; }
+    .msg-sender.ai { color: #00aaff; }
+    .msg-text { font-size: 11px; color: #aaa; flex: 1; }
+    .msg-del-btn {
+      background: rgba(255,50,50,0.1); border: 1px solid #551111; color: #ff4444;
+      font-family: inherit; font-size: 9px; padding: 3px 8px; border-radius: 3px;
+      cursor: pointer; white-space: nowrap; text-transform: uppercase;
+    }
+    .msg-del-btn:hover { background: rgba(255,50,50,0.25); }
+
+    /* ── Preview mode banner ── */
+    .preview-banner {
+      background: rgba(100,100,255,0.1); border: 1px solid #333366;
+      padding: 8px 14px; margin: 4px 0; border-radius: 4px;
+      font-size: 11px; color: #8888ff; display: flex; justify-content: space-between; align-items: center;
+    }
+    .preview-banner button {
+      background: #333366; border: none; color: #aaaaff; padding: 4px 10px;
+      font-family: inherit; font-size: 10px; border-radius: 3px; cursor: pointer;
+    }
+
+    /* ── Table ── */
+    .eval-table { width: 100%; border-collapse: collapse; margin: 6px 0; }
+    .eval-table th, .eval-table td {
+      text-align: left; padding: 3px 10px; font-size: 11px; border-bottom: 1px solid #1a1a1a;
+    }
+    .eval-table th { color: #00ff88; font-size: 10px; text-transform: uppercase; }
+    .eval-table td { color: #aaa; }
+  </style>
+</head>
+<body>
+
+<!-- Auth -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <h1>Eval Terminal</h1>
+    <div class="sub">Royal Kat &amp; Kai Vault — Admin Access</div>
+    <input type="password" id="auth-input" class="auth-input" placeholder="password" autocomplete="off" autofocus />
+    <div class="auth-err" id="auth-err"></div>
+  </div>
+</div>
+
+<!-- Terminal -->
+<div id="terminal-screen">
+  <div class="term-header">
+    <span class="title">EVAL</span>
+    <span class="sep">|</span>
+    <span id="mode-badge" class="mode-badge badge-normal">COMMAND</span>
+    <span class="sep">|</span>
+    <span id="header-info" style="color:#444">type help for commands</span>
+  </div>
+  <div class="term-output" id="output"></div>
+  <div class="term-input-row">
+    <span class="prompt" id="prompt">eval&gt;</span>
+    <input type="text" class="term-input" id="cmd-input" placeholder="enter command..." autocomplete="off" spellcheck="false" />
+  </div>
+</div>
+
+<script>
+const authScreen = document.getElementById('auth-screen');
+const termScreen = document.getElementById('terminal-screen');
+const authInput  = document.getElementById('auth-input');
+const authErr    = document.getElementById('auth-err');
+const output     = document.getElementById('output');
+const cmdInput   = document.getElementById('cmd-input');
+const modeBadge  = document.getElementById('mode-badge');
+const headerInfo = document.getElementById('header-info');
+const promptEl   = document.getElementById('prompt');
+
+let evalToken = null;
+let mode = 'command'; // command | edit | preview
+let previewUser = null;
+let cmdHistory = [];
+let historyIdx = -1;
+
+// ── Auth ──
+authInput.addEventListener('keydown', async e => {
+  if (e.key !== 'Enter') return;
+  const pw = authInput.value.trim();
+  if (!pw) return;
+  authErr.textContent = '';
+  try {
+    const r = await fetch('/api/eval/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    const d = await r.json();
+    if (!r.ok) { authErr.textContent = d.error || 'Access denied'; return; }
+    evalToken = d.token;
+    authScreen.style.display = 'none';
+    termScreen.style.display = 'flex';
+    cmdInput.focus();
+    print('Eval terminal ready. Type `help` for commands.', 'success');
+    print('', '');
+  } catch { authErr.textContent = 'Connection error'; }
+});
+
+// ── Command input ──
+cmdInput.addEventListener('keydown', async e => {
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (historyIdx < cmdHistory.length - 1) { historyIdx++; cmdInput.value = cmdHistory[cmdHistory.length - 1 - historyIdx]; }
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (historyIdx > 0) { historyIdx--; cmdInput.value = cmdHistory[cmdHistory.length - 1 - historyIdx]; }
+    else { historyIdx = -1; cmdInput.value = ''; }
+    return;
+  }
+  if (e.key !== 'Enter') return;
+  const raw = cmdInput.value.trim();
+  cmdInput.value = '';
+  historyIdx = -1;
+  if (!raw) return;
+  cmdHistory.push(raw);
+  print(`eval> ${raw}`, 'cmd');
+  await execCommand(raw);
+  output.scrollTop = output.scrollHeight;
+});
+
+// ── Output helpers ──
+function print(text, cls = 'info') {
+  const d = document.createElement('div');
+  d.className = `line line-${cls}`;
+  d.textContent = text;
+  output.appendChild(d);
+}
+
+function printHTML(html) {
+  const d = document.createElement('div');
+  d.className = 'line';
+  d.innerHTML = html;
+  output.appendChild(d);
+}
+
+function printTable(headers, rows) {
+  let html = '<table class="eval-table"><tr>';
+  headers.forEach(h => html += `<th>${h}</th>`);
+  html += '</tr>';
+  rows.forEach(r => {
+    html += '<tr>';
+    r.forEach(c => html += `<td>${esc(String(c))}</td>`);
+    html += '</tr>';
+  });
+  html += '</table>';
+  printHTML(html);
+}
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function setMode(m, info) {
+  mode = m;
+  modeBadge.className = 'mode-badge ' + (m === 'edit' ? 'badge-edit' : m === 'preview' ? 'badge-preview' : 'badge-normal');
+  modeBadge.textContent = m.toUpperCase();
+  if (info) headerInfo.textContent = info;
+  promptEl.textContent = m === 'edit' ? 'edit>' : m === 'preview' ? `${previewUser}>` : 'eval>';
+}
+
+// ── Execute command ──
+async function execCommand(raw) {
+  // Client-side commands
+  if (raw === 'clear' || raw === 'cls') { output.innerHTML = ''; return; }
+  if (raw === 'help') { showHelp(); return; }
+  if (raw === 'exit edit' || raw === 'exit preview' || raw === 'exit') {
+    if (mode !== 'command') { setMode('command', 'type help for commands'); previewUser = null; print('Exited to command mode.', 'success'); }
+    return;
+  }
+
+  // Send to server
+  try {
+    const r = await fetch('/api/eval/exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: evalToken, command: raw, mode, previewUser }),
+    });
+    const d = await r.json();
+    if (!r.ok) { print(d.error || 'Error', 'error'); return; }
+
+    // Handle response
+    if (d.reauth) { evalToken = null; authScreen.style.display = ''; termScreen.style.display = 'none'; return; }
+    if (d.setMode) { setMode(d.setMode, d.modeInfo || ''); previewUser = d.previewUser || null; }
+    if (d.lines) d.lines.forEach(l => print(l.text, l.cls || 'info'));
+    if (d.table) printTable(d.table.headers, d.table.rows);
+    if (d.messages) renderEditMessages(d.messages);
+    if (d.html) printHTML(d.html);
+  } catch (e) {
+    print('Network error: ' + e.message, 'error');
+  }
+}
+
+// ── Edit mode: render messages with delete buttons ──
+function renderEditMessages(msgs) {
+  msgs.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'msg-item';
+    const time = new Date(m.timestamp).toLocaleString();
+    div.innerHTML = `
+      <div style="flex:1">
+        <span class="msg-sender ${m.sender}">${esc(m.sender)}</span>
+        <span class="msg-meta">${time}</span>
+        <div class="msg-text">${esc((m.text || '').substring(0, 200))}${m.text?.length > 200 ? '...' : ''}${m.files?.length ? ` [${m.files.length} file(s)]` : ''}</div>
+      </div>
+    `;
+    const btn = document.createElement('button');
+    btn.className = 'msg-del-btn';
+    btn.textContent = 'Delete';
+    btn.onclick = async () => {
+      btn.disabled = true; btn.textContent = '...';
+      const r = await fetch('/api/eval/exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: evalToken, command: `delete msg ${m.id}` }),
+      });
+      const d = await r.json();
+      if (d.lines) d.lines.forEach(l => print(l.text, l.cls));
+      if (r.ok) div.remove();
+      else { btn.disabled = false; btn.textContent = 'Delete'; }
+    };
+    div.appendChild(btn);
+    output.appendChild(div);
+  });
+}
+
+// ── Help ──
+function showHelp() {
+  const cmds = [
+    ['', '── MESSAGES ──'],
+    ['messages', 'Show message stats'],
+    ['messages list [count]', 'List last N messages (default 20)'],
+    ['messages from <user>', 'List messages from user'],
+    ['messages search <text>', 'Search messages'],
+    ['delete msg <id>', 'Delete a message (bypasses time limit)'],
+    ['edit mode', 'Enter edit mode (browse & delete any message)'],
+    ['broadcast <text>', 'Send system message to chat'],
+    ['', ''],
+    ['', '── ANNOUNCEMENTS ──'],
+    ['announce <text>', 'Create announcement (both users)'],
+    ['announce <user> <text>', 'Create announcement for specific user'],
+    ['announce list', 'List all announcements'],
+    ['announce delete <id>', 'Delete announcement'],
+    ['', ''],
+    ['', '── USERS & PRESENCE ──'],
+    ['user info <user>', 'Show user details'],
+    ['set name <user> <name>', 'Change display name'],
+    ['set bio <user> <text>', 'Set user bio'],
+    ['set status <user> <status>', 'Set status (online/idle/dnd/invisible)'],
+    ['set theme <user> <theme>', 'Set theme (kaliph/kathrine/royal/dark/light/heaven)'],
+    ['set pronouns <user> <text>', 'Set pronouns'],
+    ['set avatar <user> clear', 'Clear user avatar'],
+    ['force presence <user> <state>', 'Force presence (online/idle/offline)'],
+    ['preview <user>', 'Enter preview mode (act as user)'],
+    ['', ''],
+    ['', '── SETTINGS ──'],
+    ['set password <new>', 'Change site password'],
+    ['set eval-password <new>', 'Change eval terminal password'],
+    ['set vault-code <code>', 'Change vault passcode'],
+    ['set email <user> <emails>', 'Set notification emails (comma-separated)'],
+    ['settings', 'View current settings'],
+    ['', ''],
+    ['', '── DATA ──'],
+    ['stats', 'Show site statistics'],
+    ['notes list [user]', 'List notes'],
+    ['contacts list', 'List contacts'],
+    ['calendar list [user]', 'List calendar events'],
+    ['vault list [user]', 'List vault items'],
+    ['guests list', 'List all guests'],
+    ['guests revoke <id>', 'Revoke a guest'],
+    ['suggestions list', 'List suggestions'],
+    ['', ''],
+    ['', '── SYSTEM ──'],
+    ['force logout', 'Force logout all users'],
+    ['force reload', 'Force all clients to reload'],
+    ['emit <event> [data]', 'Emit a socket event'],
+    ['export', 'Export all data as JSON'],
+    ['clear', 'Clear terminal output'],
+    ['exit', 'Exit current mode'],
+    ['', ''],
+  ];
+  print('╔══════════════════════════════════════════╗', 'header');
+  print('║          EVAL TERMINAL COMMANDS          ║', 'header');
+  print('╚══════════════════════════════════════════╝', 'header');
+  print('', '');
+  cmds.forEach(([cmd, desc]) => {
+    if (!cmd && desc.startsWith('──')) print(desc, 'warn');
+    else if (!cmd) print('', '');
+    else print(`  ${cmd.padEnd(32)} ${desc}`, 'info');
+  });
+}
+</script>
+</body>
+</html>
