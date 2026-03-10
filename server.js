@@ -229,6 +229,7 @@ function mainAuth(req, res, next) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.post('/api/auth/password', async (req, res) => {
+  if (maintenanceMode) return res.status(503).json({ error: 'Site is under maintenance. Please try again later.' });
   const { password } = req.body;
   const settings = rd(F.settings);
   const guests = rd(F.guests) || {};
@@ -992,6 +993,7 @@ app.post('/api/backdoor/erase-messages', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let evalPassword = 'Admin';
+let maintenanceMode = false;
 const evalTokens = new Set();
 
 app.post('/api/eval/auth', (req, res) => {
@@ -1296,6 +1298,16 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       return lines(`${user} emails → ${emails.join(', ')}`, 'success');
     }
 
+    if (prop === 'banner' && parts[3]?.toLowerCase() === 'clear') {
+      const user = parts[2]?.toLowerCase();
+      const users = rd(F.users);
+      if (!users[user]) return lines(`User "${user}" not found`, 'error');
+      users[user].banner = null;
+      wd(F.users, users);
+      io.emit('user-updated', { user, data: users[user] });
+      return lines(`${user} banner cleared`, 'success');
+    }
+
     return lines('Unknown set command. Type "help" for options.', 'warn');
   }
 
@@ -1522,6 +1534,326 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     if (jsonPart) { try { data = JSON.parse(jsonPart); } catch { data = jsonPart; } }
     io.emit(event, data);
     return lines(`Emitted "${event}" with data: ${JSON.stringify(data)}`, 'success');
+  }
+
+  // ── MODIFY MESSAGE ──
+  if (cmd === 'modify' && parts[1]?.toLowerCase() === 'msg') {
+    const id = parts[2];
+    const newText = parts.slice(3).join(' ');
+    if (!id || !newText) return lines('Usage: modify msg <id> <new text>', 'warn');
+    const msgs = rd(F.messages);
+    const msg = (msgs.main || []).find(m => m.id === id || m.id.startsWith(id));
+    if (!msg) return lines('Message not found', 'error');
+    const oldText = msg.text;
+    msg.text = newText;
+    msg.edited = true;
+    msg.editedAt = Date.now();
+    wd(F.messages, msgs);
+    io.emit('msg-edited', { id: msg.id, text: newText, editedAt: msg.editedAt });
+    return lines(`Modified message: "${(oldText || '').substring(0, 40)}" → "${newText.substring(0, 40)}"`, 'success');
+  }
+
+  // ── CLEAR REACTIONS ──
+  if (raw.toLowerCase().startsWith('clear reactions')) {
+    const id = parts[2];
+    if (!id) return lines('Usage: clear reactions <id>', 'warn');
+    const msgs = rd(F.messages);
+    const msg = (msgs.main || []).find(m => m.id === id || m.id.startsWith(id));
+    if (!msg) return lines('Message not found', 'error');
+    const count = Object.keys(msg.reactions || {}).length;
+    msg.reactions = {};
+    wd(F.messages, msgs);
+    io.emit('msg-reaction', { id: msg.id, reactions: {} });
+    return lines(`Cleared ${count} reaction(s) from message`, 'success');
+  }
+
+  // ── SEND AS (quick one-liner) ──
+  if (cmd === 'send' && parts[1]?.toLowerCase() === 'as') {
+    const user = parts[2]?.toLowerCase();
+    const text = parts.slice(3).join(' ');
+    if (!user || !text) return lines('Usage: send as <user> <text>', 'warn');
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    const msgs = rd(F.messages);
+    if (!Array.isArray(msgs.main)) msgs.main = [];
+    const msg = {
+      id: uuidv4(), sender: user, type: 'text', text,
+      files: [], priority: false, replyTo: null,
+      timestamp: Date.now(), edited: false, editedAt: null,
+      reactions: {}, read: false, readAt: null, unsendable: false,
+      formatting: null, aiGenerated: false,
+    };
+    msgs.main.push(msg);
+    wd(F.messages, msgs);
+    io.emit('new-message', msg);
+    return lines(`Sent as ${user}: "${text}"`, 'success');
+  }
+
+  // ── PURGE ──
+  if (cmd === 'purge') {
+    const sub = parts[1]?.toLowerCase();
+    const msgs = rd(F.messages);
+    const main = msgs?.main || [];
+    let removed = 0;
+
+    if (sub === 'from') {
+      const user = parts[2]?.toLowerCase();
+      if (!user) return lines('Usage: purge from <user>', 'warn');
+      const before = main.length;
+      msgs.main = main.filter(m => m.sender !== user);
+      removed = before - msgs.main.length;
+      wd(F.messages, msgs);
+    } else if (sub === 'before') {
+      const dateStr = parts[2];
+      if (!dateStr) return lines('Usage: purge before <YYYY-MM-DD>', 'warn');
+      const cutoff = new Date(dateStr).getTime();
+      if (isNaN(cutoff)) return lines('Invalid date format. Use YYYY-MM-DD', 'error');
+      const before = main.length;
+      msgs.main = main.filter(m => m.timestamp >= cutoff);
+      removed = before - msgs.main.length;
+      wd(F.messages, msgs);
+    } else if (sub === 'keyword') {
+      const kw = parts.slice(2).join(' ').toLowerCase();
+      if (!kw) return lines('Usage: purge keyword <text>', 'warn');
+      const before = main.length;
+      msgs.main = main.filter(m => !m.text?.toLowerCase().includes(kw));
+      removed = before - msgs.main.length;
+      wd(F.messages, msgs);
+    } else {
+      return lines('Usage: purge from <user> | purge before <date> | purge keyword <text>', 'warn');
+    }
+    if (removed > 0) io.emit('messages-cleared');
+    return lines(`Purged ${removed} messages`, removed > 0 ? 'success' : 'warn');
+  }
+
+  // ── BRAINSTORM ──
+  if (cmd === 'brainstorm') {
+    const sub = parts[1]?.toLowerCase();
+    const msgs = rd(F.messages);
+    const bs = msgs?.brainstorm || [];
+    if (sub === 'list') {
+      if (!bs.length) return lines('No brainstorm messages', 'dim');
+      return {
+        lines: [{ text: `${bs.length} brainstorm messages`, cls: 'success' }],
+        messages: bs.slice(-30),
+      };
+    }
+    if (sub === 'clear') {
+      const count = bs.length;
+      msgs.brainstorm = [];
+      wd(F.messages, msgs);
+      return lines(`Cleared ${count} brainstorm messages`, 'success');
+    }
+    return lines('Usage: brainstorm list | brainstorm clear', 'warn');
+  }
+
+  // ── WHO ──
+  if (cmd === 'who') {
+    const users = rd(F.users);
+    const rows = [];
+    for (const [name, u] of Object.entries(users || {})) {
+      const presence = onlineUsers[name]?.state || 'offline';
+      const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleString() : 'never';
+      rows.push([u.displayName || name, presence, u.status || '-', lastSeen]);
+    }
+    return { table: { headers: ['User', 'Presence', 'Status', 'Last Seen'], rows } };
+  }
+
+  // ── RESET USER ──
+  if (raw.toLowerCase().startsWith('reset user')) {
+    const user = parts[2]?.toLowerCase();
+    if (!user) return lines('Usage: reset user <user>', 'warn');
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    const defaults = {
+      kaliph: {
+        name: 'Kaliph', displayName: 'Kaliph', theme: 'kaliph',
+        status: 'online', customStatus: '', avatar: null, email: '',
+        nameStyle: { color: '#7c3aed', gradient: true, font: 'Orbitron' },
+        gifEnabled: true, wallpaperEnabled: true, wallpaper: null,
+        font: 'default', bio: '', dashboardLayout: [], pinnedNotes: [],
+      },
+      kathrine: {
+        name: 'Kathrine', displayName: 'Kathrine', theme: 'kathrine',
+        status: 'online', customStatus: '', avatar: null, email: '',
+        nameStyle: { color: '#c084fc', gradient: true, font: 'Cormorant Garamond' },
+        gifEnabled: true, wallpaperEnabled: true, wallpaper: null,
+        font: 'default', bio: '', dashboardLayout: [], pinnedNotes: [],
+      },
+    };
+    if (!defaults[user]) return lines(`No defaults for "${user}"`, 'error');
+    users[user] = defaults[user];
+    wd(F.users, users);
+    io.emit('user-updated', { user, data: users[user] });
+    return lines(`${user} profile reset to defaults`, 'success');
+  }
+
+  // ── TOGGLE FEATURES ──
+  if (cmd === 'toggle') {
+    const feature = parts[1]?.toLowerCase();
+    const user = parts[2]?.toLowerCase();
+    if (!feature || !user) return lines('Usage: toggle <gif|wallpaper> <user>', 'warn');
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    if (feature === 'gif') {
+      users[user].gifEnabled = !users[user].gifEnabled;
+      wd(F.users, users);
+      io.emit('user-updated', { user, data: users[user] });
+      return lines(`${user} GIF → ${users[user].gifEnabled ? 'enabled' : 'disabled'}`, 'success');
+    }
+    if (feature === 'wallpaper') {
+      users[user].wallpaperEnabled = !users[user].wallpaperEnabled;
+      wd(F.users, users);
+      io.emit('user-updated', { user, data: users[user] });
+      return lines(`${user} wallpaper → ${users[user].wallpaperEnabled ? 'enabled' : 'disabled'}`, 'success');
+    }
+    return lines('Unknown feature. Options: gif, wallpaper', 'error');
+  }
+
+  // ── DELETE NOTE ──
+  if (cmd === 'delete' && parts[1]?.toLowerCase() === 'note') {
+    const id = parts[2];
+    if (!id) return lines('Usage: delete note <id>', 'warn');
+    const notes = rd(F.notes) || {};
+    for (const user of ['kaliph', 'kathrine']) {
+      if (!Array.isArray(notes[user])) continue;
+      const idx = notes[user].findIndex(n => n.id?.startsWith(id));
+      if (idx !== -1) {
+        const removed = notes[user].splice(idx, 1)[0];
+        wd(F.notes, notes);
+        return lines(`Deleted note "${removed.title}" from ${user}`, 'success');
+      }
+    }
+    return lines('Note not found', 'error');
+  }
+
+  // ── DELETE CONTACT ──
+  if (cmd === 'delete' && parts[1]?.toLowerCase() === 'contact') {
+    const id = parts[2];
+    if (!id) return lines('Usage: delete contact <id>', 'warn');
+    let contacts = rd(F.contacts) || [];
+    const idx = contacts.findIndex(c => c.id?.startsWith(id));
+    if (idx === -1) return lines('Contact not found', 'error');
+    const removed = contacts.splice(idx, 1)[0];
+    wd(F.contacts, contacts);
+    return lines(`Deleted contact "${removed.name}"`, 'success');
+  }
+
+  // ── DELETE EVENT ──
+  if (cmd === 'delete' && parts[1]?.toLowerCase() === 'event') {
+    const id = parts[2];
+    if (!id) return lines('Usage: delete event <id>', 'warn');
+    const cal = rd(F.calendar) || {};
+    for (const key of ['kaliph', 'kathrine', 'shared']) {
+      if (!Array.isArray(cal[key])) continue;
+      const idx = cal[key].findIndex(e => e.id?.startsWith(id));
+      if (idx !== -1) {
+        const removed = cal[key].splice(idx, 1)[0];
+        wd(F.calendar, cal);
+        return lines(`Deleted event "${removed.title}" from ${key}`, 'success');
+      }
+    }
+    return lines('Event not found', 'error');
+  }
+
+  // ── DELETE VAULT ITEM ──
+  if (cmd === 'delete' && parts[1]?.toLowerCase() === 'vault-item') {
+    const id = parts[2];
+    if (!id) return lines('Usage: delete vault-item <id>', 'warn');
+    const vault = rd(F.vault) || {};
+    for (const user of ['kaliph', 'kathrine']) {
+      if (!Array.isArray(vault[user])) continue;
+      const idx = vault[user].findIndex(v => v.id?.startsWith(id));
+      if (idx !== -1) {
+        const removed = vault[user].splice(idx, 1)[0];
+        wd(F.vault, vault);
+        return lines(`Deleted vault item "${removed.name}" from ${user}`, 'success');
+      }
+    }
+    return lines('Vault item not found', 'error');
+  }
+
+  // ── DELETE SUGGESTION ──
+  if (cmd === 'delete' && parts[1]?.toLowerCase() === 'suggestion') {
+    const id = parts[2];
+    if (!id) return lines('Usage: delete suggestion <id>', 'warn');
+    let sugs = rd(F.suggestions) || [];
+    const idx = sugs.findIndex(s => s.id?.startsWith(id));
+    if (idx === -1) return lines('Suggestion not found', 'error');
+    const removed = sugs.splice(idx, 1)[0];
+    wd(F.suggestions, sugs);
+    return lines(`Deleted suggestion from ${removed.from}: "${(removed.message || '').substring(0, 40)}"`, 'success');
+  }
+
+  // ── BACKUP (without destroying) ──
+  if (cmd === 'backup') {
+    const bundle = {};
+    for (const [k, file] of Object.entries(F)) { bundle[k] = rd(file) || {}; }
+    const sent = await sendMail(
+      'royalkvault@gmail.com',
+      '🔒 Royal Kat & Kai Vault — Manual Backup',
+      '<h2>Manual Backup</h2><p>Full data backup triggered from eval terminal.</p>',
+      [{ filename: `vault-backup-${Date.now()}.json`, content: JSON.stringify(bundle, null, 2) }]
+    );
+    return lines(sent ? 'Backup emailed to royalkvault@gmail.com' : 'Backup email failed — check server logs', sent ? 'success' : 'error');
+  }
+
+  // ── MAINTENANCE MODE ──
+  if (cmd === 'maintenance') {
+    const sub = parts[1]?.toLowerCase();
+    if (sub === 'on') {
+      maintenanceMode = true;
+      io.emit('force-logout');
+      return multi(
+        ['Maintenance mode ON', 'warn'],
+        ['All users force-logged out. New logins blocked.', 'data'],
+        ['Use "maintenance off" to re-enable access.', 'dim'],
+      );
+    }
+    if (sub === 'off') {
+      maintenanceMode = false;
+      return lines('Maintenance mode OFF — site accessible again', 'success');
+    }
+    return lines('Usage: maintenance on | maintenance off', 'warn');
+  }
+
+  // ── UPTIME ──
+  if (cmd === 'uptime') {
+    const secs = Math.floor(process.uptime());
+    const d = Math.floor(secs / 86400);
+    const h = Math.floor((secs % 86400) / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return lines(`Server uptime: ${d}d ${h}h ${m}m ${s}s`, 'success');
+  }
+
+  // ── DISK ──
+  if (cmd === 'disk') {
+    const rows = [];
+    for (const [k, file] of Object.entries(F)) {
+      try {
+        const stat = fs.statSync(file);
+        const kb = (stat.size / 1024).toFixed(1);
+        rows.push([k, `${kb} KB`, new Date(stat.mtime).toLocaleString()]);
+      } catch { rows.push([k, 'missing', '-']); }
+    }
+    // Uploads directory
+    try {
+      let totalSize = 0;
+      let fileCount = 0;
+      const walkDir = (dir) => {
+        if (!fs.existsSync(dir)) return;
+        for (const f of fs.readdirSync(dir)) {
+          const full = path.join(dir, f);
+          const st = fs.statSync(full);
+          if (st.isDirectory()) walkDir(full);
+          else { totalSize += st.size; fileCount++; }
+        }
+      };
+      walkDir(UPLOADS_DIR);
+      rows.push(['uploads/', `${(totalSize / 1024 / 1024).toFixed(2)} MB (${fileCount} files)`, '-']);
+    } catch { rows.push(['uploads/', 'error', '-']); }
+    return { table: { headers: ['File', 'Size', 'Modified'], rows } };
   }
 
   // ── EXPORT ──

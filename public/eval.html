@@ -51,6 +51,7 @@
     .badge-normal { background: rgba(0,255,136,0.1); color: #00ff88; }
     .badge-edit { background: rgba(255,170,0,0.15); color: #ffaa00; }
     .badge-preview { background: rgba(100,100,255,0.15); color: #8888ff; }
+    .badge-maint { background: rgba(255,50,50,0.15); color: #ff4444; }
 
     .term-output {
       flex: 1; overflow-y: auto; padding: 12px 16px;
@@ -71,9 +72,12 @@
     .line-highlight { color: #c084fc; }
     .line-data { color: #66ccff; }
 
+    .term-input-wrap {
+      flex-shrink: 0; position: relative;
+      background: #111; border-top: 1px solid #1a1a1a;
+    }
     .term-input-row {
-      flex-shrink: 0; display: flex; align-items: center;
-      padding: 8px 16px; background: #111; border-top: 1px solid #1a1a1a;
+      display: flex; align-items: center; padding: 8px 16px;
     }
     .prompt { color: #00ff88; margin-right: 8px; font-size: 13px; white-space: nowrap; }
     .term-input {
@@ -81,6 +85,29 @@
       font-family: inherit; font-size: 13px; outline: none;
     }
     .term-input::placeholder { color: #333; }
+
+    /* ── Autocomplete dropdown ── */
+    .ac-dropdown {
+      display: none; position: absolute; bottom: 100%; left: 0; right: 0;
+      background: #151515; border: 1px solid #2a2a2a; border-bottom: none;
+      max-height: 260px; overflow-y: auto;
+    }
+    .ac-dropdown.open { display: block; }
+    .ac-dropdown::-webkit-scrollbar { width: 5px; }
+    .ac-dropdown::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    .ac-item {
+      padding: 6px 16px; cursor: pointer; display: flex; align-items: baseline; gap: 12px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .ac-item:hover, .ac-item.selected { background: #1e1e1e; }
+    .ac-item.selected { border-left: 2px solid #00ff88; }
+    .ac-cmd { color: #00ff88; font-size: 12px; white-space: nowrap; min-width: 200px; }
+    .ac-desc { color: #555; font-size: 10px; }
+    .ac-cat {
+      padding: 4px 16px; font-size: 9px; color: #444; text-transform: uppercase;
+      letter-spacing: 0.1em; background: #111; border-bottom: 1px solid #1a1a1a;
+      pointer-events: none;
+    }
 
     /* ── Edit mode message list ── */
     .msg-item {
@@ -100,17 +127,6 @@
       cursor: pointer; white-space: nowrap; text-transform: uppercase;
     }
     .msg-del-btn:hover { background: rgba(255,50,50,0.25); }
-
-    /* ── Preview mode banner ── */
-    .preview-banner {
-      background: rgba(100,100,255,0.1); border: 1px solid #333366;
-      padding: 8px 14px; margin: 4px 0; border-radius: 4px;
-      font-size: 11px; color: #8888ff; display: flex; justify-content: space-between; align-items: center;
-    }
-    .preview-banner button {
-      background: #333366; border: none; color: #aaaaff; padding: 4px 10px;
-      font-family: inherit; font-size: 10px; border-radius: 3px; cursor: pointer;
-    }
 
     /* ── Table ── */
     .eval-table { width: 100%; border-collapse: collapse; margin: 6px 0; }
@@ -143,9 +159,12 @@
     <span id="header-info" style="color:#444">type help for commands</span>
   </div>
   <div class="term-output" id="output"></div>
-  <div class="term-input-row">
-    <span class="prompt" id="prompt">eval&gt;</span>
-    <input type="text" class="term-input" id="cmd-input" placeholder="enter command..." autocomplete="off" spellcheck="false" />
+  <div class="term-input-wrap">
+    <div class="ac-dropdown" id="ac-dropdown"></div>
+    <div class="term-input-row">
+      <span class="prompt" id="prompt">eval&gt;</span>
+      <input type="text" class="term-input" id="cmd-input" placeholder="enter command..." autocomplete="off" spellcheck="false" />
+    </div>
   </div>
 </div>
 
@@ -159,12 +178,170 @@ const cmdInput   = document.getElementById('cmd-input');
 const modeBadge  = document.getElementById('mode-badge');
 const headerInfo = document.getElementById('header-info');
 const promptEl   = document.getElementById('prompt');
+const acDropdown = document.getElementById('ac-dropdown');
 
 let evalToken = null;
-let mode = 'command'; // command | edit | preview
+let mode = 'command';
 let previewUser = null;
 let cmdHistory = [];
 let historyIdx = -1;
+let acIdx = -1;
+
+// ═══════════════════════════════════════════════════════════════════
+// AUTOCOMPLETE COMMAND REGISTRY
+// ═══════════════════════════════════════════════════════════════════
+const COMMANDS = [
+  // Messages
+  { cmd: 'messages', desc: 'Show message stats', cat: 'Messages' },
+  { cmd: 'messages list', desc: 'List last N messages', cat: 'Messages' },
+  { cmd: 'messages list 50', desc: 'List last 50 messages', cat: 'Messages' },
+  { cmd: 'messages from kaliph', desc: 'Messages from Kaliph', cat: 'Messages' },
+  { cmd: 'messages from kathrine', desc: 'Messages from Kathrine', cat: 'Messages' },
+  { cmd: 'messages search ', desc: 'Search messages by text', cat: 'Messages' },
+  { cmd: 'delete msg ', desc: 'Delete message by ID (bypasses limit)', cat: 'Messages' },
+  { cmd: 'modify msg ', desc: 'Edit any message text', cat: 'Messages' },
+  { cmd: 'clear reactions ', desc: 'Strip all reactions from a message', cat: 'Messages' },
+  { cmd: 'edit mode', desc: 'Browse & delete any message', cat: 'Messages' },
+  { cmd: 'broadcast ', desc: 'Send system message to chat', cat: 'Messages' },
+  { cmd: 'send as kaliph ', desc: 'Send message as Kaliph', cat: 'Messages' },
+  { cmd: 'send as kathrine ', desc: 'Send message as Kathrine', cat: 'Messages' },
+  { cmd: 'purge from kaliph', desc: 'Delete all messages from Kaliph', cat: 'Messages' },
+  { cmd: 'purge from kathrine', desc: 'Delete all messages from Kathrine', cat: 'Messages' },
+  { cmd: 'purge before ', desc: 'Delete messages before date (YYYY-MM-DD)', cat: 'Messages' },
+  { cmd: 'purge keyword ', desc: 'Delete messages containing keyword', cat: 'Messages' },
+  { cmd: 'brainstorm list', desc: 'List brainstorm messages', cat: 'Messages' },
+  { cmd: 'brainstorm clear', desc: 'Clear all brainstorm messages', cat: 'Messages' },
+
+  // Announcements
+  { cmd: 'announce ', desc: 'Create announcement for both users', cat: 'Announcements' },
+  { cmd: 'announce kaliph ', desc: 'Announce to Kaliph only', cat: 'Announcements' },
+  { cmd: 'announce kathrine ', desc: 'Announce to Kathrine only', cat: 'Announcements' },
+  { cmd: 'announce list', desc: 'List all announcements', cat: 'Announcements' },
+  { cmd: 'announce delete ', desc: 'Delete announcement by ID', cat: 'Announcements' },
+
+  // Users & Presence
+  { cmd: 'who', desc: 'Who is online right now', cat: 'Users' },
+  { cmd: 'user info kaliph', desc: 'Show Kaliph details', cat: 'Users' },
+  { cmd: 'user info kathrine', desc: 'Show Kathrine details', cat: 'Users' },
+  { cmd: 'set name kaliph ', desc: 'Change Kaliph display name', cat: 'Users' },
+  { cmd: 'set name kathrine ', desc: 'Change Kathrine display name', cat: 'Users' },
+  { cmd: 'set bio kaliph ', desc: 'Set Kaliph bio', cat: 'Users' },
+  { cmd: 'set bio kathrine ', desc: 'Set Kathrine bio', cat: 'Users' },
+  { cmd: 'set status kaliph ', desc: 'Set status (online/idle/dnd/invisible)', cat: 'Users' },
+  { cmd: 'set status kathrine ', desc: 'Set status (online/idle/dnd/invisible)', cat: 'Users' },
+  { cmd: 'set theme kaliph ', desc: 'Set theme', cat: 'Users' },
+  { cmd: 'set theme kathrine ', desc: 'Set theme', cat: 'Users' },
+  { cmd: 'set pronouns kaliph ', desc: 'Set Kaliph pronouns', cat: 'Users' },
+  { cmd: 'set pronouns kathrine ', desc: 'Set Kathrine pronouns', cat: 'Users' },
+  { cmd: 'set avatar kaliph clear', desc: 'Clear Kaliph avatar', cat: 'Users' },
+  { cmd: 'set avatar kathrine clear', desc: 'Clear Kathrine avatar', cat: 'Users' },
+  { cmd: 'set banner kaliph clear', desc: 'Clear Kaliph banner', cat: 'Users' },
+  { cmd: 'set banner kathrine clear', desc: 'Clear Kathrine banner', cat: 'Users' },
+  { cmd: 'force presence kaliph ', desc: 'Force presence (online/idle/offline)', cat: 'Users' },
+  { cmd: 'force presence kathrine ', desc: 'Force presence (online/idle/offline)', cat: 'Users' },
+  { cmd: 'preview kaliph', desc: 'Act as Kaliph', cat: 'Users' },
+  { cmd: 'preview kathrine', desc: 'Act as Kathrine', cat: 'Users' },
+  { cmd: 'reset user kaliph', desc: 'Reset Kaliph to default profile', cat: 'Users' },
+  { cmd: 'reset user kathrine', desc: 'Reset Kathrine to default profile', cat: 'Users' },
+  { cmd: 'toggle gif kaliph', desc: 'Toggle GIF for Kaliph', cat: 'Users' },
+  { cmd: 'toggle gif kathrine', desc: 'Toggle GIF for Kathrine', cat: 'Users' },
+  { cmd: 'toggle wallpaper kaliph', desc: 'Toggle wallpaper for Kaliph', cat: 'Users' },
+  { cmd: 'toggle wallpaper kathrine', desc: 'Toggle wallpaper for Kathrine', cat: 'Users' },
+
+  // Settings
+  { cmd: 'settings', desc: 'View all current settings', cat: 'Settings' },
+  { cmd: 'set password ', desc: 'Change site password', cat: 'Settings' },
+  { cmd: 'set eval-password ', desc: 'Change eval terminal password', cat: 'Settings' },
+  { cmd: 'set vault-code ', desc: 'Change vault passcode', cat: 'Settings' },
+  { cmd: 'set email kaliph ', desc: 'Set Kaliph notification emails', cat: 'Settings' },
+  { cmd: 'set email kathrine ', desc: 'Set Kathrine notification emails', cat: 'Settings' },
+
+  // Data
+  { cmd: 'stats', desc: 'Show site statistics', cat: 'Data' },
+  { cmd: 'disk', desc: 'Show data file sizes', cat: 'Data' },
+  { cmd: 'notes list', desc: 'List all notes', cat: 'Data' },
+  { cmd: 'notes list kaliph', desc: 'List Kaliph notes', cat: 'Data' },
+  { cmd: 'notes list kathrine', desc: 'List Kathrine notes', cat: 'Data' },
+  { cmd: 'delete note ', desc: 'Delete a note by ID', cat: 'Data' },
+  { cmd: 'contacts list', desc: 'List all contacts', cat: 'Data' },
+  { cmd: 'delete contact ', desc: 'Delete a contact by ID', cat: 'Data' },
+  { cmd: 'calendar list', desc: 'List all calendar events', cat: 'Data' },
+  { cmd: 'calendar list kaliph', desc: 'List Kaliph events', cat: 'Data' },
+  { cmd: 'delete event ', desc: 'Delete a calendar event by ID', cat: 'Data' },
+  { cmd: 'vault list', desc: 'List all vault items', cat: 'Data' },
+  { cmd: 'vault list kaliph', desc: 'List Kaliph vault items', cat: 'Data' },
+  { cmd: 'delete vault-item ', desc: 'Delete a vault item by ID', cat: 'Data' },
+  { cmd: 'guests list', desc: 'List all guests', cat: 'Data' },
+  { cmd: 'guests revoke ', desc: 'Revoke a guest by ID', cat: 'Data' },
+  { cmd: 'suggestions list', desc: 'List all suggestions', cat: 'Data' },
+  { cmd: 'delete suggestion ', desc: 'Delete a suggestion by ID', cat: 'Data' },
+
+  // System
+  { cmd: 'backup', desc: 'Email full backup without destroying', cat: 'System' },
+  { cmd: 'maintenance on', desc: 'Lock site (force logout + block login)', cat: 'System' },
+  { cmd: 'maintenance off', desc: 'Unlock site', cat: 'System' },
+  { cmd: 'force logout', desc: 'Force logout all users', cat: 'System' },
+  { cmd: 'force reload', desc: 'Force all clients to reload', cat: 'System' },
+  { cmd: 'emit ', desc: 'Emit a socket event', cat: 'System' },
+  { cmd: 'export', desc: 'Export all data as JSON', cat: 'System' },
+  { cmd: 'uptime', desc: 'Show server uptime', cat: 'System' },
+  { cmd: 'clear', desc: 'Clear terminal output', cat: 'System' },
+  { cmd: 'exit', desc: 'Exit current mode', cat: 'System' },
+  { cmd: 'help', desc: 'Show all commands', cat: 'System' },
+];
+
+// Preview mode commands
+const PREVIEW_COMMANDS = [
+  { cmd: 'send ', desc: 'Send message as this user', cat: 'Preview' },
+  { cmd: 'react ', desc: 'Toggle reaction on message (react <id> <emoji>)', cat: 'Preview' },
+  { cmd: 'exit', desc: 'Exit preview mode', cat: 'Preview' },
+];
+
+function getMatchingCommands(input) {
+  const list = mode === 'preview' ? [...PREVIEW_COMMANDS, ...COMMANDS] : COMMANDS;
+  if (!input) return list.slice(0, 15);
+  const lower = input.toLowerCase();
+  // Exact prefix match first, then fuzzy
+  const exact = list.filter(c => c.cmd.toLowerCase().startsWith(lower));
+  const fuzzy = list.filter(c => !c.cmd.toLowerCase().startsWith(lower) && c.cmd.toLowerCase().includes(lower));
+  return [...exact, ...fuzzy].slice(0, 12);
+}
+
+function renderAutocomplete(input) {
+  const matches = getMatchingCommands(input);
+  if (!matches.length || (matches.length === 1 && matches[0].cmd.trim() === input.trim())) {
+    acDropdown.classList.remove('open');
+    return;
+  }
+  acDropdown.innerHTML = '';
+  let lastCat = '';
+  matches.forEach((m, i) => {
+    if (m.cat !== lastCat) {
+      lastCat = m.cat;
+      const catDiv = document.createElement('div');
+      catDiv.className = 'ac-cat';
+      catDiv.textContent = m.cat;
+      acDropdown.appendChild(catDiv);
+    }
+    const item = document.createElement('div');
+    item.className = 'ac-item' + (i === acIdx ? ' selected' : '');
+    item.innerHTML = `<span class="ac-cmd">${esc(m.cmd)}</span><span class="ac-desc">${esc(m.desc)}</span>`;
+    item.addEventListener('mousedown', e => {
+      e.preventDefault();
+      cmdInput.value = m.cmd;
+      cmdInput.focus();
+      acDropdown.classList.remove('open');
+      acIdx = -1;
+      // If command ends with space, keep cursor for typing args
+      if (!m.cmd.endsWith(' ')) cmdInput.setSelectionRange(m.cmd.length, m.cmd.length);
+    });
+    acDropdown.appendChild(item);
+  });
+  acDropdown.classList.add('open');
+  // Scroll selected into view
+  const sel = acDropdown.querySelector('.selected');
+  if (sel) sel.scrollIntoView({ block: 'nearest' });
+}
 
 // ── Auth ──
 authInput.addEventListener('keydown', async e => {
@@ -184,25 +361,90 @@ authInput.addEventListener('keydown', async e => {
     authScreen.style.display = 'none';
     termScreen.style.display = 'flex';
     cmdInput.focus();
-    print('Eval terminal ready. Type `help` for commands.', 'success');
+    print('Eval terminal ready. Type help for commands, or start typing for autocomplete.', 'success');
     print('', '');
   } catch { authErr.textContent = 'Connection error'; }
 });
 
-// ── Command input ──
+// ── Command input with autocomplete ──
+cmdInput.addEventListener('input', () => {
+  acIdx = -1;
+  renderAutocomplete(cmdInput.value);
+});
+
+cmdInput.addEventListener('focus', () => {
+  if (!cmdInput.value) renderAutocomplete('');
+});
+
+cmdInput.addEventListener('blur', () => {
+  setTimeout(() => acDropdown.classList.remove('open'), 150);
+});
+
 cmdInput.addEventListener('keydown', async e => {
-  if (e.key === 'ArrowUp') {
+  const isOpen = acDropdown.classList.contains('open');
+  const items = acDropdown.querySelectorAll('.ac-item');
+
+  // Tab to accept autocomplete
+  if (e.key === 'Tab' && isOpen && items.length > 0) {
+    e.preventDefault();
+    const idx = acIdx >= 0 ? acIdx : 0;
+    const match = getMatchingCommands(cmdInput.value);
+    if (match[idx]) {
+      cmdInput.value = match[idx].cmd;
+      acDropdown.classList.remove('open');
+      acIdx = -1;
+    }
+    return;
+  }
+
+  // Arrow up/down in autocomplete
+  if (e.key === 'ArrowUp' && isOpen) {
+    e.preventDefault();
+    if (acIdx > 0) acIdx--;
+    else if (acIdx === -1) acIdx = items.length - 1;
+    renderAutocomplete(cmdInput.value);
+    return;
+  }
+  if (e.key === 'ArrowDown' && isOpen) {
+    e.preventDefault();
+    if (acIdx < items.length - 1) acIdx++;
+    renderAutocomplete(cmdInput.value);
+    return;
+  }
+
+  // Arrow up/down for history (when dropdown closed)
+  if (e.key === 'ArrowUp' && !isOpen) {
     e.preventDefault();
     if (historyIdx < cmdHistory.length - 1) { historyIdx++; cmdInput.value = cmdHistory[cmdHistory.length - 1 - historyIdx]; }
     return;
   }
-  if (e.key === 'ArrowDown') {
+  if (e.key === 'ArrowDown' && !isOpen) {
     e.preventDefault();
     if (historyIdx > 0) { historyIdx--; cmdInput.value = cmdHistory[cmdHistory.length - 1 - historyIdx]; }
     else { historyIdx = -1; cmdInput.value = ''; }
     return;
   }
+
+  // Escape to close dropdown
+  if (e.key === 'Escape') { acDropdown.classList.remove('open'); acIdx = -1; return; }
+
+  // Enter to execute
   if (e.key !== 'Enter') return;
+
+  // If autocomplete item selected, fill it instead of executing
+  if (isOpen && acIdx >= 0) {
+    const match = getMatchingCommands(cmdInput.value);
+    if (match[acIdx] && match[acIdx].cmd.endsWith(' ')) {
+      cmdInput.value = match[acIdx].cmd;
+      acDropdown.classList.remove('open');
+      acIdx = -1;
+      return;
+    }
+  }
+
+  acDropdown.classList.remove('open');
+  acIdx = -1;
+
   const raw = cmdInput.value.trim();
   cmdInput.value = '';
   historyIdx = -1;
@@ -245,7 +487,8 @@ function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 
 function setMode(m, info) {
   mode = m;
-  modeBadge.className = 'mode-badge ' + (m === 'edit' ? 'badge-edit' : m === 'preview' ? 'badge-preview' : 'badge-normal');
+  const badge = m === 'edit' ? 'badge-edit' : m === 'preview' ? 'badge-preview' : m === 'maintenance' ? 'badge-maint' : 'badge-normal';
+  modeBadge.className = 'mode-badge ' + badge;
   modeBadge.textContent = m.toUpperCase();
   if (info) headerInfo.textContent = info;
   promptEl.textContent = m === 'edit' ? 'edit>' : m === 'preview' ? `${previewUser}>` : 'eval>';
@@ -253,7 +496,6 @@ function setMode(m, info) {
 
 // ── Execute command ──
 async function execCommand(raw) {
-  // Client-side commands
   if (raw === 'clear' || raw === 'cls') { output.innerHTML = ''; return; }
   if (raw === 'help') { showHelp(); return; }
   if (raw === 'exit edit' || raw === 'exit preview' || raw === 'exit') {
@@ -261,7 +503,6 @@ async function execCommand(raw) {
     return;
   }
 
-  // Send to server
   try {
     const r = await fetch('/api/eval/exec', {
       method: 'POST',
@@ -270,8 +511,6 @@ async function execCommand(raw) {
     });
     const d = await r.json();
     if (!r.ok) { print(d.error || 'Error', 'error'); return; }
-
-    // Handle response
     if (d.reauth) { evalToken = null; authScreen.style.display = ''; termScreen.style.display = 'none'; return; }
     if (d.setMode) { setMode(d.setMode, d.modeInfo || ''); previewUser = d.previewUser || null; }
     if (d.lines) d.lines.forEach(l => print(l.text, l.cls || 'info'));
@@ -283,7 +522,7 @@ async function execCommand(raw) {
   }
 }
 
-// ── Edit mode: render messages with delete buttons ──
+// ── Edit mode messages ──
 function renderEditMessages(msgs) {
   msgs.forEach(m => {
     const div = document.createElement('div');
@@ -292,8 +531,8 @@ function renderEditMessages(msgs) {
     div.innerHTML = `
       <div style="flex:1">
         <span class="msg-sender ${m.sender}">${esc(m.sender)}</span>
-        <span class="msg-meta">${time}</span>
-        <div class="msg-text">${esc((m.text || '').substring(0, 200))}${m.text?.length > 200 ? '...' : ''}${m.files?.length ? ` [${m.files.length} file(s)]` : ''}</div>
+        <span class="msg-meta">${time} | ${m.id.substring(0, 8)}</span>
+        <div class="msg-text">${esc((m.text || '').substring(0, 200))}${m.text?.length > 200 ? '...' : ''}${m.files?.length ? ` [${m.files.length} file(s)]` : ''}${Object.keys(m.reactions||{}).length ? ` [${Object.keys(m.reactions).length} reaction(s)]` : ''}</div>
       </div>
     `;
     const btn = document.createElement('button');
@@ -318,68 +557,91 @@ function renderEditMessages(msgs) {
 
 // ── Help ──
 function showHelp() {
-  const cmds = [
-    ['', '── MESSAGES ──'],
-    ['messages', 'Show message stats'],
-    ['messages list [count]', 'List last N messages (default 20)'],
-    ['messages from <user>', 'List messages from user'],
-    ['messages search <text>', 'Search messages'],
-    ['delete msg <id>', 'Delete a message (bypasses time limit)'],
-    ['edit mode', 'Enter edit mode (browse & delete any message)'],
-    ['broadcast <text>', 'Send system message to chat'],
-    ['', ''],
-    ['', '── ANNOUNCEMENTS ──'],
-    ['announce <text>', 'Create announcement (both users)'],
-    ['announce <user> <text>', 'Create announcement for specific user'],
-    ['announce list', 'List all announcements'],
-    ['announce delete <id>', 'Delete announcement'],
-    ['', ''],
-    ['', '── USERS & PRESENCE ──'],
-    ['user info <user>', 'Show user details'],
-    ['set name <user> <name>', 'Change display name'],
-    ['set bio <user> <text>', 'Set user bio'],
-    ['set status <user> <status>', 'Set status (online/idle/dnd/invisible)'],
-    ['set theme <user> <theme>', 'Set theme (kaliph/kathrine/royal/dark/light/heaven)'],
-    ['set pronouns <user> <text>', 'Set pronouns'],
-    ['set avatar <user> clear', 'Clear user avatar'],
-    ['force presence <user> <state>', 'Force presence (online/idle/offline)'],
-    ['preview <user>', 'Enter preview mode (act as user)'],
-    ['', ''],
-    ['', '── SETTINGS ──'],
-    ['set password <new>', 'Change site password'],
-    ['set eval-password <new>', 'Change eval terminal password'],
-    ['set vault-code <code>', 'Change vault passcode'],
-    ['set email <user> <emails>', 'Set notification emails (comma-separated)'],
-    ['settings', 'View current settings'],
-    ['', ''],
-    ['', '── DATA ──'],
-    ['stats', 'Show site statistics'],
-    ['notes list [user]', 'List notes'],
-    ['contacts list', 'List contacts'],
-    ['calendar list [user]', 'List calendar events'],
-    ['vault list [user]', 'List vault items'],
-    ['guests list', 'List all guests'],
-    ['guests revoke <id>', 'Revoke a guest'],
-    ['suggestions list', 'List suggestions'],
-    ['', ''],
-    ['', '── SYSTEM ──'],
-    ['force logout', 'Force logout all users'],
-    ['force reload', 'Force all clients to reload'],
-    ['emit <event> [data]', 'Emit a socket event'],
-    ['export', 'Export all data as JSON'],
-    ['clear', 'Clear terminal output'],
-    ['exit', 'Exit current mode'],
-    ['', ''],
-  ];
+  const sections = {
+    'MESSAGES': [
+      ['messages', 'Show message stats'],
+      ['messages list [N]', 'List last N messages (default 20)'],
+      ['messages from <user>', 'List messages from user'],
+      ['messages search <text>', 'Search messages'],
+      ['delete msg <id>', 'Delete message (bypasses time limit)'],
+      ['modify msg <id> <text>', 'Edit any message text'],
+      ['clear reactions <id>', 'Strip all reactions'],
+      ['edit mode', 'Browse & delete any message'],
+      ['broadcast <text>', 'Send system message to chat'],
+      ['send as <user> <text>', 'Quick send as user'],
+      ['purge from <user>', 'Delete all messages from user'],
+      ['purge before <YYYY-MM-DD>', 'Delete messages before date'],
+      ['purge keyword <text>', 'Delete messages containing text'],
+      ['brainstorm list', 'List brainstorm messages'],
+      ['brainstorm clear', 'Clear brainstorm'],
+    ],
+    'ANNOUNCEMENTS': [
+      ['announce <text>', 'Create for both users'],
+      ['announce <user> <text>', 'Create for specific user'],
+      ['announce list', 'List all'],
+      ['announce delete <id>', 'Delete'],
+    ],
+    'USERS & PRESENCE': [
+      ['who', 'Who is online right now'],
+      ['user info <user>', 'Show user details'],
+      ['set name <user> <name>', 'Change display name'],
+      ['set bio <user> <text>', 'Set bio'],
+      ['set status <user> <s>', 'online/idle/dnd/invisible'],
+      ['set theme <user> <t>', 'kaliph/kathrine/royal/dark/light/heaven'],
+      ['set pronouns <user> <t>', 'Set pronouns'],
+      ['set avatar <user> clear', 'Clear avatar'],
+      ['set banner <user> clear', 'Clear banner'],
+      ['force presence <user> <s>', 'Force online/idle/offline'],
+      ['preview <user>', 'Act as user'],
+      ['reset user <user>', 'Reset profile to defaults'],
+      ['toggle gif <user>', 'Toggle GIF feature'],
+      ['toggle wallpaper <user>', 'Toggle wallpaper'],
+    ],
+    'SETTINGS': [
+      ['settings', 'View all settings'],
+      ['set password <new>', 'Change site password'],
+      ['set eval-password <new>', 'Change eval password'],
+      ['set vault-code <code>', 'Change vault passcode'],
+      ['set email <user> <e1,e2>', 'Set notification emails'],
+    ],
+    'DATA': [
+      ['stats', 'Site statistics'],
+      ['disk', 'Data file sizes'],
+      ['notes list [user]', 'List notes'],
+      ['delete note <id>', 'Delete a note'],
+      ['contacts list', 'List contacts'],
+      ['delete contact <id>', 'Delete a contact'],
+      ['calendar list [user]', 'List events'],
+      ['delete event <id>', 'Delete an event'],
+      ['vault list [user]', 'List vault items'],
+      ['delete vault-item <id>', 'Delete vault item'],
+      ['guests list', 'List guests'],
+      ['guests revoke <id>', 'Revoke guest'],
+      ['suggestions list', 'List suggestions'],
+      ['delete suggestion <id>', 'Delete suggestion'],
+    ],
+    'SYSTEM': [
+      ['backup', 'Email full backup'],
+      ['maintenance on/off', 'Lock/unlock site'],
+      ['force logout', 'Logout all users'],
+      ['force reload', 'Reload all clients'],
+      ['uptime', 'Server uptime'],
+      ['emit <event> [data]', 'Emit socket event'],
+      ['export', 'Export all data'],
+      ['clear', 'Clear terminal'],
+      ['exit', 'Exit mode'],
+    ],
+  };
   print('╔══════════════════════════════════════════╗', 'header');
   print('║          EVAL TERMINAL COMMANDS          ║', 'header');
   print('╚══════════════════════════════════════════╝', 'header');
+  print('  Tab to autocomplete | ↑↓ to navigate', 'dim');
   print('', '');
-  cmds.forEach(([cmd, desc]) => {
-    if (!cmd && desc.startsWith('──')) print(desc, 'warn');
-    else if (!cmd) print('', '');
-    else print(`  ${cmd.padEnd(32)} ${desc}`, 'info');
-  });
+  for (const [section, cmds] of Object.entries(sections)) {
+    print(`── ${section} ──`, 'warn');
+    cmds.forEach(([c, d]) => print(`  ${c.padEnd(30)} ${d}`, 'info'));
+    print('', '');
+  }
 }
 </script>
 </body>
