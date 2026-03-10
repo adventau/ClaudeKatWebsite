@@ -123,83 +123,23 @@
       border-radius: 22px; cursor: pointer; overflow: hidden;
       transition: transform 0.4s cubic-bezier(0.34,1.4,0.64,1), box-shadow 0.4s, border-color 0.4s;
       animation: fadeUp 0.85s cubic-bezier(0.34,1.2,0.64,1) both;
+      background: linear-gradient(160deg, #0a0a1a, #141428, #0a0a1a);
+      border: 1px solid rgba(255,255,255,0.08);
     }
     .profile-card:nth-child(2) { animation-delay: 0.12s; }
 
-    /* ═══ KALIPH — Cyber / Tech / Electric Blue ═══ */
-    .card-kaliph {
-      background: linear-gradient(160deg, #020818 0%, #0a1635 40%, #06102a 70%, #030b1c 100%);
-      border: 1px solid rgba(59,130,246,0.2);
-    }
-    .card-kaliph:hover {
-      transform: translateY(-12px) scale(1.03) rotateY(-2deg);
-      box-shadow: 0 24px 60px rgba(59,130,246,0.5), 0 0 100px rgba(56,189,248,0.2), inset 0 1px 0 rgba(59,130,246,0.3);
-      border-color: rgba(59,130,246,0.5);
-    }
-    /* Kaliph — scan line overlay */
-    .card-kaliph::after {
-      content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
-      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(59,130,246,0.03) 2px, rgba(59,130,246,0.03) 4px);
+    /* Shared pseudo-element defaults */
+    .profile-card::before, .profile-card::after {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
       opacity: 0; transition: opacity 0.4s;
     }
-    .card-kaliph:hover::after { opacity: 1; }
-    /* Kaliph — electric shimmer */
-    .card-kaliph::before {
-      content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none;
-      background: linear-gradient(45deg, transparent 20%, rgba(59,130,246,0.12) 45%, rgba(56,189,248,0.08) 55%, transparent 80%);
-      transform: translateX(-100%) rotate(45deg); transition: none;
-    }
-    .card-kaliph:hover::before { animation: kaliph-shimmer 0.7s ease; }
+    .profile-card::before { z-index: 3; }
+    .profile-card::after  { z-index: 1; }
 
-    /* ═══ KATHRINE — Elegant / Rose / Warm Glow ═══ */
-    .card-kathrine {
-      background: linear-gradient(160deg, #1a0616 0%, #2d1028 35%, #1f0a2a 65%, #150520 100%);
-      border: 1px solid rgba(236,72,153,0.15);
-    }
-    .card-kathrine:hover {
-      transform: translateY(-10px) scale(1.04);
-      box-shadow: 0 20px 60px rgba(236,72,153,0.4), 0 0 120px rgba(244,114,182,0.15), 0 0 200px rgba(192,132,252,0.08);
-      border-color: rgba(236,72,153,0.45);
-    }
-    /* Kathrine — soft bloom shimmer */
-    .card-kathrine::before {
-      content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none;
-      background: radial-gradient(ellipse at 30% 50%, rgba(244,114,182,0.12) 0%, transparent 60%);
-      opacity: 0; transition: opacity 0.6s ease;
-    }
-    .card-kathrine:hover::before { opacity: 1; animation: kathrine-bloom 1.8s ease-in-out infinite; }
-    /* Kathrine — floating sparkles */
-    .card-kathrine::after {
-      content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
-      background-image:
-        radial-gradient(1px 1px at 20% 30%, rgba(244,114,182,0.7), transparent),
-        radial-gradient(1px 1px at 70% 60%, rgba(192,132,252,0.5), transparent),
-        radial-gradient(1px 1px at 50% 80%, rgba(244,114,182,0.6), transparent),
-        radial-gradient(1.5px 1.5px at 35% 55%, rgba(251,191,36,0.4), transparent),
-        radial-gradient(1px 1px at 80% 25%, rgba(192,132,252,0.5), transparent),
-        radial-gradient(1px 1px at 15% 75%, rgba(244,114,182,0.4), transparent);
-      background-size: 100% 100%;
-      opacity: 0; transition: opacity 0.5s;
-    }
-    .card-kathrine:hover::after { opacity: 1; animation: kathrine-sparkle 3s ease-in-out infinite; }
-
-    .card-bg-particles {
-      position: absolute; inset: 0; overflow: hidden; border-radius: 24px;
-    }
-
-    /* Kaliph glow — electric blue core */
+    .card-bg-particles { position: absolute; inset: 0; overflow: hidden; border-radius: 24px; }
     .card-glow {
-      position: absolute; inset: -50%;
-      opacity: 0; transition: opacity 0.4s;
+      position: absolute; inset: -50%; opacity: 0; transition: opacity 0.4s;
       border-radius: 50%; filter: blur(40px);
-    }
-    .card-kaliph .card-glow {
-      background: radial-gradient(circle, rgba(59,130,246,0.6) 0%, rgba(56,189,248,0.3) 30%, rgba(124,58,237,0.15) 60%, transparent 75%);
-    }
-    /* Kathrine glow — warm rose bloom */
-    .card-kathrine .card-glow {
-      background: radial-gradient(circle, rgba(244,114,182,0.5) 0%, rgba(236,72,153,0.3) 30%, rgba(192,132,252,0.15) 60%, transparent 75%);
-      filter: blur(50px);
     }
     .profile-card:hover .card-glow { opacity: 1; }
 
@@ -208,88 +148,244 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       padding: 2rem 1rem;
     }
-
-    /* ── Avatars ───────────────────────────────────────────────────── */
     .card-avatar {
       width: 80px; height: 80px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       font-size: 2rem; margin-bottom: 1.2rem;
       transition: transform 0.4s cubic-bezier(0.34,1.4,0.64,1), box-shadow 0.4s;
       position: relative; overflow: hidden;
+      background: linear-gradient(135deg, #7c3aed, #6366f1);
+      border: 2px solid rgba(255,255,255,0.2);
+      box-shadow: 0 0 20px rgba(124,58,237,0.4);
     }
-    .card-kaliph .card-avatar {
-      background: linear-gradient(135deg, #2563eb, #3b82f6);
-      border: 2px solid rgba(59,130,246,0.5);
-      box-shadow: 0 0 20px rgba(59,130,246,0.5), 0 0 40px rgba(59,130,246,0.15);
-    }
-    .card-kathrine .card-avatar {
-      background: linear-gradient(135deg, #db2777, #ec4899);
-      border: 2px solid rgba(236,72,153,0.4);
-      box-shadow: 0 0 20px rgba(236,72,153,0.5), 0 0 40px rgba(236,72,153,0.15);
-    }
-    .card-kaliph:hover .card-avatar {
-      transform: scale(1.12);
-      box-shadow: 0 0 30px rgba(59,130,246,0.7), 0 0 60px rgba(56,189,248,0.3);
-    }
-    .card-kathrine:hover .card-avatar {
-      transform: scale(1.1) rotate(3deg);
-      box-shadow: 0 0 30px rgba(236,72,153,0.7), 0 0 60px rgba(244,114,182,0.25);
-    }
-
-    /* ── Names ─────────────────────────────────────────────────────── */
     .card-name {
       font-size: 2rem; font-weight: 700; letter-spacing: 0.05em;
       margin-bottom: 0.4rem; transition: transform 0.3s, letter-spacing 0.3s;
+      background: linear-gradient(135deg, #a78bfa, #c4b5fd);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
-    .card-kaliph .card-name {
-      font-family: 'Orbitron', monospace; font-size: 1.5rem; letter-spacing: 0.12em;
-      background: linear-gradient(135deg, #60a5fa, #38bdf8);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .card-kaliph:hover .card-name { letter-spacing: 0.2em; transform: scale(1.05); }
-    .card-kathrine .card-name {
-      font-family: 'Cormorant Garamond', serif; font-size: 2.2rem; font-weight: 600; font-style: italic;
-      background: linear-gradient(135deg, #f9a8d4, #f472b6, #e879f9);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .card-kathrine:hover .card-name { transform: scale(1.08); }
-
     .card-theme-label {
       font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase;
       color: rgba(255,255,255,0.4); margin-bottom: 1rem;
     }
-    .card-kaliph .card-theme-label { color: rgba(56,189,248,0.6); font-family: 'Space Grotesk', sans-serif; }
-    .card-kathrine .card-theme-label { color: rgba(244,114,182,0.6); font-family: 'Cormorant Garamond', serif; font-style: italic; }
-
     .card-status {
       display: flex; align-items: center; gap: 6px;
       font-size: 0.8rem; color: rgba(255,255,255,0.5);
     }
-    .status-dot {
-      width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
-      box-shadow: 0 0 8px #22c55e;
-    }
-
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
     .card-enter-hint {
       position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%) translateY(4px);
       font-size: 0.68rem; color: rgba(255,255,255,0.45);
       letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap;
       opacity: 0; transition: opacity 0.25s, transform 0.25s;
     }
-    .card-kaliph .card-enter-hint { font-family: 'Space Grotesk', sans-serif; }
-    .card-kathrine .card-enter-hint { font-family: 'Cormorant Garamond', serif; letter-spacing: 0.18em; }
     .profile-card:hover .card-enter-hint { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .card-badge {
+      position: absolute; top: 12px; right: 12px; z-index: 4;
+      font-size: 0.55rem; letter-spacing: 0.18em; text-transform: uppercase;
+      padding: 2px 6px; border-radius: 4px;
+      transition: color 0.3s, border-color 0.3s, box-shadow 0.3s, opacity 0.3s;
+      opacity: 0.7;
+    }
+    .profile-card:hover .card-badge { opacity: 1; }
+    .card-circuit {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 60px; z-index: 1;
+      pointer-events: none; opacity: 0; transition: opacity 0.5s;
+    }
+    .profile-card:hover .card-circuit { opacity: 1; }
 
-    /* Theme preview swatches */
-    .card-swatches {
-      display: flex; gap: 4px; margin-top: 0.8rem;
+    /* ═══════════════════════════════════════════════════════════════════
+       THEME-SPECIFIC CARD STYLES — each theme gets unique personality
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /* ── T1: AVNT Purple (kaliph) — Cyber / Tech / Electric Blue ──── */
+    .theme-kaliph {
+      background: linear-gradient(160deg, #020818 0%, #0a1635 40%, #06102a 70%, #030b1c 100%);
+      border-color: rgba(59,130,246,0.2);
     }
-    .swatch {
-      width: 16px; height: 16px; border-radius: 50%;
-      border: 1px solid rgba(255,255,255,0.2);
+    .theme-kaliph:hover {
+      transform: translateY(-12px) scale(1.03) rotateY(-2deg);
+      box-shadow: 0 24px 60px rgba(59,130,246,0.5), 0 0 100px rgba(56,189,248,0.2), inset 0 1px 0 rgba(59,130,246,0.3);
+      border-color: rgba(59,130,246,0.5);
     }
+    .theme-kaliph::after {
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(59,130,246,0.03) 2px, rgba(59,130,246,0.03) 4px);
+    }
+    .theme-kaliph:hover::after { opacity: 1; }
+    .theme-kaliph::before {
+      background: linear-gradient(45deg, transparent 20%, rgba(59,130,246,0.12) 45%, rgba(56,189,248,0.08) 55%, transparent 80%);
+      transform: translateX(-100%) rotate(45deg); transition: none;
+    }
+    .theme-kaliph:hover::before { animation: shimmer-sweep 0.7s ease; }
+    .theme-kaliph .card-glow { background: radial-gradient(circle, rgba(59,130,246,0.6) 0%, rgba(56,189,248,0.3) 30%, transparent 70%); }
+    .theme-kaliph .card-avatar { background: linear-gradient(135deg, #2563eb, #3b82f6); border-color: rgba(59,130,246,0.5); box-shadow: 0 0 20px rgba(59,130,246,0.5); }
+    .theme-kaliph:hover .card-avatar { transform: scale(1.12); box-shadow: 0 0 30px rgba(59,130,246,0.7), 0 0 60px rgba(56,189,248,0.3); }
+    .theme-kaliph .card-name { font-family: 'Orbitron', monospace; font-size: 1.5rem; letter-spacing: 0.12em; background: linear-gradient(135deg, #60a5fa, #38bdf8); -webkit-background-clip: text; background-clip: text; }
+    .theme-kaliph:hover .card-name { letter-spacing: 0.2em; transform: scale(1.05); }
+    .theme-kaliph .card-theme-label { color: rgba(56,189,248,0.6); font-family: 'Space Grotesk', sans-serif; }
+    .theme-kaliph .card-enter-hint { font-family: 'Space Grotesk', sans-serif; }
+    .theme-kaliph .card-badge { font-family: 'Orbitron', monospace; color: rgba(56,189,248,0.7); border: 1px solid rgba(56,189,248,0.3); }
+    .theme-kaliph:hover .card-badge { box-shadow: 0 0 12px rgba(56,189,248,0.3); }
+    .theme-kaliph .card-circuit {
+      background: linear-gradient(90deg, transparent 10%, rgba(59,130,246,0.12) 10%, rgba(59,130,246,0.12) 10.5%, transparent 10.5%,
+        transparent 30%, rgba(59,130,246,0.08) 30%, rgba(59,130,246,0.08) 30.5%, transparent 30.5%,
+        transparent 60%, rgba(59,130,246,0.1) 60%, rgba(59,130,246,0.1) 60.5%, transparent 60.5%,
+        transparent 85%, rgba(59,130,246,0.06) 85%, rgba(59,130,246,0.06) 85.5%, transparent 85.5%);
+    }
+    .theme-kaliph .ripple { background: rgba(59,130,246,0.25); }
+
+    /* ── T2: Royal Violet (kathrine) — Elegant / Rose / Bloom ──────── */
+    .theme-kathrine {
+      background: linear-gradient(160deg, #1a0616 0%, #2d1028 35%, #1f0a2a 65%, #150520 100%);
+      border-color: rgba(236,72,153,0.15);
+    }
+    .theme-kathrine:hover {
+      transform: translateY(-10px) scale(1.04);
+      box-shadow: 0 20px 60px rgba(236,72,153,0.4), 0 0 120px rgba(244,114,182,0.15), 0 0 200px rgba(192,132,252,0.08);
+      border-color: rgba(236,72,153,0.45);
+    }
+    .theme-kathrine::before {
+      background: radial-gradient(ellipse at 30% 50%, rgba(244,114,182,0.12) 0%, transparent 60%);
+    }
+    .theme-kathrine:hover::before { opacity: 1; animation: bloom-pulse 1.8s ease-in-out infinite; }
+    .theme-kathrine::after {
+      background-image:
+        radial-gradient(1px 1px at 20% 30%, rgba(244,114,182,0.7), transparent),
+        radial-gradient(1px 1px at 70% 60%, rgba(192,132,252,0.5), transparent),
+        radial-gradient(1px 1px at 50% 80%, rgba(244,114,182,0.6), transparent),
+        radial-gradient(1.5px 1.5px at 35% 55%, rgba(251,191,36,0.4), transparent),
+        radial-gradient(1px 1px at 80% 25%, rgba(192,132,252,0.5), transparent),
+        radial-gradient(1px 1px at 15% 75%, rgba(244,114,182,0.4), transparent);
+      background-size: 100% 100%;
+    }
+    .theme-kathrine:hover::after { opacity: 1; animation: sparkle-drift 3s ease-in-out infinite; }
+    .theme-kathrine .card-glow { background: radial-gradient(circle, rgba(244,114,182,0.5) 0%, rgba(236,72,153,0.3) 30%, transparent 70%); filter: blur(50px); }
+    .theme-kathrine .card-avatar { background: linear-gradient(135deg, #db2777, #ec4899); border-color: rgba(236,72,153,0.4); box-shadow: 0 0 20px rgba(236,72,153,0.5); }
+    .theme-kathrine:hover .card-avatar { transform: scale(1.1) rotate(3deg); box-shadow: 0 0 30px rgba(236,72,153,0.7), 0 0 60px rgba(244,114,182,0.25); }
+    .theme-kathrine .card-name { font-family: 'Cormorant Garamond', serif; font-size: 2.2rem; font-weight: 600; font-style: italic; background: linear-gradient(135deg, #f9a8d4, #f472b6, #e879f9); -webkit-background-clip: text; background-clip: text; }
+    .theme-kathrine:hover .card-name { transform: scale(1.08); }
+    .theme-kathrine .card-theme-label { color: rgba(244,114,182,0.6); font-family: 'Cormorant Garamond', serif; font-style: italic; }
+    .theme-kathrine .card-enter-hint { font-family: 'Cormorant Garamond', serif; letter-spacing: 0.18em; }
+    .theme-kathrine .card-badge { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 0.65rem; color: rgba(244,114,182,0.7); border: none; }
+    .theme-kathrine .ripple { background: rgba(244,114,182,0.2); }
+
+    /* ── T3: Crimson Royal — Deep Red / Gold / Regal ───────────────── */
+    .theme-royal {
+      background: linear-gradient(160deg, #1a0a04 0%, #2d1308 35%, #1f0c04 65%, #120602 100%);
+      border-color: rgba(220,120,20,0.2);
+    }
+    .theme-royal:hover {
+      transform: translateY(-10px) scale(1.03);
+      box-shadow: 0 20px 60px rgba(217,119,6,0.4), 0 0 100px rgba(245,158,11,0.15), inset 0 1px 0 rgba(245,158,11,0.2);
+      border-color: rgba(245,158,11,0.4);
+    }
+    .theme-royal::before {
+      background: linear-gradient(180deg, transparent 0%, rgba(245,158,11,0.06) 50%, transparent 100%);
+    }
+    .theme-royal:hover::before { opacity: 1; animation: royal-flame 2s ease-in-out infinite; }
+    .theme-royal::after {
+      background: linear-gradient(0deg, rgba(217,119,6,0.08) 0%, transparent 40%);
+    }
+    .theme-royal:hover::after { opacity: 1; }
+    .theme-royal .card-glow { background: radial-gradient(circle, rgba(245,158,11,0.5) 0%, rgba(217,119,6,0.25) 35%, transparent 70%); }
+    .theme-royal .card-avatar { background: linear-gradient(135deg, #b45309, #d97706); border-color: rgba(245,158,11,0.5); box-shadow: 0 0 20px rgba(217,119,6,0.5); }
+    .theme-royal:hover .card-avatar { transform: scale(1.1); box-shadow: 0 0 30px rgba(245,158,11,0.7), 0 0 50px rgba(217,119,6,0.3); }
+    .theme-royal .card-name { font-family: 'Cinzel', serif; font-size: 1.7rem; background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706); -webkit-background-clip: text; background-clip: text; }
+    .theme-royal:hover .card-name { transform: scale(1.06); }
+    .theme-royal .card-theme-label { color: rgba(245,158,11,0.6); font-family: 'Cinzel', serif; }
+    .theme-royal .card-enter-hint { font-family: 'Cinzel', serif; }
+    .theme-royal .card-badge { font-family: 'Cinzel', serif; color: rgba(245,158,11,0.7); border: 1px solid rgba(245,158,11,0.25); }
+    .theme-royal:hover .card-badge { box-shadow: 0 0 10px rgba(245,158,11,0.2); }
+    .theme-royal .ripple { background: rgba(245,158,11,0.2); }
+
+    /* ── T4: Pristine Light — Clean / Bright / Indigo ──────────────── */
+    .theme-light {
+      background: linear-gradient(160deg, #e8eaf6 0%, #f0f0ff 40%, #e8ecf8 70%, #dde3f5 100%);
+      border-color: rgba(99,102,241,0.25);
+    }
+    .theme-light .card-content, .theme-light .card-status { color: rgba(30,41,59,0.7); }
+    .theme-light:hover {
+      transform: translateY(-10px) scale(1.04);
+      box-shadow: 0 20px 50px rgba(99,102,241,0.25), 0 0 80px rgba(129,140,248,0.1);
+      border-color: rgba(99,102,241,0.5);
+    }
+    .theme-light::before {
+      background: linear-gradient(45deg, transparent 30%, rgba(99,102,241,0.08) 50%, transparent 70%);
+      transform: translateX(-100%) rotate(45deg); transition: none;
+    }
+    .theme-light:hover::before { animation: shimmer-sweep 0.8s ease; }
+    .theme-light::after { background: none; }
+    .theme-light .card-glow { background: radial-gradient(circle, rgba(99,102,241,0.25) 0%, rgba(129,140,248,0.12) 40%, transparent 70%); }
+    .theme-light .card-avatar { background: linear-gradient(135deg, #6366f1, #818cf8); border-color: rgba(99,102,241,0.4); box-shadow: 0 0 16px rgba(99,102,241,0.35); }
+    .theme-light:hover .card-avatar { transform: scale(1.1); box-shadow: 0 0 24px rgba(99,102,241,0.5), 0 0 48px rgba(129,140,248,0.2); }
+    .theme-light .card-name { font-family: 'Josefin Sans', sans-serif; font-size: 1.9rem; font-weight: 300; background: linear-gradient(135deg, #4f46e5, #6366f1); -webkit-background-clip: text; background-clip: text; }
+    .theme-light:hover .card-name { transform: scale(1.06); }
+    .theme-light .card-theme-label { color: rgba(99,102,241,0.6); font-family: 'Josefin Sans', sans-serif; }
+    .theme-light .card-enter-hint { color: rgba(30,41,59,0.4); font-family: 'Josefin Sans', sans-serif; }
+    .theme-light .card-badge { font-family: 'Josefin Sans', sans-serif; color: rgba(99,102,241,0.6); border: 1px solid rgba(99,102,241,0.2); }
+    .theme-light .ripple { background: rgba(99,102,241,0.15); }
+
+    /* ── T5: Midnight Dark — Slate / Cool / Geometric ──────────────── */
+    .theme-dark {
+      background: linear-gradient(160deg, #0c1222 0%, #111827 40%, #0e1525 70%, #080e1c 100%);
+      border-color: rgba(129,140,248,0.15);
+    }
+    .theme-dark:hover {
+      transform: translateY(-10px) scale(1.03);
+      box-shadow: 0 20px 50px rgba(129,140,248,0.3), 0 0 80px rgba(99,102,241,0.12);
+      border-color: rgba(129,140,248,0.4);
+    }
+    .theme-dark::before {
+      background: conic-gradient(from 180deg at 50% 50%, transparent 0deg, rgba(129,140,248,0.06) 90deg, transparent 180deg, rgba(99,102,241,0.04) 270deg, transparent 360deg);
+    }
+    .theme-dark:hover::before { opacity: 1; animation: geo-rotate 8s linear infinite; }
+    .theme-dark::after {
+      background: repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(129,140,248,0.015) 20px, rgba(129,140,248,0.015) 21px);
+    }
+    .theme-dark:hover::after { opacity: 1; }
+    .theme-dark .card-glow { background: radial-gradient(circle, rgba(129,140,248,0.4) 0%, rgba(99,102,241,0.2) 35%, transparent 70%); }
+    .theme-dark .card-avatar { background: linear-gradient(135deg, #4f46e5, #818cf8); border-color: rgba(129,140,248,0.4); box-shadow: 0 0 20px rgba(129,140,248,0.35); }
+    .theme-dark:hover .card-avatar { transform: scale(1.1); box-shadow: 0 0 28px rgba(129,140,248,0.6), 0 0 50px rgba(99,102,241,0.2); }
+    .theme-dark .card-name { font-family: 'Space Grotesk', sans-serif; font-size: 1.8rem; font-weight: 600; background: linear-gradient(135deg, #c7d2fe, #818cf8); -webkit-background-clip: text; background-clip: text; }
+    .theme-dark:hover .card-name { transform: scale(1.05); }
+    .theme-dark .card-theme-label { color: rgba(129,140,248,0.5); font-family: 'Space Grotesk', sans-serif; }
+    .theme-dark .card-enter-hint { font-family: 'Space Grotesk', sans-serif; }
+    .theme-dark .card-badge { font-family: 'Space Grotesk', sans-serif; color: rgba(129,140,248,0.6); border: 1px solid rgba(129,140,248,0.2); }
+    .theme-dark .ripple { background: rgba(129,140,248,0.2); }
+
+    /* ── T6: Celestial Heaven — Gold / Warm / Divine ────────────────── */
+    .theme-heaven {
+      background: linear-gradient(160deg, #12100a 0%, #1a1608 35%, #15120a 65%, #0e0c06 100%);
+      border-color: rgba(200,169,110,0.2);
+    }
+    .theme-heaven:hover {
+      transform: translateY(-8px) scale(1.03);
+      box-shadow: 0 20px 60px rgba(200,169,110,0.35), 0 0 120px rgba(232,213,163,0.1);
+      border-color: rgba(200,169,110,0.45);
+    }
+    .theme-heaven::before {
+      background: radial-gradient(ellipse at 50% 0%, rgba(232,213,163,0.1) 0%, transparent 60%);
+    }
+    .theme-heaven:hover::before { opacity: 1; animation: halo-glow 2.5s ease-in-out infinite; }
+    .theme-heaven::after {
+      background-image:
+        radial-gradient(1px 1px at 25% 20%, rgba(232,213,163,0.5), transparent),
+        radial-gradient(1.5px 1.5px at 75% 35%, rgba(200,169,110,0.4), transparent),
+        radial-gradient(1px 1px at 50% 70%, rgba(232,213,163,0.3), transparent),
+        radial-gradient(1px 1px at 15% 60%, rgba(251,191,36,0.3), transparent),
+        radial-gradient(1px 1px at 85% 80%, rgba(200,169,110,0.35), transparent);
+      background-size: 100% 100%;
+    }
+    .theme-heaven:hover::after { opacity: 1; animation: sparkle-drift 4s ease-in-out infinite; }
+    .theme-heaven .card-glow { background: radial-gradient(circle, rgba(232,213,163,0.4) 0%, rgba(200,169,110,0.2) 35%, transparent 70%); filter: blur(45px); }
+    .theme-heaven .card-avatar { background: linear-gradient(135deg, #b8952e, #c8a96e); border-color: rgba(200,169,110,0.5); box-shadow: 0 0 20px rgba(200,169,110,0.45); }
+    .theme-heaven:hover .card-avatar { transform: scale(1.08); box-shadow: 0 0 28px rgba(232,213,163,0.6), 0 0 50px rgba(200,169,110,0.25); }
+    .theme-heaven .card-name { font-family: 'Cinzel', serif; font-size: 1.8rem; background: linear-gradient(135deg, #e8d5a3, #c8a96e, #dcc47e); -webkit-background-clip: text; background-clip: text; }
+    .theme-heaven:hover .card-name { transform: scale(1.06); }
+    .theme-heaven .card-theme-label { color: rgba(200,169,110,0.6); font-family: 'Cinzel', serif; }
+    .theme-heaven .card-enter-hint { font-family: 'Cinzel', serif; }
+    .theme-heaven .card-badge { font-family: 'Cinzel', serif; color: rgba(200,169,110,0.65); border: 1px solid rgba(200,169,110,0.25); }
+    .theme-heaven .ripple { background: rgba(200,169,110,0.2); }
 
     /* ── Select header ───────────────────────────────────────────────── */
     .select-header {
@@ -298,81 +394,25 @@
     }
     .select-header h2 {
       font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 600;
-      color: rgba(226,217,243,0.55);
-      letter-spacing: 0.08em; text-transform: uppercase;
+      color: rgba(226,217,243,0.55); letter-spacing: 0.08em; text-transform: uppercase;
     }
     .select-header p { color: var(--muted); font-size: 0.8rem; margin-top: 0.3rem; }
 
-    /* ── AVNT badge (shown on Kaliph card) ─────────────────────────── */
-    .avnt-badge {
-      position: absolute; top: 12px; right: 12px; z-index: 4;
-      font-family: 'Orbitron', monospace; font-size: 0.55rem;
-      letter-spacing: 0.2em; color: rgba(56,189,248,0.7);
-      border: 1px solid rgba(56,189,248,0.3);
-      border-radius: 4px; padding: 2px 6px;
-      text-transform: uppercase;
-      transition: color 0.3s, border-color 0.3s, box-shadow 0.3s;
-    }
-    .card-kaliph:hover .avnt-badge {
-      color: rgba(56,189,248,0.9);
-      border-color: rgba(56,189,248,0.6);
-      box-shadow: 0 0 12px rgba(56,189,248,0.3);
-    }
-
-    /* ── Kathrine crown badge ──────────────────────────────────────── */
-    .royal-badge {
-      position: absolute; top: 12px; right: 12px; z-index: 4;
-      font-size: 0.65rem; letter-spacing: 0.15em;
-      color: rgba(244,114,182,0.7);
-      font-family: 'Cormorant Garamond', serif; font-style: italic;
-      transition: color 0.3s;
-    }
-    .card-kathrine:hover .royal-badge { color: rgba(244,114,182,0.95); }
-
-    /* ── Kaliph circuit-line decoration ─────────────────────────────── */
-    .card-kaliph .card-circuit {
-      position: absolute; bottom: 0; left: 0; right: 0; height: 60px; z-index: 1; pointer-events: none;
-      opacity: 0; transition: opacity 0.5s;
-      background:
-        linear-gradient(90deg, transparent 10%, rgba(59,130,246,0.12) 10%, rgba(59,130,246,0.12) 10.5%, transparent 10.5%,
-          transparent 30%, rgba(59,130,246,0.08) 30%, rgba(59,130,246,0.08) 30.5%, transparent 30.5%,
-          transparent 60%, rgba(59,130,246,0.1) 60%, rgba(59,130,246,0.1) 60.5%, transparent 60.5%,
-          transparent 85%, rgba(59,130,246,0.06) 85%, rgba(59,130,246,0.06) 85.5%, transparent 85.5%);
-    }
-    .card-kaliph:hover .card-circuit { opacity: 1; }
-
     /* ── Animations ─────────────────────────────────────────────────── */
     @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Kaliph — electric shimmer sweep */
-    @keyframes kaliph-shimmer {
-      0%   { transform: translateX(-100%) rotate(45deg); }
-      100% { transform: translateX(200%) rotate(45deg); }
-    }
-    /* Kathrine — soft bloom pulse */
-    @keyframes kathrine-bloom {
-      0%, 100% { opacity: 0.6; transform: scale(1); }
-      50%      { opacity: 1; transform: scale(1.02); }
-    }
-    /* Kathrine — sparkle float */
-    @keyframes kathrine-sparkle {
-      0%, 100% { background-position: 0% 0%; opacity: 0.7; }
-      33%      { background-position: 2% -3%; opacity: 1; }
-      66%      { background-position: -1% 2%; opacity: 0.8; }
-    }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes shimmer-sweep { 0% { transform: translateX(-100%) rotate(45deg); } 100% { transform: translateX(200%) rotate(45deg); } }
+    @keyframes bloom-pulse { 0%,100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.02); } }
+    @keyframes sparkle-drift { 0%,100% { background-position: 0% 0%; opacity: 0.7; } 33% { background-position: 2% -3%; opacity: 1; } 66% { background-position: -1% 2%; opacity: 0.8; } }
+    @keyframes royal-flame { 0%,100% { opacity: 0.5; transform: scaleY(1); } 50% { opacity: 1; transform: scaleY(1.05); } }
+    @keyframes geo-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes halo-glow { 0%,100% { opacity: 0.5; transform: scale(1) translateY(0); } 50% { opacity: 1; transform: scale(1.03) translateY(-2px); } }
 
     /* Ripple */
     .ripple {
-      position: absolute; border-radius: 50%;
-      transform: scale(0); animation: ripple-anim 0.6s linear;
-      pointer-events: none;
+      position: absolute; border-radius: 50%; background: rgba(255,255,255,0.15);
+      transform: scale(0); animation: ripple-anim 0.6s linear; pointer-events: none;
     }
-    .card-kaliph .ripple { background: rgba(59,130,246,0.25); }
-    .card-kathrine .ripple { background: rgba(244,114,182,0.2); }
     @keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
 
     /* Loading spinner */
@@ -415,10 +455,10 @@
       </div>
       <div class="profile-grid">
         <!-- Kaliph -->
-        <div class="profile-card card-kaliph" id="card-kaliph" data-profile="kaliph">
+        <div class="profile-card" id="card-kaliph" data-profile="kaliph">
           <div class="card-bg-particles"></div>
           <div class="card-glow"></div>
-          <div class="avnt-badge">AVNT</div>
+          <div class="card-badge" id="kaliph-badge"></div>
           <div class="card-circuit"></div>
           <div class="card-content">
             <div class="card-avatar" id="kaliph-avatar">K</div>
@@ -433,10 +473,11 @@
         </div>
 
         <!-- Kathrine -->
-        <div class="profile-card card-kathrine" id="card-kathrine" data-profile="kathrine">
+        <div class="profile-card" id="card-kathrine" data-profile="kathrine">
           <div class="card-bg-particles"></div>
           <div class="card-glow"></div>
-          <div class="royal-badge">♛ Royal</div>
+          <div class="card-badge" id="kathrine-badge"></div>
+          <div class="card-circuit"></div>
           <div class="card-content">
             <div class="card-avatar" id="kathrine-avatar">K</div>
             <div class="card-name">Kathrine</div>
@@ -630,13 +671,16 @@
     pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryPassword(); });
 
     // ── Load user data for profile cards ───────────────────────────
-    // Card colors — kaliph = blue/cyan tech, kathrine = rose/pink warmth
-    // These are the IDENTITY colors shown on each card regardless of their app theme
-    const cardIdentity = {
-      kaliph:   { bg: '#020818', accent: '#3b82f6', accent2: '#38bdf8', glow: 'rgba(59,130,246,0.35)', border: 'rgba(59,130,246,0.3)' },
-      kathrine: { bg: '#1a0616', accent: '#ec4899', accent2: '#f472b6', glow: 'rgba(236,72,153,0.3)', border: 'rgba(236,72,153,0.25)' },
+    // Theme badge labels
+    const themeBadges = {
+      kaliph:   'AVNT',
+      kathrine: '♛ Royal',
+      royal:    '⚔ Crimson',
+      light:    '◇ Pristine',
+      dark:     '◆ Midnight',
+      heaven:   '✦ Celestial',
     };
-    // Theme colors only used for passcode overlay styling
+    // Theme colors — used for passcode overlay styling
     const themeColors = {
       kaliph:   { bg: '#0d0820', accent: '#7c3aed', accent2: '#a78bfa', glow: 'rgba(124,58,237,0.3)', border: 'rgba(124,58,237,0.25)' },
       kathrine: { bg: '#0d0716', accent: '#8b5cf6', accent2: '#c084fc', glow: 'rgba(139,92,246,0.3)', border: 'rgba(139,92,246,0.25)' },
@@ -656,8 +700,16 @@
           const u = users[name];
           if (!u) return;
           const card = document.getElementById('card-' + name);
-          // Use fixed identity colors — NOT dynamic theme — so cards always look distinct
-          const id = cardIdentity[name];
+          const theme = u.theme || 'dark';
+
+          // Apply the theme class — this controls ALL visual styling
+          // Remove any existing theme class first
+          card.className = card.className.replace(/\btheme-\w+/g, '').trim();
+          card.classList.add('profile-card', 'theme-' + theme);
+
+          // Set the badge text based on theme
+          const badge = document.getElementById(name + '-badge');
+          if (badge) badge.textContent = themeBadges[theme] || theme;
 
           // Avatar
           if (u.avatar) {
@@ -688,9 +740,6 @@
             document.getElementById(name + '-status-dot').style.boxShadow = '0 0 8px ' + getStatusColor('invisible');
             document.getElementById(name + '-status-text').textContent = 'Offline';
           }
-
-          // Do NOT override card background, border, box-shadow, name gradient, or avatar —
-          // let the CSS identity classes handle all visual styling so each card stays unique
         });
       } catch {}
     }
