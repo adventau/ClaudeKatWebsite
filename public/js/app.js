@@ -62,7 +62,14 @@ const THEMES = [
 ];
 
 // ── Socket ────────────────────────────────────────────────────────────
-const socket = io();
+const socket = io({ reconnection: true, reconnectionDelay: 1000, reconnectionAttempts: Infinity });
+
+// Re-join rooms on reconnect so messages keep flowing
+socket.on('connect', () => {
+  if (typeof currentUser === 'string' && currentUser) {
+    socket.emit('user-online', { user: currentUser });
+  }
+});
 
 // ── Init ──────────────────────────────────────────────────────────────
 async function init() {
@@ -558,6 +565,7 @@ async function sendMessage() {
     clearFilePreview();
   }
 
+  const savedText = input.value;
   input.value = '';
   resetInputHeight();
   cancelReply();
@@ -567,7 +575,9 @@ async function sendMessage() {
 
   try {
     const resp = await fetch('/api/messages', { method: 'POST', body: formData });
+    if (!resp.ok) throw new Error('Server returned ' + resp.status);
     const result = await resp.json();
+    if (!result.success) throw new Error(result.error || 'Send failed');
     if (priority && result.emailStatus) {
       if (result.emailStatus === 'sent') {
         showToast('📧 Priority email sent!');
@@ -577,6 +587,11 @@ async function sendMessage() {
         showToast('❌ Priority email failed to send — check email settings');
       }
     }
+  } catch (err) {
+    console.error('Send error:', err);
+    // Restore the text so the user doesn't lose their message
+    input.value = savedText;
+    showToast('⚠️ Message failed to send — try again');
   } finally {
     isSending = false;
   }
@@ -3234,7 +3249,7 @@ window.addEventListener('beforeunload', () => {
   navigator.sendBeacon('/api/users/' + currentUser + '/lastseen', '');
 });
 
-// Tab hidden = go idle, tab visible = come back online
+// Tab hidden = go idle, tab visible = come back online + sync messages
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (!_isAutoIdle) {
@@ -3249,8 +3264,29 @@ document.addEventListener('visibilitychange', () => {
       setStatusDot('my-status-dot', 'online');
       updateStatusText('online');
     }
+    // Sync messages we may have missed while tab was hidden
+    syncMissedMessages();
   }
 });
+
+async function syncMissedMessages() {
+  try {
+    const resp = await fetch('/api/messages');
+    const msgs = await resp.json();
+    const serverMsgs = msgs.main || [];
+    if (serverMsgs.length <= allMessages.length) return;
+    // Find messages we don't have yet
+    const existingIds = new Set(allMessages.map(m => m.id));
+    const missed = serverMsgs.filter(m => !existingIds.has(m.id));
+    if (missed.length === 0) return;
+    const area = document.getElementById('messages-area');
+    missed.forEach(msg => {
+      allMessages.push(msg);
+      area.appendChild(buildMsgElement(msg));
+    });
+    area.scrollTop = area.scrollHeight;
+  } catch {}
+}
 
 // ── Modal helpers ─────────────────────────────────────────────────────
 function openModal(id)  { document.getElementById(id)?.classList.add('open'); }
