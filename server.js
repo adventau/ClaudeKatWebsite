@@ -40,19 +40,17 @@ const F = {
 };
 
 // ── Web Push (VAPID) ─────────────────────────────────────────────────────────
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    'mailto:royalkvault@gmail.com',
-    process.env.VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  );
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || 'BDcePE_uIcloJSjJJCKxgnwWKwSqkGGqdHzOWrI77Pe-FV9mrUBnvHrmQjTCJi1LxUSO7064hK9dkLgpctxs2do';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '2T0GU1HyXiA1qNsm6Rp-lpOjUTYMcPE_IkUe0flutKU';
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webpush.setVapidDetails('mailto:royalkvault@gmail.com', VAPID_PUBLIC, VAPID_PRIVATE);
 }
 
 function getPushSubs() { return rd(F.pushSubs) || {}; }
 function savePushSubs(subs) { wd(F.pushSubs, subs); }
 
 async function sendPushToUser(targetUser, payload) {
-  if (!process.env.VAPID_PUBLIC_KEY) return;
+  if (!VAPID_PUBLIC) return;
   const subs = getPushSubs();
   const userSubs = subs[targetUser] || [];
   if (!userSubs.length) return;
@@ -142,13 +140,15 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
 // ── Email (Gmail SMTP) ───────────────────────────────────────────────────────
+const EMAIL_USER = process.env.EMAIL_USER || 'royalkvault@gmail.com';
+const EMAIL_PASS = process.env.EMAIL_PASS || 'qzqnfnauyzozrlug';
 let _transporter = null;
 
 function mailer() {
   if (!_transporter) {
     _transporter = nodemailer.createTransport({
       service: 'gmail',
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
       pool: true,
       maxConnections: 3,
     });
@@ -158,12 +158,12 @@ function mailer() {
 
 async function sendMail(to, subject, html, attachments = []) {
   if (!to) { console.error('Mail error: no recipient email configured'); return false; }
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+  if (!EMAIL_USER || !EMAIL_PASS) {
     console.error('Mail error: EMAIL_USER + EMAIL_PASS not configured');
     return false;
   }
   try {
-    await mailer().sendMail({ from: process.env.EMAIL_USER, to, subject, html, attachments });
+    await mailer().sendMail({ from: EMAIL_USER, to, subject, html, attachments });
     console.log(`Mail sent via SMTP to ${to}`);
     return true;
   } catch (e) {
@@ -385,7 +385,7 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
     let emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
     // Fallback: if no per-user email, try shared email, then env EMAIL_USER
     if (emails.length === 0 && settings.emails?.shared) emails = [settings.emails.shared];
-    if (emails.length === 0 && process.env.EMAIL_USER) emails = [process.env.EMAIL_USER];
+    if (emails.length === 0 && EMAIL_USER) emails = [EMAIL_USER];
     const senderName = sender.charAt(0).toUpperCase() + sender.slice(1);
     const subject = `🔴 Priority Message from ${senderName}`;
     const html = `<h2 style="color:#7c3aed">🔴 Priority Message</h2>
@@ -747,7 +747,7 @@ app.get('/api/settings', mainAuth, (_, res) => {
 });
 
 app.get('/api/settings/email-status', mainAuth, async (_, res) => {
-  const configured = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+  const configured = !!(EMAIL_USER && EMAIL_PASS);
   let canConnect = false;
   if (configured) {
     try { await mailer().verify(); canConnect = true; } catch { canConnect = false; }
@@ -799,7 +799,7 @@ app.put('/api/settings', mainAuth, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.get('/api/push/vapid-key', mainAuth, (_, res) => {
-  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || null });
+  res.json({ publicKey: VAPID_PUBLIC || null });
 });
 
 app.post('/api/push/subscribe', mainAuth, (req, res) => {
@@ -2013,12 +2013,12 @@ server.listen(PORT, async () => {
   console.log(`   Running on → http://localhost:${PORT}`);
   console.log(`   Backdoor   → http://localhost:${PORT}/backdoor`);
   // Email status check
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+  if (!EMAIL_USER || !EMAIL_PASS) {
     console.log(`   Email      → ❌ NOT configured (set EMAIL_USER+EMAIL_PASS in .env)`);
   } else {
     try {
       await mailer().verify();
-      console.log(`   Email      → ✅ Gmail SMTP ready (${process.env.EMAIL_USER})`);
+      console.log(`   Email      → ✅ Gmail SMTP ready (${EMAIL_USER})`);
     } catch (e) {
       console.log(`   Email      → ⚠️  Gmail configured but connection failed: ${e.message}`);
       _transporter = null;
