@@ -15,7 +15,7 @@
       background: #0a0a0a;
       font-family: 'Courier New', Courier, monospace;
       color: #c0c0c0;
-      overflow: hidden;
+      overflow-y: auto;
     }
 
     /* Scanline overlay */
@@ -48,6 +48,7 @@
       width: 100%;
       max-width: 420px;
       padding: 24px;
+      margin: 24px auto;
       display: flex;
       flex-direction: column;
       gap: 0;
@@ -296,8 +297,9 @@
       text-transform: uppercase;
     }
 
-    /* Confirmation overlay */
-    #confirm-overlay {
+    /* Confirmation overlays */
+    #confirm-overlay,
+    #erase-confirm-overlay {
       display: none;
       position: fixed;
       inset: 0;
@@ -306,7 +308,8 @@
       align-items: center;
       justify-content: center;
     }
-    #confirm-overlay.show { display: flex; }
+    #confirm-overlay.show,
+    #erase-confirm-overlay.show { display: flex; }
 
     .confirm-dialog {
       background: #0a0a0a;

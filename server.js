@@ -10,6 +10,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
+const webpush = require('web-push');
 
 const app = express();
 const server = http.createServer(app);
@@ -35,7 +36,42 @@ const F = {
   announcements: path.join(DATA_DIR, 'announcements.json'),
   settings:      path.join(DATA_DIR, 'settings.json'),
   suggestions:   path.join(DATA_DIR, 'suggestions.json'),
+  pushSubs:      path.join(DATA_DIR, 'push-subscriptions.json'),
 };
+
+// ── Web Push (VAPID) ─────────────────────────────────────────────────────────
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    'mailto:royalkvault@gmail.com',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
+
+function getPushSubs() { return rd(F.pushSubs) || {}; }
+function savePushSubs(subs) { wd(F.pushSubs, subs); }
+
+async function sendPushToUser(targetUser, payload) {
+  if (!process.env.VAPID_PUBLIC_KEY) return;
+  const subs = getPushSubs();
+  const userSubs = subs[targetUser] || [];
+  if (!userSubs.length) return;
+  const body = JSON.stringify(payload);
+  const expired = [];
+  for (let i = 0; i < userSubs.length; i++) {
+    try {
+      await webpush.sendNotification(userSubs[i], body);
+    } catch (e) {
+      if (e.statusCode === 410 || e.statusCode === 404) expired.push(i);
+      else console.error('Push error:', e.message);
+    }
+  }
+  // Clean up expired subscriptions
+  if (expired.length) {
+    subs[targetUser] = userSubs.filter((_, i) => !expired.includes(i));
+    savePushSubs(subs);
+  }
+}
 
 function rd(file)       { try { return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null; } catch { return null; } }
 function wd(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
@@ -106,22 +142,38 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
 // ── Email (Gmail SMTP) ───────────────────────────────────────────────────────
+let _transporter = null;
+
 function mailer() {
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-  });
+  if (!_transporter) {
+    _transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      pool: true,
+      maxConnections: 3,
+    });
+  }
+  return _transporter;
 }
+
 async function sendMail(to, subject, html, attachments = []) {
   if (!to) { console.error('Mail error: no recipient email configured'); return false; }
-  if (!process.env.EMAIL_PASS) {
-    console.error('Mail error: EMAIL_PASS not configured in .env');
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.error('Mail error: EMAIL_USER + EMAIL_PASS not configured');
     return false;
   }
   try {
     await mailer().sendMail({ from: process.env.EMAIL_USER, to, subject, html, attachments });
+    console.log(`Mail sent via SMTP to ${to}`);
     return true;
-  } catch (e) { console.error('Mail error:', e.message); return false; }
+  } catch (e) {
+    console.error('Mail error:', e.message);
+    // Reset transporter on connection errors so next attempt creates a fresh one
+    if (e.code === 'EAUTH' || e.code === 'ESOCKET' || e.code === 'ECONNECTION' || e.code === 'ETIMEDOUT') {
+      _transporter = null;
+    }
+    return false;
+  }
 }
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
@@ -365,7 +417,46 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
   }, 3 * 60 * 1000);
 
   io.emit('new-message', message);
+
+  // Push notification to the other user
+  const sender = req.session.user;
+  const recipient = sender === 'kaliph' ? 'kathrine' : 'kaliph';
+  const senderName = sender.charAt(0).toUpperCase() + sender.slice(1);
+  sendPushToUser(recipient, {
+    title: message.priority ? `🔴 Priority from ${senderName}` : `${senderName}`,
+    body: message.text?.substring(0, 120) || (message.files?.length ? '📎 Sent a file' : 'New message'),
+    icon: '/favicon.ico',
+    tag: 'msg-' + message.id,
+    url: '/app',
+    priority: message.priority,
+  }).catch(() => {});
+
   res.json({ success: true, message, emailStatus });
+});
+
+// Call event messages (missed call, call ended)
+app.post('/api/messages/call-event', mainAuth, (req, res) => {
+  const msgs = rd(F.messages);
+  if (!Array.isArray(msgs.main)) msgs.main = [];
+  const event = {
+    id: req.body.id || uuidv4(),
+    sender: 'system',
+    type: 'call-event',
+    text: req.body.text,
+    files: [],
+    priority: false,
+    replyTo: null,
+    timestamp: req.body.timestamp || Date.now(),
+    callType: req.body.callType,
+    callStatus: req.body.callStatus,
+    callPeer: req.body.callPeer,
+    read: true,
+    reactions: {},
+  };
+  msgs.main.push(event);
+  wd(F.messages, msgs);
+  io.emit('new-message', event);
+  res.json({ success: true });
 });
 
 app.post('/api/messages/:id/read', mainAuth, (req, res) => {
@@ -704,6 +795,40 @@ app.put('/api/settings', mainAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// PUSH NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/push/vapid-key', mainAuth, (_, res) => {
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY || null });
+});
+
+app.post('/api/push/subscribe', mainAuth, (req, res) => {
+  const user = req.session.user;
+  const sub = req.body.subscription;
+  if (!sub || !sub.endpoint) return res.status(400).json({ error: 'Invalid subscription' });
+  const subs = getPushSubs();
+  if (!subs[user]) subs[user] = [];
+  // Avoid duplicates
+  if (!subs[user].find(s => s.endpoint === sub.endpoint)) {
+    subs[user].push(sub);
+    savePushSubs(subs);
+  }
+  res.json({ success: true });
+});
+
+app.post('/api/push/unsubscribe', mainAuth, (req, res) => {
+  const user = req.session.user;
+  const endpoint = req.body.endpoint;
+  if (!endpoint) return res.status(400).json({ error: 'No endpoint' });
+  const subs = getPushSubs();
+  if (subs[user]) {
+    subs[user] = subs[user].filter(s => s.endpoint !== endpoint);
+    savePushSubs(subs);
+  }
+  res.json({ success: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SUGGESTIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -865,12 +990,15 @@ app.post('/api/backdoor/erase-messages', async (req, res) => {
 // EVAL TERMINAL (Admin)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-let evalPassword = 'Admin';
+function getEvalPassword() {
+  const s = rd(F.settings);
+  return (s && s.evalPassword) || 'Admin';
+}
 let maintenanceMode = false;
 const evalTokens = new Set();
 
 app.post('/api/eval/auth', (req, res) => {
-  if (req.body.password !== evalPassword) return res.status(403).json({ error: 'Invalid password' });
+  if (req.body.password !== getEvalPassword()) return res.status(403).json({ error: 'Invalid password' });
   const token = uuidv4();
   evalTokens.add(token);
   res.json({ token });
@@ -1173,7 +1301,9 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     if (prop === 'eval-password') {
       const pw = parts.slice(2).join(' ');
       if (!pw) return lines('Usage: set eval-password <new password>', 'warn');
-      evalPassword = pw;
+      const s = rd(F.settings);
+      s.evalPassword = pw;
+      wd(F.settings, s);
       return lines(`Eval password changed to "${pw}"`, 'success');
     }
 
@@ -1286,7 +1416,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       ['── Settings ──', 'header'],
       [`  Site password:  (hashed)`, 'data'],
       [`  Vault passcode: ${s.vaultPasscode || '(not set)'}`, 'data'],
-      [`  Eval password:  ${evalPassword}`, 'data'],
+      [`  Eval password:  ${getEvalPassword()}`, 'data'],
       [`  Emails:`, 'data'],
       [`    Kaliph:   ${JSON.stringify(s.emails?.kaliph || '(none)')}`, 'dim'],
       [`    Kathrine: ${JSON.stringify(s.emails?.kathrine || '(none)')}`, 'dim'],
@@ -1891,6 +2021,7 @@ server.listen(PORT, async () => {
       console.log(`   Email      → ✅ Gmail SMTP ready (${process.env.EMAIL_USER})`);
     } catch (e) {
       console.log(`   Email      → ⚠️  Gmail configured but connection failed: ${e.message}`);
+      _transporter = null;
     }
   }
   console.log(`🏰 ══════════════════════════════════════════ 🏰\n`);

@@ -387,6 +387,19 @@ function renderMessages(filter = null) {
 }
 
 function buildMsgElement(msg) {
+  // Call event system messages
+  if (msg.type === 'call-event') {
+    const row = document.createElement('div');
+    row.className = 'msg-row call-event-row';
+    row.id = 'msg-' + msg.id;
+    const isMissed = msg.callStatus === 'missed';
+    row.innerHTML = `<div class="call-event ${isMissed ? 'missed' : 'ended'}">
+      <span class="call-event-text">${msg.text}</span>
+      <span class="call-event-time">${formatTime(msg.timestamp)}</span>
+    </div>`;
+    return row;
+  }
+
   const isSelf = msg.sender === currentUser;
   const isAI   = msg.sender === 'ai' || msg.aiGenerated;
 
@@ -716,22 +729,23 @@ function ctxCopy() {
 async function ctxEdit() {
   const msg = allMessages.find(m => m.id === ctxMsgId);
   if (!msg) return;
-  const newText = prompt('Edit message:', msg.text);
-  if (newText !== null && newText.trim() !== msg.text) {
+  closeContextMenu();
+  const newText = await showPromptDialog({ value: msg.text, placeholder: 'Edit your message...', okText: 'Save' });
+  if (newText !== null && newText.trim() && newText.trim() !== msg.text) {
     await fetch(`/api/messages/${ctxMsgId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: newText.trim() })
     });
   }
-  closeContextMenu();
 }
 
 async function ctxUnsend() {
-  if (!confirm('Unsend this message?')) return;
+  closeContextMenu();
+  const ok = await showConfirmDialog({ icon: '🗑️', title: 'Unsend message?', msg: 'This message will be removed for everyone.', okText: 'Unsend' });
+  if (!ok) return;
   const r = await fetch(`/api/messages/${ctxMsgId}`, { method: 'DELETE' });
   const d = await r.json();
   if (!d.success) showToast('⚠️ ' + (d.error || 'Cannot unsend'));
-  closeContextMenu();
 }
 
 async function reactToMessage(msgId, emoji) {
@@ -1134,7 +1148,8 @@ async function sendBrainstorm() {
 }
 
 async function clearBrainstorm() {
-  if (!confirm('Clear the brainstorm board? (Messages are saved on server still)')) return;
+  const ok = await showConfirmDialog({ icon: '💡', title: 'Clear brainstorm board?', msg: 'Messages are still saved on the server.', okText: 'Clear', danger: false });
+  if (!ok) return;
   document.getElementById('brainstorm-messages').innerHTML =
     '<div class="empty-state" id="brainstorm-empty"><div class="empty-state-icon">💡</div><div class="empty-state-text">Board cleared locally.</div></div>';
 }
@@ -1312,7 +1327,8 @@ async function archiveNote(id) {
 }
 
 async function deleteNote(id) {
-  if (!confirm('Delete this note?')) return;
+  const ok = await showConfirmDialog({ icon: '📝', title: 'Delete note?', msg: 'This note will be permanently removed.', okText: 'Delete' });
+  if (!ok) return;
   await fetch(`/api/notes/${id}`, { method: 'DELETE' });
   await loadNotes();
   activeNoteId = null;
@@ -1458,14 +1474,64 @@ function renderVault(data) {
   }
   grid.innerHTML = items.map(item => {
     const icon = item.type === 'link' ? '🔗' : getFileIcon(item.mimeType);
+    const mime = item.mimeType || '';
+    // Show thumbnail preview for images/videos
+    let thumbHtml;
+    if (mime.startsWith('image')) {
+      thumbHtml = `<div class="vault-item-thumb"><img src="${item.url}" alt="" loading="lazy"></div>`;
+    } else if (mime.startsWith('video')) {
+      thumbHtml = `<div class="vault-item-thumb"><video src="${item.url}" muted preload="metadata"></video></div>`;
+    } else {
+      thumbHtml = `<div class="vault-item-icon">${icon}</div>`;
+    }
+    const escapedName = (item.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const escapedUrl = (item.url || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const clickAction = item.type === 'link'
+      ? `window.open('${escapedUrl}','_blank')`
+      : `openVaultPreview('${escapedUrl}','${escapedName}','${mime}')`;
     return `
-      <div class="vault-item" onclick="${item.type === 'link' ? `window.open('${item.url}','_blank')` : `window.open('${item.url}','_blank')`}">
-        <div class="vault-item-icon">${icon}</div>
+      <div class="vault-item" onclick="${clickAction}">
+        ${thumbHtml}
         <div class="vault-item-name">${item.name}</div>
         <div class="vault-item-meta">${formatDate(item.uploadedAt)}</div>
         ${vaultTab === 'mine' ? `<button class="vault-del-btn" onclick="event.stopPropagation();deleteVaultItem('${item.id}')">✕</button>` : ''}
       </div>`;
   }).join('');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function openVaultPreview(url, name, mime) {
+  const body = document.getElementById('vault-preview-body');
+  const titleEl = document.getElementById('vault-preview-name');
+  const openBtn = document.getElementById('vault-preview-open');
+  const dlBtn = document.getElementById('vault-preview-download');
+  titleEl.textContent = name || 'File';
+  openBtn.onclick = () => window.open(url, '_blank');
+  dlBtn.onclick = () => {
+    const a = document.createElement('a');
+    a.href = url; a.download = name || 'file'; a.click();
+  };
+
+  let content = '';
+  if (mime.startsWith('image')) {
+    content = `<img src="${url}" alt="${name}">`;
+  } else if (mime.startsWith('video')) {
+    content = `<video src="${url}" controls autoplay style="max-width:100%;max-height:70vh;border-radius:8px"></video>`;
+  } else if (mime.startsWith('audio')) {
+    content = `<audio src="${url}" controls autoplay></audio>`;
+  } else if (mime.includes('pdf')) {
+    content = `<iframe src="${url}"></iframe>`;
+  } else {
+    const icon = getFileIcon(mime);
+    content = `<div class="file-preview-placeholder">
+      <div class="file-icon">${icon}</div>
+      <div class="file-name">${name}</div>
+      <div class="file-hint">No preview available — click the button above to open or download</div>
+    </div>`;
+  }
+  body.innerHTML = content;
+  openModal('vault-preview-modal');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 async function uploadVaultLink() {
@@ -1495,7 +1561,8 @@ async function handleVaultFiles(input) {
 }
 
 async function deleteVaultItem(id) {
-  if (!confirm('Remove from vault?')) return;
+  const ok = await showConfirmDialog({ icon: '🔒', title: 'Remove from vault?', msg: 'This file will be permanently removed.', okText: 'Remove' });
+  if (!ok) return;
   await fetch(`/api/vault/${id}`, {
     method: 'DELETE', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ passcode: vaultPasscode })
@@ -1569,7 +1636,8 @@ async function saveContact() {
 }
 
 async function deleteContact(id) {
-  if (!confirm('Delete contact?')) return;
+  const ok = await showConfirmDialog({ icon: '📇', title: 'Delete contact?', msg: 'This contact will be permanently removed.', okText: 'Delete' });
+  if (!ok) return;
   await fetch(`/api/contacts/${id}`, { method: 'DELETE' });
   await loadContacts();
 }
@@ -2264,13 +2332,17 @@ async function createGuest() {
 
 // Custom confirm dialog (replaces browser confirm())
 let _confirmResolve = null;
-function showConfirmDialog({ icon = '⚠️', title = 'Are you sure?', msg = 'This action cannot be undone.', okText = 'Confirm', cancelText = 'Cancel' } = {}) {
+function showConfirmDialog({ icon = '⚠️', title = 'Are you sure?', msg = 'This action cannot be undone.', okText = 'Confirm', cancelText = 'Cancel', danger = true } = {}) {
   return new Promise(resolve => {
     _confirmResolve = resolve;
     document.getElementById('confirm-icon').textContent = icon;
     document.getElementById('confirm-title').textContent = title;
     document.getElementById('confirm-msg').textContent = msg;
-    document.getElementById('confirm-ok-btn').textContent = okText;
+    const okBtn = document.getElementById('confirm-ok-btn');
+    okBtn.textContent = okText;
+    okBtn.className = danger ? 'btn-danger' : 'btn-primary';
+    okBtn.style.flex = '1';
+    okBtn.style.maxWidth = '140px';
     document.getElementById('confirm-cancel-btn').textContent = cancelText;
     document.getElementById('confirm-dialog').classList.add('open');
   });
@@ -2279,6 +2351,38 @@ function closeConfirmDialog(result) {
   document.getElementById('confirm-dialog').classList.remove('open');
   if (_confirmResolve) { _confirmResolve(result); _confirmResolve = null; }
 }
+
+// Custom prompt dialog (replaces browser prompt())
+let _promptResolve = null;
+function showPromptDialog({ value = '', placeholder = 'Type here...', okText = 'Send', cancelText = 'Cancel' } = {}) {
+  return new Promise(resolve => {
+    _promptResolve = resolve;
+    const input = document.getElementById('prompt-input');
+    input.value = value;
+    input.placeholder = placeholder;
+    document.getElementById('prompt-ok-btn').textContent = okText;
+    document.getElementById('prompt-cancel-btn').textContent = cancelText;
+    document.getElementById('prompt-dialog').classList.add('open');
+    setTimeout(() => { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }, 50);
+  });
+}
+function closePromptDialog(submit) {
+  const input = document.getElementById('prompt-input');
+  const val = submit ? input.value : null;
+  document.getElementById('prompt-dialog').classList.remove('open');
+  if (_promptResolve) { _promptResolve(val); _promptResolve = null; }
+}
+// Wire up prompt dialog buttons
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('prompt-cancel-btn')?.addEventListener('click', () => closePromptDialog(false));
+  document.getElementById('prompt-ok-btn')?.addEventListener('click', () => closePromptDialog(true));
+  document.getElementById('prompt-dialog')?.addEventListener('click', e => { if (e.target.id === 'prompt-dialog') closePromptDialog(false); });
+  // Allow Ctrl+Enter to submit prompt
+  document.getElementById('prompt-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); closePromptDialog(true); }
+    if (e.key === 'Escape') closePromptDialog(false);
+  });
+});
 
 async function revokeGuest(id, name) {
   const ok = await showConfirmDialog({
@@ -2373,6 +2477,42 @@ let iceCandidateQueue = [];   // buffer ICE candidates before peerConnection exi
 let callTimer = null;
 let callSeconds = 0;
 let inCall = false;
+let callAnswered = false;      // track if call was answered
+
+// Post a call event (missed/ended) as a system message in chat
+async function postCallEvent(type, peer, cType) {
+  const icon = cType === 'video' ? '📹' : '📞';
+  let text;
+  if (type === 'missed') {
+    text = `${icon} Missed ${cType || 'voice'} call`;
+  } else if (type === 'ended') {
+    const dur = callSeconds > 0 ? ` (${Math.floor(callSeconds / 60)}:${String(callSeconds % 60).padStart(2, '0')})` : '';
+    text = `${icon} ${capitalize(cType || 'Voice')} call ended${dur}`;
+  }
+  if (!text) return;
+  // Insert as a system-style message
+  const sysMsg = {
+    id: 'call-' + Date.now(),
+    sender: 'system',
+    type: 'call-event',
+    text,
+    files: [],
+    priority: false,
+    replyTo: null,
+    timestamp: Date.now(),
+    callType: cType,
+    callStatus: type,
+    callPeer: peer,
+  };
+  // Save to server
+  try {
+    await fetch('/api/messages/call-event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sysMsg),
+    });
+  } catch {}
+}
 
 function setupLocalVideo(stream) {
   const vid = document.getElementById('call-video-local');
@@ -2396,6 +2536,7 @@ async function startCall(type) {
   if (inCall) { showToast('Already in a call'); return; }
   callType = type;
   callPeer = otherUser;
+  callAnswered = false;
   const videoConstraints = type === 'video' ? { width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 480 }, frameRate: { ideal: 30, min: 15 }, facingMode: 'user' } : false;
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints }).catch(() => null);
   if (!localStream) { showToast('Media device access denied'); return; }
@@ -2449,6 +2590,7 @@ async function handleCallOffer({ offer, type, from }) {
 
 async function acceptCall() {
   SoundSystem.stopRingtone();
+  callAnswered = true;
   document.getElementById('incoming-call').style.display = 'none';
   const videoConstraints = callType === 'video' ? { width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 480 }, frameRate: { ideal: 30, min: 15 }, facingMode: 'user' } : false;
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints }).catch(() => null);
@@ -2491,6 +2633,7 @@ async function acceptCall() {
 
 async function handleCallAnswer({ answer }) {
   SoundSystem.stopRingtone();
+  callAnswered = true;
   if (peerConnection) {
     await peerConnection.setRemoteDescription(answer);
     document.getElementById('call-status').textContent = 'Connected';
@@ -2510,6 +2653,8 @@ async function handleIceCandidate({ candidate }) {
 function declineCall() {
   SoundSystem.stopRingtone();
   document.getElementById('incoming-call').style.display = 'none';
+  // Post missed call to chat
+  postCallEvent('missed', callPeer, callType);
   callPeer = null;
   window._pendingOffer = null;
   iceCandidateQueue = [];
@@ -2520,12 +2665,22 @@ function endCall(remote = false) {
   SoundSystem.stopRingtone();
   SoundSystem.callSound('hangup');
   if (!remote) socket.emit('call-end', {});
+  // Post call event to chat
+  const peer = callPeer;
+  const cType = callType;
+  if (callAnswered) {
+    postCallEvent('ended', peer, cType);
+  } else if (remote && !callAnswered) {
+    // Other person ended before we answered = missed call
+    postCallEvent('missed', peer, cType);
+  }
   if (peerConnection) { peerConnection.close(); peerConnection = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
   if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
   stopCallTimer();
   stopCallControlsAutoHide();
   inCall = false;
+  callAnswered = false;
   callPeer = null;
   window._pendingOffer = null;
   iceCandidateQueue = [];
@@ -3302,16 +3457,62 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.status-menu') && !e.target.closest('#my-status-text')) document.getElementById('status-menu').classList.remove('open');
 });
 
-// ── Notifications ─────────────────────────────────────────────────────
-function requestNotificationPermission() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
+// ── Notifications + Push (Service Worker) ─────────────────────────────
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    const result = await Notification.requestPermission();
+    if (result === 'granted') await registerPushSubscription();
+  } else if (Notification.permission === 'granted') {
+    await registerPushSubscription();
   }
+}
+
+async function registerPushSubscription() {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    const reg = await navigator.serviceWorker.ready;
+    // Get VAPID key from server
+    const resp = await fetch('/api/push/vapid-key');
+    const { publicKey } = await resp.json();
+    if (!publicKey) return;
+    // Convert VAPID key
+    const vapidBytes = urlBase64ToUint8Array(publicKey);
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidBytes,
+      });
+    }
+    // Send subscription to server
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub }),
+    });
+  } catch (e) { console.error('Push registration failed:', e); }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+// Register service worker on load
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
 function sendDesktopNotif(title, body) {
   if (document.hasFocus()) return;
   if ('Notification' in window && Notification.permission === 'granted') {
+    // Service worker handles push when site is closed;
+    // this handles when the tab is open but not focused
     new Notification(title, { body, icon: '/favicon.ico' });
   }
 }

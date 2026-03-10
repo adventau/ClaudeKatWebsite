@@ -839,6 +839,29 @@
   </div>
 </div>
 
+<!-- Vault File Preview -->
+<div class="modal-overlay" id="vault-preview-modal" onclick="if(event.target===this)closeModal('vault-preview-modal')">
+  <div class="vault-preview-container">
+    <div class="vault-preview-header">
+      <span class="vault-preview-title" id="vault-preview-name">File</span>
+      <div class="vault-preview-actions">
+        <button class="vault-preview-btn" id="vault-preview-open" title="Open in new tab">
+          <i data-lucide="external-link" style="width:16px;height:16px"></i>
+        </button>
+        <button class="vault-preview-btn" id="vault-preview-download" title="Download">
+          <i data-lucide="download" style="width:16px;height:16px"></i>
+        </button>
+        <button class="vault-preview-btn" onclick="closeModal('vault-preview-modal')" title="Close">
+          <i data-lucide="x" style="width:16px;height:16px"></i>
+        </button>
+      </div>
+    </div>
+    <div class="vault-preview-body" id="vault-preview-body">
+      <!-- preview content injected here -->
+    </div>
+  </div>
+</div>
+
 <!-- New Contact -->
 <div class="modal-overlay" id="new-contact-modal">
   <div class="modal modal-sm">
@@ -997,7 +1020,18 @@
     <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1.5rem" id="confirm-msg">This action cannot be undone.</p>
     <div style="display:flex;gap:10px;justify-content:center">
       <button class="btn-ghost" id="confirm-cancel-btn" onclick="closeConfirmDialog(false)" style="flex:1;max-width:140px">Cancel</button>
-      <button class="btn-danger" id="confirm-ok-btn" onclick="closeConfirmDialog(true)" style="flex:1;max-width:140px">Revoke</button>
+      <button class="btn-danger" id="confirm-ok-btn" onclick="closeConfirmDialog(true)" style="flex:1;max-width:140px">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Prompt Dialog (replaces browser prompt()) -->
+<div class="modal-overlay" id="prompt-dialog">
+  <div class="prompt-card">
+    <textarea class="prompt-input" id="prompt-input" rows="3" placeholder="Type here..."></textarea>
+    <div class="prompt-actions">
+      <button class="prompt-btn prompt-btn-cancel" id="prompt-cancel-btn">Cancel</button>
+      <button class="prompt-btn prompt-btn-ok" id="prompt-ok-btn">Send</button>
     </div>
   </div>
 </div>

@@ -310,6 +310,17 @@ html, body { height: 100%; overflow: hidden; }
 }
 .msg-row.self  { flex-direction: row-reverse; }
 .msg-row.other { flex-direction: row; }
+.msg-row.call-event-row { justify-content: center; padding: 8px 0; }
+.call-event {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 16px; border-radius: 20px; font-size: 0.78rem;
+  background: var(--bg-card); border: 1px solid var(--border-card);
+  color: var(--text-muted);
+}
+.call-event.missed { color: #ef4444; border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.08); }
+.call-event.ended { color: var(--text-muted); }
+.call-event-text { font-weight: 500; }
+.call-event-time { font-size: 0.7rem; opacity: 0.6; }
 
 /* Group consecutive same-sender messages — tighter spacing */
 .msg-row + .msg-row.same-sender { padding-top: 0; }
@@ -762,6 +773,67 @@ html, body { height: 100%; overflow: hidden; }
 }
 .vault-item:hover .vault-del-btn { opacity: 1; }
 
+/* Vault item thumbnail preview */
+.vault-item-thumb {
+  width: 100%; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-elevated);
+}
+.vault-item-thumb img,
+.vault-item-thumb video {
+  width: 100%; height: 100%; object-fit: cover; border-radius: 10px;
+}
+
+/* ── VAULT PREVIEW MODAL ───────────────────────────────────────── */
+.vault-preview-container {
+  background: var(--bg-primary); border: 1px solid var(--border-card);
+  border-radius: 16px; overflow: hidden;
+  max-width: 90vw; max-height: 90vh;
+  width: 700px;
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+}
+.vault-preview-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--border-card);
+  background: var(--bg-elevated);
+}
+.vault-preview-title {
+  font-size: 0.85rem; font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; margin-right: 12px;
+}
+.vault-preview-actions { display: flex; gap: 6px; }
+.vault-preview-btn {
+  background: var(--bg-card); border: 1px solid var(--border-card);
+  color: var(--text-secondary); border-radius: 8px;
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s;
+}
+.vault-preview-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.vault-preview-body {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 16px; overflow: auto; min-height: 300px; max-height: 75vh;
+}
+.vault-preview-body img {
+  max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 8px;
+}
+.vault-preview-body video {
+  max-width: 100%; max-height: 70vh; border-radius: 8px;
+}
+.vault-preview-body audio { width: 100%; max-width: 400px; }
+.vault-preview-body iframe {
+  width: 100%; height: 70vh; border: none; border-radius: 8px;
+}
+.vault-preview-body .file-preview-placeholder {
+  text-align: center; color: var(--text-muted);
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.vault-preview-body .file-preview-placeholder .file-icon { font-size: 3rem; }
+.vault-preview-body .file-preview-placeholder .file-name {
+  font-size: 0.9rem; font-weight: 600; color: var(--text-primary);
+}
+.vault-preview-body .file-preview-placeholder .file-hint { font-size: 0.78rem; }
+
 /* ── CONTACTS SECTION ───────────────────────────────────────────── */
 .contact-card {
   display: flex; align-items: center; gap: 14px;
@@ -1059,6 +1131,42 @@ html, body { height: 100%; overflow: hidden; }
   margin-bottom: 18px;
 }
 .modal-title { font-family: var(--font-heading); font-size: 1rem; font-weight: 700; letter-spacing: 0.02em; }
+
+/* ── PROMPT DIALOG (edit message, etc) ──────────────────────────── */
+.prompt-card {
+  background: var(--bg-modal, var(--bg-sidebar));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 16px;
+  width: 100%; max-width: 480px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+  animation: modalIn 0.24s cubic-bezier(0.34,1.2,0.64,1);
+}
+.prompt-input {
+  width: 100%; resize: none;
+  background: transparent; border: none; outline: none;
+  color: var(--text-primary); font-family: var(--font-body);
+  font-size: 0.92rem; line-height: 1.6;
+  padding: 4px 0; min-height: 60px; max-height: 200px;
+}
+.prompt-input::placeholder { color: var(--text-muted); }
+.prompt-actions {
+  display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;
+}
+.prompt-btn {
+  padding: 8px 20px; border-radius: 20px; font-size: 0.82rem;
+  font-weight: 600; cursor: pointer; transition: all 0.15s;
+  font-family: var(--font-body); border: none;
+}
+.prompt-btn-cancel {
+  background: var(--bg-card); color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.prompt-btn-cancel:hover { background: var(--bg-elevated); }
+.prompt-btn-ok {
+  background: var(--text-primary); color: var(--bg-primary);
+}
+.prompt-btn-ok:hover { opacity: 0.85; }
 
 /* ── EMOJI PICKER ────────────────────────────────────────────────── */
 #emoji-picker {
