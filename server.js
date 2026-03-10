@@ -325,12 +325,17 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
 
   // Priority email (supports multiple emails per person)
   if (message.priority) {
-    const recipient = req.session.user === 'kaliph' ? 'kathrine' : 'kaliph';
+    const sender = req.session.user;
+    const recipient = sender === 'kaliph' ? 'kathrine' : 'kaliph';
     const emailData = settings.emails[recipient];
-    const emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
-    const subject = `🔴 Priority Message from ${req.session.user.charAt(0).toUpperCase() + req.session.user.slice(1)}`;
+    let emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
+    // Fallback: if no per-user email, try shared email, then env EMAIL_USER
+    if (emails.length === 0 && settings.emails?.shared) emails = [settings.emails.shared];
+    if (emails.length === 0 && process.env.EMAIL_USER) emails = [process.env.EMAIL_USER];
+    const senderName = sender.charAt(0).toUpperCase() + sender.slice(1);
+    const subject = `🔴 Priority Message from ${senderName}`;
     const html = `<h2 style="color:#7c3aed">🔴 Priority Message</h2>
-         <p><b>${req.session.user.charAt(0).toUpperCase() + req.session.user.slice(1)}</b> sent you a priority message:</p>
+         <p><b>${senderName}</b> sent you a priority message:</p>
          <blockquote style="border-left:4px solid #7c3aed;padding:10px;margin:10px">${message.text}</blockquote>
          <p style="color:#888">${new Date(message.timestamp).toLocaleString()}</p>`;
     if (emails.length === 0) {
@@ -338,7 +343,7 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
     }
     for (const email of emails) {
       const sent = await sendMail(email, subject, html);
-      if (sent) console.log(`Priority email sent to ${email}`);
+      console.log(sent ? `Priority email sent to ${email}` : `Priority email FAILED to ${email}`);
     }
   }
 
