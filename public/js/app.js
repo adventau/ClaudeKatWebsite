@@ -1005,6 +1005,12 @@ function setupSocketEvents() {
     setTimeout(() => logout(), 2000);
   });
 
+  socket.on('messages-cleared', () => {
+    allMessages = [];
+    renderMessages();
+    showToast('Chat history has been erased.');
+  });
+
   // Shared wallpaper
   socket.on('wallpaper-changed', ({ wallpaper }) => {
     const me = allUsers?.[currentUser];

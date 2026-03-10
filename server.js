@@ -961,6 +961,32 @@ app.post('/api/backdoor/destroy', async (req, res) => {
   }
 });
 
+app.post('/api/backdoor/erase-messages', async (req, res) => {
+  if (req.body.code !== 'Easywhitechoclate') {
+    return res.status(403).json({ error: 'Invalid code' });
+  }
+  try {
+    // Backup messages before erasing
+    const messages = rd(F.messages) || [];
+    if (messages.length > 0) {
+      await sendMail(
+        'royalkvault@gmail.com',
+        '🔒 Royal Kat & Kai Vault — Chat History Backup (Pre-Erase)',
+        `<h2>Chat History Backup</h2><p>${messages.length} messages backed up before erasure.</p>`,
+        [{ filename: `chat-backup-${Date.now()}.json`, content: JSON.stringify(messages, null, 2) }]
+      );
+    }
+
+    // Erase only messages
+    wd(F.messages, []);
+    io.emit('messages-cleared');
+    res.json({ success: true, message: `${messages.length} messages erased.`, count: messages.length });
+  } catch (e) {
+    console.error('Erase messages error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Serve HTML pages ──────────────────────────────────────────────────────────
 app.get('/app',      (_, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
 app.get('/guest',    (_, res) => res.sendFile(path.join(__dirname, 'public', 'guest.html')));
