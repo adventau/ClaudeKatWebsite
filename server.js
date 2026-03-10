@@ -16,10 +16,11 @@ const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: '*' } });
 
 // ── Directories ──────────────────────────────────────────────────────────────
-const DATA_DIR = path.join(__dirname, 'data');
-const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'public', 'uploads');
 fs.ensureDirSync(DATA_DIR);
 fs.ensureDirSync(UPLOADS_DIR);
+fs.ensureDirSync(path.join(DATA_DIR, 'sessions'));
 
 // ── Data file paths ───────────────────────────────────────────────────────────
 const F = {
@@ -87,6 +88,8 @@ initData();
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+// Serve uploads from persistent volume when UPLOADS_DIR is external
+if (process.env.UPLOADS_DIR) app.use('/uploads', express.static(UPLOADS_DIR));
 app.use(session({
   store: new FileStore({ path: path.join(DATA_DIR, 'sessions'), ttl: 7200, retries: 0, logFn: () => {} }),
   secret: process.env.SESSION_SECRET || 'royal-vault-secret-key',

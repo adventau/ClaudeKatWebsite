@@ -815,7 +815,7 @@ function setupSocketEvents() {
   socket.on('call-offer', handleCallOffer);
   socket.on('call-answer', handleCallAnswer);
   socket.on('call-ice-candidate', handleIceCandidate);
-  socket.on('call-ended', () => endCall());
+  socket.on('call-ended', () => endCall(true));
 }
 
 async function markMessageRead(msgId) {
@@ -1930,11 +1930,18 @@ function updateStatusText(status) {
 
 // ── Calls (WebRTC) ────────────────────────────────────────────────────
 const ICE_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+let callPeer = null;          // who we're in a call with
+let iceCandidateQueue = [];   // buffer ICE candidates before peerConnection exists
+let callTimer = null;
+let callSeconds = 0;
+let inCall = false;
 
 async function startCall(type) {
+  if (inCall) { showToast('Already in a call'); return; }
   callType = type;
+  callPeer = otherUser;
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' }).catch(() => null);
-  if (!localStream) { showToast('❌ Media device access denied'); return; }
+  if (!localStream) { showToast('Media device access denied'); return; }
 
   peerConnection = new RTCPeerConnection(ICE_CONFIG);
   localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
@@ -1943,6 +1950,11 @@ async function startCall(type) {
   peerConnection.ontrack = e => {
     document.getElementById('call-video-remote').srcObject = e.streams[0];
     if (type === 'video') document.getElementById('call-video-remote').style.display = 'block';
+  };
+  peerConnection.oniceconnectionstatechange = () => {
+    if (peerConnection?.iceConnectionState === 'disconnected' || peerConnection?.iceConnectionState === 'failed') {
+      endCall(true);
+    }
   };
 
   if (type === 'video') {
@@ -1953,13 +1965,15 @@ async function startCall(type) {
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
   socket.emit('call-offer', { offer, type, from: currentUser });
-
-  showCallOverlay('Calling ' + capitalize(otherUser) + '…', type);
+  inCall = true;
+  showCallOverlay('Calling ' + capitalize(callPeer) + '...', type);
 }
 
 async function handleCallOffer({ offer, type, from }) {
+  if (inCall) return; // already in a call
   callType = type;
-  // Show incoming call notification
+  callPeer = from;
+  iceCandidateQueue = [];
   document.getElementById('incoming-call').style.display = 'block';
   document.getElementById('incoming-call-name').textContent = capitalize(from);
   document.getElementById('incoming-call-type').textContent = type === 'video' ? 'Video Call' : 'Voice Call';
@@ -1970,7 +1984,7 @@ async function handleCallOffer({ offer, type, from }) {
 async function acceptCall() {
   document.getElementById('incoming-call').style.display = 'none';
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' }).catch(() => null);
-  if (!localStream) { showToast('❌ Media access denied'); return; }
+  if (!localStream) { showToast('Media access denied'); return; }
 
   peerConnection = new RTCPeerConnection(ICE_CONFIG);
   localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
@@ -1979,34 +1993,59 @@ async function acceptCall() {
     document.getElementById('call-video-remote').srcObject = e.streams[0];
     if (callType === 'video') document.getElementById('call-video-remote').style.display = 'block';
   };
+  peerConnection.oniceconnectionstatechange = () => {
+    if (peerConnection?.iceConnectionState === 'disconnected' || peerConnection?.iceConnectionState === 'failed') {
+      endCall(true);
+    }
+  };
 
   await peerConnection.setRemoteDescription(window._pendingOffer);
+  // Flush any ICE candidates that arrived before peerConnection was ready
+  for (const c of iceCandidateQueue) await peerConnection.addIceCandidate(c);
+  iceCandidateQueue = [];
+
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
   socket.emit('call-answer', { answer });
-  showCallOverlay(capitalize(otherUser), callType);
+  inCall = true;
+  startCallTimer();
+  showCallOverlay(capitalize(callPeer), callType);
 }
 
 async function handleCallAnswer({ answer }) {
   if (peerConnection) {
     await peerConnection.setRemoteDescription(answer);
     document.getElementById('call-status').textContent = 'Connected';
+    startCallTimer();
   }
 }
 
 async function handleIceCandidate({ candidate }) {
-  if (peerConnection && candidate) await peerConnection.addIceCandidate(candidate);
+  if (!candidate) return;
+  if (peerConnection && peerConnection.remoteDescription) {
+    await peerConnection.addIceCandidate(candidate);
+  } else {
+    iceCandidateQueue.push(candidate);
+  }
 }
 
 function declineCall() {
   document.getElementById('incoming-call').style.display = 'none';
+  callPeer = null;
+  window._pendingOffer = null;
+  iceCandidateQueue = [];
   socket.emit('call-end', {});
 }
 
-function endCall() {
-  socket.emit('call-end', {});
+function endCall(remote = false) {
+  if (!remote) socket.emit('call-end', {});
   if (peerConnection) { peerConnection.close(); peerConnection = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  stopCallTimer();
+  inCall = false;
+  callPeer = null;
+  window._pendingOffer = null;
+  iceCandidateQueue = [];
   document.getElementById('call-overlay').classList.remove('active');
   document.getElementById('call-video-remote').style.display = 'none';
   document.getElementById('call-video-local').style.display = 'none';
@@ -2016,10 +2055,27 @@ function endCall() {
 function showCallOverlay(statusText, type) {
   const overlay = document.getElementById('call-overlay');
   overlay.classList.add('active');
-  document.getElementById('call-name').textContent = capitalize(otherUser);
+  const name = callPeer || otherUser;
+  document.getElementById('call-name').textContent = capitalize(name);
   document.getElementById('call-status').textContent = statusText;
-  document.getElementById('call-avatar').textContent = otherUser[0].toUpperCase();
-  if (type !== 'video') overlay.querySelector('video').style.display = 'none';
+  document.getElementById('call-avatar').textContent = name[0].toUpperCase();
+  document.getElementById('call-video-remote').style.display = type === 'video' ? 'block' : 'none';
+  document.getElementById('call-video-local').style.display = type === 'video' ? 'block' : 'none';
+}
+
+function startCallTimer() {
+  callSeconds = 0;
+  callTimer = setInterval(() => {
+    callSeconds++;
+    const m = Math.floor(callSeconds / 60);
+    const s = String(callSeconds % 60).padStart(2, '0');
+    document.getElementById('call-status').textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+function stopCallTimer() {
+  if (callTimer) { clearInterval(callTimer); callTimer = null; }
+  callSeconds = 0;
 }
 
 function toggleCallMute() {
