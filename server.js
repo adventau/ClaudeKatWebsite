@@ -222,10 +222,10 @@ app.get('/api/users', (req, res) => {
   if (!req.session?.user && !req.session?.isGuest && !req.session?.authenticated)
     return res.status(401).json({ error: 'Unauthorized' });
   const users = rd(F.users);
-  // Inject live online status
+  // Inject live presence: 'online' | 'idle' | 'offline'
   if (users) {
     for (const name of Object.keys(users)) {
-      users[name]._online = !!onlineUsers[name];
+      users[name]._presence = onlineUsers[name]?.state || 'offline';
     }
   }
   res.json(users);
@@ -829,19 +829,24 @@ app.get('/backdoor', (_, res) => res.sendFile(path.join(__dirname, 'public', 'ba
 // SOCKET.IO
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Presence: maps user → { socketId, state: 'online'|'idle' }
 const onlineUsers = {};
 
 io.on('connection', socket => {
   socket.on('user-online', ({ user }) => {
-    onlineUsers[user] = socket.id;
-    socket.broadcast.emit('user-presence', { user, online: true });
+    onlineUsers[user] = { socketId: socket.id, state: 'online' };
+    socket.broadcast.emit('user-presence', { user, state: 'online' });
+  });
+  socket.on('user-active', ({ user }) => {
+    // User came back from idle
+    onlineUsers[user] = { socketId: socket.id, state: 'online' };
+    socket.broadcast.emit('user-presence', { user, state: 'online' });
   });
   socket.on('user-idle', ({ user }) => {
-    // User went idle (inactivity or tab hidden) — save lastSeen and broadcast offline
-    const users = rd(F.users);
-    if (users && users[user]) { users[user].lastSeen = Date.now(); wd(F.users, users); }
-    delete onlineUsers[user];
-    socket.broadcast.emit('user-presence', { user, online: false });
+    // User went idle (inactivity or tab hidden) — still connected, just idle
+    if (onlineUsers[user]) onlineUsers[user].state = 'idle';
+    else onlineUsers[user] = { socketId: socket.id, state: 'idle' };
+    socket.broadcast.emit('user-presence', { user, state: 'idle' });
   });
   socket.on('typing',       d => socket.broadcast.emit('user-typing',   d));
   socket.on('stop-typing',  d => socket.broadcast.emit('user-stop-typing', d));
@@ -860,13 +865,13 @@ io.on('connection', socket => {
     }
   });
   socket.on('disconnect', () => {
-    const user = Object.keys(onlineUsers).find(u => onlineUsers[u] === socket.id);
+    const user = Object.keys(onlineUsers).find(u => onlineUsers[u]?.socketId === socket.id);
     if (user) {
-      // Save lastSeen timestamp on disconnect
+      // Save lastSeen timestamp on disconnect — user is truly offline now
       const users = rd(F.users);
       if (users && users[user]) { users[user].lastSeen = Date.now(); wd(F.users, users); }
       delete onlineUsers[user];
-      socket.broadcast.emit('user-presence', { user, online: false });
+      socket.broadcast.emit('user-presence', { user, state: 'offline' });
     }
   });
 });

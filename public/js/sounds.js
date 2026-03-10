@@ -74,6 +74,10 @@ const SoundSystem = (() => {
     osc.stop(startTime + dur + 0.01);
   }
 
+  // Throttle keystrokes — min 30ms between sounds to prevent audio pile-up
+  let lastKeystrokeTime = 0;
+  const KEYSTROKE_MIN_INTERVAL = 30;
+
   function play(soundName) {
     if (!enabled) return;
     try {
@@ -84,6 +88,9 @@ const SoundSystem = (() => {
       const now = c.currentTime;
 
       if (soundName === 'keystroke') {
+        const t = performance.now();
+        if (t - lastKeystrokeTime < KEYSTROKE_MIN_INTERVAL) return;
+        lastKeystrokeTime = t;
         const freq = s.freq[Math.floor(Math.random() * s.freq.length)];
         const jitter = (Math.random() - 0.5) * s.detune;
         playTone(freq + jitter, s.type, s.dur, s.gain, now);

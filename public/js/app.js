@@ -146,17 +146,22 @@ function applyUserData(me, other) {
       oWrapper.insertAdjacentHTML('beforeend', `<div class="status-indicator ${other.status||'online'}" id="other-status-dot"></div>`);
     }
   }
-  const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
-  // Use _online from server to determine real presence
-  if (!other._online && other.lastSeen) {
-    // User is offline — show last seen
+  // Use _presence from server: 'online' | 'idle' | 'offline'
+  const presence = other._presence || 'offline';
+  if (presence === 'online') {
+    setStatusDot('other-status-dot', 'online');
+    document.getElementById('other-status-label').textContent = 'Online';
+  } else if (presence === 'idle') {
+    setStatusDot('other-status-dot', 'idle');
+    document.getElementById('other-status-label').textContent = 'Idle';
+  } else if (other.lastSeen) {
     setStatusDot('other-status-dot', 'invisible');
     document.getElementById('other-status-label').textContent = formatLastSeen(other.lastSeen);
     window._lastSeenTime = other.lastSeen;
     startLastSeenUpdater();
   } else {
-    setStatusDot('other-status-dot', other.status || 'online');
-    document.getElementById('other-status-label').textContent = statusLabels[other.status] || 'Online';
+    setStatusDot('other-status-dot', 'invisible');
+    document.getElementById('other-status-label').textContent = 'Offline';
   }
 
   // Settings profile
@@ -855,15 +860,19 @@ function setupSocketEvents() {
   });
 
   // user-presence fires when user connects/disconnects/goes idle
-  socket.on('user-presence', ({ user, online }) => {
+  // state: 'online' | 'idle' | 'offline'
+  socket.on('user-presence', ({ user, state }) => {
     if (user === otherUser) {
-      if (online) {
-        // User came back online
+      if (state === 'online') {
         stopLastSeenUpdater();
         setStatusDot('other-status-dot', 'online');
         document.getElementById('other-status-label').textContent = 'Online';
+      } else if (state === 'idle') {
+        stopLastSeenUpdater();
+        setStatusDot('other-status-dot', 'idle');
+        document.getElementById('other-status-label').textContent = 'Idle';
       } else {
-        // User went offline or idle
+        // offline — show last seen
         setStatusDot('other-status-dot', 'invisible');
         document.getElementById('other-status-label').textContent = 'Last seen just now';
         window._lastSeenTime = Date.now();
@@ -872,9 +881,9 @@ function setupSocketEvents() {
     }
   });
 
-  // Heartbeat — update lastSeen on server every 60s while active
+  // Heartbeat — update lastSeen on server every 60s, only while active
   setInterval(() => {
-    socket.emit('heartbeat', { user: currentUser });
+    if (!_isAutoIdle) socket.emit('heartbeat', { user: currentUser });
   }, 60000);
 
   socket.on('user-updated', ({ user, data }) => {
@@ -1758,10 +1767,11 @@ async function viewProfile(username) {
   } else {
     avatarEl.innerHTML = `<span>${(u.displayName || u.name)[0].toUpperCase()}</span>`;
   }
-  // Status — use live _online from server, not stored status
+  // Status — use live _presence from server
   const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
-  const liveStatus = u._online ? (u.status || 'online') : 'invisible';
-  document.getElementById('pv-status-dot').style.background = statusColors[liveStatus] || '#22c55e';
+  const pvPresence = u._presence || 'offline';
+  const pvStatus = pvPresence === 'online' ? 'online' : pvPresence === 'idle' ? 'idle' : 'invisible';
+  document.getElementById('pv-status-dot').style.background = statusColors[pvStatus] || '#22c55e';
   // Names
   const nameEl = document.getElementById('pv-name');
   nameEl.textContent = u.displayName || capitalize(u.name);
@@ -1778,9 +1788,9 @@ async function viewProfile(username) {
   else pronounsSec.style.display = 'none';
   // Bio
   document.getElementById('pv-bio').textContent = u.bio || 'No bio set.';
-  // Last seen — only show if user is actually offline
+  // Last seen — only show if user is actually offline (not online or idle)
   const lsSec = document.getElementById('pv-lastseen-section');
-  if (!u._online && u.lastSeen && username !== currentUser) {
+  if (u._presence === 'offline' && u.lastSeen && username !== currentUser) {
     lsSec.style.display = '';
     document.getElementById('pv-lastseen').textContent = formatLastSeen(u.lastSeen);
   } else {
@@ -2944,17 +2954,16 @@ function setupActivityTracking() {
   inactivityTimer = setInterval(checkActivity, 10000);
 }
 
-let _isAutoIdle = false; // true when auto-set to idle/invisible by inactivity
+let _isAutoIdle = false; // true when auto-set to idle by inactivity
 const IDLE_MS = 3 * 60 * 1000; // 3 minutes idle → auto away
 
 function resetActivity() {
   lastActivity = Date.now();
   document.getElementById('inactivity-warning').style.display = 'none';
-  // If we auto-set idle due to inactivity, restore presence
+  // If we auto-set idle due to inactivity, restore to online
   if (_isAutoIdle) {
     _isAutoIdle = false;
-    // Tell other clients we're back — don't save to profile, just broadcast presence
-    socket.emit('user-online', { user: currentUser });
+    socket.emit('user-active', { user: currentUser });
     setStatusDot('my-status-dot', 'online');
     updateStatusText('online');
   }
@@ -2968,35 +2977,31 @@ function checkActivity() {
     document.getElementById('logout-countdown').textContent = remaining;
     document.getElementById('inactivity-warning').style.display = 'block';
   }
-  // Auto-idle after 3 minutes of inactivity
+  // Auto-idle after 3 minutes of inactivity → show as Idle (yellow)
   if (elapsed >= IDLE_MS && !_isAutoIdle) {
     _isAutoIdle = true;
-    // Don't save to profile — just broadcast that we went idle
     socket.emit('user-idle', { user: currentUser });
-    setStatusDot('my-status-dot', 'invisible');
-    updateStatusText('invisible');
+    setStatusDot('my-status-dot', 'idle');
+    updateStatusText('idle');
   }
 }
 
 // Save lastSeen when user closes tab or navigates away
 window.addEventListener('beforeunload', () => {
-  // Use sendBeacon to reliably save lastSeen on tab close
   navigator.sendBeacon('/api/users/' + currentUser + '/lastseen', '');
 });
 
-// Also handle visibility change (tab hidden = go idle faster)
+// Tab hidden = go idle, tab visible = come back online
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    // Tab hidden — go idle immediately
     if (!_isAutoIdle) {
       _isAutoIdle = true;
       socket.emit('user-idle', { user: currentUser });
     }
   } else {
-    // Tab visible again — restore presence
     if (_isAutoIdle) {
       _isAutoIdle = false;
-      socket.emit('user-online', { user: currentUser });
+      socket.emit('user-active', { user: currentUser });
       setStatusDot('my-status-dot', 'online');
       updateStatusText('online');
     }
