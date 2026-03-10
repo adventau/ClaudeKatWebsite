@@ -568,7 +568,14 @@
           // Presence
           document.getElementById(name + '-status-dot').style.background = getStatusColor(u.status);
           document.getElementById(name + '-status-dot').style.boxShadow = `0 0 8px ${getStatusColor(u.status)}`;
-          document.getElementById(name + '-status-text').textContent = capitalize(u.status);
+          const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
+          const statusText = statusLabels[u.status] || capitalize(u.status);
+          // Show last seen for offline/invisible users
+          if (u.lastSeen && u.status === 'invisible') {
+            document.getElementById(name + '-status-text').textContent = formatLastSeen(u.lastSeen);
+          } else {
+            document.getElementById(name + '-status-text').textContent = statusText;
+          }
 
           // Apply theme — always dark card, accents show personality
           card.style.background = `linear-gradient(145deg, ${theme.bg}, ${theme.accent}15 50%, ${theme.bg} 100%)`;
@@ -609,6 +616,16 @@
       return { online:'#22c55e', idle:'#f59e0b', dnd:'#ef4444', invisible:'#6b7280' }[s] || '#22c55e';
     }
     function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+    function formatLastSeen(ts) {
+      if (!ts) return 'Offline';
+      const diff = Date.now() - ts;
+      const mins = Math.floor(diff / 60000);
+      if (mins < 1) return 'Last seen just now';
+      if (mins < 60) return 'Last seen ' + mins + 'm ago';
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return 'Last seen ' + hrs + 'h ago';
+      return 'Last seen ' + Math.floor(hrs / 24) + 'd ago';
+    }
 
     // ── Profile passcode state ──────────────────────────────────────
     let profileLocks = {};

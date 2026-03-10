@@ -867,6 +867,14 @@ html, body { height: 100%; overflow: hidden; }
 }
 .call-name { font-size: 1.6rem; font-weight: 700; font-family: var(--font-heading); color: #fff; }
 .call-status { color: rgba(255,255,255,0.5); font-size: 0.875rem; margin-top: 4px; }
+#call-timer-pill {
+  position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 12;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.12); border-radius: 20px;
+  padding: 6px 18px; font-size: 0.85rem; font-weight: 600;
+  color: rgba(255,255,255,0.85); font-variant-numeric: tabular-nums;
+  display: none; letter-spacing: 0.03em;
+}
 
 /* Remote avatar bg (shown when their camera is off) */
 #call-remote-avatar-bg {

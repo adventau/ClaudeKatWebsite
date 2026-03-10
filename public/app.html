@@ -660,6 +660,8 @@
     <div class="call-avatar-lg" id="call-avatar-bg"></div>
     <div class="call-name" id="call-name-bg" style="margin-top:12px"></div>
   </div>
+  <!-- Floating timer pill (top, visible during active call) -->
+  <div id="call-timer-pill" style="display:none"></div>
   <!-- Center info (shown when ringing / audio call) -->
   <div class="call-user-info" id="call-user-info">
     <div class="call-avatar-lg" id="call-avatar">K</div>
@@ -950,6 +952,10 @@
       <div class="pc-section">
         <div class="pc-section-title">ABOUT ME</div>
         <div class="pc-section-text" id="pv-bio">No bio set.</div>
+      </div>
+      <div class="pc-section" id="pv-lastseen-section" style="display:none">
+        <div class="pc-section-title">LAST SEEN</div>
+        <div class="pc-section-text" id="pv-lastseen"></div>
       </div>
       <div class="pc-section">
         <div class="pc-section-title">MEMBER SINCE</div>

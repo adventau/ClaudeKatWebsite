@@ -817,9 +817,23 @@ io.on('connection', socket => {
   socket.on('call-answer',        d => socket.broadcast.emit('call-answer',        d));
   socket.on('call-ice-candidate', d => socket.broadcast.emit('call-ice-candidate', d));
   socket.on('call-end',           d => socket.broadcast.emit('call-ended',         d));
+  socket.on('heartbeat', ({ user }) => {
+    // Update lastSeen on every heartbeat (sent every ~60s while active)
+    const users = rd(F.users);
+    if (users && users[user]) {
+      users[user].lastSeen = Date.now();
+      wd(F.users, users);
+    }
+  });
   socket.on('disconnect', () => {
     const user = Object.keys(onlineUsers).find(u => onlineUsers[u] === socket.id);
-    if (user) { delete onlineUsers[user]; socket.broadcast.emit('user-presence', { user, online: false }); }
+    if (user) {
+      // Save lastSeen timestamp on disconnect
+      const users = rd(F.users);
+      if (users && users[user]) { users[user].lastSeen = Date.now(); wd(F.users, users); }
+      delete onlineUsers[user];
+      socket.broadcast.emit('user-presence', { user, online: false });
+    }
   });
 });
 

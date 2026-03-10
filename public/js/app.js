@@ -144,7 +144,14 @@ function applyUserData(me, other) {
   }
   setStatusDot('other-status-dot', other.status || 'online');
   const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
-  document.getElementById('other-status-label').textContent = statusLabels[other.status] || 'Online';
+  // Show last seen if other user has lastSeen and status is invisible/offline
+  if (other.lastSeen && (!other.status || other.status === 'invisible')) {
+    document.getElementById('other-status-label').textContent = formatLastSeen(other.lastSeen);
+    window._lastSeenTime = other.lastSeen;
+    startLastSeenUpdater();
+  } else {
+    document.getElementById('other-status-label').textContent = statusLabels[other.status] || 'Online';
+  }
 
   // Settings profile
   document.getElementById('settings-avatar-initial').textContent = (me.displayName || me.name)[0].toUpperCase();
@@ -297,8 +304,18 @@ function buildMsgElement(msg) {
   // Avatar
   const avatarEl = document.createElement('div');
   avatarEl.className = 'msg-avatar-sm';
-  avatarEl.textContent = isAI ? '🤖' : (msg.sender === currentUser ? (currentUser[0].toUpperCase()) : (otherUser[0].toUpperCase()));
-  if (!isAI) { avatarEl.style.cursor = 'pointer'; avatarEl.onclick = () => viewProfile(msg.sender); }
+  if (isAI) {
+    avatarEl.textContent = '🤖';
+  } else {
+    const senderData = (window._users || {})[msg.sender];
+    if (senderData?.avatar) {
+      avatarEl.innerHTML = `<img src="${senderData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    } else {
+      avatarEl.textContent = msg.sender[0].toUpperCase();
+    }
+    avatarEl.style.cursor = 'pointer';
+    avatarEl.onclick = () => viewProfile(msg.sender);
+  }
 
   const content = document.createElement('div');
   content.className = 'msg-content';
@@ -417,8 +434,10 @@ function buildMsgElement(msg) {
   const meta = document.createElement('div');
   meta.className = 'msg-meta';
   meta.innerHTML = `<span>${formatTime(msg.timestamp)}</span>`;
-  if (isSelf && msg.read) meta.innerHTML += `<span class="read-tick">Read</span>`;
-  else if (isSelf) meta.innerHTML += `<span class="delivered-tick">Delivered</span>`;
+  if (isSelf && msg.read) {
+    const readTime = msg.readAt ? new Date(msg.readAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    meta.innerHTML += `<span class="read-tick">Read${readTime ? ' at ' + readTime : ''}</span>`;
+  } else if (isSelf) meta.innerHTML += `<span class="delivered-tick">Delivered</span>`;
   content.appendChild(meta);
 
   if (isSelf) { row.appendChild(content); row.appendChild(avatarEl); }
@@ -772,10 +791,15 @@ function setupSocketEvents() {
     if (msg) { msg.read = true; msg.readAt = readAt; }
     const el = document.getElementById('msg-' + id);
     if (el) {
-      const tick = el.querySelector('.read-tick');
-      if (!tick) {
+      const deliveredTick = el.querySelector('.delivered-tick');
+      const readTick = el.querySelector('.read-tick');
+      const readTime = readAt ? new Date(readAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+      if (deliveredTick) {
+        deliveredTick.className = 'read-tick';
+        deliveredTick.textContent = `Read${readTime ? ' at ' + readTime : ''}`;
+      } else if (!readTick) {
         const meta = el.querySelector('.msg-meta');
-        if (meta) meta.innerHTML += `<span class="read-tick">Read</span>`;
+        if (meta) meta.innerHTML += `<span class="read-tick">Read${readTime ? ' at ' + readTime : ''}</span>`;
       }
     }
   });
@@ -809,6 +833,26 @@ function setupSocketEvents() {
       document.getElementById('other-status-label').textContent = sLabels[status] || 'Online';
     }
   });
+
+  socket.on('user-presence', ({ user, online }) => {
+    if (user === otherUser) {
+      if (online) {
+        setStatusDot('other-status-dot', 'online');
+        document.getElementById('other-status-label').textContent = 'Online';
+      } else {
+        setStatusDot('other-status-dot', 'invisible');
+        document.getElementById('other-status-label').textContent = 'Last seen just now';
+        // Start updating the "last seen" text
+        window._lastSeenTime = Date.now();
+        startLastSeenUpdater();
+      }
+    }
+  });
+
+  // Heartbeat — update lastSeen on server every 60s while active
+  setInterval(() => {
+    socket.emit('heartbeat', { user: currentUser });
+  }, 60000);
 
   socket.on('user-updated', ({ user, data }) => {
     if (user === otherUser) {
@@ -1686,12 +1730,10 @@ async function viewProfile(username) {
   }
   // Avatar
   const avatarEl = document.getElementById('pv-avatar');
-  const initial = document.getElementById('pv-initial');
   if (u.avatar) {
-    initial.style.display = 'none';
     avatarEl.innerHTML = `<img src="${u.avatar}" alt="">`;
   } else {
-    avatarEl.innerHTML = `<span id="pv-initial">${(u.displayName || u.name)[0].toUpperCase()}</span>`;
+    avatarEl.innerHTML = `<span>${(u.displayName || u.name)[0].toUpperCase()}</span>`;
   }
   // Status
   const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
@@ -1712,6 +1754,14 @@ async function viewProfile(username) {
   else pronounsSec.style.display = 'none';
   // Bio
   document.getElementById('pv-bio').textContent = u.bio || 'No bio set.';
+  // Last seen
+  const lsSec = document.getElementById('pv-lastseen-section');
+  if (u.lastSeen && username !== currentUser) {
+    lsSec.style.display = '';
+    document.getElementById('pv-lastseen').textContent = formatLastSeen(u.lastSeen);
+  } else {
+    lsSec.style.display = 'none';
+  }
   // Member since
   document.getElementById('pv-member-since').textContent = u.createdAt ? new Date(u.createdAt).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }) : 'The beginning';
   // Edit button (only for own profile)
@@ -2056,7 +2106,8 @@ async function startCall(type) {
   if (inCall) { showToast('Already in a call'); return; }
   callType = type;
   callPeer = otherUser;
-  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' }).catch(() => null);
+  const videoConstraints = type === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false;
+  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints }).catch(() => null);
   if (!localStream) { showToast('Media device access denied'); return; }
 
   peerConnection = new RTCPeerConnection(ICE_CONFIG);
@@ -2066,7 +2117,7 @@ async function startCall(type) {
   peerConnection.ontrack = e => {
     const remoteVid = document.getElementById('call-video-remote');
     remoteVid.srcObject = e.streams[0];
-    if (type === 'video') remoteVid.style.display = 'block';
+    if (type === 'video') { remoteVid.style.display = 'block'; document.getElementById('call-user-info').style.display = 'none'; }
     // Detect remote camera on/off
     e.streams[0].getVideoTracks().forEach(track => {
       track.onmute = () => { remoteVid.style.display = 'none'; document.getElementById('call-remote-avatar-bg').style.display = 'flex'; };
@@ -2081,7 +2132,10 @@ async function startCall(type) {
 
   if (type === 'video') {
     const vid = document.getElementById('call-video-local');
-    vid.srcObject = localStream; vid.style.display = 'block';
+    vid.srcObject = localStream;
+    vid.style.display = 'block';
+    vid.style.transform = 'scaleX(-1)';
+    vid.play().catch(() => {});
   }
 
   const offer = await peerConnection.createOffer();
@@ -2108,7 +2162,8 @@ async function handleCallOffer({ offer, type, from }) {
 async function acceptCall() {
   SoundSystem.stopRingtone();
   document.getElementById('incoming-call').style.display = 'none';
-  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' }).catch(() => null);
+  const videoConstraints = callType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false;
+  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints }).catch(() => null);
   if (!localStream) { showToast('Media access denied'); return; }
 
   peerConnection = new RTCPeerConnection(ICE_CONFIG);
@@ -2117,7 +2172,7 @@ async function acceptCall() {
   peerConnection.ontrack = e => {
     const remoteVid = document.getElementById('call-video-remote');
     remoteVid.srcObject = e.streams[0];
-    if (callType === 'video') remoteVid.style.display = 'block';
+    if (callType === 'video') { remoteVid.style.display = 'block'; document.getElementById('call-user-info').style.display = 'none'; }
     e.streams[0].getVideoTracks().forEach(track => {
       track.onmute = () => { remoteVid.style.display = 'none'; document.getElementById('call-remote-avatar-bg').style.display = 'flex'; };
       track.onunmute = () => { remoteVid.style.display = 'block'; document.getElementById('call-remote-avatar-bg').style.display = 'none'; };
@@ -2128,6 +2183,14 @@ async function acceptCall() {
       endCall(true);
     }
   };
+
+  if (callType === 'video') {
+    const vid = document.getElementById('call-video-local');
+    vid.srcObject = localStream;
+    vid.style.display = 'block';
+    vid.style.transform = 'scaleX(-1)';
+    vid.play().catch(() => {});
+  }
 
   await peerConnection.setRemoteDescription(window._pendingOffer);
   // Flush any ICE candidates that arrived before peerConnection was ready
@@ -2171,6 +2234,7 @@ function declineCall() {
 
 function endCall(remote = false) {
   SoundSystem.stopRingtone();
+  SoundSystem.callSound('hangup');
   if (!remote) socket.emit('call-end', {});
   if (peerConnection) { peerConnection.close(); peerConnection = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
@@ -2187,6 +2251,7 @@ function endCall(remote = false) {
   document.getElementById('call-remote-avatar-bg').style.display = 'none';
   document.getElementById('call-local-avatar').style.display = 'none';
   document.getElementById('incoming-call').style.display = 'none';
+  document.getElementById('call-user-info').style.display = '';
   // Reset toggle states
   document.getElementById('btn-mute').classList.remove('active');
   document.getElementById('btn-cam').classList.remove('active');
@@ -2230,10 +2295,13 @@ function showCallOverlay(statusText, type) {
 
 function startCallTimer() {
   callSeconds = 0;
+  const pill = document.getElementById('call-timer-pill');
+  pill.style.display = 'block';
   callTimer = setInterval(() => {
     callSeconds++;
     const m = Math.floor(callSeconds / 60);
     const s = String(callSeconds % 60).padStart(2, '0');
+    pill.textContent = `${m}:${s}`;
     document.getElementById('call-status').textContent = `${m}:${s}`;
   }, 1000);
 }
@@ -2241,6 +2309,8 @@ function startCallTimer() {
 function stopCallTimer() {
   if (callTimer) { clearInterval(callTimer); callTimer = null; }
   callSeconds = 0;
+  const pill = document.getElementById('call-timer-pill');
+  if (pill) { pill.style.display = 'none'; pill.textContent = ''; }
 }
 
 function toggleCallMute() {
@@ -2248,6 +2318,7 @@ function toggleCallMute() {
   const track = localStream.getAudioTracks()[0];
   if (track) {
     track.enabled = !track.enabled;
+    SoundSystem.callSound(track.enabled ? 'unmute' : 'mute');
     document.getElementById('mute-icon-on').style.display = track.enabled ? '' : 'none';
     document.getElementById('mute-icon-off').style.display = track.enabled ? 'none' : '';
     document.getElementById('btn-mute').classList.toggle('active', !track.enabled);
@@ -2285,6 +2356,7 @@ async function toggleScreenShare() {
   if (!inCall || !peerConnection) return;
   if (screenStream) {
     // Stop sharing
+    SoundSystem.callSound('screenshare-off');
     screenStream.getTracks().forEach(t => t.stop());
     screenStream = null;
     // Restore camera track
@@ -2306,6 +2378,7 @@ async function toggleScreenShare() {
     const screenTrack = screenStream.getVideoTracks()[0];
     const sender = peerConnection.getSenders().find(s => s.track?.kind === 'video');
     if (sender) sender.replaceTrack(screenTrack);
+    SoundSystem.callSound('screenshare-on');
     document.getElementById('btn-screen').classList.add('active');
     document.getElementById('screen-icon-on').style.display = 'none';
     document.getElementById('screen-icon-off').style.display = '';
@@ -2791,6 +2864,33 @@ function autoResizeInput() {
 function resetInputHeight() {
   const t = document.getElementById('msg-input');
   t.style.height = '36px';
+}
+
+// ── Last Seen helpers ─────────────────────────────────────────────────
+function formatLastSeen(ts) {
+  if (!ts) return 'Offline';
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Last seen just now';
+  if (mins < 60) return `Last seen ${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `Last seen ${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `Last seen ${days}d ago`;
+}
+
+let _lastSeenInterval = null;
+function startLastSeenUpdater() {
+  if (_lastSeenInterval) clearInterval(_lastSeenInterval);
+  _lastSeenInterval = setInterval(() => {
+    if (!window._lastSeenTime) { clearInterval(_lastSeenInterval); return; }
+    document.getElementById('other-status-label').textContent = formatLastSeen(window._lastSeenTime);
+  }, 60000);
+}
+
+function stopLastSeenUpdater() {
+  if (_lastSeenInterval) { clearInterval(_lastSeenInterval); _lastSeenInterval = null; }
+  window._lastSeenTime = null;
 }
 
 // ── Activity tracking / auto-logout ───────────────────────────────────

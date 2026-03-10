@@ -113,6 +113,43 @@ const SoundSystem = (() => {
     }
   }
 
+  // ── Call action sounds ──────────────────────────────────────────────
+  function playCallSound(action) {
+    if (!enabled) return;
+    try {
+      const c = getCtx();
+      const now = c.currentTime;
+      switch (action) {
+        case 'hangup':
+          // Descending two-tone (call ended feel)
+          playTone(480, 'sine', 0.15, 0.1, now);
+          playTone(320, 'sine', 0.25, 0.08, now + 0.12);
+          break;
+        case 'mute':
+          // Quick low thud (muted)
+          playTone(200, 'sine', 0.1, 0.08, now);
+          playTone(150, 'sine', 0.12, 0.06, now + 0.06);
+          break;
+        case 'unmute':
+          // Quick rising pip (unmuted)
+          playTone(300, 'sine', 0.08, 0.07, now);
+          playTone(450, 'sine', 0.1, 0.08, now + 0.06);
+          break;
+        case 'screenshare-on':
+          // Bright ascending chime (sharing started)
+          playTone(523, 'sine', 0.12, 0.07, now);
+          playTone(659, 'sine', 0.12, 0.08, now + 0.08);
+          playTone(784, 'sine', 0.18, 0.07, now + 0.16);
+          break;
+        case 'screenshare-off':
+          // Soft descending (sharing stopped)
+          playTone(659, 'sine', 0.1, 0.06, now);
+          playTone(523, 'sine', 0.15, 0.06, now + 0.08);
+          break;
+      }
+    } catch {}
+  }
+
   function startRingtone(type) {
     stopRingtone();
     if (!enabled) return;
@@ -135,6 +172,7 @@ const SoundSystem = (() => {
     notify: () => play('notif'),
     startRingtone,
     stopRingtone,
+    callSound: playCallSound,
     init: () => {
       // Warm up audio context on first interaction
       document.addEventListener('click', () => getCtx(), { once: true });
