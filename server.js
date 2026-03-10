@@ -113,9 +113,15 @@ function mailer() {
   });
 }
 async function sendMail(to, subject, html, attachments = []) {
+  if (!to) { console.error('Mail error: no recipient email configured'); return false; }
+  if (!process.env.EMAIL_PASS || process.env.EMAIL_PASS === 'your_gmail_app_password_here') {
+    console.error('Mail error: EMAIL_PASS not configured in .env — set a Gmail App Password');
+    return false;
+  }
   try {
     await mailer().sendMail({ from: process.env.EMAIL_USER, to, subject, html, attachments });
-  } catch (e) { console.error('Mail error:', e.message); }
+    return true;
+  } catch (e) { console.error('Mail error:', e.message); return false; }
 }
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
@@ -215,7 +221,24 @@ app.get('/api/auth/session', (req, res) => {
 app.get('/api/users', (req, res) => {
   if (!req.session?.user && !req.session?.isGuest && !req.session?.authenticated)
     return res.status(401).json({ error: 'Unauthorized' });
-  res.json(rd(F.users));
+  const users = rd(F.users);
+  // Inject live presence: 'online' | 'idle' | 'offline'
+  if (users) {
+    for (const name of Object.keys(users)) {
+      users[name]._presence = onlineUsers[name]?.state || 'offline';
+    }
+  }
+  res.json(users);
+});
+
+// Save lastSeen (used by sendBeacon on tab close)
+app.post('/api/users/:user/lastseen', (req, res) => {
+  const users = rd(F.users);
+  if (users && users[req.params.user]) {
+    users[req.params.user].lastSeen = Date.now();
+    wd(F.users, users);
+  }
+  res.json({ ok: true });
 });
 
 app.put('/api/users/:user', mainAuth, (req, res) => {
@@ -302,20 +325,29 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
 
   // Priority email (supports multiple emails per person)
   if (message.priority) {
-    const recipient = req.session.user === 'kaliph' ? 'kathrine' : 'kaliph';
+    const sender = req.session.user;
+    const recipient = sender === 'kaliph' ? 'kathrine' : 'kaliph';
     const emailData = settings.emails[recipient];
-    const emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
-    const subject = `🔴 Priority Message from ${req.session.user}`;
+    let emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
+    // Fallback: if no per-user email, try shared email, then env EMAIL_USER
+    if (emails.length === 0 && settings.emails?.shared) emails = [settings.emails.shared];
+    if (emails.length === 0 && process.env.EMAIL_USER) emails = [process.env.EMAIL_USER];
+    const senderName = sender.charAt(0).toUpperCase() + sender.slice(1);
+    const subject = `🔴 Priority Message from ${senderName}`;
     const html = `<h2 style="color:#7c3aed">🔴 Priority Message</h2>
-         <p><b>${req.session.user}</b> sent you a priority message:</p>
+         <p><b>${senderName}</b> sent you a priority message:</p>
          <blockquote style="border-left:4px solid #7c3aed;padding:10px;margin:10px">${message.text}</blockquote>
          <p style="color:#888">${new Date(message.timestamp).toLocaleString()}</p>`;
+    if (emails.length === 0) {
+      console.log(`Priority email skipped: no email configured for ${recipient}`);
+    }
     for (const email of emails) {
-      await sendMail(email, subject, html);
+      const sent = await sendMail(email, subject, html);
+      console.log(sent ? `Priority email sent to ${email}` : `Priority email FAILED to ${email}`);
     }
   }
 
-  // Auto-expire unsend window (2 min)
+  // Auto-expire unsend window (3 min)
   setTimeout(() => {
     try {
       const m = rd(F.messages);
@@ -323,7 +355,7 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
       if (i !== -1) { m.main[i].unsendable = false; wd(F.messages, m); }
       io.emit('msg-unsend-expire', message.id);
     } catch {}
-  }, 2 * 60 * 1000);
+  }, 3 * 60 * 1000);
 
   // Check for @claude mention
   if (message.text.toLowerCase().includes('@claude') || message.text.toLowerCase().includes('@ai')) {
@@ -802,12 +834,31 @@ app.get('/backdoor', (_, res) => res.sendFile(path.join(__dirname, 'public', 'ba
 // SOCKET.IO
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Presence: maps user → { socketId, state: 'online'|'idle' }
 const onlineUsers = {};
 
 io.on('connection', socket => {
   socket.on('user-online', ({ user }) => {
-    onlineUsers[user] = socket.id;
-    socket.broadcast.emit('user-presence', { user, online: true });
+    onlineUsers[user] = { socketId: socket.id, state: 'online' };
+    socket.broadcast.emit('user-presence', { user, state: 'online' });
+  });
+  socket.on('user-active', ({ user }) => {
+    // User came back from idle
+    onlineUsers[user] = { socketId: socket.id, state: 'online' };
+    socket.broadcast.emit('user-presence', { user, state: 'online' });
+  });
+  socket.on('user-idle', ({ user }) => {
+    // User went idle (inactivity or tab hidden) — still connected, just idle
+    if (onlineUsers[user]) onlineUsers[user].state = 'idle';
+    else onlineUsers[user] = { socketId: socket.id, state: 'idle' };
+    socket.broadcast.emit('user-presence', { user, state: 'idle' });
+  });
+  socket.on('user-invisible', ({ user }) => {
+    // User idle 5+ min — treat as offline, save lastSeen
+    const users = rd(F.users);
+    if (users && users[user]) { users[user].lastSeen = Date.now(); wd(F.users, users); }
+    delete onlineUsers[user];
+    socket.broadcast.emit('user-presence', { user, state: 'offline' });
   });
   socket.on('typing',       d => socket.broadcast.emit('user-typing',   d));
   socket.on('stop-typing',  d => socket.broadcast.emit('user-stop-typing', d));
@@ -826,13 +877,13 @@ io.on('connection', socket => {
     }
   });
   socket.on('disconnect', () => {
-    const user = Object.keys(onlineUsers).find(u => onlineUsers[u] === socket.id);
+    const user = Object.keys(onlineUsers).find(u => onlineUsers[u]?.socketId === socket.id);
     if (user) {
-      // Save lastSeen timestamp on disconnect
+      // Save lastSeen timestamp on disconnect — user is truly offline now
       const users = rd(F.users);
       if (users && users[user]) { users[user].lastSeen = Date.now(); wd(F.users, users); }
       delete onlineUsers[user];
-      socket.broadcast.emit('user-presence', { user, online: false });
+      socket.broadcast.emit('user-presence', { user, state: 'offline' });
     }
   });
 });

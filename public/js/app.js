@@ -83,6 +83,10 @@ async function init() {
 
   socket.emit('user-online', { user: currentUser });
 
+  // When connecting, always show as online (override any stale stored status)
+  setStatusDot('my-status-dot', 'online');
+  updateStatusText('online');
+
   // Init Lucide icons early so UI is always visible
   if (window.lucide) lucide.createIcons();
 
@@ -142,15 +146,22 @@ function applyUserData(me, other) {
       oWrapper.insertAdjacentHTML('beforeend', `<div class="status-indicator ${other.status||'online'}" id="other-status-dot"></div>`);
     }
   }
-  setStatusDot('other-status-dot', other.status || 'online');
-  const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
-  // Show last seen if other user has lastSeen and status is invisible/offline
-  if (other.lastSeen && (!other.status || other.status === 'invisible')) {
+  // Use _presence from server: 'online' | 'idle' | 'offline'
+  const presence = other._presence || 'offline';
+  if (presence === 'online') {
+    setStatusDot('other-status-dot', 'online');
+    document.getElementById('other-status-label').textContent = 'Online';
+  } else if (presence === 'idle') {
+    setStatusDot('other-status-dot', 'idle');
+    document.getElementById('other-status-label').textContent = 'Idle';
+  } else if (other.lastSeen) {
+    setStatusDot('other-status-dot', 'invisible');
     document.getElementById('other-status-label').textContent = formatLastSeen(other.lastSeen);
     window._lastSeenTime = other.lastSeen;
     startLastSeenUpdater();
   } else {
-    document.getElementById('other-status-label').textContent = statusLabels[other.status] || 'Online';
+    setStatusDot('other-status-dot', 'invisible');
+    document.getElementById('other-status-label').textContent = 'Offline';
   }
 
   // Settings profile
@@ -406,11 +417,13 @@ function buildMsgElement(msg) {
   // Hover action bar (iMessage / Discord style)
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
+  const unsendBtn = (isSelf && msg.unsendable) ? `<button class="msg-action-btn msg-unsend-btn" data-msg-id="${msg.id}" onclick="quickUnsend('${msg.id}')" title="Unsend">🗑️</button>` : '';
   actions.innerHTML = `
     <button class="msg-action-btn react-trigger" onclick="showQuickReact('${msg.id}', this)" title="React">😊</button>
     <button class="msg-action-btn" onclick="setReply('${msg.id}')" title="Reply">↩</button>
     <button class="msg-action-btn" onclick="copyMsgText('${msg.id}')" title="Copy">📋</button>
     ${isSelf ? `<button class="msg-action-btn" onclick="ctxMsgId='${msg.id}';ctxEdit()" title="Edit">✏️</button>` : ''}
+    ${unsendBtn}
   `;
   content.appendChild(actions);
 
@@ -630,6 +643,12 @@ function copyMsgText(msgId) {
   if (msg?.text) navigator.clipboard.writeText(msg.text).then(() => showToast('📋 Copied!'));
 }
 
+async function quickUnsend(msgId) {
+  const r = await fetch(`/api/messages/${msgId}`, { method: 'DELETE' });
+  const d = await r.json();
+  if (!d.success) showToast('⚠️ ' + (d.error || 'Cannot unsend'));
+}
+
 function showQuickReact(msgId, btnEl) {
   // Close any existing quick react bars
   document.querySelectorAll('.msg-quick-react').forEach(el => el.remove());
@@ -807,6 +826,9 @@ function setupSocketEvents() {
   socket.on('msg-unsend-expire', id => {
     const msg = allMessages.find(m => m.id === id);
     if (msg) msg.unsendable = false;
+    // Hide unsend button in hover bar
+    const btn = document.querySelector(`.msg-unsend-btn[data-msg-id="${id}"]`);
+    if (btn) btn.remove();
   });
 
   socket.on('user-typing', ({ user }) => {
@@ -828,30 +850,40 @@ function setupSocketEvents() {
 
   socket.on('status-changed', ({ user, status }) => {
     if (user === otherUser) {
+      // Only update if user is actually online (don't override last seen)
       setStatusDot('other-status-dot', status);
       const sLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
       document.getElementById('other-status-label').textContent = sLabels[status] || 'Online';
+      // If they set themselves to a real status, they're active — stop last seen
+      if (status !== 'invisible') stopLastSeenUpdater();
     }
   });
 
-  socket.on('user-presence', ({ user, online }) => {
+  // user-presence fires when user connects/disconnects/goes idle
+  // state: 'online' | 'idle' | 'offline'
+  socket.on('user-presence', ({ user, state }) => {
     if (user === otherUser) {
-      if (online) {
+      if (state === 'online') {
+        stopLastSeenUpdater();
         setStatusDot('other-status-dot', 'online');
         document.getElementById('other-status-label').textContent = 'Online';
+      } else if (state === 'idle') {
+        stopLastSeenUpdater();
+        setStatusDot('other-status-dot', 'idle');
+        document.getElementById('other-status-label').textContent = 'Idle';
       } else {
+        // offline — show last seen
         setStatusDot('other-status-dot', 'invisible');
         document.getElementById('other-status-label').textContent = 'Last seen just now';
-        // Start updating the "last seen" text
         window._lastSeenTime = Date.now();
         startLastSeenUpdater();
       }
     }
   });
 
-  // Heartbeat — update lastSeen on server every 60s while active
+  // Heartbeat — update lastSeen on server every 60s, only while active
   setInterval(() => {
-    socket.emit('heartbeat', { user: currentUser });
+    if (!_isAutoIdle) socket.emit('heartbeat', { user: currentUser });
   }, 60000);
 
   socket.on('user-updated', ({ user, data }) => {
@@ -1735,9 +1767,11 @@ async function viewProfile(username) {
   } else {
     avatarEl.innerHTML = `<span>${(u.displayName || u.name)[0].toUpperCase()}</span>`;
   }
-  // Status
+  // Status — use live _presence from server
   const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
-  document.getElementById('pv-status-dot').style.background = statusColors[u.status] || '#22c55e';
+  const pvPresence = u._presence || 'offline';
+  const pvStatus = pvPresence === 'online' ? 'online' : pvPresence === 'idle' ? 'idle' : 'invisible';
+  document.getElementById('pv-status-dot').style.background = statusColors[pvStatus] || '#22c55e';
   // Names
   const nameEl = document.getElementById('pv-name');
   nameEl.textContent = u.displayName || capitalize(u.name);
@@ -1754,9 +1788,9 @@ async function viewProfile(username) {
   else pronounsSec.style.display = 'none';
   // Bio
   document.getElementById('pv-bio').textContent = u.bio || 'No bio set.';
-  // Last seen
+  // Last seen — only show if user is actually offline (not online or idle)
   const lsSec = document.getElementById('pv-lastseen-section');
-  if (u.lastSeen && username !== currentUser) {
+  if (u._presence === 'offline' && u.lastSeen && username !== currentUser) {
     lsSec.style.display = '';
     document.getElementById('pv-lastseen').textContent = formatLastSeen(u.lastSeen);
   } else {
@@ -2102,11 +2136,29 @@ let callTimer = null;
 let callSeconds = 0;
 let inCall = false;
 
+function setupLocalVideo(stream) {
+  const vid = document.getElementById('call-video-local');
+  vid.srcObject = stream;
+  vid.muted = true;
+  vid.playsInline = true;
+  vid.style.display = 'block';
+  vid.style.transform = 'scaleX(-1)';
+  // Use loadedmetadata to ensure video is ready before playing
+  const tryPlay = () => {
+    vid.play().catch(() => {
+      // Retry after a short delay if play fails
+      setTimeout(() => vid.play().catch(() => {}), 200);
+    });
+  };
+  if (vid.readyState >= 2) { tryPlay(); }
+  else { vid.onloadedmetadata = tryPlay; }
+}
+
 async function startCall(type) {
   if (inCall) { showToast('Already in a call'); return; }
   callType = type;
   callPeer = otherUser;
-  const videoConstraints = type === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false;
+  const videoConstraints = type === 'video' ? { width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 480 }, frameRate: { ideal: 30, min: 15 }, facingMode: 'user' } : false;
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints }).catch(() => null);
   if (!localStream) { showToast('Media device access denied'); return; }
 
@@ -2131,11 +2183,7 @@ async function startCall(type) {
   };
 
   if (type === 'video') {
-    const vid = document.getElementById('call-video-local');
-    vid.srcObject = localStream;
-    vid.style.display = 'block';
-    vid.style.transform = 'scaleX(-1)';
-    vid.play().catch(() => {});
+    setupLocalVideo(localStream);
   }
 
   const offer = await peerConnection.createOffer();
@@ -2154,7 +2202,9 @@ async function handleCallOffer({ offer, type, from }) {
   document.getElementById('incoming-call').style.display = 'block';
   document.getElementById('incoming-call-name').textContent = capitalize(from);
   document.getElementById('incoming-call-type').textContent = type === 'video' ? 'Video Call' : 'Voice Call';
-  document.getElementById('incoming-call-icon').textContent = type === 'video' ? '📹' : '📞';
+  document.getElementById('incoming-call-icon').innerHTML = type === 'video'
+    ? '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2" ry="2"/></svg>'
+    : '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
   SoundSystem.startRingtone('incoming');
   window._pendingOffer = offer;
 }
@@ -2162,7 +2212,7 @@ async function handleCallOffer({ offer, type, from }) {
 async function acceptCall() {
   SoundSystem.stopRingtone();
   document.getElementById('incoming-call').style.display = 'none';
-  const videoConstraints = callType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false;
+  const videoConstraints = callType === 'video' ? { width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 480 }, frameRate: { ideal: 30, min: 15 }, facingMode: 'user' } : false;
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints }).catch(() => null);
   if (!localStream) { showToast('Media access denied'); return; }
 
@@ -2185,11 +2235,7 @@ async function acceptCall() {
   };
 
   if (callType === 'video') {
-    const vid = document.getElementById('call-video-local');
-    vid.srcObject = localStream;
-    vid.style.display = 'block';
-    vid.style.transform = 'scaleX(-1)';
-    vid.play().catch(() => {});
+    setupLocalVideo(localStream);
   }
 
   await peerConnection.setRemoteDescription(window._pendingOffer);
@@ -2869,14 +2915,22 @@ function resetInputHeight() {
 // ── Last Seen helpers ─────────────────────────────────────────────────
 function formatLastSeen(ts) {
   if (!ts) return 'Offline';
-  const diff = Date.now() - ts;
+  const date = new Date(ts);
+  const now = new Date();
+  const diff = now - ts;
   const mins = Math.floor(diff / 60000);
+  const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
   if (mins < 1) return 'Last seen just now';
   if (mins < 60) return `Last seen ${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `Last seen ${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `Last seen ${days}d ago`;
+  // Same day — show time
+  if (date.toDateString() === now.toDateString()) return `Last seen today at ${time}`;
+  // Yesterday
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return `Last seen yesterday at ${time}`;
+  // Older — show date and time
+  const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `Last seen ${dateStr} at ${time}`;
 }
 
 let _lastSeenInterval = null;
@@ -2900,9 +2954,19 @@ function setupActivityTracking() {
   inactivityTimer = setInterval(checkActivity, 10000);
 }
 
+let _isAutoIdle = false;    // 'idle' or 'invisible' when auto-set
+const IDLE_MS = 3 * 60 * 1000;       // 3 min → Idle (yellow)
+const INVISIBLE_MS = 5 * 60 * 1000;  // 5 min → Invisible (gray + last seen)
+
 function resetActivity() {
   lastActivity = Date.now();
   document.getElementById('inactivity-warning').style.display = 'none';
+  if (_isAutoIdle) {
+    _isAutoIdle = false;
+    socket.emit('user-active', { user: currentUser });
+    setStatusDot('my-status-dot', 'online');
+    updateStatusText('online');
+  }
 }
 
 function checkActivity() {
@@ -2913,7 +2977,43 @@ function checkActivity() {
     document.getElementById('logout-countdown').textContent = remaining;
     document.getElementById('inactivity-warning').style.display = 'block';
   }
+  // Tier 1: 3 min → Idle (yellow)
+  // Tier 2: 5 min → Invisible (gray, shows last seen to others)
+  if (elapsed >= INVISIBLE_MS && _isAutoIdle !== 'invisible') {
+    _isAutoIdle = 'invisible';
+    socket.emit('user-invisible', { user: currentUser });
+    setStatusDot('my-status-dot', 'invisible');
+    updateStatusText('invisible');
+  } else if (elapsed >= IDLE_MS && !_isAutoIdle) {
+    _isAutoIdle = 'idle';
+    socket.emit('user-idle', { user: currentUser });
+    setStatusDot('my-status-dot', 'idle');
+    updateStatusText('idle');
+  }
 }
+
+// Save lastSeen when user closes tab or navigates away
+window.addEventListener('beforeunload', () => {
+  navigator.sendBeacon('/api/users/' + currentUser + '/lastseen', '');
+});
+
+// Tab hidden = go idle, tab visible = come back online
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (!_isAutoIdle) {
+      _isAutoIdle = 'idle';
+      socket.emit('user-idle', { user: currentUser });
+    }
+  } else {
+    if (_isAutoIdle) {
+      _isAutoIdle = false;
+      lastActivity = Date.now();
+      socket.emit('user-active', { user: currentUser });
+      setStatusDot('my-status-dot', 'online');
+      updateStatusText('online');
+    }
+  }
+});
 
 // ── Modal helpers ─────────────────────────────────────────────────────
 function openModal(id)  { document.getElementById(id)?.classList.add('open'); }
@@ -2967,6 +3067,9 @@ function formatDate(ts) {
 function triggerFileUpload() { document.getElementById('file-input').click(); }
 
 async function logout() {
+  // Immediately broadcast offline + save lastSeen before leaving
+  socket.emit('user-invisible', { user: currentUser });
+  navigator.sendBeacon('/api/users/' + currentUser + '/lastseen', '');
   await fetch('/api/auth/logout', { method: 'POST' });
   clearInterval(inactivityTimer);
   window.location.href = '/';

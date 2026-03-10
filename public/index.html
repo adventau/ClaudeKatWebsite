@@ -565,16 +565,24 @@
           label.textContent = u.customStatus || '';
           label.style.display = u.customStatus ? '' : 'none';
 
-          // Presence
-          document.getElementById(name + '-status-dot').style.background = getStatusColor(u.status);
-          document.getElementById(name + '-status-dot').style.boxShadow = `0 0 8px ${getStatusColor(u.status)}`;
-          const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
-          const statusText = statusLabels[u.status] || capitalize(u.status);
-          // Show last seen for offline/invisible users
-          if (u.lastSeen && u.status === 'invisible') {
+          // Presence — use _presence from server: 'online' | 'idle' | 'offline'
+          var presence = u._presence || 'offline';
+          if (presence === 'online') {
+            document.getElementById(name + '-status-dot').style.background = getStatusColor('online');
+            document.getElementById(name + '-status-dot').style.boxShadow = '0 0 8px ' + getStatusColor('online');
+            document.getElementById(name + '-status-text').textContent = 'Online';
+          } else if (presence === 'idle') {
+            document.getElementById(name + '-status-dot').style.background = getStatusColor('idle');
+            document.getElementById(name + '-status-dot').style.boxShadow = '0 0 8px ' + getStatusColor('idle');
+            document.getElementById(name + '-status-text').textContent = 'Idle';
+          } else if (u.lastSeen) {
+            document.getElementById(name + '-status-dot').style.background = getStatusColor('invisible');
+            document.getElementById(name + '-status-dot').style.boxShadow = '0 0 8px ' + getStatusColor('invisible');
             document.getElementById(name + '-status-text').textContent = formatLastSeen(u.lastSeen);
           } else {
-            document.getElementById(name + '-status-text').textContent = statusText;
+            document.getElementById(name + '-status-dot').style.background = getStatusColor('invisible');
+            document.getElementById(name + '-status-dot').style.boxShadow = '0 0 8px ' + getStatusColor('invisible');
+            document.getElementById(name + '-status-text').textContent = 'Offline';
           }
 
           // Apply theme — always dark card, accents show personality
@@ -618,13 +626,18 @@
     function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
     function formatLastSeen(ts) {
       if (!ts) return 'Offline';
-      const diff = Date.now() - ts;
-      const mins = Math.floor(diff / 60000);
+      var date = new Date(ts);
+      var now = new Date();
+      var diff = now - ts;
+      var mins = Math.floor(diff / 60000);
+      var time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
       if (mins < 1) return 'Last seen just now';
       if (mins < 60) return 'Last seen ' + mins + 'm ago';
-      const hrs = Math.floor(mins / 60);
-      if (hrs < 24) return 'Last seen ' + hrs + 'h ago';
-      return 'Last seen ' + Math.floor(hrs / 24) + 'd ago';
+      if (date.toDateString() === now.toDateString()) return 'Last seen today at ' + time;
+      var yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+      if (date.toDateString() === yesterday.toDateString()) return 'Last seen yesterday at ' + time;
+      var dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      return 'Last seen ' + dateStr + ' at ' + time;
     }
 
     // ── Profile passcode state ──────────────────────────────────────
