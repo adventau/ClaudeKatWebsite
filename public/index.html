@@ -114,43 +114,92 @@
 
     /* ── Profile Select ─────────────────────────────────────────────── */
     .profile-grid {
-      display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center;
+      display: flex; gap: 1.8rem; flex-wrap: wrap; justify-content: center;
       padding: 1.5rem 1rem;
     }
 
     .profile-card {
       position: relative; width: 240px; height: 320px;
       border-radius: 22px; cursor: pointer; overflow: hidden;
-      transition: transform 0.35s cubic-bezier(0.34,1.4,0.64,1), box-shadow 0.35s;
+      transition: transform 0.4s cubic-bezier(0.34,1.4,0.64,1), box-shadow 0.4s, border-color 0.4s;
       animation: fadeUp 0.85s cubic-bezier(0.34,1.2,0.64,1) both;
-      border: 1px solid rgba(255,255,255,0.08);
-    }
-    .profile-card:hover {
-      transform: translateY(-10px) scale(1.02);
     }
     .profile-card:nth-child(2) { animation-delay: 0.12s; }
 
-    /* Kaliph card — deep indigo/blue */
-    .card-kaliph { background: linear-gradient(145deg, #060818, #111b45, #0a1a3d); border-color: rgba(59,130,246,0.15); }
-    .card-kaliph:hover { box-shadow: 0 20px 60px rgba(59,130,246,0.45), 0 0 80px rgba(124,58,237,0.25); }
+    /* ═══ KALIPH — Cyber / Tech / Electric Blue ═══ */
+    .card-kaliph {
+      background: linear-gradient(160deg, #020818 0%, #0a1635 40%, #06102a 70%, #030b1c 100%);
+      border: 1px solid rgba(59,130,246,0.2);
+    }
+    .card-kaliph:hover {
+      transform: translateY(-12px) scale(1.03) rotateY(-2deg);
+      box-shadow: 0 24px 60px rgba(59,130,246,0.5), 0 0 100px rgba(56,189,248,0.2), inset 0 1px 0 rgba(59,130,246,0.3);
+      border-color: rgba(59,130,246,0.5);
+    }
+    /* Kaliph — scan line overlay */
+    .card-kaliph::after {
+      content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(59,130,246,0.03) 2px, rgba(59,130,246,0.03) 4px);
+      opacity: 0; transition: opacity 0.4s;
+    }
+    .card-kaliph:hover::after { opacity: 1; }
+    /* Kaliph — electric shimmer */
+    .card-kaliph::before {
+      content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none;
+      background: linear-gradient(45deg, transparent 20%, rgba(59,130,246,0.12) 45%, rgba(56,189,248,0.08) 55%, transparent 80%);
+      transform: translateX(-100%) rotate(45deg); transition: none;
+    }
+    .card-kaliph:hover::before { animation: kaliph-shimmer 0.7s ease; }
 
-    /* Kathrine card — rose/pink warmth */
-    .card-kathrine { background: linear-gradient(145deg, #1a0a18, #3b1035, #2a0828); border-color: rgba(236,72,153,0.15); }
-    .card-kathrine:hover { box-shadow: 0 20px 60px rgba(236,72,153,0.4), 0 0 80px rgba(192,132,252,0.2); }
+    /* ═══ KATHRINE — Elegant / Rose / Warm Glow ═══ */
+    .card-kathrine {
+      background: linear-gradient(160deg, #1a0616 0%, #2d1028 35%, #1f0a2a 65%, #150520 100%);
+      border: 1px solid rgba(236,72,153,0.15);
+    }
+    .card-kathrine:hover {
+      transform: translateY(-10px) scale(1.04);
+      box-shadow: 0 20px 60px rgba(236,72,153,0.4), 0 0 120px rgba(244,114,182,0.15), 0 0 200px rgba(192,132,252,0.08);
+      border-color: rgba(236,72,153,0.45);
+    }
+    /* Kathrine — soft bloom shimmer */
+    .card-kathrine::before {
+      content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none;
+      background: radial-gradient(ellipse at 30% 50%, rgba(244,114,182,0.12) 0%, transparent 60%);
+      opacity: 0; transition: opacity 0.6s ease;
+    }
+    .card-kathrine:hover::before { opacity: 1; animation: kathrine-bloom 1.8s ease-in-out infinite; }
+    /* Kathrine — floating sparkles */
+    .card-kathrine::after {
+      content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background-image:
+        radial-gradient(1px 1px at 20% 30%, rgba(244,114,182,0.7), transparent),
+        radial-gradient(1px 1px at 70% 60%, rgba(192,132,252,0.5), transparent),
+        radial-gradient(1px 1px at 50% 80%, rgba(244,114,182,0.6), transparent),
+        radial-gradient(1.5px 1.5px at 35% 55%, rgba(251,191,36,0.4), transparent),
+        radial-gradient(1px 1px at 80% 25%, rgba(192,132,252,0.5), transparent),
+        radial-gradient(1px 1px at 15% 75%, rgba(244,114,182,0.4), transparent);
+      background-size: 100% 100%;
+      opacity: 0; transition: opacity 0.5s;
+    }
+    .card-kathrine:hover::after { opacity: 1; animation: kathrine-sparkle 3s ease-in-out infinite; }
 
     .card-bg-particles {
       position: absolute; inset: 0; overflow: hidden; border-radius: 24px;
     }
+
+    /* Kaliph glow — electric blue core */
     .card-glow {
       position: absolute; inset: -50%;
       opacity: 0; transition: opacity 0.4s;
       border-radius: 50%; filter: blur(40px);
     }
     .card-kaliph .card-glow {
-      background: radial-gradient(circle, rgba(59,130,246,0.5) 0%, rgba(124,58,237,0.35) 50%, transparent 70%);
+      background: radial-gradient(circle, rgba(59,130,246,0.6) 0%, rgba(56,189,248,0.3) 30%, rgba(124,58,237,0.15) 60%, transparent 75%);
     }
+    /* Kathrine glow — warm rose bloom */
     .card-kathrine .card-glow {
-      background: radial-gradient(circle, rgba(236,72,153,0.5) 0%, rgba(192,132,252,0.3) 50%, transparent 70%);
+      background: radial-gradient(circle, rgba(244,114,182,0.5) 0%, rgba(236,72,153,0.3) 30%, rgba(192,132,252,0.15) 60%, transparent 75%);
+      filter: blur(50px);
     }
     .profile-card:hover .card-glow { opacity: 1; }
 
@@ -160,49 +209,59 @@
       padding: 2rem 1rem;
     }
 
+    /* ── Avatars ───────────────────────────────────────────────────── */
     .card-avatar {
       width: 80px; height: 80px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       font-size: 2rem; margin-bottom: 1.2rem;
-      border: 2px solid rgba(255,255,255,0.2);
-      transition: transform 0.4s, box-shadow 0.4s;
+      transition: transform 0.4s cubic-bezier(0.34,1.4,0.64,1), box-shadow 0.4s;
       position: relative; overflow: hidden;
     }
     .card-kaliph .card-avatar {
-      background: linear-gradient(135deg, #3b82f6, #6366f1);
-      box-shadow: 0 0 20px rgba(59,130,246,0.5);
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      border: 2px solid rgba(59,130,246,0.5);
+      box-shadow: 0 0 20px rgba(59,130,246,0.5), 0 0 40px rgba(59,130,246,0.15);
     }
     .card-kathrine .card-avatar {
-      background: linear-gradient(135deg, #ec4899, #c084fc);
-      box-shadow: 0 0 20px rgba(236,72,153,0.5);
+      background: linear-gradient(135deg, #db2777, #ec4899);
+      border: 2px solid rgba(236,72,153,0.4);
+      box-shadow: 0 0 20px rgba(236,72,153,0.5), 0 0 40px rgba(236,72,153,0.15);
     }
-    .profile-card:hover .card-avatar {
-      transform: scale(1.1);
-      box-shadow: 0 0 40px rgba(124,58,237,0.6);
+    .card-kaliph:hover .card-avatar {
+      transform: scale(1.12);
+      box-shadow: 0 0 30px rgba(59,130,246,0.7), 0 0 60px rgba(56,189,248,0.3);
+    }
+    .card-kathrine:hover .card-avatar {
+      transform: scale(1.1) rotate(3deg);
+      box-shadow: 0 0 30px rgba(236,72,153,0.7), 0 0 60px rgba(244,114,182,0.25);
     }
 
+    /* ── Names ─────────────────────────────────────────────────────── */
     .card-name {
       font-size: 2rem; font-weight: 700; letter-spacing: 0.05em;
-      margin-bottom: 0.4rem; transition: transform 0.3s;
+      margin-bottom: 0.4rem; transition: transform 0.3s, letter-spacing 0.3s;
     }
     .card-kaliph .card-name {
-      font-family: 'Orbitron', monospace;
-      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      font-family: 'Orbitron', monospace; font-size: 1.5rem; letter-spacing: 0.12em;
+      background: linear-gradient(135deg, #60a5fa, #38bdf8);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
+    .card-kaliph:hover .card-name { letter-spacing: 0.2em; transform: scale(1.05); }
     .card-kathrine .card-name {
-      font-family: 'Cormorant Garamond', serif;
-      background: linear-gradient(135deg, #f9a8d4, #c084fc);
+      font-family: 'Cormorant Garamond', serif; font-size: 2.2rem; font-weight: 600; font-style: italic;
+      background: linear-gradient(135deg, #f9a8d4, #f472b6, #e879f9);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
-    .profile-card:hover .card-name { transform: scale(1.05); }
+    .card-kathrine:hover .card-name { transform: scale(1.08); }
 
     .card-theme-label {
       font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase;
       color: rgba(255,255,255,0.4); margin-bottom: 1rem;
     }
-    .card-kaliph .card-theme-label { color: rgba(96,165,250,0.6); }
-    .card-kathrine .card-theme-label { color: rgba(236,72,153,0.6); }
+    .card-kaliph .card-theme-label { color: rgba(56,189,248,0.6); font-family: 'Space Grotesk', sans-serif; }
+    .card-kathrine .card-theme-label { color: rgba(244,114,182,0.6); font-family: 'Cormorant Garamond', serif; font-style: italic; }
 
     .card-status {
       display: flex; align-items: center; gap: 6px;
@@ -219,6 +278,8 @@
       letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap;
       opacity: 0; transition: opacity 0.25s, transform 0.25s;
     }
+    .card-kaliph .card-enter-hint { font-family: 'Space Grotesk', sans-serif; }
+    .card-kathrine .card-enter-hint { font-family: 'Cormorant Garamond', serif; letter-spacing: 0.18em; }
     .profile-card:hover .card-enter-hint { opacity: 1; transform: translateX(-50%) translateY(0); }
 
     /* Theme preview swatches */
@@ -244,13 +305,41 @@
 
     /* ── AVNT badge (shown on Kaliph card) ─────────────────────────── */
     .avnt-badge {
-      position: absolute; top: 12px; right: 12px;
+      position: absolute; top: 12px; right: 12px; z-index: 4;
       font-family: 'Orbitron', monospace; font-size: 0.55rem;
-      letter-spacing: 0.2em; color: rgba(167,139,250,0.6);
-      border: 1px solid rgba(167,139,250,0.3);
+      letter-spacing: 0.2em; color: rgba(56,189,248,0.7);
+      border: 1px solid rgba(56,189,248,0.3);
       border-radius: 4px; padding: 2px 6px;
       text-transform: uppercase;
+      transition: color 0.3s, border-color 0.3s, box-shadow 0.3s;
     }
+    .card-kaliph:hover .avnt-badge {
+      color: rgba(56,189,248,0.9);
+      border-color: rgba(56,189,248,0.6);
+      box-shadow: 0 0 12px rgba(56,189,248,0.3);
+    }
+
+    /* ── Kathrine crown badge ──────────────────────────────────────── */
+    .royal-badge {
+      position: absolute; top: 12px; right: 12px; z-index: 4;
+      font-size: 0.65rem; letter-spacing: 0.15em;
+      color: rgba(244,114,182,0.7);
+      font-family: 'Cormorant Garamond', serif; font-style: italic;
+      transition: color 0.3s;
+    }
+    .card-kathrine:hover .royal-badge { color: rgba(244,114,182,0.95); }
+
+    /* ── Kaliph circuit-line decoration ─────────────────────────────── */
+    .card-kaliph .card-circuit {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 60px; z-index: 1; pointer-events: none;
+      opacity: 0; transition: opacity 0.5s;
+      background:
+        linear-gradient(90deg, transparent 10%, rgba(59,130,246,0.12) 10%, rgba(59,130,246,0.12) 10.5%, transparent 10.5%,
+          transparent 30%, rgba(59,130,246,0.08) 30%, rgba(59,130,246,0.08) 30.5%, transparent 30.5%,
+          transparent 60%, rgba(59,130,246,0.1) 60%, rgba(59,130,246,0.1) 60.5%, transparent 60.5%,
+          transparent 85%, rgba(59,130,246,0.06) 85%, rgba(59,130,246,0.06) 85.5%, transparent 85.5%);
+    }
+    .card-kaliph:hover .card-circuit { opacity: 1; }
 
     /* ── Animations ─────────────────────────────────────────────────── */
     @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
@@ -258,27 +347,32 @@
       from { opacity: 0; transform: translateY(30px); }
       to   { opacity: 1; transform: translateY(0); }
     }
-    @keyframes shimmer {
-      0% { transform: translateX(-100%) rotate(45deg); }
+
+    /* Kaliph — electric shimmer sweep */
+    @keyframes kaliph-shimmer {
+      0%   { transform: translateX(-100%) rotate(45deg); }
       100% { transform: translateX(200%) rotate(45deg); }
     }
-
-    /* Shimmer on cards */
-    .profile-card::before {
-      content: ''; position: absolute; inset: 0; z-index: 3;
-      background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.06) 50%, transparent 70%);
-      transform: translateX(-100%) rotate(45deg);
-      transition: none;
+    /* Kathrine — soft bloom pulse */
+    @keyframes kathrine-bloom {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50%      { opacity: 1; transform: scale(1.02); }
     }
-    .profile-card:hover::before { animation: shimmer 0.6s ease; }
+    /* Kathrine — sparkle float */
+    @keyframes kathrine-sparkle {
+      0%, 100% { background-position: 0% 0%; opacity: 0.7; }
+      33%      { background-position: 2% -3%; opacity: 1; }
+      66%      { background-position: -1% 2%; opacity: 0.8; }
+    }
 
     /* Ripple */
     .ripple {
       position: absolute; border-radius: 50%;
-      background: rgba(255,255,255,0.15);
       transform: scale(0); animation: ripple-anim 0.6s linear;
       pointer-events: none;
     }
+    .card-kaliph .ripple { background: rgba(59,130,246,0.25); }
+    .card-kathrine .ripple { background: rgba(244,114,182,0.2); }
     @keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
 
     /* Loading spinner */
@@ -324,6 +418,8 @@
         <div class="profile-card card-kaliph" id="card-kaliph" data-profile="kaliph">
           <div class="card-bg-particles"></div>
           <div class="card-glow"></div>
+          <div class="avnt-badge">AVNT</div>
+          <div class="card-circuit"></div>
           <div class="card-content">
             <div class="card-avatar" id="kaliph-avatar">K</div>
             <div class="card-name">Kaliph</div>
@@ -340,6 +436,7 @@
         <div class="profile-card card-kathrine" id="card-kathrine" data-profile="kathrine">
           <div class="card-bg-particles"></div>
           <div class="card-glow"></div>
+          <div class="royal-badge">♛ Royal</div>
           <div class="card-content">
             <div class="card-avatar" id="kathrine-avatar">K</div>
             <div class="card-name">Kathrine</div>
@@ -533,7 +630,13 @@
     pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryPassword(); });
 
     // ── Load user data for profile cards ───────────────────────────
-    // Card colors — always dark cards, theme expressed via accents/glows
+    // Card colors — kaliph = blue/cyan tech, kathrine = rose/pink warmth
+    // These are the IDENTITY colors shown on each card regardless of their app theme
+    const cardIdentity = {
+      kaliph:   { bg: '#020818', accent: '#3b82f6', accent2: '#38bdf8', glow: 'rgba(59,130,246,0.35)', border: 'rgba(59,130,246,0.3)' },
+      kathrine: { bg: '#1a0616', accent: '#ec4899', accent2: '#f472b6', glow: 'rgba(236,72,153,0.3)', border: 'rgba(236,72,153,0.25)' },
+    };
+    // Theme colors only used for passcode overlay styling
     const themeColors = {
       kaliph:   { bg: '#0d0820', accent: '#7c3aed', accent2: '#a78bfa', glow: 'rgba(124,58,237,0.3)', border: 'rgba(124,58,237,0.25)' },
       kathrine: { bg: '#0d0716', accent: '#8b5cf6', accent2: '#c084fc', glow: 'rgba(139,92,246,0.3)', border: 'rgba(139,92,246,0.25)' },
@@ -553,7 +656,8 @@
           const u = users[name];
           if (!u) return;
           const card = document.getElementById('card-' + name);
-          const theme = themeColors[u.theme] || themeColors.dark;
+          // Use fixed identity colors — NOT dynamic theme — so cards always look distinct
+          const id = cardIdentity[name];
 
           // Avatar
           if (u.avatar) {
@@ -585,38 +689,8 @@
             document.getElementById(name + '-status-text').textContent = 'Offline';
           }
 
-          // Apply theme — always dark card, accents show personality
-          card.style.background = `linear-gradient(145deg, ${theme.bg}, ${theme.accent}15 50%, ${theme.bg} 100%)`;
-          card.style.border = `1px solid ${theme.border}`;
-          card.style.boxShadow = `0 8px 40px rgba(0,0,0,0.5), 0 0 40px ${theme.accent}15`;
-
-          // Name gradient in theme accent
-          const nameEl = card.querySelector('.card-name');
-          nameEl.style.background = `linear-gradient(135deg, ${theme.accent2 || theme.accent}, ${theme.accent})`;
-          nameEl.style.webkitBackgroundClip = 'text';
-          nameEl.style.webkitTextFillColor = 'transparent';
-          nameEl.style.backgroundClip = 'text';
-
-          // Accent-tinted labels
-          card.querySelectorAll('.card-theme-label').forEach(el => el.style.color = `${theme.accent}99`);
-          card.querySelector('.card-enter-hint').style.color = `${theme.accent}88`;
-
-          // Hover glow in theme accent
-          card.addEventListener('mouseenter', () => {
-            card.style.boxShadow = `0 20px 60px rgba(0,0,0,0.4), 0 0 80px ${theme.accent}35`;
-          });
-          card.addEventListener('mouseleave', () => {
-            card.style.boxShadow = `0 8px 40px rgba(0,0,0,0.5), 0 0 40px ${theme.accent}15`;
-          });
-
-          // Card glow
-          const glow = card.querySelector('.card-glow');
-          if (glow) glow.style.background = `radial-gradient(circle, ${theme.accent}40 0%, ${theme.accent}10 40%, transparent 70%)`;
-
-          // Avatar ring glow in theme accent
-          const avatar = document.getElementById(name + '-avatar');
-          avatar.style.background = `linear-gradient(135deg, ${theme.accent}, ${theme.accent2 || theme.accent})`;
-          avatar.style.boxShadow = `0 0 24px ${theme.accent}50`;
+          // Do NOT override card background, border, box-shadow, name gradient, or avatar —
+          // let the CSS identity classes handle all visual styling so each card stays unique
         });
       } catch {}
     }

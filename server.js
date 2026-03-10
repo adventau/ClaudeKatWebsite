@@ -364,48 +364,9 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
     } catch {}
   }, 3 * 60 * 1000);
 
-  // Check for @claude mention
-  if (message.text.toLowerCase().includes('@claude') || message.text.toLowerCase().includes('@ai')) {
-    handleAIMention(message, msgs);
-  }
-
   io.emit('new-message', message);
   res.json({ success: true, message, emailStatus });
 });
-
-async function handleAIMention(triggerMsg, msgs) {
-  io.emit('ai-typing', true);
-  try {
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const history = (msgs.main || []).slice(-20).map(m => ({
-      role: m.sender === 'ai' ? 'assistant' : 'user',
-      content: `[${m.sender}]: ${m.text}`
-    }));
-    const resp = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 1024,
-      system: 'You are Claude, an AI assistant integrated into "The Royal Kat & Kai Vault" — a private messaging platform for best friends Kaliph and Kathrine. Be helpful, friendly, and concise. You were @mentioned in a conversation.',
-      messages: history,
-    });
-    const aiMsg = {
-      id: uuidv4(), sender: 'ai', type: 'text',
-      text: resp.content[0].text, files: [],
-      priority: false, replyTo: triggerMsg.id,
-      timestamp: Date.now(), edited: false, reactions: {},
-      read: false, readAt: null, unsendable: false, aiGenerated: true,
-    };
-    const m = rd(F.messages);
-    if (!Array.isArray(m.main)) m.main = [];
-    m.main.push(aiMsg);
-    wd(F.messages, m);
-    io.emit('new-message', aiMsg);
-  } catch (e) {
-    console.error('AI error:', e.message);
-  } finally {
-    io.emit('ai-typing', false);
-  }
-}
 
 app.post('/api/messages/:id/read', mainAuth, (req, res) => {
   const msgs = rd(F.messages);
@@ -695,11 +656,10 @@ app.get('/api/settings', mainAuth, (_, res) => {
 });
 
 app.get('/api/settings/email-status', mainAuth, async (_, res) => {
-  const provider = getEmailProvider();
-  const configured = !!provider;
+  const configured = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
   let canConnect = false;
   if (configured) {
-    try { canConnect = await verifyEmail(); } catch { canConnect = false; }
+    try { await mailer().verify(); canConnect = true; } catch { canConnect = false; }
   }
   const s = rd(F.settings);
   const hasRecipients = !!(
@@ -707,7 +667,7 @@ app.get('/api/settings/email-status', mainAuth, async (_, res) => {
     (s.emails?.kathrine && (Array.isArray(s.emails.kathrine) ? s.emails.kathrine.filter(e => e).length : s.emails.kathrine)) ||
     s.emails?.shared
   );
-  res.json({ configured, canConnect, hasRecipients, provider: provider || 'none' });
+  res.json({ configured, canConnect, hasRecipients, provider: configured ? 'gmail' : 'none' });
 });
 
 app.post('/api/settings/test-email', mainAuth, async (req, res) => {
@@ -1923,20 +1883,14 @@ server.listen(PORT, async () => {
   console.log(`   Running on → http://localhost:${PORT}`);
   console.log(`   Backdoor   → http://localhost:${PORT}/backdoor`);
   // Email status check
-  const emailProvider = getEmailProvider();
-  if (!emailProvider) {
-    console.log(`   Email      → ❌ NOT configured (set BREVO_API_KEY or EMAIL_USER+EMAIL_PASS)`);
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.log(`   Email      → ❌ NOT configured (set EMAIL_USER+EMAIL_PASS in .env)`);
   } else {
     try {
-      const ok = await verifyEmail();
-      if (ok) {
-        console.log(`   Email      → ✅ ${emailProvider === 'brevo' ? 'Brevo (HTTP)' : 'Gmail SMTP'} ready`);
-      } else {
-        console.log(`   Email      → ⚠️  ${emailProvider} configured but verification failed`);
-      }
+      await mailer().verify();
+      console.log(`   Email      → ✅ Gmail SMTP ready (${process.env.EMAIL_USER})`);
     } catch (e) {
-      console.log(`   Email      → ⚠️  ${emailProvider} configured but connection failed: ${e.message}`);
-      _transporter = null;
+      console.log(`   Email      → ⚠️  Gmail configured but connection failed: ${e.message}`);
     }
   }
   console.log(`🏰 ══════════════════════════════════════════ 🏰\n`);
