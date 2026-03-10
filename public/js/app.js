@@ -82,11 +82,12 @@ async function init() {
 
   socket.emit('user-online', { user: currentUser });
 
-  await Promise.all([loadMessages(), loadAnnouncements()]);
+  // Init Lucide icons early so UI is always visible
+  if (window.lucide) lucide.createIcons();
+
+  await Promise.all([loadMessages(), loadAnnouncements()]).catch(console.error);
   checkAndShowAnnouncements();
   requestNotificationPermission();
-  // Init Lucide icons
-  if (window.lucide) lucide.createIcons();
 }
 
 // Format toolbar + priority row toggles
