@@ -3001,12 +3001,13 @@ window.addEventListener('beforeunload', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (!_isAutoIdle) {
-      _isAutoIdle = true;
+      _isAutoIdle = 'idle';
       socket.emit('user-idle', { user: currentUser });
     }
   } else {
     if (_isAutoIdle) {
       _isAutoIdle = false;
+      lastActivity = Date.now();
       socket.emit('user-active', { user: currentUser });
       setStatusDot('my-status-dot', 'online');
       updateStatusText('online');
