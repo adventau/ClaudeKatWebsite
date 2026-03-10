@@ -906,6 +906,10 @@
 </div>
 
 <!-- Scripts -->
+<script>
+  // Init Lucide icons immediately so UI is always interactive
+  document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });
+</script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js"></script>
 <script src="/js/app.js"></script>

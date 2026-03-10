@@ -2610,4 +2610,4 @@ async function logout() {
 }
 
 // ── Start ─────────────────────────────────────────────────────────────
-init();
+init().catch(err => console.error('Init failed:', err));
