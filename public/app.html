@@ -270,10 +270,6 @@
           <button class="btn-primary" onclick="openModal('new-event-modal')">+ Event</button>
         </div>
       </div>
-      <div class="section-tabs">
-        <div class="section-tab active" onclick="switchCalTab('personal',this)">My Calendar</div>
-        <div class="section-tab" onclick="switchCalTab('shared',this)">Shared Calendar</div>
-      </div>
       <div style="flex:1;overflow:auto;padding:1rem">
         <div class="cal-grid" id="cal-grid">
           <div class="cal-day-header">Sun</div>
@@ -796,18 +792,13 @@
 <div class="modal-overlay" id="new-event-modal">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <span class="modal-title">📅 New Event</span>
+      <span class="modal-title">New Event</span>
       <button class="btn-icon" onclick="closeModal('new-event-modal')">✕</button>
     </div>
-    <div class="form-row"><label>Event Title</label><input type="text" id="event-title" placeholder="Event title"></div>
-    <div class="form-row"><label>Start Date/Time</label><input type="datetime-local" id="event-start"></div>
-    <div class="form-row"><label>End Date/Time</label><input type="datetime-local" id="event-end"></div>
+    <div class="form-row"><label>Title</label><input type="text" id="event-title" placeholder="Event title"></div>
+    <div class="form-row"><label>Date</label><input type="date" id="event-date"></div>
     <div class="form-row"><label>Description</label><textarea id="event-desc" rows="2" placeholder="Optional description"></textarea></div>
     <div class="form-row"><label>Color</label><input type="color" id="event-color" value="#7c3aed" style="width:60px;height:32px"></div>
-    <div class="settings-row">
-      <span class="settings-label">Share to shared calendar</span>
-      <label class="toggle"><input type="checkbox" id="event-shared"><span class="toggle-slider"></span></label>
-    </div>
     <div style="display:flex;gap:8px;margin-top:1rem">
       <button class="btn-primary" onclick="saveEvent()">Save Event</button>
       <button class="btn-ghost" onclick="closeModal('new-event-modal')">Cancel</button>
