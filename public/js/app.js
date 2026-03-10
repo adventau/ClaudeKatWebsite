@@ -1759,6 +1759,38 @@ function switchSettingsTab(tab, el) {
   document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('tab-' + tab)?.classList.add('active');
+  if (tab === 'updates') renderUpdateHistory();
+}
+
+function renderUpdateHistory() {
+  const container = document.getElementById('update-history-list');
+  if (!container || !CHANGELOG.length) return;
+  let html = '';
+  CHANGELOG.forEach((entry, idx) => {
+    const isOpen = idx === 0 ? 'open' : '';
+    html += `<details ${isOpen} style="margin-bottom:0.75rem;border:1px solid var(--border);border-radius:8px;overflow:hidden">`;
+    html += `<summary style="padding:0.75rem 1rem;cursor:pointer;background:var(--bg-sidebar);font-size:0.85rem;font-weight:600;display:flex;justify-content:space-between;align-items:center">`;
+    html += `<span>v${escapeHtml(entry.version)}</span><span style="font-weight:400;color:var(--text-muted);font-size:0.75rem">${escapeHtml(entry.date)}</span>`;
+    html += `</summary>`;
+    html += `<div style="padding:0.75rem 1rem;font-size:0.82rem;line-height:1.6">`;
+    if (entry.improvements?.length) {
+      html += `<div style="font-weight:600;color:var(--accent);margin-bottom:4px">Improvements</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.improvements.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+    if (entry.removed?.length) {
+      html += `<div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">Removed</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.removed.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+    if (entry.fixes?.length) {
+      html += `<div style="font-weight:600;color:#34d399;margin-bottom:4px">Bug Fixes</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.fixes.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+    html += `</div></details>`;
+  });
+  container.innerHTML = html;
 }
 
 async function loadSettings() {

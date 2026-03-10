@@ -423,6 +423,7 @@
         <div class="settings-tab" onclick="switchSettingsTab('security',this)"><i data-lucide="shield"></i><span>Security</span></div>
         <div class="settings-tab" onclick="switchSettingsTab('shortcuts',this)"><i data-lucide="keyboard"></i><span>Shortcuts</span></div>
         <div class="settings-tab" onclick="switchSettingsTab('suggestions',this)"><i data-lucide="message-square"></i><span>Feedback</span></div>
+        <div class="settings-tab" onclick="switchSettingsTab('updates',this)"><i data-lucide="scroll-text"></i><span>Updates</span></div>
       </div>
       <div class="settings-content">
 
@@ -648,6 +649,15 @@
             <div id="suggestions-list">
               <p style="color:var(--text-muted);font-size:0.85rem">No submissions yet.</p>
             </div>
+          </div>
+        </div>
+
+        <!-- Updates tab -->
+        <div class="settings-panel" id="tab-updates">
+          <div class="settings-section">
+            <h3>Update History</h3>
+            <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem">All previous update logs and changelogs.</p>
+            <div id="update-history-list"></div>
           </div>
         </div>
 
