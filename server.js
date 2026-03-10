@@ -10,6 +10,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 const app = express();
 const server = http.createServer(app);
@@ -106,7 +107,17 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
 // ── Email ─────────────────────────────────────────────────────────────────────
+// Uses Resend (HTTP API, works on Railway/cloud) if RESEND_API_KEY is set,
+// otherwise falls back to nodemailer/Gmail SMTP (works locally).
+const _resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 let _transporter = null;
+
+function getEmailProvider() {
+  if (_resend) return 'resend';
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) return 'smtp';
+  return null;
+}
+
 function mailer() {
   if (!_transporter) {
     _transporter = nodemailer.createTransport({
@@ -118,28 +129,65 @@ function mailer() {
   }
   return _transporter;
 }
+
 async function sendMail(to, subject, html, attachments = []) {
   if (!to) { console.error('Mail error: no recipient email configured'); return false; }
-  if (!process.env.EMAIL_USER) {
-    console.error('Mail error: EMAIL_USER not configured — set your Gmail address in environment variables');
-    return false;
+
+  // Prefer Resend (HTTP-based, works on Railway and other cloud platforms)
+  if (_resend) {
+    try {
+      const fromAddr = process.env.EMAIL_FROM || 'Royal Vault <onboarding@resend.dev>';
+      const msg = { from: fromAddr, to, subject, html };
+      if (attachments.length > 0) {
+        msg.attachments = attachments.map(a => ({
+          filename: a.filename,
+          content: Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content, 'utf-8'),
+        }));
+      }
+      await _resend.emails.send(msg);
+      console.log(`Mail sent via Resend to ${to}`);
+      return true;
+    } catch (e) {
+      console.error('Resend error:', e.message);
+      return false;
+    }
   }
-  if (!process.env.EMAIL_PASS) {
-    console.error('Mail error: EMAIL_PASS not configured — set a Gmail App Password in environment variables');
+
+  // Fallback: nodemailer/Gmail SMTP (works locally, blocked on most cloud platforms)
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.error('Mail error: No email provider configured — set RESEND_API_KEY (recommended) or EMAIL_USER + EMAIL_PASS');
     return false;
   }
   try {
     await mailer().sendMail({ from: process.env.EMAIL_USER, to, subject, html, attachments });
-    console.log(`Mail sent successfully to ${to}`);
+    console.log(`Mail sent via SMTP to ${to}`);
     return true;
   } catch (e) {
-    console.error('Mail error:', e.message);
-    // Reset transporter on auth/connection errors so it reconnects next time
-    if (e.code === 'EAUTH' || e.code === 'ESOCKET' || e.code === 'ECONNECTION') {
+    console.error('SMTP error:', e.message);
+    if (e.code === 'EAUTH' || e.code === 'ESOCKET' || e.code === 'ECONNECTION' || e.code === 'ETIMEDOUT') {
       _transporter = null;
     }
     return false;
   }
+}
+
+async function verifyEmail() {
+  if (_resend) {
+    // Resend uses HTTP — just verify the API key works
+    try {
+      await _resend.emails.send({ from: 'test@resend.dev', to: 'test@resend.dev', subject: 'verify', html: 'test' });
+      return true;
+    } catch (e) {
+      // 422 = validation error (expected for test addresses) = API key works
+      // 401 = bad API key
+      return e.statusCode === 422;
+    }
+  }
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    await mailer().verify();
+    return true;
+  }
+  return false;
 }
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
@@ -709,16 +757,11 @@ app.get('/api/settings', mainAuth, (_, res) => {
 });
 
 app.get('/api/settings/email-status', mainAuth, async (_, res) => {
-  const configured = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+  const provider = getEmailProvider();
+  const configured = !!provider;
   let canConnect = false;
   if (configured) {
-    try {
-      await mailer().verify();
-      canConnect = true;
-    } catch (e) {
-      _transporter = null; // reset on failure
-      canConnect = false;
-    }
+    try { canConnect = await verifyEmail(); } catch { canConnect = false; }
   }
   const s = rd(F.settings);
   const hasRecipients = !!(
@@ -726,7 +769,7 @@ app.get('/api/settings/email-status', mainAuth, async (_, res) => {
     (s.emails?.kathrine && (Array.isArray(s.emails.kathrine) ? s.emails.kathrine.filter(e => e).length : s.emails.kathrine)) ||
     s.emails?.shared
   );
-  res.json({ configured, canConnect, hasRecipients, emailUser: process.env.EMAIL_USER ? '✓ set' : '✗ missing' });
+  res.json({ configured, canConnect, hasRecipients, provider: provider || 'none' });
 });
 
 app.post('/api/settings/test-email', mainAuth, async (req, res) => {
@@ -952,14 +995,19 @@ server.listen(PORT, async () => {
   console.log(`   Running on → http://localhost:${PORT}`);
   console.log(`   Backdoor   → http://localhost:${PORT}/backdoor`);
   // Email status check
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.log(`   Email      → ❌ NOT configured (set EMAIL_USER & EMAIL_PASS)`);
+  const emailProvider = getEmailProvider();
+  if (!emailProvider) {
+    console.log(`   Email      → ❌ NOT configured (set RESEND_API_KEY or EMAIL_USER+EMAIL_PASS)`);
   } else {
     try {
-      await mailer().verify();
-      console.log(`   Email      → ✅ Connected as ${process.env.EMAIL_USER}`);
+      const ok = await verifyEmail();
+      if (ok) {
+        console.log(`   Email      → ✅ ${emailProvider === 'resend' ? 'Resend (HTTP)' : 'Gmail SMTP'} ready`);
+      } else {
+        console.log(`   Email      → ⚠️  ${emailProvider} configured but verification failed`);
+      }
     } catch (e) {
-      console.log(`   Email      → ⚠️  Config found but connection failed: ${e.message}`);
+      console.log(`   Email      → ⚠️  ${emailProvider} configured but connection failed: ${e.message}`);
       _transporter = null;
     }
   }
