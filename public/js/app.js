@@ -3287,6 +3287,13 @@ async function logout() {
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
   {
+    version: '1.5.0',
+    date: 'Mar 10 2026',
+    improvements: [
+      'Update History tab in Settings — browse all past changelogs',
+    ],
+  },
+  {
     version: '1.4.0',
     date: 'Mar 10 2026',
     improvements: [
