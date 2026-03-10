@@ -3552,6 +3552,24 @@ async function logout() {
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
   {
+    version: '2.0.0',
+    date: 'Mar 10 2026',
+    improvements: [
+      'Vault File Preview — click any file to preview inline (images, videos, PDFs, audio) with open & download buttons',
+      'Push Notifications — get notified of new messages even when the site is closed',
+      'Missed & Ended Call Indicators — calls now show as system messages in chat',
+      'Custom Dialogs — all popups replaced with sleek in-app modals',
+      'Eval Terminal — password now saves across server restarts',
+    ],
+    fixes: [
+      'Email notifications restored with reliable connection pooling',
+      'Backdoor confirm dialog is now a proper popup instead of always visible',
+      'Backdoor page scrolls correctly on all screen sizes',
+      'Eval login clears input on wrong password',
+      'Eval login screen made larger and easier to use',
+    ],
+  },
+  {
     version: '1.5.0',
     date: 'Mar 10 2026',
     improvements: [
