@@ -105,113 +105,23 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
-// ── Email ─────────────────────────────────────────────────────────────────────
-// Uses Brevo HTTP API (works on Railway/cloud) if BREVO_API_KEY is set,
-// otherwise falls back to nodemailer/Gmail SMTP (works locally).
-let _transporter = null;
-
-function getEmailProvider() {
-  if (process.env.BREVO_API_KEY) return 'brevo';
-  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) return 'smtp';
-  return null;
-}
-
+// ── Email (Gmail SMTP) ───────────────────────────────────────────────────────
 function mailer() {
-  if (!_transporter) {
-    _transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-      pool: true,
-      maxConnections: 3,
-    });
-  }
-  return _transporter;
-}
-
-async function sendMailBrevo(to, subject, html, attachments = []) {
-  const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'royalkvault@gmail.com';
-  const fromName = process.env.EMAIL_FROM_NAME || 'Royal Vault';
-  const toArr = Array.isArray(to) ? to : [to];
-
-  const body = {
-    sender: { name: fromName, email: fromEmail },
-    to: toArr.map(email => ({ email })),
-    subject,
-    htmlContent: html,
-  };
-  if (attachments.length > 0) {
-    body.attachment = attachments.map(a => ({
-      name: a.filename,
-      content: (Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content, 'utf-8')).toString('base64'),
-    }));
-  }
-
-  const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      'api-key': process.env.BREVO_API_KEY,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: JSON.stringify(body),
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
   });
-
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`Brevo ${resp.status}: ${err}`);
-  }
-  const result = await resp.json();
-  return result.messageId || true;
 }
-
 async function sendMail(to, subject, html, attachments = []) {
   if (!to) { console.error('Mail error: no recipient email configured'); return false; }
-
-  // Prefer Brevo (HTTP API — works on Railway and other cloud platforms)
-  if (process.env.BREVO_API_KEY) {
-    try {
-      const toArr = Array.isArray(to) ? to : [to];
-      const msgId = await sendMailBrevo(toArr, subject, html, attachments);
-      console.log(`Mail sent via Brevo to ${toArr.join(', ')} (messageId: ${msgId})`);
-      return true;
-    } catch (e) {
-      console.error('Brevo error:', e.message);
-      return false;
-    }
-  }
-
-  // Fallback: nodemailer/Gmail SMTP (works locally, blocked on most cloud platforms)
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.error('Mail error: No email provider configured — set BREVO_API_KEY (recommended) or EMAIL_USER + EMAIL_PASS');
+  if (!process.env.EMAIL_PASS) {
+    console.error('Mail error: EMAIL_PASS not configured in .env');
     return false;
   }
   try {
     await mailer().sendMail({ from: process.env.EMAIL_USER, to, subject, html, attachments });
-    console.log(`Mail sent via SMTP to ${to}`);
     return true;
-  } catch (e) {
-    console.error('SMTP error:', e.message);
-    if (e.code === 'EAUTH' || e.code === 'ESOCKET' || e.code === 'ECONNECTION' || e.code === 'ETIMEDOUT') {
-      _transporter = null;
-    }
-    return false;
-  }
-}
-
-async function verifyEmail() {
-  if (process.env.BREVO_API_KEY) {
-    try {
-      const resp = await fetch('https://api.brevo.com/v3/account', {
-        headers: { 'api-key': process.env.BREVO_API_KEY, 'Accept': 'application/json' },
-      });
-      return resp.ok;
-    } catch { return false; }
-  }
-  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    await mailer().verify();
-    return true;
-  }
-  return false;
+  } catch (e) { console.error('Mail error:', e.message); return false; }
 }
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
@@ -1955,6 +1865,7 @@ const onlineUsers = {};
 
 io.on('connection', socket => {
   socket.on('user-online', ({ user }) => {
+    socket.join('private-chat');
     onlineUsers[user] = { socketId: socket.id, state: 'online' };
     socket.broadcast.emit('user-presence', { user, state: 'online' });
   });
@@ -1976,8 +1887,8 @@ io.on('connection', socket => {
     delete onlineUsers[user];
     socket.broadcast.emit('user-presence', { user, state: 'offline' });
   });
-  socket.on('typing',       d => socket.broadcast.emit('user-typing',   d));
-  socket.on('stop-typing',  d => socket.broadcast.emit('user-stop-typing', d));
+  socket.on('typing',       d => socket.to('private-chat').emit('user-typing',   d));
+  socket.on('stop-typing',  d => socket.to('private-chat').emit('user-stop-typing', d));
   socket.on('status-change', d => { socket.broadcast.emit('status-changed', d); });
   // WebRTC signaling
   socket.on('call-offer',         d => socket.broadcast.emit('call-offer',         d));

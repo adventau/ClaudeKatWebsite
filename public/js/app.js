@@ -445,6 +445,8 @@ function buildMsgElement(msg) {
   // Apply text formatting
   if (msg.text) {
     let t = msg.text;
+    // Auto-detect URLs and make them clickable
+    t = t.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;word-break:break-all">$1</a>');
     if (msg.formatting) {
       if (msg.formatting.bold) t = `<strong>${t}</strong>`;
       if (msg.formatting.italic) t = `<em>${t}</em>`;
@@ -1582,7 +1584,8 @@ async function loadAnnouncements() {
 
 function checkAndShowAnnouncements() {
   fetch('/api/announcements').then(r => r.json()).then(anns => {
-    const relevant = anns.filter(a => a.active && (a.targetUser === 'both' || a.targetUser === currentUser));
+    const dismissed = JSON.parse(localStorage.getItem('dismissedAnnouncements') || '[]');
+    const relevant = anns.filter(a => a.active && (a.targetUser === 'both' || a.targetUser === currentUser) && !dismissed.includes(a.id));
     if (relevant.length > 0) showBanner(relevant[0]);
   });
 }
@@ -1591,11 +1594,21 @@ function showBanner(ann) {
   const banner = document.getElementById('announcement-banner');
   document.getElementById('banner-title').textContent = ann.title;
   document.getElementById('banner-content').textContent = ann.content;
+  banner.dataset.annId = ann.id;
   banner.classList.add('show');
   setTimeout(() => banner.classList.remove('show'), 8000);
 }
 
-function closeBanner() { document.getElementById('announcement-banner').classList.remove('show'); }
+function closeBanner() {
+  const banner = document.getElementById('announcement-banner');
+  const annId = banner.dataset.annId;
+  if (annId) {
+    const dismissed = JSON.parse(localStorage.getItem('dismissedAnnouncements') || '[]');
+    if (!dismissed.includes(annId)) dismissed.push(annId);
+    localStorage.setItem('dismissedAnnouncements', JSON.stringify(dismissed));
+  }
+  banner.classList.remove('show');
+}
 
 async function postAnnouncement() {
   const title = document.getElementById('ann-title').value.trim();
@@ -3107,7 +3120,22 @@ function setupKeyboardShortcuts() {
     autoResizeInput();
   });
 
+  // Jump-to-latest scroll detection
+  const msgArea = document.getElementById('messages-area');
+  const jumpBtn = document.getElementById('jump-to-latest');
+  if (msgArea && jumpBtn) {
+    msgArea.addEventListener('scroll', () => {
+      const distFromBottom = msgArea.scrollHeight - msgArea.scrollTop - msgArea.clientHeight;
+      jumpBtn.classList.toggle('show', distFromBottom > 300);
+    });
+  }
+
   setupSearch();
+}
+
+function jumpToLatest() {
+  const area = document.getElementById('messages-area');
+  if (area) area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
 }
 
 function autoResizeInput() {
