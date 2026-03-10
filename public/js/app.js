@@ -1014,6 +1014,10 @@ function setupSocketEvents() {
     showToast('Chat history has been erased.');
   });
 
+  socket.on('messages-updated', () => {
+    loadMessages();
+  });
+
   socket.on('force-reload', () => {
     window.location.reload();
   });

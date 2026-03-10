@@ -1635,7 +1635,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     } else {
       return lines('Usage: purge from <user> | purge before <date> | purge keyword <text>', 'warn');
     }
-    if (removed > 0) io.emit('messages-cleared');
+    if (removed > 0) io.emit('messages-updated');
     return lines(`Purged ${removed} messages`, removed > 0 ? 'success' : 'warn');
   }
 
