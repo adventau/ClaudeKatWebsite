@@ -137,18 +137,19 @@ async function sendMail(to, subject, html, attachments = []) {
   if (_resend) {
     try {
       const fromAddr = process.env.EMAIL_FROM || 'Royal Vault <onboarding@resend.dev>';
-      const msg = { from: fromAddr, to, subject, html };
+      const toArr = Array.isArray(to) ? to : [to];
+      const msg = { from: fromAddr, to: toArr, subject, html };
       if (attachments.length > 0) {
         msg.attachments = attachments.map(a => ({
           filename: a.filename,
           content: Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content, 'utf-8'),
         }));
       }
-      await _resend.emails.send(msg);
-      console.log(`Mail sent via Resend to ${to}`);
+      const result = await _resend.emails.send(msg);
+      console.log(`Mail sent via Resend to ${toArr.join(', ')} (id: ${result.data?.id || 'unknown'})`);
       return true;
     } catch (e) {
-      console.error('Resend error:', e.message);
+      console.error('Resend error:', JSON.stringify(e, null, 2));
       return false;
     }
   }
@@ -173,14 +174,12 @@ async function sendMail(to, subject, html, attachments = []) {
 
 async function verifyEmail() {
   if (_resend) {
-    // Resend uses HTTP — just verify the API key works
+    // Verify Resend API key by listing domains (lightweight, no email sent)
     try {
-      await _resend.emails.send({ from: 'test@resend.dev', to: 'test@resend.dev', subject: 'verify', html: 'test' });
+      await _resend.domains.list();
       return true;
     } catch (e) {
-      // 422 = validation error (expected for test addresses) = API key works
-      // 401 = bad API key
-      return e.statusCode === 422;
+      return false;
     }
   }
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
