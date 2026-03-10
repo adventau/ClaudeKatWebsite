@@ -95,6 +95,35 @@ const SoundSystem = (() => {
     } catch {}
   }
 
+  // ── Ringtone system ───────────────────────────────────────────────
+  let ringtoneInterval = null;
+
+  function playRingtonePulse(type) {
+    const c = getCtx();
+    const now = c.currentTime;
+    if (type === 'outgoing') {
+      // Gentle two-tone pulse (like a soft phone ring)
+      playTone(440, 'sine', 0.4, 0.08, now);
+      playTone(520, 'sine', 0.4, 0.06, now + 0.15);
+    } else {
+      // Incoming: slightly brighter three-note chime
+      playTone(523, 'sine', 0.25, 0.1, now);
+      playTone(659, 'sine', 0.25, 0.08, now + 0.2);
+      playTone(784, 'sine', 0.35, 0.07, now + 0.4);
+    }
+  }
+
+  function startRingtone(type) {
+    stopRingtone();
+    if (!enabled) return;
+    playRingtonePulse(type);
+    ringtoneInterval = setInterval(() => playRingtonePulse(type), type === 'outgoing' ? 2500 : 2000);
+  }
+
+  function stopRingtone() {
+    if (ringtoneInterval) { clearInterval(ringtoneInterval); ringtoneInterval = null; }
+  }
+
   return {
     setTheme: (t) => { theme = t || 'dark'; },
     setEnabled: (v) => { enabled = v; },
@@ -104,6 +133,8 @@ const SoundSystem = (() => {
     receive: () => play('recv'),
     error: () => play('error'),
     notify: () => play('notif'),
+    startRingtone,
+    stopRingtone,
     init: () => {
       // Warm up audio context on first interaction
       document.addEventListener('click', () => getCtx(), { once: true });

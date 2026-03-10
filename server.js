@@ -236,6 +236,15 @@ app.post('/api/users/:user/avatar', mainAuth, upload.single('avatar'), (req, res
   res.json({ success: true, avatar: users[req.params.user].avatar });
 });
 
+app.post('/api/users/:user/banner', mainAuth, upload.single('banner'), (req, res) => {
+  if (req.session.user !== req.params.user) return res.status(403).json({ error: 'Forbidden' });
+  const users = rd(F.users);
+  users[req.params.user].banner = `/uploads/${req.file.filename}`;
+  wd(F.users, users);
+  io.emit('user-updated', { user: req.params.user, data: users[req.params.user] });
+  res.json({ success: true, banner: users[req.params.user].banner });
+});
+
 app.post('/api/users/:user/wallpaper', mainAuth, upload.single('wallpaper'), (req, res) => {
   if (req.session.user !== req.params.user) return res.status(403).json({ error: 'Forbidden' });
   const settings = rd(F.settings);

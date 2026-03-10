@@ -11,6 +11,13 @@
   <script src="/js/lucide.min.js"></script>
 </head>
 <body class="theme-dark">
+<script>
+  // Apply cached theme immediately to prevent flash
+  try {
+    var t = localStorage.getItem('rkk-theme');
+    if (t) document.body.className = 'theme-' + t;
+  } catch(e) {}
+</script>
 <div id="app">
 
   <!-- ══════════════════════════════════════════════════════════
@@ -18,7 +25,7 @@
   ══════════════════════════════════════════════════════════ -->
   <nav id="sidebar">
     <div class="sidebar-user">
-      <div class="avatar-wrapper" id="my-avatar" title="Edit profile">
+      <div class="avatar-wrapper" id="my-avatar" title="View profile" style="cursor:pointer" onclick="viewProfile(currentUser)">
         <div class="avatar">
           <span id="my-initial">K</span>
         </div>
@@ -112,14 +119,14 @@
     <section id="section-chat" class="section active">
 
       <div class="chat-header">
-        <div class="avatar-wrapper" id="other-avatar" style="width:36px;height:36px">
+        <div class="avatar-wrapper" id="other-avatar" style="width:36px;height:36px;cursor:pointer" onclick="viewProfile(otherUser)">
           <div class="avatar" style="width:36px;height:36px;font-size:0.9rem">
             <span id="other-initial">K</span>
           </div>
           <div class="status-indicator online" id="other-status-dot"></div>
         </div>
         <div class="chat-header-info">
-          <div class="chat-header-name" id="other-name">Kathrine</div>
+          <div class="chat-header-name" id="other-name" style="cursor:pointer" onclick="viewProfile(otherUser)">Kathrine</div>
           <div class="chat-header-status" id="other-status-label">Online</div>
         </div>
         <div class="chat-actions">
@@ -434,8 +441,16 @@
                   <input type="text" id="profile-display-name" placeholder="Your display name">
                 </div>
                 <div class="form-row">
-                  <label>Bio</label>
-                  <textarea id="profile-bio" placeholder="About you..." rows="2"></textarea>
+                  <label>Pronouns</label>
+                  <input type="text" id="profile-pronouns" placeholder="e.g. She/Her, He/Him, They/Them">
+                </div>
+                <div class="form-row">
+                  <label>Custom Status</label>
+                  <input type="text" id="profile-custom-status" placeholder="What's on your mind?" maxlength="80">
+                </div>
+                <div class="form-row">
+                  <label>About Me</label>
+                  <textarea id="profile-bio" placeholder="Tell us about yourself..." rows="3"></textarea>
                 </div>
                 <div class="form-row">
                   <label>Name Color</label>
@@ -444,17 +459,20 @@
                     <span style="font-size:0.8rem;color:var(--text-muted)">Choose your name color in the chat</span>
                   </div>
                 </div>
+                <div class="form-row">
+                  <label>Profile Banner</label>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <button class="btn-ghost" onclick="document.getElementById('banner-upload').click()">Upload Banner</button>
+                    <input type="file" id="banner-upload" accept="image/*" style="display:none" onchange="uploadBanner(this)">
+                    <span style="font-size:0.8rem;color:var(--text-muted)">Shown on your profile card</span>
+                  </div>
+                  <div id="banner-preview" style="margin-top:8px;border-radius:8px;overflow:hidden;display:none">
+                    <img id="banner-preview-img" style="width:100%;height:80px;object-fit:cover">
+                  </div>
+                </div>
               </div>
             </div>
             <button class="btn-primary" onclick="saveProfile()">Save Profile</button>
-          </div>
-          <div class="settings-section">
-            <h3>Personal Email(s)</h3>
-            <div class="form-row">
-              <label>Your Email (for priority message notifications)</label>
-              <input type="email" id="my-email-input" placeholder="your@email.com">
-            </div>
-            <button class="btn-primary" onclick="saveEmails()">Save Email</button>
           </div>
         </div>
 
@@ -882,6 +900,44 @@
 </div>
 
 <!-- Custom Confirm Dialog (replaces browser confirm) -->
+<!-- Profile Viewer Modal -->
+<div class="modal-overlay" id="profile-viewer-modal">
+  <div class="profile-card">
+    <div class="pc-banner" id="pv-banner"></div>
+    <div class="pc-avatar-ring" id="pv-avatar-ring">
+      <div class="pc-avatar" id="pv-avatar">
+        <span id="pv-initial">K</span>
+      </div>
+      <div class="pc-status-dot" id="pv-status-dot"></div>
+    </div>
+    <div class="pc-body">
+      <div class="pc-names">
+        <div class="pc-display-name" id="pv-name"></div>
+        <div class="pc-username" id="pv-username"></div>
+      </div>
+      <div class="pc-custom-status" id="pv-custom-status" style="display:none">
+        <span id="pv-custom-status-text"></span>
+      </div>
+      <div class="pc-divider"></div>
+      <div class="pc-section" id="pv-pronouns-section" style="display:none">
+        <div class="pc-section-title">PRONOUNS</div>
+        <div class="pc-section-text" id="pv-pronouns"></div>
+      </div>
+      <div class="pc-section">
+        <div class="pc-section-title">ABOUT ME</div>
+        <div class="pc-section-text" id="pv-bio">No bio set.</div>
+      </div>
+      <div class="pc-section">
+        <div class="pc-section-title">MEMBER SINCE</div>
+        <div class="pc-section-text" id="pv-member-since"></div>
+      </div>
+      <button class="pc-edit-btn" id="pv-edit-btn" onclick="closeModal('profile-viewer-modal');setTimeout(openSettingsModal,150)" style="display:none">
+        <i data-lucide="pencil" style="width:14px;height:14px"></i> Edit Profile
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="confirm-dialog">
   <div class="modal modal-sm" style="text-align:center">
     <div style="font-size:2rem;margin-bottom:0.75rem" id="confirm-icon">⚠️</div>

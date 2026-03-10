@@ -362,6 +362,7 @@
       <div class="welcome-title" style="margin-top:8px">Welcome to the Vault</div>
       <div class="welcome-sub">You've been granted guest access.<br>Use the tabs above to chat with us!</div>
       <div class="by-line">By Kathrine &amp; Kaliph</div>
+      <button onclick="dismissWelcome()" style="margin-top:12px;padding:5px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--accent);font-size:0.75rem;cursor:pointer">Dismiss</button>
     </div>
   </div>
 
@@ -454,6 +455,7 @@
   let channelMessages = { kaliph: [], kathrine: [], group: [] };
   let allowedChannels = ['kaliph', 'kathrine', 'group'];
   let creatorTheme = null;
+  let welcomeDismissed = false;
 
   // ── Init ────────────────────────────────────────────────────────
   async function init() {
@@ -540,6 +542,10 @@
           if (hostName) hostName.textContent = capitalize(creatorTheme) + "'s Theme";
           hostBtn.setAttribute('data-theme', creator.theme);
         }
+        // Auto-apply host theme on first visit (no saved preference)
+        if (!sessionStorage.getItem('guestTheme')) {
+          setGuestTheme('host');
+        }
       }
     } catch(e) {}
   }
@@ -553,19 +559,35 @@
     renderChannel();
   }
 
+  function dismissWelcome() {
+    welcomeDismissed = true;
+    const wb = document.getElementById('welcome-banner');
+    if (wb) { wb.style.transition = 'opacity 0.3s'; wb.style.opacity = '0'; setTimeout(() => wb.remove(), 300); }
+  }
+
   function renderChannel() {
     const area = document.getElementById('messages-area');
     area.innerHTML = '';
-    // Welcome
-    const wb = document.createElement('div');
-    wb.id = 'welcome-banner'; wb.className = '';
-    wb.style.cssText = 'text-align:center;padding:1rem;color:var(--muted);font-size:0.8rem;font-style:italic';
-    wb.innerHTML = channel === 'group'
+    // Welcome banner — keep until dismissed or first message sent
+    if (!welcomeDismissed) {
+      const wb = document.createElement('div');
+      wb.id = 'welcome-banner';
+      wb.innerHTML = `
+        <div class="welcome-title" style="margin-top:8px">Welcome to the Vault</div>
+        <div class="welcome-sub">You've been granted guest access.<br>Use the tabs above to chat with us!</div>
+        <div class="by-line">By Kathrine &amp; Kaliph</div>
+        <button onclick="dismissWelcome()" style="margin-top:12px;padding:5px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--accent);font-size:0.75rem;cursor:pointer">Dismiss</button>`;
+      area.appendChild(wb);
+    }
+    // Channel header
+    const ch = document.createElement('div');
+    ch.style.cssText = 'text-align:center;padding:0.75rem;color:var(--muted);font-size:0.8rem;font-style:italic';
+    ch.innerHTML = channel === 'group'
       ? '<strong style="color:var(--accent)">Group Chat</strong> — with Kaliph &amp; Kathrine'
       : channel === 'kaliph'
         ? 'Direct message with <strong style="color:var(--accent)">Kaliph</strong>'
         : 'Direct message with <strong style="color:var(--accent)">Kathrine</strong>';
-    area.appendChild(wb);
+    area.appendChild(ch);
     (channelMessages[channel] || []).forEach(m => area.appendChild(buildMsgEl(m)));
     area.scrollTop = area.scrollHeight;
   }
@@ -611,6 +633,7 @@
     isSending = true;
     input.value = '';
     input.style.height = 'auto';
+    if (!welcomeDismissed) dismissWelcome();
     const msg = { text, target: channel, sender: guestName };
     try {
       await fetch(`/api/guests/${guestId}/message`, {

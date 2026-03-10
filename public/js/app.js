@@ -26,6 +26,7 @@ let notesTab = 'mine';
 let allNotes = { mine: [], shared: [] };
 let activeNoteId = null;
 let formatting = { bold: false, italic: false, underline: false, font: 'default' };
+let nameColors = {};
 let isRecording = false;
 let mediaRecorder = null;
 let audioChunks = [];
@@ -147,8 +148,17 @@ function applyUserData(me, other) {
     document.getElementById('settings-avatar').innerHTML = `<img src="${me.avatar}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
   }
   document.getElementById('profile-display-name').value = me.displayName || me.name;
+  document.getElementById('profile-pronouns').value = me.pronouns || '';
+  document.getElementById('profile-custom-status').value = me.customStatus || '';
   document.getElementById('profile-bio').value = me.bio || '';
   if (me.nameStyle?.color) document.getElementById('profile-name-color').value = me.nameStyle.color;
+  if (me.banner) {
+    document.getElementById('banner-preview').style.display = '';
+    document.getElementById('banner-preview-img').src = me.banner;
+  }
+  // Store name colors for chat rendering
+  if (me.nameStyle?.color) nameColors[currentUser] = me.nameStyle.color;
+  if (other.nameStyle?.color) nameColors[otherUser] = other.nameStyle.color;
 
   // Vault other tab label
   const vaultOtherTab = document.getElementById('vault-other-tab');
@@ -174,6 +184,7 @@ function applyTheme(themeId) {
   const body = document.body;
   THEMES.forEach(t => body.classList.remove('theme-' + t.id));
   body.classList.add('theme-' + (themeId || 'dark'));
+  try { localStorage.setItem('rkk-theme', themeId || 'dark'); } catch {}
   SoundSystem.setTheme(themeId || 'dark');
   // Mark active in grid
   document.querySelectorAll('.theme-card').forEach(c => {
@@ -281,6 +292,7 @@ function buildMsgElement(msg) {
   const avatarEl = document.createElement('div');
   avatarEl.className = 'msg-avatar-sm';
   avatarEl.textContent = isAI ? '🤖' : (msg.sender === currentUser ? (currentUser[0].toUpperCase()) : (otherUser[0].toUpperCase()));
+  if (!isAI) { avatarEl.style.cursor = 'pointer'; avatarEl.onclick = () => viewProfile(msg.sender); }
 
   const content = document.createElement('div');
   content.className = 'msg-content';
@@ -289,7 +301,12 @@ function buildMsgElement(msg) {
   const label = document.createElement('div');
   label.className = 'msg-sender-label';
   if (isAI) label.innerHTML = '<span class="ai-label">🤖 Claude</span>';
-  else label.textContent = capitalize(msg.sender);
+  else {
+    label.textContent = capitalize(msg.sender);
+    if (nameColors[msg.sender]) label.style.color = nameColors[msg.sender];
+    label.style.cursor = 'pointer';
+    label.onclick = () => viewProfile(msg.sender);
+  }
   content.appendChild(label);
 
   // Priority badge
@@ -1582,13 +1599,17 @@ function getEmailValues(person) {
 
 async function saveProfile() {
   const displayName = document.getElementById('profile-display-name').value.trim();
+  const pronouns = document.getElementById('profile-pronouns').value.trim();
+  const customStatus = document.getElementById('profile-custom-status').value.trim();
   const bio = document.getElementById('profile-bio').value;
   const color = document.getElementById('profile-name-color').value;
   await fetch(`/api/users/${currentUser}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ displayName, bio, nameStyle: { color, gradient: true } })
+    body: JSON.stringify({ displayName, pronouns, customStatus, bio, nameStyle: { color, gradient: true } })
   });
   document.getElementById('my-name').textContent = displayName;
+  nameColors[currentUser] = color;
+  renderMessages();
   showToast('✅ Profile saved!');
 }
 
@@ -1619,9 +1640,74 @@ async function uploadAvatar(input) {
   const d = await r.json();
   if (d.avatar) {
     document.getElementById('settings-avatar').innerHTML = `<img src="${d.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
-    document.getElementById('my-avatar').innerHTML = `<img src="${d.avatar}" alt=""><div class="status-indicator online" id="my-status-dot"></div>`;
+    const wrapper = document.getElementById('my-avatar');
+    const avatarDiv = wrapper.querySelector('.avatar');
+    if (avatarDiv) avatarDiv.innerHTML = `<img src="${d.avatar}" alt="">`;
+    else wrapper.innerHTML = `<div class="avatar"><img src="${d.avatar}" alt=""></div><div class="status-indicator online" id="my-status-dot"></div>`;
     showToast('🖼️ Avatar updated!');
   }
+}
+
+async function uploadBanner(input) {
+  if (!input.files[0]) return;
+  const fd = new FormData(); fd.append('banner', input.files[0]);
+  const r = await fetch(`/api/users/${currentUser}/banner`, { method: 'POST', body: fd });
+  const d = await r.json();
+  if (d.banner) {
+    document.getElementById('banner-preview').style.display = '';
+    document.getElementById('banner-preview-img').src = d.banner;
+    showToast('🖼️ Banner updated!');
+  }
+}
+
+async function viewProfile(username) {
+  const users = await fetch('/api/users').then(r => r.json());
+  const u = users[username];
+  if (!u) return;
+  // Banner
+  const banner = document.getElementById('pv-banner');
+  if (u.banner) {
+    banner.style.backgroundImage = `url(${u.banner})`;
+    banner.style.backgroundSize = 'cover';
+    banner.style.backgroundPosition = 'center';
+  } else {
+    banner.style.backgroundImage = '';
+    banner.style.background = `linear-gradient(135deg, var(--accent), var(--bg-card))`;
+  }
+  // Avatar
+  const avatarEl = document.getElementById('pv-avatar');
+  const initial = document.getElementById('pv-initial');
+  if (u.avatar) {
+    initial.style.display = 'none';
+    avatarEl.innerHTML = `<img src="${u.avatar}" alt="">`;
+  } else {
+    avatarEl.innerHTML = `<span id="pv-initial">${(u.displayName || u.name)[0].toUpperCase()}</span>`;
+  }
+  // Status
+  const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
+  document.getElementById('pv-status-dot').style.background = statusColors[u.status] || '#22c55e';
+  // Names
+  const nameEl = document.getElementById('pv-name');
+  nameEl.textContent = u.displayName || capitalize(u.name);
+  nameEl.style.color = u.nameStyle?.color || '';
+  document.getElementById('pv-username').textContent = u.name + (u.pronouns ? ' \u2022 ' + u.pronouns : '');
+  // Custom status
+  const csEl = document.getElementById('pv-custom-status');
+  const csTxt = document.getElementById('pv-custom-status-text');
+  if (u.customStatus) { csEl.style.display = ''; csTxt.textContent = u.customStatus; }
+  else csEl.style.display = 'none';
+  // Pronouns
+  const pronounsSec = document.getElementById('pv-pronouns-section');
+  if (u.pronouns) { pronounsSec.style.display = ''; document.getElementById('pv-pronouns').textContent = u.pronouns; }
+  else pronounsSec.style.display = 'none';
+  // Bio
+  document.getElementById('pv-bio').textContent = u.bio || 'No bio set.';
+  // Member since
+  document.getElementById('pv-member-since').textContent = u.createdAt ? new Date(u.createdAt).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }) : 'The beginning';
+  // Edit button (only for own profile)
+  document.getElementById('pv-edit-btn').style.display = username === currentUser ? 'flex' : 'none';
+  openModal('profile-viewer-modal');
+  if (window.lucide) lucide.createIcons();
 }
 
 async function toggleWallpaper(el) {
@@ -1986,6 +2072,7 @@ async function startCall(type) {
   await peerConnection.setLocalDescription(offer);
   socket.emit('call-offer', { offer, type, from: currentUser });
   inCall = true;
+  SoundSystem.startRingtone('outgoing');
   showCallOverlay('Calling ' + capitalize(callPeer) + '...', type);
 }
 
@@ -1998,10 +2085,12 @@ async function handleCallOffer({ offer, type, from }) {
   document.getElementById('incoming-call-name').textContent = capitalize(from);
   document.getElementById('incoming-call-type').textContent = type === 'video' ? 'Video Call' : 'Voice Call';
   document.getElementById('incoming-call-icon').textContent = type === 'video' ? '📹' : '📞';
+  SoundSystem.startRingtone('incoming');
   window._pendingOffer = offer;
 }
 
 async function acceptCall() {
+  SoundSystem.stopRingtone();
   document.getElementById('incoming-call').style.display = 'none';
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' }).catch(() => null);
   if (!localStream) { showToast('Media access denied'); return; }
@@ -2033,6 +2122,7 @@ async function acceptCall() {
 }
 
 async function handleCallAnswer({ answer }) {
+  SoundSystem.stopRingtone();
   if (peerConnection) {
     await peerConnection.setRemoteDescription(answer);
     document.getElementById('call-status').textContent = 'Connected';
@@ -2050,6 +2140,7 @@ async function handleIceCandidate({ candidate }) {
 }
 
 function declineCall() {
+  SoundSystem.stopRingtone();
   document.getElementById('incoming-call').style.display = 'none';
   callPeer = null;
   window._pendingOffer = null;
@@ -2058,6 +2149,7 @@ function declineCall() {
 }
 
 function endCall(remote = false) {
+  SoundSystem.stopRingtone();
   if (!remote) socket.emit('call-end', {});
   if (peerConnection) { peerConnection.close(); peerConnection = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
