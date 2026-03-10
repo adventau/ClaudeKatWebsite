@@ -408,11 +408,13 @@ function buildMsgElement(msg) {
   // Hover action bar (iMessage / Discord style)
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
+  const unsendBtn = (isSelf && msg.unsendable) ? `<button class="msg-action-btn msg-unsend-btn" data-msg-id="${msg.id}" onclick="quickUnsend('${msg.id}')" title="Unsend">🗑️</button>` : '';
   actions.innerHTML = `
     <button class="msg-action-btn react-trigger" onclick="showQuickReact('${msg.id}', this)" title="React">😊</button>
     <button class="msg-action-btn" onclick="setReply('${msg.id}')" title="Reply">↩</button>
     <button class="msg-action-btn" onclick="copyMsgText('${msg.id}')" title="Copy">📋</button>
     ${isSelf ? `<button class="msg-action-btn" onclick="ctxMsgId='${msg.id}';ctxEdit()" title="Edit">✏️</button>` : ''}
+    ${unsendBtn}
   `;
   content.appendChild(actions);
 
@@ -632,6 +634,12 @@ function copyMsgText(msgId) {
   if (msg?.text) navigator.clipboard.writeText(msg.text).then(() => showToast('📋 Copied!'));
 }
 
+async function quickUnsend(msgId) {
+  const r = await fetch(`/api/messages/${msgId}`, { method: 'DELETE' });
+  const d = await r.json();
+  if (!d.success) showToast('⚠️ ' + (d.error || 'Cannot unsend'));
+}
+
 function showQuickReact(msgId, btnEl) {
   // Close any existing quick react bars
   document.querySelectorAll('.msg-quick-react').forEach(el => el.remove());
@@ -809,6 +817,9 @@ function setupSocketEvents() {
   socket.on('msg-unsend-expire', id => {
     const msg = allMessages.find(m => m.id === id);
     if (msg) msg.unsendable = false;
+    // Hide unsend button in hover bar
+    const btn = document.querySelector(`.msg-unsend-btn[data-msg-id="${id}"]`);
+    if (btn) btn.remove();
   });
 
   socket.on('user-typing', ({ user }) => {

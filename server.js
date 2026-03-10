@@ -113,9 +113,15 @@ function mailer() {
   });
 }
 async function sendMail(to, subject, html, attachments = []) {
+  if (!to) { console.error('Mail error: no recipient email configured'); return false; }
+  if (!process.env.EMAIL_PASS || process.env.EMAIL_PASS === 'your_gmail_app_password_here') {
+    console.error('Mail error: EMAIL_PASS not configured in .env — set a Gmail App Password');
+    return false;
+  }
   try {
     await mailer().sendMail({ from: process.env.EMAIL_USER, to, subject, html, attachments });
-  } catch (e) { console.error('Mail error:', e.message); }
+    return true;
+  } catch (e) { console.error('Mail error:', e.message); return false; }
 }
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
@@ -322,17 +328,21 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
     const recipient = req.session.user === 'kaliph' ? 'kathrine' : 'kaliph';
     const emailData = settings.emails[recipient];
     const emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
-    const subject = `🔴 Priority Message from ${req.session.user}`;
+    const subject = `🔴 Priority Message from ${req.session.user.charAt(0).toUpperCase() + req.session.user.slice(1)}`;
     const html = `<h2 style="color:#7c3aed">🔴 Priority Message</h2>
-         <p><b>${req.session.user}</b> sent you a priority message:</p>
+         <p><b>${req.session.user.charAt(0).toUpperCase() + req.session.user.slice(1)}</b> sent you a priority message:</p>
          <blockquote style="border-left:4px solid #7c3aed;padding:10px;margin:10px">${message.text}</blockquote>
          <p style="color:#888">${new Date(message.timestamp).toLocaleString()}</p>`;
+    if (emails.length === 0) {
+      console.log(`Priority email skipped: no email configured for ${recipient}`);
+    }
     for (const email of emails) {
-      await sendMail(email, subject, html);
+      const sent = await sendMail(email, subject, html);
+      if (sent) console.log(`Priority email sent to ${email}`);
     }
   }
 
-  // Auto-expire unsend window (2 min)
+  // Auto-expire unsend window (3 min)
   setTimeout(() => {
     try {
       const m = rd(F.messages);
@@ -340,7 +350,7 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
       if (i !== -1) { m.main[i].unsendable = false; wd(F.messages, m); }
       io.emit('msg-unsend-expire', message.id);
     } catch {}
-  }, 2 * 60 * 1000);
+  }, 3 * 60 * 1000);
 
   // Check for @claude mention
   if (message.text.toLowerCase().includes('@claude') || message.text.toLowerCase().includes('@ai')) {
