@@ -725,24 +725,27 @@ app.post('/api/calendar', mainAuth, (req, res) => {
   const cal = rd(F.calendar); const u = req.session.user;
   const event = {
     id: uuidv4(), title: req.body.title,
-    start: req.body.start, end: req.body.end,
+    date: req.body.date,
     description: req.body.description || '',
     color: req.body.color || '#7c3aed',
-    createdBy: u, shared: req.body.shared === true || req.body.shared === 'true',
+    createdBy: u,
   };
-  if (!Array.isArray(cal[u])) cal[u] = [];
-  cal[u].push(event);
-  if (event.shared) { if (!Array.isArray(cal.shared)) cal.shared = []; cal.shared.push(event); }
+  if (!Array.isArray(cal.shared)) cal.shared = [];
+  cal.shared.push(event);
   wd(F.calendar, cal);
-  io.emit('calendar-event', { user: u, event });
+  io.emit('calendar-updated');
   res.json({ success: true, event });
 });
 
 app.delete('/api/calendar/:id', mainAuth, (req, res) => {
-  const cal = rd(F.calendar); const u = req.session.user;
-  if (cal[u]) cal[u] = cal[u].filter(e => e.id !== req.params.id);
+  const cal = rd(F.calendar);
   if (cal.shared) cal.shared = cal.shared.filter(e => e.id !== req.params.id);
+  // Also clean up legacy per-user entries
+  for (const key of ['kaliph', 'kathrine']) {
+    if (cal[key]) cal[key] = cal[key].filter(e => e.id !== req.params.id);
+  }
   wd(F.calendar, cal);
+  io.emit('calendar-updated');
   res.json({ success: true });
 });
 
@@ -1083,6 +1086,19 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     return lines(`Deleted message from ${removed.sender}: "${(removed.text || '').substring(0, 60)}"`, 'success');
   }
 
+  // ── UNSEND (bypass time limit) ──
+  if (cmd === 'unsend') {
+    const id = parts[1];
+    if (!id) return lines('Usage: unsend <message-id>', 'warn');
+    const msgs = rd(F.messages);
+    const i = (msgs.main || []).findIndex(m => m.id === id || m.id.startsWith(id));
+    if (i === -1) return lines('Message not found', 'error');
+    const removed = msgs.main.splice(i, 1)[0];
+    wd(F.messages, msgs);
+    io.emit('msg-unsent', removed.id);
+    return lines(`Unsent message from ${removed.sender}: "${(removed.text || '').substring(0, 60)}"`, 'success');
+  }
+
   // ── EDIT MODE ──
   if (raw.toLowerCase() === 'edit mode') {
     const msgs = rd(F.messages);
@@ -1170,6 +1186,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     return multi(
       [`── ${u.displayName || u.name} ──`, 'header'],
       [`  Status:    ${u.status || 'online'}  (presence: ${presence})`, 'data'],
+      [`  Custom:    ${u.customStatus || '(none)'}`, 'data'],
       [`  Theme:     ${u.theme}`, 'data'],
       [`  Bio:       ${u.bio || '(none)'}`, 'data'],
       [`  Pronouns:  ${u.pronouns || '(none)'}`, 'data'],
@@ -1224,6 +1241,18 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       wd(F.users, users);
       io.emit('user-updated', { user, data: users[user] });
       return lines(`${user} status → ${status}`, 'success');
+    }
+
+    if (prop === 'custom-status') {
+      const user = parts[2]?.toLowerCase();
+      const msg = parts.slice(3).join(' ');
+      if (!user) return lines('Usage: set custom-status <user> <message|clear>', 'warn');
+      const users = rd(F.users);
+      if (!users[user]) return lines(`User "${user}" not found`, 'error');
+      users[user].customStatus = msg === 'clear' ? '' : (msg || '');
+      wd(F.users, users);
+      io.emit('user-updated', { user, data: users[user] });
+      return lines(`${user} custom status → ${msg === 'clear' || !msg ? '(cleared)' : `"${msg}"`}`, 'success');
     }
 
     if (prop === 'theme') {
@@ -1448,16 +1477,16 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
 
   // ── CALENDAR ──
   if (cmd === 'calendar' && parts[1]?.toLowerCase() === 'list') {
-    const user = parts[2]?.toLowerCase();
     const cal = rd(F.calendar) || {};
-    const rows = [];
-    const show = user ? { [user]: cal[user] || [] } : cal;
-    for (const [u, arr] of Object.entries(show)) {
-      if (!Array.isArray(arr)) continue;
-      arr.forEach(e => rows.push([u, e.id?.substring(0, 8) || '-', (e.title || '').substring(0, 25), e.start || '-', e.shared ? 'shared' : '']));
-    }
-    if (!rows.length) return lines('No calendar events', 'dim');
-    return { table: { headers: ['User', 'ID', 'Title', 'Start', 'Shared'], rows } };
+    const events = cal.shared || [];
+    if (!events.length) return lines('No calendar events', 'dim');
+    const rows = events.map(e => [
+      e.id?.substring(0, 8) || '-',
+      (e.title || '').substring(0, 30),
+      e.date || e.start || '-',
+      e.createdBy || '-',
+    ]);
+    return { table: { headers: ['ID', 'Title', 'Date', 'Created By'], rows } };
   }
 
   // ── VAULT ──
@@ -1567,6 +1596,21 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     return lines(`Cleared ${count} reaction(s) from message`, 'success');
   }
 
+  // ── CLEAR EDITED (remove edited indicator) ──
+  if (raw.toLowerCase().startsWith('clear edited')) {
+    const id = parts[2];
+    if (!id) return lines('Usage: clear edited <message-id>', 'warn');
+    const msgs = rd(F.messages);
+    const msg = (msgs.main || []).find(m => m.id === id || m.id.startsWith(id));
+    if (!msg) return lines('Message not found', 'error');
+    if (!msg.edited) return lines('Message is not marked as edited', 'warn');
+    msg.edited = false;
+    msg.editedAt = null;
+    wd(F.messages, msgs);
+    io.emit('msg-edit-cleared', { id: msg.id });
+    return lines(`Cleared edited indicator from message by ${msg.sender}`, 'success');
+  }
+
   // ── SEND AS (quick one-liner) ──
   if (cmd === 'send' && parts[1]?.toLowerCase() === 'as') {
     const user = parts[2]?.toLowerCase();
@@ -1622,7 +1666,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     } else {
       return lines('Usage: purge from <user> | purge before <date> | purge keyword <text>', 'warn');
     }
-    if (removed > 0) io.emit('messages-cleared');
+    if (removed > 0) io.emit('messages-updated');
     return lines(`Purged ${removed} messages`, removed > 0 ? 'success' : 'warn');
   }
 
@@ -1783,6 +1827,33 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     const removed = sugs.splice(idx, 1)[0];
     wd(F.suggestions, sugs);
     return lines(`Deleted suggestion from ${removed.from}: "${(removed.message || '').substring(0, 40)}"`, 'success');
+  }
+
+  // ── REPUBLISH UPDATE LOG ──
+  if (raw.toLowerCase().startsWith('republish update-log') || raw.toLowerCase().startsWith('republish updatelog')) {
+    const target = parts[2]?.toLowerCase();
+    if (target && target !== 'kaliph' && target !== 'kathrine' && target !== 'both') {
+      return lines('Usage: republish update-log [kaliph|kathrine|both]', 'warn');
+    }
+    const user = target || 'both';
+    io.emit('show-update-log', { target: user });
+    return lines(`Republished update log to ${user}`, 'success');
+  }
+
+  // ── CUSTOM UPDATE LOG ──
+  if (raw.toLowerCase().startsWith('custom update-log ') || raw.toLowerCase().startsWith('custom updatelog ')) {
+    const rest = raw.replace(/^custom\s+update-?log\s+/i, '');
+    // Parse: [kaliph|kathrine|both] <message>
+    const firstWord = rest.split(' ')[0]?.toLowerCase();
+    let target = 'both';
+    let message = rest;
+    if (firstWord === 'kaliph' || firstWord === 'kathrine' || firstWord === 'both') {
+      target = firstWord;
+      message = rest.slice(firstWord.length).trim();
+    }
+    if (!message) return lines('Usage: custom update-log [kaliph|kathrine|both] <message>', 'warn');
+    io.emit('show-custom-update-log', { target, message });
+    return lines(`Custom update log sent to ${target}: "${message.substring(0, 60)}"`, 'success');
   }
 
   // ── BACKUP (without destroying) ──

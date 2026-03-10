@@ -130,13 +130,13 @@
     }
     .profile-card:nth-child(2) { animation-delay: 0.12s; }
 
-    /* Kaliph card */
-    .card-kaliph { background: linear-gradient(145deg, #0f0a1a, #1a0f35, #0d1b3e); }
-    .card-kaliph:hover { box-shadow: 0 20px 60px rgba(124,58,237,0.5), 0 0 100px rgba(59,130,246,0.2); }
+    /* Kaliph card — deep indigo/blue */
+    .card-kaliph { background: linear-gradient(145deg, #060818, #111b45, #0a1a3d); border-color: rgba(59,130,246,0.15); }
+    .card-kaliph:hover { box-shadow: 0 20px 60px rgba(59,130,246,0.45), 0 0 80px rgba(124,58,237,0.25); }
 
-    /* Kathrine card */
-    .card-kathrine { background: linear-gradient(145deg, #130920, #2d1255, #1a0a2e); }
-    .card-kathrine:hover { box-shadow: 0 20px 60px rgba(192,132,252,0.5), 0 0 100px rgba(139,92,246,0.2); }
+    /* Kathrine card — rose/pink warmth */
+    .card-kathrine { background: linear-gradient(145deg, #1a0a18, #3b1035, #2a0828); border-color: rgba(236,72,153,0.15); }
+    .card-kathrine:hover { box-shadow: 0 20px 60px rgba(236,72,153,0.4), 0 0 80px rgba(192,132,252,0.2); }
 
     .card-bg-particles {
       position: absolute; inset: 0; overflow: hidden; border-radius: 24px;
@@ -147,10 +147,10 @@
       border-radius: 50%; filter: blur(40px);
     }
     .card-kaliph .card-glow {
-      background: radial-gradient(circle, rgba(124,58,237,0.6) 0%, rgba(59,130,246,0.4) 50%, transparent 70%);
+      background: radial-gradient(circle, rgba(59,130,246,0.5) 0%, rgba(124,58,237,0.35) 50%, transparent 70%);
     }
     .card-kathrine .card-glow {
-      background: radial-gradient(circle, rgba(192,132,252,0.6) 0%, rgba(139,92,246,0.4) 50%, transparent 70%);
+      background: radial-gradient(circle, rgba(236,72,153,0.5) 0%, rgba(192,132,252,0.3) 50%, transparent 70%);
     }
     .profile-card:hover .card-glow { opacity: 1; }
 
@@ -169,12 +169,12 @@
       position: relative; overflow: hidden;
     }
     .card-kaliph .card-avatar {
-      background: linear-gradient(135deg, #7c3aed, #3b82f6);
-      box-shadow: 0 0 20px rgba(124,58,237,0.4);
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      box-shadow: 0 0 20px rgba(59,130,246,0.5);
     }
     .card-kathrine .card-avatar {
-      background: linear-gradient(135deg, #8b5cf6, #c084fc);
-      box-shadow: 0 0 20px rgba(139,92,246,0.4);
+      background: linear-gradient(135deg, #ec4899, #c084fc);
+      box-shadow: 0 0 20px rgba(236,72,153,0.5);
     }
     .profile-card:hover .card-avatar {
       transform: scale(1.1);
@@ -187,12 +187,12 @@
     }
     .card-kaliph .card-name {
       font-family: 'Orbitron', monospace;
-      background: linear-gradient(135deg, #a78bfa, #60a5fa);
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     .card-kathrine .card-name {
       font-family: 'Cormorant Garamond', serif;
-      background: linear-gradient(135deg, #e9d5ff, #c084fc);
+      background: linear-gradient(135deg, #f9a8d4, #c084fc);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     .profile-card:hover .card-name { transform: scale(1.05); }
@@ -201,8 +201,8 @@
       font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase;
       color: rgba(255,255,255,0.4); margin-bottom: 1rem;
     }
-    .card-kaliph .card-theme-label { color: rgba(167,139,250,0.6); }
-    .card-kathrine .card-theme-label { color: rgba(192,132,252,0.6); }
+    .card-kaliph .card-theme-label { color: rgba(96,165,250,0.6); }
+    .card-kathrine .card-theme-label { color: rgba(236,72,153,0.6); }
 
     .card-status {
       display: flex; align-items: center; gap: 6px;

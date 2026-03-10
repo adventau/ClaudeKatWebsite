@@ -21,7 +21,6 @@ let ctxMsgId    = null;
 let vaultPasscode = null;
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
-let calTab = 'personal';
 let notesTab = 'mine';
 let allNotes = { mine: [], shared: [] };
 let activeNoteId = null;
@@ -878,6 +877,16 @@ function setupSocketEvents() {
     }
   });
 
+  socket.on('msg-edit-cleared', ({ id }) => {
+    const msg = allMessages.find(m => m.id === id);
+    if (msg) { msg.edited = false; msg.editedAt = null; }
+    const el = document.getElementById('msg-' + id);
+    if (el) {
+      const ed = el.querySelector('.msg-edited');
+      if (ed) ed.remove();
+    }
+  });
+
   socket.on('msg-reaction', ({ id, reactions }) => {
     const msg = allMessages.find(m => m.id === id);
     if (msg) msg.reactions = reactions;
@@ -976,6 +985,13 @@ function setupSocketEvents() {
   }, 60000);
 
   socket.on('user-updated', ({ user, data }) => {
+    if (user === currentUser) {
+      if (data.theme) applyTheme(data.theme);
+      if (data.displayName) {
+        const el = document.getElementById('my-display-name');
+        if (el) el.textContent = data.displayName;
+      }
+    }
     if (user === otherUser) {
       if (data.avatar) {
         const oWrapper = document.getElementById('other-avatar');
@@ -1012,6 +1028,29 @@ function setupSocketEvents() {
     allMessages = [];
     renderMessages();
     showToast('Chat history has been erased.');
+  });
+
+  socket.on('messages-updated', () => {
+    loadMessages();
+  });
+
+  socket.on('calendar-updated', () => {
+    if (currentSection === 'calendar') renderCalendar();
+  });
+
+  socket.on('show-update-log', ({ target }) => {
+    if (target === 'both' || target === currentUser) {
+      localStorage.removeItem('rkk-changelog-dismissed-' + currentUser);
+      checkAndShowUpdateLog();
+    }
+  });
+
+  socket.on('show-custom-update-log', ({ target, message }) => {
+    if (target === 'both' || target === currentUser) {
+      const container = document.getElementById('update-log-content');
+      container.innerHTML = `<div style="font-size:0.85rem;line-height:1.6;white-space:pre-wrap">${escapeHtml(message)}</div>`;
+      openModal('update-log-modal');
+    }
   });
 
   socket.on('force-reload', () => {
@@ -1264,12 +1303,6 @@ async function deleteNote(id) {
 }
 
 // ── Calendar ──────────────────────────────────────────────────────────
-function switchCalTab(tab, el) {
-  calTab = tab;
-  document.querySelectorAll('#section-calendar .section-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  renderCalendar();
-}
 function calPrev() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderCalendar(); }
 function calNext() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderCalendar(); }
 
@@ -1278,12 +1311,9 @@ async function renderCalendar() {
   label.textContent = new Date(calYear, calMonth).toLocaleString('default', { month: 'long', year: 'numeric' });
 
   const calData = await fetch('/api/calendar').then(r => r.json()).catch(() => ({}));
-  let events = [];
-  if (calTab === 'personal') events = calData[currentUser] || [];
-  else events = calData.shared || [];
+  const events = calData.shared || [];
 
   const grid = document.getElementById('cal-grid');
-  // Remove day cells (keep headers)
   Array.from(grid.children).slice(7).forEach(c => c.remove());
 
   const firstDay = new Date(calYear, calMonth, 1).getDay();
@@ -1292,7 +1322,7 @@ async function renderCalendar() {
 
   for (let i = 0; i < firstDay; i++) {
     const d = document.createElement('div');
-    d.className = 'cal-day'; d.style.opacity = '0.3';
+    d.className = 'cal-day cal-day-empty';
     grid.appendChild(d);
   }
   for (let d = 1; d <= daysInMonth; d++) {
@@ -1301,7 +1331,7 @@ async function renderCalendar() {
     if (d === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear()) cell.classList.add('today');
     cell.innerHTML = `<div class="cal-day-num">${d}</div>`;
     const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const dayEvents = events.filter(e => e.start?.startsWith(dateStr));
+    const dayEvents = events.filter(e => (e.date || e.start)?.startsWith(dateStr));
     dayEvents.forEach(ev => {
       const el = document.createElement('div');
       el.className = 'cal-event';
@@ -1321,34 +1351,37 @@ async function renderCalendar() {
 
       cell.appendChild(el);
     });
-    cell.ondblclick = () => { document.getElementById('event-start').value = dateStr + 'T09:00'; openModal('new-event-modal'); };
+    cell.ondblclick = () => { document.getElementById('event-date').value = dateStr; openModal('new-event-modal'); };
     grid.appendChild(cell);
   }
 }
 
 async function saveEvent() {
   const title = document.getElementById('event-title').value.trim();
-  if (!title) return showToast('⚠️ Event title required');
+  const date = document.getElementById('event-date').value;
+  if (!title) return showToast('Event title required');
+  if (!date) return showToast('Date required');
   await fetch('/api/calendar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       title,
-      start: document.getElementById('event-start').value,
-      end:   document.getElementById('event-end').value,
+      date,
       description: document.getElementById('event-desc').value,
       color: document.getElementById('event-color').value,
-      shared: document.getElementById('event-shared').checked,
     })
   });
+  document.getElementById('event-title').value = '';
+  document.getElementById('event-date').value = '';
+  document.getElementById('event-desc').value = '';
   closeModal('new-event-modal');
   renderCalendar();
-  showToast('📅 Event saved!');
+  showToast('Event saved!');
 }
 
 async function deleteCalEvent(eventId) {
   await fetch(`/api/calendar/${eventId}`, { method: 'DELETE' });
   renderCalendar();
-  showToast('🗑️ Event deleted');
+  showToast('Event deleted');
 }
 
 // ── Vault ──────────────────────────────────────────────────────────────
@@ -1726,6 +1759,38 @@ function switchSettingsTab(tab, el) {
   document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('tab-' + tab)?.classList.add('active');
+  if (tab === 'updates') renderUpdateHistory();
+}
+
+function renderUpdateHistory() {
+  const container = document.getElementById('update-history-list');
+  if (!container || !CHANGELOG.length) return;
+  let html = '';
+  CHANGELOG.forEach((entry, idx) => {
+    const isOpen = idx === 0 ? 'open' : '';
+    html += `<details ${isOpen} style="margin-bottom:0.75rem;border:1px solid var(--border);border-radius:8px;overflow:hidden">`;
+    html += `<summary style="padding:0.75rem 1rem;cursor:pointer;background:var(--bg-sidebar);font-size:0.85rem;font-weight:600;display:flex;justify-content:space-between;align-items:center">`;
+    html += `<span>v${escapeHtml(entry.version)}</span><span style="font-weight:400;color:var(--text-muted);font-size:0.75rem">${escapeHtml(entry.date)}</span>`;
+    html += `</summary>`;
+    html += `<div style="padding:0.75rem 1rem;font-size:0.82rem;line-height:1.6">`;
+    if (entry.improvements?.length) {
+      html += `<div style="font-weight:600;color:var(--accent);margin-bottom:4px">Improvements</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.improvements.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+    if (entry.removed?.length) {
+      html += `<div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">Removed</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.removed.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+    if (entry.fixes?.length) {
+      html += `<div style="font-weight:600;color:#34d399;margin-bottom:4px">Bug Fixes</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.fixes.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+    html += `</div></details>`;
+  });
+  container.innerHTML = html;
 }
 
 async function loadSettings() {
@@ -2657,7 +2722,6 @@ let searchPendingFilter = null; // filter type waiting for value input
 const SEARCH_FILTER_DEFS = [
   { type: 'from', icon: 'user', label: 'From a specific user', hint: 'from: user' },
   { type: 'has', icon: 'paperclip', label: 'Includes a type of content', hint: 'has: link, image, file' },
-  { type: 'mentions', icon: 'at-sign', label: 'Mentions a specific user', hint: 'mentions: user' },
   { type: 'before', icon: 'calendar', label: 'Before a date', hint: 'before: YYYY-MM-DD' },
   { type: 'after', icon: 'calendar-check', label: 'After a date', hint: 'after: YYYY-MM-DD' },
 ];
@@ -2678,7 +2742,7 @@ function setupSearch() {
     const raw = bar.value;
 
     // Auto-detect typed filter prefixes like "from:" "has:" etc
-    const filterMatch = raw.match(/^(from|has|mentions|before|after):\s*(.*)$/i);
+    const filterMatch = raw.match(/^(from|has|before|after):\s*(.*)$/i);
     if (filterMatch && !searchPendingFilter) {
       const type = filterMatch[1].toLowerCase();
       const remainder = filterMatch[2].trim();
@@ -2825,7 +2889,7 @@ function showValueSuggestions(q) {
   const type = searchPendingFilter;
   let html = '<div class="search-filter-header">Select a value</div>';
 
-  if (type === 'from' || type === 'mentions') {
+  if (type === 'from') {
     const users = ['kaliph', 'kathrine'];
     const filtered = q ? users.filter(u => u.includes(q.toLowerCase())) : users;
     filtered.forEach(u => {
@@ -2911,7 +2975,6 @@ function updateSearchPlaceholder() {
   const hints = {
     from: 'Enter username…',
     has: 'Enter type (link, image, file)…',
-    mentions: 'Enter username…',
     before: 'Enter date (YYYY-MM-DD)…',
     after: 'Enter date (YYYY-MM-DD)…'
   };
@@ -2934,8 +2997,6 @@ function executeSearch() {
       if (v === 'link') hits = hits.filter(m => m.text && /https?:\/\//.test(m.text));
       else if (v === 'image' || v === 'img') hits = hits.filter(m => m.files?.some(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f)));
       else if (v === 'file') hits = hits.filter(m => m.files?.length > 0);
-    } else if (ft === 'mentions') {
-      hits = hits.filter(m => m.text?.toLowerCase().includes('@' + v) || m.text?.toLowerCase().includes(v));
     } else if (ft === 'before') {
       const d = new Date(v); if (!isNaN(d)) hits = hits.filter(m => new Date(m.timestamp) < d);
     } else if (ft === 'after') {
@@ -3249,30 +3310,40 @@ const CHANGELOG = [
 ];
 
 function checkAndShowUpdateLog() {
-  const latest = CHANGELOG[0];
-  if (!latest) return;
+  if (!CHANGELOG.length) return;
   const key = 'rkk-changelog-dismissed-' + currentUser;
   const dismissed = localStorage.getItem(key);
-  if (dismissed === latest.version) return;
+  if (dismissed === CHANGELOG[0].version) return;
+
+  // Find all unseen versions (everything newer than what was dismissed)
+  const unseen = dismissed
+    ? CHANGELOG.filter((_, i) => i < CHANGELOG.findIndex(c => c.version === dismissed))
+    : CHANGELOG;
+  if (!unseen.length) return;
 
   const container = document.getElementById('update-log-content');
-  let html = `<div style="color:var(--text-muted);font-size:0.75rem;margin-bottom:0.75rem">v${escapeHtml(latest.version)} — ${escapeHtml(latest.date)}</div>`;
+  let html = '';
 
-  if (latest.improvements.length) {
-    html += `<div style="font-weight:600;color:var(--accent);margin-bottom:4px">Improvements</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
-    latest.improvements.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
-    html += `</ul>`;
-  }
-  if (latest.removed.length) {
-    html += `<div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">Removed</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
-    latest.removed.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
-    html += `</ul>`;
-  }
-  if (latest.fixes.length) {
-    html += `<div style="font-weight:600;color:#34d399;margin-bottom:4px">Bug Fixes</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
-    latest.fixes.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
-    html += `</ul>`;
-  }
+  unseen.forEach((entry, idx) => {
+    if (idx > 0) html += `<hr style="border:none;border-top:1px solid var(--border);margin:1rem 0">`;
+    html += `<div style="color:var(--text-muted);font-size:0.75rem;margin-bottom:0.75rem">v${escapeHtml(entry.version)} — ${escapeHtml(entry.date)}</div>`;
+
+    if (entry.improvements?.length) {
+      html += `<div style="font-weight:600;color:var(--accent);margin-bottom:4px">Improvements</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.improvements.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+    if (entry.removed?.length) {
+      html += `<div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">Removed</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.removed.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+    if (entry.fixes?.length) {
+      html += `<div style="font-weight:600;color:#34d399;margin-bottom:4px">Bug Fixes</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.fixes.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+  });
 
   container.innerHTML = html;
   openModal('update-log-modal');
