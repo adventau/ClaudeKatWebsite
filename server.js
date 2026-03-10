@@ -10,7 +10,6 @@ const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require('nodemailer');
-const { Resend } = require('resend');
 
 const app = express();
 const server = http.createServer(app);
@@ -107,13 +106,12 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
 // ── Email ─────────────────────────────────────────────────────────────────────
-// Uses Resend (HTTP API, works on Railway/cloud) if RESEND_API_KEY is set,
+// Uses Brevo HTTP API (works on Railway/cloud) if BREVO_API_KEY is set,
 // otherwise falls back to nodemailer/Gmail SMTP (works locally).
-const _resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 let _transporter = null;
 
 function getEmailProvider() {
-  if (_resend) return 'resend';
+  if (process.env.BREVO_API_KEY) return 'brevo';
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) return 'smtp';
   return null;
 }
@@ -130,33 +128,61 @@ function mailer() {
   return _transporter;
 }
 
+async function sendMailBrevo(to, subject, html, attachments = []) {
+  const fromEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'royalkvault@gmail.com';
+  const fromName = process.env.EMAIL_FROM_NAME || 'Royal Vault';
+  const toArr = Array.isArray(to) ? to : [to];
+
+  const body = {
+    sender: { name: fromName, email: fromEmail },
+    to: toArr.map(email => ({ email })),
+    subject,
+    htmlContent: html,
+  };
+  if (attachments.length > 0) {
+    body.attachment = attachments.map(a => ({
+      name: a.filename,
+      content: (Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content, 'utf-8')).toString('base64'),
+    }));
+  }
+
+  const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': process.env.BREVO_API_KEY,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`Brevo ${resp.status}: ${err}`);
+  }
+  const result = await resp.json();
+  return result.messageId || true;
+}
+
 async function sendMail(to, subject, html, attachments = []) {
   if (!to) { console.error('Mail error: no recipient email configured'); return false; }
 
-  // Prefer Resend (HTTP-based, works on Railway and other cloud platforms)
-  if (_resend) {
+  // Prefer Brevo (HTTP API — works on Railway and other cloud platforms)
+  if (process.env.BREVO_API_KEY) {
     try {
-      const fromAddr = process.env.EMAIL_FROM || 'Royal Vault <onboarding@resend.dev>';
       const toArr = Array.isArray(to) ? to : [to];
-      const msg = { from: fromAddr, to: toArr, subject, html };
-      if (attachments.length > 0) {
-        msg.attachments = attachments.map(a => ({
-          filename: a.filename,
-          content: Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content, 'utf-8'),
-        }));
-      }
-      const result = await _resend.emails.send(msg);
-      console.log(`Mail sent via Resend to ${toArr.join(', ')} (id: ${result.data?.id || 'unknown'})`);
+      const msgId = await sendMailBrevo(toArr, subject, html, attachments);
+      console.log(`Mail sent via Brevo to ${toArr.join(', ')} (messageId: ${msgId})`);
       return true;
     } catch (e) {
-      console.error('Resend error:', JSON.stringify(e, null, 2));
+      console.error('Brevo error:', e.message);
       return false;
     }
   }
 
   // Fallback: nodemailer/Gmail SMTP (works locally, blocked on most cloud platforms)
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.error('Mail error: No email provider configured — set RESEND_API_KEY (recommended) or EMAIL_USER + EMAIL_PASS');
+    console.error('Mail error: No email provider configured — set BREVO_API_KEY (recommended) or EMAIL_USER + EMAIL_PASS');
     return false;
   }
   try {
@@ -173,14 +199,13 @@ async function sendMail(to, subject, html, attachments = []) {
 }
 
 async function verifyEmail() {
-  if (_resend) {
-    // Verify Resend API key by listing domains (lightweight, no email sent)
+  if (process.env.BREVO_API_KEY) {
     try {
-      await _resend.domains.list();
-      return true;
-    } catch (e) {
-      return false;
-    }
+      const resp = await fetch('https://api.brevo.com/v3/account', {
+        headers: { 'api-key': process.env.BREVO_API_KEY, 'Accept': 'application/json' },
+      });
+      return resp.ok;
+    } catch { return false; }
   }
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     await mailer().verify();
@@ -774,12 +799,25 @@ app.get('/api/settings/email-status', mainAuth, async (_, res) => {
 app.post('/api/settings/test-email', mainAuth, async (req, res) => {
   const s = rd(F.settings);
   const user = req.session.user;
+  // Gather ALL notification emails for the current user
   const emailData = s.emails?.[user];
   let emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
   if (emails.length === 0 && s.emails?.shared) emails = [s.emails.shared];
   if (emails.length === 0) return res.json({ success: false, error: 'No email address configured for your account' });
-  const sent = await sendMail(emails[0], '✅ Test Email — Royal Vault', '<h2 style="color:#7c3aed">Email is working!</h2><p>Priority email notifications are configured correctly.</p>');
-  res.json({ success: sent, error: sent ? null : 'Failed to send — check server logs for details' });
+  // Send to ALL configured emails
+  let anySuccess = false;
+  const failures = [];
+  for (const email of emails) {
+    const sent = await sendMail(email, '✅ Test Email — Royal Vault',
+      `<h2 style="color:#7c3aed">Email is working!</h2><p>Priority email notifications are configured correctly for <b>${email}</b>.</p>`);
+    if (sent) anySuccess = true;
+    else failures.push(email);
+  }
+  res.json({
+    success: anySuccess,
+    sentTo: emails.filter(e => !failures.includes(e)),
+    error: failures.length > 0 ? `Failed to send to: ${failures.join(', ')}` : null,
+  });
 });
 
 app.put('/api/settings', mainAuth, async (req, res) => {
@@ -996,12 +1034,12 @@ server.listen(PORT, async () => {
   // Email status check
   const emailProvider = getEmailProvider();
   if (!emailProvider) {
-    console.log(`   Email      → ❌ NOT configured (set RESEND_API_KEY or EMAIL_USER+EMAIL_PASS)`);
+    console.log(`   Email      → ❌ NOT configured (set BREVO_API_KEY or EMAIL_USER+EMAIL_PASS)`);
   } else {
     try {
       const ok = await verifyEmail();
       if (ok) {
-        console.log(`   Email      → ✅ ${emailProvider === 'resend' ? 'Resend (HTTP)' : 'Gmail SMTP'} ready`);
+        console.log(`   Email      → ✅ ${emailProvider === 'brevo' ? 'Brevo (HTTP)' : 'Gmail SMTP'} ready`);
       } else {
         console.log(`   Email      → ⚠️  ${emailProvider} configured but verification failed`);
       }

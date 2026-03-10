@@ -111,6 +111,9 @@ async function init() {
 
   checkAndShowAnnouncements();
   requestNotificationPermission();
+
+  // Reveal chat content now that messages are loaded (prevents flash of empty state)
+  document.body.classList.add('app-loaded');
 }
 
 // Format toolbar + priority row toggles
@@ -1741,12 +1744,12 @@ async function checkEmailStatus() {
       banner.style.display = 'block';
       banner.style.background = 'rgba(239,68,68,0.15)';
       banner.style.color = '#ef4444';
-      banner.textContent = '⚠ Email not configured — set RESEND_API_KEY in your server environment variables.';
+      banner.textContent = '⚠ Email not configured — set BREVO_API_KEY in your server environment variables.';
     } else if (!status.canConnect) {
       banner.style.display = 'block';
       banner.style.background = 'rgba(245,158,11,0.15)';
       banner.style.color = '#f59e0b';
-      banner.textContent = '⚠ Email configured but cannot connect — check your ' + (status.provider === 'resend' ? 'RESEND_API_KEY' : 'EMAIL_PASS') + '.';
+      banner.textContent = '⚠ Email configured but cannot connect — check your ' + (status.provider === 'brevo' ? 'BREVO_API_KEY' : 'EMAIL_PASS') + '.';
     } else if (!status.hasRecipients) {
       banner.style.display = 'block';
       banner.style.background = 'rgba(245,158,11,0.15)';
