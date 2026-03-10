@@ -110,6 +110,10 @@ function togglePriorityRow() {
 }
 
 function applyUserData(me, other) {
+  // Cache user data for call overlay & notifications
+  window._users = window._users || {};
+  window._users[currentUser] = me;
+  window._users[otherUser] = other;
   // My sidebar
   document.getElementById('my-name').textContent = me.displayName || me.name;
   document.getElementById('my-initial').textContent = (me.displayName || me.name)[0].toUpperCase();
@@ -216,7 +220,9 @@ async function selectTheme(themeId) {
 }
 
 // ── Navigation ────────────────────────────────────────────────────────
+let currentSection = 'chat';
 function showSection(name, el) {
+  currentSection = name;
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const sec = document.getElementById('section-' + name);
@@ -715,6 +721,10 @@ function setupSocketEvents() {
       SoundSystem.receive();
       markMessageRead(msg.id);
       sendDesktopNotif(`New message from ${capitalize(msg.sender)}`, msg.text?.substring(0, 80) || 'New file');
+      // In-app notification popup when chat isn't active
+      if (currentSection !== 'chat') {
+        showMsgNotif(msg.sender, msg.text?.substring(0, 80) || 'Sent a file');
+      }
     }
   });
 
@@ -2054,8 +2064,14 @@ async function startCall(type) {
 
   peerConnection.onicecandidate = e => { if (e.candidate) socket.emit('call-ice-candidate', { candidate: e.candidate }); };
   peerConnection.ontrack = e => {
-    document.getElementById('call-video-remote').srcObject = e.streams[0];
-    if (type === 'video') document.getElementById('call-video-remote').style.display = 'block';
+    const remoteVid = document.getElementById('call-video-remote');
+    remoteVid.srcObject = e.streams[0];
+    if (type === 'video') remoteVid.style.display = 'block';
+    // Detect remote camera on/off
+    e.streams[0].getVideoTracks().forEach(track => {
+      track.onmute = () => { remoteVid.style.display = 'none'; document.getElementById('call-remote-avatar-bg').style.display = 'flex'; };
+      track.onunmute = () => { remoteVid.style.display = 'block'; document.getElementById('call-remote-avatar-bg').style.display = 'none'; };
+    });
   };
   peerConnection.oniceconnectionstatechange = () => {
     if (peerConnection?.iceConnectionState === 'disconnected' || peerConnection?.iceConnectionState === 'failed') {
@@ -2099,8 +2115,13 @@ async function acceptCall() {
   localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
   peerConnection.onicecandidate = e => { if (e.candidate) socket.emit('call-ice-candidate', { candidate: e.candidate }); };
   peerConnection.ontrack = e => {
-    document.getElementById('call-video-remote').srcObject = e.streams[0];
-    if (callType === 'video') document.getElementById('call-video-remote').style.display = 'block';
+    const remoteVid = document.getElementById('call-video-remote');
+    remoteVid.srcObject = e.streams[0];
+    if (callType === 'video') remoteVid.style.display = 'block';
+    e.streams[0].getVideoTracks().forEach(track => {
+      track.onmute = () => { remoteVid.style.display = 'none'; document.getElementById('call-remote-avatar-bg').style.display = 'flex'; };
+      track.onunmute = () => { remoteVid.style.display = 'block'; document.getElementById('call-remote-avatar-bg').style.display = 'none'; };
+    });
   };
   peerConnection.oniceconnectionstatechange = () => {
     if (peerConnection?.iceConnectionState === 'disconnected' || peerConnection?.iceConnectionState === 'failed') {
@@ -2153,7 +2174,9 @@ function endCall(remote = false) {
   if (!remote) socket.emit('call-end', {});
   if (peerConnection) { peerConnection.close(); peerConnection = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
   stopCallTimer();
+  stopCallControlsAutoHide();
   inCall = false;
   callPeer = null;
   window._pendingOffer = null;
@@ -2161,7 +2184,19 @@ function endCall(remote = false) {
   document.getElementById('call-overlay').classList.remove('active');
   document.getElementById('call-video-remote').style.display = 'none';
   document.getElementById('call-video-local').style.display = 'none';
+  document.getElementById('call-remote-avatar-bg').style.display = 'none';
+  document.getElementById('call-local-avatar').style.display = 'none';
   document.getElementById('incoming-call').style.display = 'none';
+  // Reset toggle states
+  document.getElementById('btn-mute').classList.remove('active');
+  document.getElementById('btn-cam').classList.remove('active');
+  document.getElementById('btn-screen').classList.remove('active');
+  document.getElementById('mute-icon-on').style.display = '';
+  document.getElementById('mute-icon-off').style.display = 'none';
+  document.getElementById('cam-icon-on').style.display = '';
+  document.getElementById('cam-icon-off').style.display = 'none';
+  document.getElementById('screen-icon-on').style.display = '';
+  document.getElementById('screen-icon-off').style.display = 'none';
 }
 
 function showCallOverlay(statusText, type) {
@@ -2170,9 +2205,27 @@ function showCallOverlay(statusText, type) {
   const name = callPeer || otherUser;
   document.getElementById('call-name').textContent = capitalize(name);
   document.getElementById('call-status').textContent = statusText;
-  document.getElementById('call-avatar').textContent = name[0].toUpperCase();
+  // Set avatar (image or initial)
+  const avatarEl = document.getElementById('call-avatar');
+  const users = window._users || {};
+  const peerData = users[name];
+  if (peerData?.avatar) {
+    avatarEl.innerHTML = `<img src="${peerData.avatar}" style="width:100%;height:100%;object-fit:cover">`;
+  } else {
+    avatarEl.textContent = name[0].toUpperCase();
+  }
+  // Also set the remote-off avatar
+  const bgAvatar = document.getElementById('call-avatar-bg');
+  if (peerData?.avatar) {
+    bgAvatar.innerHTML = `<img src="${peerData.avatar}">`;
+  } else {
+    bgAvatar.textContent = name[0].toUpperCase();
+  }
+  document.getElementById('call-name-bg').textContent = capitalize(name);
   document.getElementById('call-video-remote').style.display = type === 'video' ? 'block' : 'none';
   document.getElementById('call-video-local').style.display = type === 'video' ? 'block' : 'none';
+  // Start auto-hide for video calls
+  if (type === 'video') startCallControlsAutoHide();
 }
 
 function startCallTimer() {
@@ -2195,7 +2248,8 @@ function toggleCallMute() {
   const track = localStream.getAudioTracks()[0];
   if (track) {
     track.enabled = !track.enabled;
-    document.getElementById('btn-mute').textContent = track.enabled ? '🎙️' : '🔇';
+    document.getElementById('mute-icon-on').style.display = track.enabled ? '' : 'none';
+    document.getElementById('mute-icon-off').style.display = track.enabled ? 'none' : '';
     document.getElementById('btn-mute').classList.toggle('active', !track.enabled);
   }
 }
@@ -2205,9 +2259,125 @@ function toggleCallVideo() {
   const track = localStream.getVideoTracks()[0];
   if (track) {
     track.enabled = !track.enabled;
-    document.getElementById('btn-cam').textContent = track.enabled ? '📹' : '🚫';
+    document.getElementById('cam-icon-on').style.display = track.enabled ? '' : 'none';
+    document.getElementById('cam-icon-off').style.display = track.enabled ? 'none' : '';
     document.getElementById('btn-cam').classList.toggle('active', !track.enabled);
+    // Show/hide local avatar when camera off
+    document.getElementById('call-video-local').style.display = track.enabled ? 'block' : 'none';
+    const localAv = document.getElementById('call-local-avatar');
+    if (!track.enabled) {
+      const me = (window._users || {})[currentUser];
+      if (me?.avatar) {
+        localAv.innerHTML = `<img src="${me.avatar}">`;
+      } else {
+        localAv.innerHTML = `<span style="color:#fff;font-size:1.5rem;font-weight:700">${currentUser[0].toUpperCase()}</span>`;
+      }
+      localAv.style.display = 'flex';
+    } else {
+      localAv.style.display = 'none';
+    }
   }
+}
+
+// ── Screen Share ─────────────────────────────────────────────────────
+let screenStream = null;
+async function toggleScreenShare() {
+  if (!inCall || !peerConnection) return;
+  if (screenStream) {
+    // Stop sharing
+    screenStream.getTracks().forEach(t => t.stop());
+    screenStream = null;
+    // Restore camera track
+    const camTrack = localStream?.getVideoTracks()[0];
+    if (camTrack) {
+      const sender = peerConnection.getSenders().find(s => s.track?.kind === 'video');
+      if (sender) sender.replaceTrack(camTrack);
+    }
+    document.getElementById('btn-screen').classList.remove('active');
+    document.getElementById('screen-icon-on').style.display = '';
+    document.getElementById('screen-icon-off').style.display = 'none';
+    // Restore local video preview
+    const localVid = document.getElementById('call-video-local');
+    if (localStream) { localVid.srcObject = localStream; localVid.style.display = 'block'; }
+    return;
+  }
+  try {
+    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const screenTrack = screenStream.getVideoTracks()[0];
+    const sender = peerConnection.getSenders().find(s => s.track?.kind === 'video');
+    if (sender) sender.replaceTrack(screenTrack);
+    document.getElementById('btn-screen').classList.add('active');
+    document.getElementById('screen-icon-on').style.display = 'none';
+    document.getElementById('screen-icon-off').style.display = '';
+    // Show screen share in local preview
+    const localVid = document.getElementById('call-video-local');
+    localVid.srcObject = screenStream; localVid.style.display = 'block';
+    localVid.style.transform = 'none'; // Don't mirror screen share
+    // Handle user stopping share via browser UI
+    screenTrack.onended = () => toggleScreenShare();
+  } catch { showToast('Screen share cancelled'); }
+}
+
+// ── Call Controls Auto-Hide ──────────────────────────────────────────
+let callIdleTimer = null;
+function startCallControlsAutoHide() {
+  const overlay = document.getElementById('call-overlay');
+  const controls = document.getElementById('call-controls');
+  const info = document.getElementById('call-user-info');
+  function showControls() {
+    controls.classList.remove('hidden');
+    if (info) info.style.opacity = '1';
+    clearTimeout(callIdleTimer);
+    callIdleTimer = setTimeout(hideControls, 3000);
+  }
+  function hideControls() {
+    // Only hide during active video call
+    if (!inCall || callType !== 'video') return;
+    controls.classList.add('hidden');
+    if (info) info.style.opacity = '0';
+  }
+  overlay.addEventListener('mousemove', showControls);
+  overlay.addEventListener('touchstart', showControls);
+  overlay._showControls = showControls;
+  overlay._hideControls = hideControls;
+  showControls();
+}
+function stopCallControlsAutoHide() {
+  const overlay = document.getElementById('call-overlay');
+  const controls = document.getElementById('call-controls');
+  const info = document.getElementById('call-user-info');
+  clearTimeout(callIdleTimer);
+  if (overlay._showControls) {
+    overlay.removeEventListener('mousemove', overlay._showControls);
+    overlay.removeEventListener('touchstart', overlay._showControls);
+  }
+  controls.classList.remove('hidden');
+  if (info) info.style.opacity = '1';
+}
+
+// ── Message Notification Popup ───────────────────────────────────────
+function showMsgNotif(sender, text) {
+  const container = document.getElementById('msg-notif-container');
+  const users = window._users || {};
+  const senderData = users[sender];
+  const el = document.createElement('div');
+  el.className = 'msg-notif';
+  const avatarHtml = senderData?.avatar
+    ? `<img src="${senderData.avatar}">`
+    : sender[0].toUpperCase();
+  el.innerHTML = `
+    <div class="msg-notif-avatar">${avatarHtml}</div>
+    <div class="msg-notif-body">
+      <div class="msg-notif-name">${capitalize(sender)}</div>
+      <div class="msg-notif-text">${text.replace(/</g, '&lt;')}</div>
+    </div>`;
+  el.onclick = () => {
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 300);
+    showSection('chat', document.querySelector('.nav-item[data-section=chat]'));
+  };
+  container.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 4000);
 }
 
 // ── Wallpaper lightbox ────────────────────────────────────────────────

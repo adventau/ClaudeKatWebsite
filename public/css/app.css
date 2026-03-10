@@ -847,12 +847,12 @@ html, body { height: 100%; overflow: hidden; }
 /* ── CALL OVERLAY ───────────────────────────────────────────────── */
 #call-overlay {
   position: fixed; inset: 0; z-index: 200;
-  background: rgba(0,0,0,0.88); backdrop-filter: blur(20px);
+  background: #0a0a0a; backdrop-filter: blur(20px);
   display: none; flex-direction: column;
   align-items: center; justify-content: center; gap: 28px;
 }
 #call-overlay.active { display: flex; }
-.call-user-info { text-align: center; }
+.call-user-info { text-align: center; z-index: 5; transition: opacity 0.4s ease; }
 .call-avatar-lg {
   width: 96px; height: 96px; border-radius: 50%;
   margin: 0 auto 14px; background: var(--bg-btn);
@@ -860,30 +860,112 @@ html, body { height: 100%; overflow: hidden; }
   font-size: 2.4rem; font-weight: 700; color: #fff; overflow: hidden;
   animation: callPulse 2s ease infinite;
 }
+.call-avatar-lg img { width: 100%; height: 100%; object-fit: cover; }
 @keyframes callPulse {
   0%,100% { box-shadow: 0 0 0 0 var(--glow); }
   50% { box-shadow: 0 0 0 22px transparent; }
 }
-.call-name { font-size: 1.6rem; font-weight: 700; font-family: var(--font-heading); }
-.call-status { color: var(--text-muted); font-size: 0.875rem; margin-top: 4px; }
-.call-controls { display: flex; gap: 20px; align-items: center; }
-.call-btn {
-  width: 58px; height: 58px; border-radius: 50%; border: none;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.3rem; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+.call-name { font-size: 1.6rem; font-weight: 700; font-family: var(--font-heading); color: #fff; }
+.call-status { color: rgba(255,255,255,0.5); font-size: 0.875rem; margin-top: 4px; }
+
+/* Remote avatar bg (shown when their camera is off) */
+#call-remote-avatar-bg {
+  position: absolute; inset: 0; z-index: 0;
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e, #0f0f1a);
 }
-.call-btn:hover { transform: scale(1.1); }
-.call-btn-end { background: #ef4444; color: #fff; box-shadow: 0 4px 16px rgba(239,68,68,0.4); }
-.call-btn-mute { background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
-.call-btn-video { background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
-.call-btn.active { background: rgba(239,68,68,0.25); border-color: rgba(239,68,68,0.4); }
-#call-video-remote, #call-video-local { position: absolute; border-radius: 12px; overflow: hidden; }
-#call-video-remote { inset: 0; width: 100%; height: 100%; z-index: -1; object-fit: cover; display: none; }
+#call-remote-avatar-bg .call-avatar-lg {
+  width: 120px; height: 120px; font-size: 3rem;
+  animation: none; box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+
+/* Local camera-off avatar overlay */
+#call-local-avatar {
+  position: absolute; bottom: 120px; right: 20px;
+  width: 160px; height: 110px; z-index: 2;
+  border-radius: 12px; border: 2px solid rgba(255,255,255,0.25);
+  background: linear-gradient(135deg, #1a1a2e, #0f0f1a);
+  display: none; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+#call-local-avatar img {
+  width: 60px; height: 60px; border-radius: 50%; object-fit: cover;
+}
+
+/* Bottom controls bar */
+.call-controls {
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
+  display: flex; justify-content: center; align-items: center;
+  gap: 16px; padding: 24px 0 32px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.85));
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.call-controls.hidden {
+  opacity: 0; transform: translateY(20px); pointer-events: none;
+}
+.call-ctrl {
+  width: 52px; height: 52px; border-radius: 50%; border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+  background: rgba(255,255,255,0.12); color: #fff;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.call-ctrl:hover { transform: scale(1.1); background: rgba(255,255,255,0.2); }
+.call-ctrl.active {
+  background: rgba(239,68,68,0.3); border-color: rgba(239,68,68,0.5);
+  color: #fca5a5;
+}
+.call-ctrl-end {
+  width: 60px; height: 60px;
+  background: #ef4444 !important; color: #fff !important;
+  border: none !important;
+  box-shadow: 0 4px 20px rgba(239,68,68,0.5);
+}
+.call-ctrl-end:hover { background: #dc2626 !important; box-shadow: 0 6px 28px rgba(239,68,68,0.6); }
+
+/* Video elements */
+#call-video-remote, #call-video-local { position: absolute; overflow: hidden; }
+#call-video-remote { inset: 0; width: 100%; height: 100%; z-index: -1; object-fit: cover; display: none; border-radius: 0; }
 #call-video-local {
-  bottom: 90px; right: 20px; width: 160px; height: 110px;
-  z-index: 1; display: none; object-fit: cover;
+  bottom: 120px; right: 20px; width: 160px; height: 110px;
+  z-index: 2; display: none; object-fit: cover;
+  border-radius: 12px;
   border: 2px solid rgba(255,255,255,0.25);
   transform: scaleX(-1);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+/* ── MESSAGE NOTIFICATION POPUP ────────────────────────────────── */
+.msg-notif {
+  background: var(--bg-modal, #1e293b);
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 14px; padding: 12px 16px;
+  display: flex; align-items: center; gap: 10px;
+  max-width: 340px; min-width: 240px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  backdrop-filter: blur(12px);
+  animation: notifSlideIn 0.35s cubic-bezier(0.34,1.2,0.64,1) both;
+  pointer-events: auto; cursor: pointer;
+  transition: opacity 0.3s, transform 0.3s;
+}
+.msg-notif.out { opacity: 0; transform: translateX(60px); }
+.msg-notif-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: var(--bg-btn); display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.9rem; color: #fff; overflow: hidden;
+}
+.msg-notif-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.msg-notif-body { flex: 1; min-width: 0; }
+.msg-notif-name { font-weight: 600; font-size: 0.8rem; color: var(--accent, #7c3aed); margin-bottom: 2px; }
+.msg-notif-text {
+  font-size: 0.8rem; color: var(--text-secondary, #94a3b8);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@keyframes notifSlideIn {
+  from { opacity: 0; transform: translateX(80px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 /* ── ANNOUNCEMENT BANNER ─────────────────────────────────────────── */
