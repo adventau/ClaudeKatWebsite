@@ -137,7 +137,8 @@ function applyUserData(me, other) {
     }
   }
   setStatusDot('other-status-dot', other.status || 'online');
-  document.getElementById('other-status-label').textContent = capitalize(other.status || 'online');
+  const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
+  document.getElementById('other-status-label').textContent = statusLabels[other.status] || 'Online';
 
   // Settings profile
   document.getElementById('settings-avatar-initial').textContent = (me.displayName || me.name)[0].toUpperCase();
@@ -152,9 +153,10 @@ function applyUserData(me, other) {
   const vaultOtherTab = document.getElementById('vault-other-tab');
   if (vaultOtherTab) vaultOtherTab.textContent = oName + "'s Files";
 
-  // Wallpaper
-  if (me.wallpaperEnabled && me.wallpaper) {
-    applyWallpaper(me.wallpaper);
+  // Wallpaper — shared between users, toggle is per-user
+  const wpRes = await fetch('/api/wallpaper').then(r => r.json()).catch(() => ({}));
+  if (me.wallpaperEnabled && wpRes.wallpaper) {
+    applyWallpaper(wpRes.wallpaper);
     document.getElementById('toggle-wallpaper').checked = true;
     const mwt = document.getElementById('modal-wallpaper-toggle');
     if (mwt) mwt.checked = true;
@@ -774,7 +776,8 @@ function setupSocketEvents() {
   socket.on('status-changed', ({ user, status }) => {
     if (user === otherUser) {
       setStatusDot('other-status-dot', status);
-      document.getElementById('other-status-label').textContent = capitalize(status);
+      const sLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
+      document.getElementById('other-status-label').textContent = sLabels[status] || 'Online';
     }
   });
 
@@ -809,6 +812,12 @@ function setupSocketEvents() {
   socket.on('force-logout', () => {
     showToast('⚠️ Site data was reset. Logging out…');
     setTimeout(() => logout(), 2000);
+  });
+
+  // Shared wallpaper
+  socket.on('wallpaper-changed', ({ wallpaper }) => {
+    const me = allUsers?.[currentUser];
+    if (me?.wallpaperEnabled !== false) applyWallpaper(wallpaper);
   });
 
   // WebRTC
@@ -1613,7 +1622,7 @@ async function uploadAvatar(input) {
   }
 }
 
-function toggleWallpaper(el) {
+async function toggleWallpaper(el) {
   const enabled = el.checked;
   const uploadRow = document.getElementById('wallpaper-upload-row');
   if (uploadRow) uploadRow.style.display = enabled ? '' : 'none';
@@ -1621,7 +1630,11 @@ function toggleWallpaper(el) {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ wallpaperEnabled: enabled })
   });
-  if (!enabled) {
+  if (enabled) {
+    // Re-fetch the shared wallpaper when re-enabling
+    const wpRes = await fetch('/api/wallpaper').then(r => r.json()).catch(() => ({}));
+    if (wpRes.wallpaper) applyWallpaper(wpRes.wallpaper);
+  } else {
     const area = document.getElementById('messages-area');
     area.classList.remove('wallpaper-on');
     area.style.backgroundImage = '';
@@ -1651,8 +1664,13 @@ function clearWallpaper() {
   const area = document.getElementById('messages-area');
   area.classList.remove('wallpaper-on');
   area.style.backgroundImage = '';
-  fetch(`/api/users/${currentUser}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wallpaper: null, wallpaperEnabled: false }) });
-  showToast('🖼️ Wallpaper removed');
+  // Just disable locally — don't remove the shared wallpaper
+  fetch(`/api/users/${currentUser}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wallpaperEnabled: false }) });
+  ['toggle-wallpaper','modal-wallpaper-toggle'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.checked = false;
+  });
+  showToast('Wallpaper hidden on your side');
 }
 
 function toggleGif(el) {

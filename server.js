@@ -238,10 +238,20 @@ app.post('/api/users/:user/avatar', mainAuth, upload.single('avatar'), (req, res
 
 app.post('/api/users/:user/wallpaper', mainAuth, upload.single('wallpaper'), (req, res) => {
   if (req.session.user !== req.params.user) return res.status(403).json({ error: 'Forbidden' });
+  const settings = rd(F.settings);
+  settings.chatWallpaper = `/uploads/${req.file.filename}`;
+  wd(F.settings, settings);
+  // Enable wallpaper for both users
   const users = rd(F.users);
-  users[req.params.user].wallpaper = `/uploads/${req.file.filename}`;
+  for (const u of Object.keys(users)) users[u].wallpaperEnabled = true;
   wd(F.users, users);
-  res.json({ success: true, wallpaper: users[req.params.user].wallpaper });
+  io.emit('wallpaper-changed', { wallpaper: settings.chatWallpaper });
+  res.json({ success: true, wallpaper: settings.chatWallpaper });
+});
+
+app.get('/api/wallpaper', mainAuth, (_, res) => {
+  const settings = rd(F.settings);
+  res.json({ wallpaper: settings.chatWallpaper || null });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -580,7 +590,7 @@ app.post('/api/calendar', mainAuth, (req, res) => {
     start: req.body.start, end: req.body.end,
     description: req.body.description || '',
     color: req.body.color || '#7c3aed',
-    createdBy: u, shared: req.body.shared === 'true',
+    createdBy: u, shared: req.body.shared === true || req.body.shared === 'true',
   };
   if (!Array.isArray(cal[u])) cal[u] = [];
   cal[u].push(event);
