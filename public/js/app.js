@@ -3067,6 +3067,9 @@ function formatDate(ts) {
 function triggerFileUpload() { document.getElementById('file-input').click(); }
 
 async function logout() {
+  // Immediately broadcast offline + save lastSeen before leaving
+  socket.emit('user-invisible', { user: currentUser });
+  navigator.sendBeacon('/api/users/' + currentUser + '/lastseen', '');
   await fetch('/api/auth/logout', { method: 'POST' });
   clearInterval(inactivityTimer);
   window.location.href = '/';
