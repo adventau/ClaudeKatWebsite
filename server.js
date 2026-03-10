@@ -105,7 +105,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
-// ── Email ─────────────────────────────────────────────────────────────────────
+// ── Email (Gmail SMTP) ───────────────────────────────────────────────────────
 function mailer() {
   return nodemailer.createTransport({
     service: 'gmail',
@@ -114,8 +114,8 @@ function mailer() {
 }
 async function sendMail(to, subject, html, attachments = []) {
   if (!to) { console.error('Mail error: no recipient email configured'); return false; }
-  if (!process.env.EMAIL_PASS || process.env.EMAIL_PASS === 'your_gmail_app_password_here') {
-    console.error('Mail error: EMAIL_PASS not configured in .env — set a Gmail App Password');
+  if (!process.env.EMAIL_PASS) {
+    console.error('Mail error: EMAIL_PASS not configured in .env');
     return false;
   }
   try {
@@ -329,7 +329,7 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
     const recipient = sender === 'kaliph' ? 'kathrine' : 'kaliph';
     const emailData = settings.emails[recipient];
     let emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
-    // Fallback: if no per-user email, try shared email, then env EMAIL_USER
+    // Fallback: if no per-user email, try shared email, then env EMAIL_FROM
     if (emails.length === 0 && settings.emails?.shared) emails = [settings.emails.shared];
     if (emails.length === 0 && process.env.EMAIL_USER) emails = [process.env.EMAIL_USER];
     const senderName = sender.charAt(0).toUpperCase() + sender.slice(1);
@@ -839,6 +839,8 @@ const onlineUsers = {};
 
 io.on('connection', socket => {
   socket.on('user-online', ({ user }) => {
+    // Main app users join private-chat room (guests don't emit user-online)
+    socket.join('private-chat');
     onlineUsers[user] = { socketId: socket.id, state: 'online' };
     socket.broadcast.emit('user-presence', { user, state: 'online' });
   });
@@ -860,8 +862,8 @@ io.on('connection', socket => {
     delete onlineUsers[user];
     socket.broadcast.emit('user-presence', { user, state: 'offline' });
   });
-  socket.on('typing',       d => socket.broadcast.emit('user-typing',   d));
-  socket.on('stop-typing',  d => socket.broadcast.emit('user-stop-typing', d));
+  socket.on('typing',       d => socket.to('private-chat').emit('user-typing',   d));
+  socket.on('stop-typing',  d => socket.to('private-chat').emit('user-stop-typing', d));
   socket.on('status-change', d => { socket.broadcast.emit('status-changed', d); });
   // WebRTC signaling
   socket.on('call-offer',         d => socket.broadcast.emit('call-offer',         d));

@@ -354,7 +354,7 @@ html, body { height: 100%; overflow: hidden; }
 .msg-bubble {
   display: inline-block; padding: 10px 16px;
   border-radius: 22px;
-  font-size: 0.9rem; line-height: 1.6;
+  font-size: 1rem; line-height: 1.6;
   word-break: break-word; position: relative;
   max-width: 100%; cursor: default;
   transition: opacity 0.15s;
@@ -524,6 +524,22 @@ html, body { height: 100%; overflow: hidden; }
   0%,60%,100% { transform: translateY(0); opacity: 0.35; }
   30% { transform: translateY(-5px); opacity: 1; }
 }
+
+/* Jump to latest message button */
+#jump-to-latest {
+  display: none; position: absolute; bottom: 80px; left: 50%;
+  transform: translateX(-50%); z-index: 30;
+  background: var(--bg-sidebar); border: 1px solid var(--border);
+  color: var(--text-primary); border-radius: 9999px;
+  width: 40px; height: 40px; cursor: pointer;
+  align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  backdrop-filter: blur(12px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+#jump-to-latest.show { display: flex; }
+#jump-to-latest:hover { transform: translateX(-50%) scale(1.1); }
+#jump-to-latest svg { width: 20px; height: 20px; }
 
 /* ── Message Input Area — clean iMessage-style ─────────────────── */
 .input-area {
@@ -1596,3 +1612,27 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   border: 1px solid rgba(124,58,237,0.2);
 }
 .guest-pass-actions { flex-shrink: 0; }
+
+/* ── IPAD / TOUCH DEVICE FIXES ─────────────────────────────────── */
+@media (pointer: coarse) {
+  /* Bigger send button touch target */
+  .send-btn {
+    width: 48px; height: 48px; min-width: 48px; min-height: 48px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  /* Prevent sticky hover states on touch devices */
+  .send-btn:hover { transform: none; box-shadow: 0 2px 8px var(--glow); }
+  .send-btn:active { transform: scale(0.92); }
+
+  /* Bigger touch targets for icon buttons */
+  .btn-icon { min-width: 44px; min-height: 44px; }
+  .msg-action-btn { min-width: 38px; min-height: 38px; }
+
+  /* Show action bar on touch (since no hover) */
+  .msg-row .msg-actions { opacity: 1; pointer-events: auto; transform: translateY(0); }
+
+  /* Input area padding for tablets */
+  .input-area { padding: 12px 20px 16px; }
+  #msg-input { font-size: 16px; } /* Prevents iOS zoom on focus */
+}
