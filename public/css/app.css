@@ -494,10 +494,19 @@ html, body { height: 100%; overflow: hidden; }
 
 /* Priority badge */
 .msg-priority-badge {
-  font-size: 0.62rem; background: rgba(239,68,68,0.2);
-  color: #ef4444; border: 1px solid rgba(239,68,68,0.3);
-  border-radius: 6px; padding: 2px 8px; display: inline-flex;
-  align-items: center; gap: 4px; margin-bottom: 4px; font-weight: 600;
+  font-size: 0.62rem;
+  background: rgba(239,68,68,0.08);
+  color: #ef4444;
+  border: 1px solid rgba(239,68,68,0.15);
+  border-radius: 99px;
+  padding: 2px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
 }
 
 /* Reactions */
@@ -870,12 +879,16 @@ html, body { height: 100%; overflow: hidden; }
   cursor: pointer; color: #fff; font-weight: 500;
   position: relative; display: flex; align-items: center; gap: 2px;
 }
-.cal-event:hover .cal-event-del { opacity: 1; }
-.cal-event-del {
+.cal-event:hover .cal-event-btns { opacity: 1; }
+.cal-event-btns {
   position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+  display: flex; gap: 2px; align-items: center; opacity: 0;
+  transition: opacity 0.15s;
+}
+.cal-event-edit, .cal-event-del {
   background: rgba(0,0,0,0.5); border: none; color: #fff;
   width: 14px; height: 14px; border-radius: 50%;
-  font-size: 0.55rem; cursor: pointer; opacity: 0;
+  font-size: 0.55rem; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: opacity 0.12s; line-height: 1;
 }
@@ -895,7 +908,7 @@ html, body { height: 100%; overflow: hidden; }
 .cal-bar-end { border-radius: 0 4px 4px 0; }
 .cal-bar-mid { border-radius: 0; }
 .cal-bar-title { overflow: hidden; text-overflow: ellipsis; }
-.cal-event-bar:hover .cal-event-del { opacity: 1; }
+.cal-event-bar:hover .cal-event-btns { opacity: 1; }
 
 /* ── Event Date Range Picker (in modal) ──────────────────────── */
 .event-date-display {
@@ -2653,19 +2666,58 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 
 .reminder-notify-options {
   display: flex;
-  gap: 14px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 .reminder-notify-check {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   font-size: 0.82rem;
   cursor: pointer;
   color: var(--text-primary);
 }
 .reminder-notify-check input[type="checkbox"] {
-  accent-color: var(--accent, #7c3aed);
+  display: none;
+}
+.toggle-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--border, #3a3a4a);
+  border-radius: 99px;
+  transition: background 0.25s, box-shadow 0.25s;
+  cursor: pointer;
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--accent, #7c3aed);
+  box-shadow: 0 0 8px rgba(124, 58, 237, 0.3);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(16px);
 }
 
 /* Reminder notification toast (on-site) */

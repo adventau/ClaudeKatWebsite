@@ -977,6 +977,53 @@
   </div>
 </div>
 
+<!-- Edit Event -->
+<div class="modal-overlay" id="edit-event-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">Edit Event</span>
+      <button class="btn-icon" onclick="closeModal('edit-event-modal')">✕</button>
+    </div>
+    <input type="hidden" id="edit-event-id">
+    <div class="form-row"><label>Title</label><input type="text" id="edit-event-title" placeholder="Event title"></div>
+    <div class="form-row">
+      <label>Date</label>
+      <div class="event-date-display" id="edit-event-date-display" onclick="toggleEditEventDatePicker()">Select date(s)...</div>
+      <input type="hidden" id="edit-event-start-date">
+      <input type="hidden" id="edit-event-end-date">
+    </div>
+    <div class="event-date-picker" id="edit-event-date-picker" style="display:none">
+      <div class="edp-header">
+        <button class="btn-icon edp-nav" onclick="eedpPrev()">‹</button>
+        <span class="edp-month" id="eedp-month-label"></span>
+        <button class="btn-icon edp-nav" onclick="eedpNext()">›</button>
+      </div>
+      <div class="edp-grid" id="eedp-grid">
+        <div class="edp-day-header">S</div><div class="edp-day-header">M</div><div class="edp-day-header">T</div>
+        <div class="edp-day-header">W</div><div class="edp-day-header">T</div><div class="edp-day-header">F</div>
+        <div class="edp-day-header">S</div>
+      </div>
+    </div>
+    <div class="form-row"><label>Description</label><textarea id="edit-event-desc" rows="2" placeholder="Optional description"></textarea></div>
+    <div class="form-row"><label>Color</label><input type="color" id="edit-event-color" value="#7c3aed" style="width:60px;height:32px"></div>
+    <div class="form-row">
+      <label>Reminder</label>
+      <select id="edit-event-reminder" style="width:auto">
+        <option value="">No reminder</option>
+        <option value="0">Day of event</option>
+        <option value="1">1 day before</option>
+        <option value="2">2 days before</option>
+        <option value="3">3 days before</option>
+        <option value="7">1 week before</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:1rem">
+      <button class="btn-primary" onclick="updateCalEvent()">Update Event</button>
+      <button class="btn-ghost" onclick="closeModal('edit-event-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- New Reminder -->
 <div class="modal-overlay" id="new-reminder-modal">
   <div class="modal" style="max-width:460px">
@@ -1048,8 +1095,14 @@
     <div class="form-row">
       <label>Notify via</label>
       <div class="reminder-notify-options">
-        <label class="reminder-notify-check"><input type="checkbox" id="reminder-notify-site" checked> <i data-lucide="monitor" style="width:14px;height:14px"></i> Site</label>
-        <label class="reminder-notify-check"><input type="checkbox" id="reminder-notify-email"> <i data-lucide="mail" style="width:14px;height:14px"></i> Email</label>
+        <label class="reminder-notify-check">
+          <div class="toggle-switch"><input type="checkbox" id="reminder-notify-site" checked><span class="toggle-slider"></span></div>
+          <i data-lucide="monitor" style="width:14px;height:14px"></i> Site
+        </label>
+        <label class="reminder-notify-check">
+          <div class="toggle-switch"><input type="checkbox" id="reminder-notify-email"><span class="toggle-slider"></span></div>
+          <i data-lucide="mail" style="width:14px;height:14px"></i> Email
+        </label>
       </div>
     </div>
     <div class="form-row">
@@ -1145,8 +1198,14 @@
     <div class="form-row">
       <label>Notify via</label>
       <div class="reminder-notify-options">
-        <label class="reminder-notify-check"><input type="checkbox" id="edit-reminder-notify-site"> <i data-lucide="monitor" style="width:14px;height:14px"></i> Site</label>
-        <label class="reminder-notify-check"><input type="checkbox" id="edit-reminder-notify-email"> <i data-lucide="mail" style="width:14px;height:14px"></i> Email</label>
+        <label class="reminder-notify-check">
+          <div class="toggle-switch"><input type="checkbox" id="edit-reminder-notify-site"><span class="toggle-slider"></span></div>
+          <i data-lucide="monitor" style="width:14px;height:14px"></i> Site
+        </label>
+        <label class="reminder-notify-check">
+          <div class="toggle-switch"><input type="checkbox" id="edit-reminder-notify-email"><span class="toggle-slider"></span></div>
+          <i data-lucide="mail" style="width:14px;height:14px"></i> Email
+        </label>
       </div>
     </div>
     <div class="form-row">

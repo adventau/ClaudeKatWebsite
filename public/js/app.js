@@ -662,7 +662,7 @@ function buildMsgElement(msg) {
   if (msg.priority) {
     const pb = document.createElement('div');
     pb.className = 'msg-priority-badge';
-    pb.innerHTML = '🔴 Priority';
+    pb.innerHTML = '<i data-lucide="alert-triangle" style="width:11px;height:11px"></i> Priority';
     content.appendChild(pb);
   }
 
@@ -2290,12 +2290,21 @@ async function renderCalendar() {
         const titleSpan = document.createElement('span');
         titleSpan.textContent = ev.title;
         el.appendChild(titleSpan);
+        const btns = document.createElement('span');
+        btns.className = 'cal-event-btns';
+        const editBtn = document.createElement('button');
+        editBtn.className = 'cal-event-edit';
+        editBtn.innerHTML = '✎';
+        editBtn.title = 'Edit event';
+        editBtn.onclick = (e) => { e.stopPropagation(); editCalEvent(ev.id); };
+        btns.appendChild(editBtn);
         const delBtn = document.createElement('button');
         delBtn.className = 'cal-event-del';
         delBtn.textContent = '✕';
         delBtn.title = 'Delete event';
         delBtn.onclick = (e) => { e.stopPropagation(); deleteCalEvent(ev.id); };
-        el.appendChild(delBtn);
+        btns.appendChild(delBtn);
+        el.appendChild(btns);
         cell.appendChild(el);
       }
     } else {
@@ -2345,14 +2354,23 @@ async function renderCalendar() {
             titleSpan.textContent = isEventStart || rowStart.getDate() === 1 ? ev.title : '';
             bar.appendChild(titleSpan);
 
-            // Delete button only on first segment
+            // Edit & delete buttons only on first segment
             if (isEventStart) {
+              const btns = document.createElement('span');
+              btns.className = 'cal-event-btns';
+              const editBtn = document.createElement('button');
+              editBtn.className = 'cal-event-edit';
+              editBtn.innerHTML = '✎';
+              editBtn.title = 'Edit event';
+              editBtn.onclick = (e) => { e.stopPropagation(); editCalEvent(ev.id); };
+              btns.appendChild(editBtn);
               const delBtn = document.createElement('button');
               delBtn.className = 'cal-event-del';
               delBtn.textContent = '✕';
               delBtn.title = 'Delete event';
               delBtn.onclick = (e) => { e.stopPropagation(); deleteCalEvent(ev.id); };
-              bar.appendChild(delBtn);
+              btns.appendChild(delBtn);
+              bar.appendChild(btns);
             }
 
             startCell.appendChild(bar);
@@ -2530,6 +2548,161 @@ async function deleteCalEvent(eventId) {
   showToast('Event deleted');
 }
 
+// ── Edit Event Date Picker (EEDP) ─────────────────────────────────────
+let eedpYear, eedpMonth, eedpSelectStart = null, eedpSelectEnd = null, eedpPickerOpen = false;
+
+function toggleEditEventDatePicker() {
+  const picker = document.getElementById('edit-event-date-picker');
+  eedpPickerOpen = !eedpPickerOpen;
+  picker.style.display = eedpPickerOpen ? '' : 'none';
+  if (eedpPickerOpen) {
+    const today = new Date();
+    if (!eedpYear) { eedpYear = today.getFullYear(); eedpMonth = today.getMonth(); }
+    renderEedpGrid();
+  }
+}
+
+function eedpPrev() { eedpMonth--; if (eedpMonth < 0) { eedpMonth = 11; eedpYear--; } renderEedpGrid(); }
+function eedpNext() { eedpMonth++; if (eedpMonth > 11) { eedpMonth = 0; eedpYear++; } renderEedpGrid(); }
+
+function renderEedpGrid() {
+  document.getElementById('eedp-month-label').textContent =
+    new Date(eedpYear, eedpMonth).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  const grid = document.getElementById('eedp-grid');
+  Array.from(grid.children).slice(7).forEach(c => c.remove());
+
+  const firstDay = new Date(eedpYear, eedpMonth, 1).getDay();
+  const daysInMonth = new Date(eedpYear, eedpMonth + 1, 0).getDate();
+  const today = new Date();
+
+  for (let i = 0; i < firstDay; i++) {
+    const empty = document.createElement('div');
+    empty.className = 'edp-day edp-day-empty';
+    grid.appendChild(empty);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement('div');
+    cell.className = 'edp-day';
+    const dateStr = `${eedpYear}-${String(eedpMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+    if (d === today.getDate() && eedpMonth === today.getMonth() && eedpYear === today.getFullYear()) {
+      cell.classList.add('edp-today');
+    }
+
+    if (eedpSelectStart && eedpSelectEnd) {
+      const s = eedpSelectStart <= eedpSelectEnd ? eedpSelectStart : eedpSelectEnd;
+      const e = eedpSelectStart <= eedpSelectEnd ? eedpSelectEnd : eedpSelectStart;
+      if (dateStr === s && dateStr === e) cell.classList.add('edp-selected-single');
+      else if (dateStr === s) cell.classList.add('edp-range-start');
+      else if (dateStr === e) cell.classList.add('edp-range-end');
+      else if (dateStr > s && dateStr < e) cell.classList.add('edp-range-mid');
+    } else if (eedpSelectStart && dateStr === eedpSelectStart) {
+      cell.classList.add('edp-selected-single');
+    }
+
+    cell.textContent = d;
+    cell.onclick = () => eedpSelectDate(dateStr);
+    grid.appendChild(cell);
+  }
+}
+
+function eedpSelectDate(dateStr) {
+  if (!eedpSelectStart || eedpSelectEnd) {
+    eedpSelectStart = dateStr;
+    eedpSelectEnd = null;
+  } else {
+    if (dateStr === eedpSelectStart) {
+      eedpSelectEnd = dateStr;
+    } else if (dateStr < eedpSelectStart) {
+      eedpSelectEnd = eedpSelectStart;
+      eedpSelectStart = dateStr;
+    } else {
+      eedpSelectEnd = dateStr;
+    }
+  }
+  document.getElementById('edit-event-start-date').value = eedpSelectStart;
+  document.getElementById('edit-event-end-date').value = eedpSelectEnd || eedpSelectStart;
+  updateEditEventDateDisplay();
+  renderEedpGrid();
+}
+
+function updateEditEventDateDisplay() {
+  const display = document.getElementById('edit-event-date-display');
+  const start = eedpSelectStart;
+  const end = eedpSelectEnd || eedpSelectStart;
+  if (!start) { display.textContent = 'Select date(s)...'; display.classList.remove('has-value'); return; }
+  const fmt = (ds) => {
+    const d = new Date(ds + 'T00:00:00');
+    return d.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+  display.textContent = (start === end || !end) ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
+  display.classList.add('has-value');
+}
+
+// ── Edit & Update Calendar Events ─────────────────────────────────────
+async function editCalEvent(eventId) {
+  const calData = await fetch('/api/calendar').then(r => r.json()).catch(() => ({}));
+  const events = calData.shared || [];
+  const ev = events.find(e => e.id === eventId);
+  if (!ev) return showToast('Event not found');
+
+  document.getElementById('edit-event-id').value = ev.id;
+  document.getElementById('edit-event-title').value = ev.title || '';
+  document.getElementById('edit-event-desc').value = ev.description || '';
+  document.getElementById('edit-event-color').value = ev.color || '#7c3aed';
+
+  const reminderSelect = document.getElementById('edit-event-reminder');
+  if (ev.reminder != null) {
+    reminderSelect.value = String(ev.reminder);
+  } else {
+    reminderSelect.value = '';
+  }
+
+  // Set up edit date picker state
+  eedpSelectStart = ev.start || ev.date;
+  eedpSelectEnd = ev.end || eedpSelectStart;
+  document.getElementById('edit-event-start-date').value = eedpSelectStart;
+  document.getElementById('edit-event-end-date').value = eedpSelectEnd;
+  updateEditEventDateDisplay();
+
+  const d = new Date(eedpSelectStart + 'T00:00:00');
+  eedpYear = d.getFullYear();
+  eedpMonth = d.getMonth();
+
+  openModal('edit-event-modal');
+  document.getElementById('edit-event-date-picker').style.display = 'none';
+  eedpPickerOpen = false;
+}
+
+async function updateCalEvent() {
+  const id = document.getElementById('edit-event-id').value;
+  const title = document.getElementById('edit-event-title').value.trim();
+  const start = document.getElementById('edit-event-start-date').value;
+  const end = document.getElementById('edit-event-end-date').value || start;
+  if (!title) return showToast('Event title required');
+  if (!start) return showToast('Date required');
+
+  const reminderVal = document.getElementById('edit-event-reminder').value;
+  await fetch(`/api/calendar/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      start,
+      end,
+      description: document.getElementById('edit-event-desc').value,
+      color: document.getElementById('edit-event-color').value,
+      reminder: reminderVal !== '' ? parseInt(reminderVal) : null,
+    })
+  });
+
+  closeModal('edit-event-modal');
+  renderCalendar();
+  showToast('Event updated!');
+}
+
 // ── Calendar Event Banner & Reminders ──────────────────────────────────
 let _eventBannerDismissed = false;
 
@@ -2555,13 +2728,16 @@ async function checkTodayEvents() {
       banner.style.display = '';
     }
 
-    // Check reminders — show toast for events with reminders matching today
+    // Check reminders — show toast for events with reminders matching today (once per session)
     const todayDate = new Date(today + 'T00:00:00');
     events.forEach(ev => {
       if (ev.reminder == null) return;
       const evStart = new Date((ev.start || ev.date) + 'T00:00:00');
       const daysUntil = Math.round((evStart - todayDate) / 86400000);
       if (daysUntil === ev.reminder) {
+        const shownKey = 'rkk-event-reminder-shown-' + ev.id;
+        if (sessionStorage.getItem(shownKey)) return;
+        sessionStorage.setItem(shownKey, '1');
         const when = daysUntil === 0 ? 'today' : daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`;
         showToast(`📅 Reminder: "${ev.title}" is ${when}!`);
       }
@@ -5486,12 +5662,16 @@ function jumpToMessage(msgId) {
 let _reminders = [];
 let _remindersTab = 'upcoming';
 let _reminderCheckInterval = null;
+let _remindersLoading = false;
 
 async function loadReminders() {
+  if (_remindersLoading) return;
+  _remindersLoading = true;
   try {
     const resp = await fetch('/api/reminders');
     _reminders = await resp.json();
   } catch { _reminders = []; }
+  _remindersLoading = false;
   renderReminders();
   updateReminderBadge();
 }
@@ -5709,6 +5889,10 @@ async function deleteReminder(id) {
 
 function showReminderNotification(data) {
   if (data.user !== currentUser) return;
+  // Only show once per session to prevent popup spam on reload
+  const shownKey = 'rkk-reminder-toast-' + data.id;
+  if (sessionStorage.getItem(shownKey)) return;
+  sessionStorage.setItem(shownKey, '1');
   // Create rich notification toast
   const c = document.getElementById('toast-container');
   const toast = document.createElement('div');
@@ -5744,6 +5928,24 @@ function startReminderChecker() {
 
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
+  {
+    version: '3.4.0',
+    date: 'Mar 11 2026',
+    intro: 'Edit calendar events, reminder bug fixes, and a modernized notification UI.',
+    sections: [
+      { icon: '📅', title: 'Calendar', items: [
+        { name: 'Edit Events', desc: 'Click the pencil icon on any calendar event to edit its title, dates, description, color, and reminder.' },
+      ]},
+      { icon: '🔔', title: 'Reminders', items: [
+        { name: 'No More Popup Spam', desc: 'Reminder and event notifications no longer re-show every time you load the site.' },
+        { name: 'Duplication Fix', desc: 'Fixed a bug where reminders could appear duplicated in the list.' },
+        { name: 'Modern Notify Toggles', desc: 'The "Notify via" checkboxes are now sleek toggle switches matching the site design.' },
+      ]},
+      { icon: '🎨', title: 'UI', items: [
+        { name: 'Priority Badge Refresh', desc: 'Priority message indicator redesigned with a clean icon-based pill instead of emoji.' },
+      ]},
+    ],
+  },
   {
     version: '3.3.0',
     date: 'Mar 11 2026',

@@ -897,6 +897,7 @@ app.post('/api/calendar', mainAuth, (req, res) => {
     date: startDate, // backward compat
     description: req.body.description || '',
     color: req.body.color || '#7c3aed',
+    reminder: req.body.reminder !== undefined && req.body.reminder !== '' ? parseInt(req.body.reminder) : null,
     createdBy: u,
   };
   if (!Array.isArray(cal.shared)) cal.shared = [];
@@ -904,6 +905,22 @@ app.post('/api/calendar', mainAuth, (req, res) => {
   wd(F.calendar, cal);
   io.emit('calendar-updated');
   res.json({ success: true, event });
+});
+
+app.put('/api/calendar/:id', mainAuth, (req, res) => {
+  const cal = rd(F.calendar);
+  const idx = (cal.shared || []).findIndex(e => e.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  const ev = cal.shared[idx];
+  if (req.body.title !== undefined) ev.title = req.body.title;
+  if (req.body.start !== undefined) { ev.start = req.body.start; ev.date = req.body.start; }
+  if (req.body.end !== undefined) ev.end = req.body.end;
+  if (req.body.description !== undefined) ev.description = req.body.description;
+  if (req.body.color !== undefined) ev.color = req.body.color;
+  ev.reminder = req.body.reminder !== undefined && req.body.reminder !== '' ? parseInt(req.body.reminder) : null;
+  wd(F.calendar, cal);
+  io.emit('calendar-updated');
+  res.json({ success: true, event: ev });
 });
 
 app.delete('/api/calendar/:id', mainAuth, (req, res) => {
