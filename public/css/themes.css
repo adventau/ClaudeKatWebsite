@@ -872,156 +872,178 @@
 
 /* ═════════════════════════════════════════════════════════════════
    FOREST: SITE-WIDE FLOATING DECORATIONS
-   Mushrooms, leaves, butterflies, flowers, fireflies scattered
-   across the entire app — purely CSS, no JS needed
+   CSS-drawn fireflies, leaves, and nature elements — no emojis
+   Pure shapes, glows, and SVG data URIs for organic feel
 ═════════════════════════════════════════════════════════════════ */
 
-/* Keyframes for forest decorations */
-@keyframes forest-float-1 {
-  0%   { transform: translate(0, 0) rotate(0deg); opacity: 0.07; }
-  25%  { transform: translate(12px, -18px) rotate(5deg); opacity: 0.1; }
-  50%  { transform: translate(-8px, -30px) rotate(-3deg); opacity: 0.06; }
-  75%  { transform: translate(15px, -12px) rotate(8deg); opacity: 0.09; }
-  100% { transform: translate(0, 0) rotate(0deg); opacity: 0.07; }
+/* ── Keyframes ────────────────────────────────────────────────── */
+@keyframes firefly-pulse-1 {
+  0%, 100% { opacity: 0; }
+  8%  { opacity: 0.9; }
+  16% { opacity: 0.2; }
+  28% { opacity: 1; }
+  42% { opacity: 0.05; }
+  58% { opacity: 0.85; }
+  72% { opacity: 0.15; }
+  88% { opacity: 0.7; }
 }
-@keyframes forest-float-2 {
-  0%   { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 0.06; }
-  30%  { transform: translate(-15px, -20px) rotate(-8deg) scale(1.05); opacity: 0.1; }
-  60%  { transform: translate(10px, -35px) rotate(5deg) scale(0.95); opacity: 0.05; }
-  100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 0.06; }
+@keyframes firefly-pulse-2 {
+  0%, 100% { opacity: 0.1; }
+  12% { opacity: 0.8; }
+  24% { opacity: 0.05; }
+  36% { opacity: 1; }
+  52% { opacity: 0.2; }
+  68% { opacity: 0.9; }
+  80% { opacity: 0.1; }
 }
-@keyframes firefly-pulse {
-  0%, 100% { opacity: 0; transform: scale(0.5); }
-  10%      { opacity: 0.9; transform: scale(1); }
-  20%      { opacity: 0.3; transform: scale(0.8); }
-  30%      { opacity: 1; transform: scale(1.2); }
-  50%      { opacity: 0.1; transform: scale(0.6); }
-  70%      { opacity: 0.8; transform: scale(1.1); }
-  85%      { opacity: 0.2; transform: scale(0.7); }
-}
-@keyframes firefly-wander {
+@keyframes firefly-drift-1 {
   0%   { transform: translate(0, 0); }
-  20%  { transform: translate(30px, -20px); }
-  40%  { transform: translate(-15px, -45px); }
-  60%  { transform: translate(25px, -10px); }
-  80%  { transform: translate(-20px, -30px); }
+  20%  { transform: translate(18px, -12px); }
+  40%  { transform: translate(-8px, -28px); }
+  60%  { transform: translate(22px, -8px); }
+  80%  { transform: translate(-12px, -20px); }
   100% { transform: translate(0, 0); }
 }
-@keyframes butterfly-flutter {
-  0%   { transform: translate(0, 0) rotate(0deg) scaleX(1); }
-  15%  { transform: translate(20px, -25px) rotate(12deg) scaleX(0.6); }
-  30%  { transform: translate(45px, -15px) rotate(-5deg) scaleX(1); }
-  45%  { transform: translate(30px, -50px) rotate(15deg) scaleX(0.5); }
-  60%  { transform: translate(55px, -35px) rotate(-8deg) scaleX(1); }
-  75%  { transform: translate(40px, -60px) rotate(10deg) scaleX(0.7); }
-  90%  { transform: translate(15px, -20px) rotate(-3deg) scaleX(1); }
-  100% { transform: translate(0, 0) rotate(0deg) scaleX(1); }
+@keyframes firefly-drift-2 {
+  0%   { transform: translate(0, 0); }
+  15%  { transform: translate(-20px, -15px); }
+  35%  { transform: translate(10px, -35px); }
+  55%  { transform: translate(-25px, 5px); }
+  75%  { transform: translate(15px, -18px); }
+  100% { transform: translate(0, 0); }
 }
-@keyframes leaf-fall {
-  0%   { transform: translate(0, 0) rotate(0deg); opacity: 0.08; }
-  25%  { transform: translate(-20px, 60px) rotate(45deg); opacity: 0.12; }
-  50%  { transform: translate(10px, 120px) rotate(90deg); opacity: 0.06; }
-  75%  { transform: translate(-15px, 180px) rotate(135deg); opacity: 0.1; }
-  100% { transform: translate(5px, 240px) rotate(180deg); opacity: 0.03; }
+@keyframes leaf-sway-1 {
+  0%   { transform: translate(0, 0) rotate(0deg); opacity: 0.09; }
+  25%  { transform: translate(15px, 8px) rotate(12deg); opacity: 0.12; }
+  50%  { transform: translate(-10px, 15px) rotate(-8deg); opacity: 0.07; }
+  75%  { transform: translate(8px, -5px) rotate(5deg); opacity: 0.11; }
+  100% { transform: translate(0, 0) rotate(0deg); opacity: 0.09; }
 }
-@keyframes mushroom-bob {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50%      { transform: translateY(-4px) scale(1.05); }
+@keyframes leaf-sway-2 {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 0.07; }
+  30%  { transform: translate(-12px, 10px) rotate(-15deg) scale(1.05); opacity: 0.1; }
+  60%  { transform: translate(8px, -8px) rotate(10deg) scale(0.95); opacity: 0.06; }
+  100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 0.07; }
 }
 @keyframes vine-grow {
   0%   { clip-path: inset(100% 0 0 0); opacity: 0; }
   100% { clip-path: inset(0 0 0 0); opacity: 0.06; }
 }
+@keyframes forest-mist {
+  0%, 100% { opacity: 0.03; transform: translateX(0); }
+  50%      { opacity: 0.06; transform: translateX(20px); }
+}
 
-/* Layer 1: Large woodland elements (mushrooms, flowers, leaves) — slow drift */
+/* ── Layer 1: Scattered SVG leaves — slow gentle sway ─────────── */
 body.theme-forest::before {
-  content: '\1F344  \2618  \1F33F  \1F338  \1F344  \1F341  \2618  \1F33F  \1F338  \1F490  \1F344  \1F33F';
+  content: '';
   position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100vh;
-  font-size: 2rem;
-  line-height: 3.5;
-  letter-spacing: 4vw;
-  word-spacing: 8vw;
-  white-space: pre-wrap;
-  overflow: hidden;
+  inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.055;
-  animation: forest-float-1 25s ease-in-out infinite;
-  padding: 5vh 3vw;
+  /* SVG leaves as repeating background — drawn as simple leaf shapes */
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%235cb88a' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M17 8C8 10 5.9 16.17 3.82 21.34l1.89-.82L5 22l1-1c3-4 5.5-7 12-9'/%3E%3Cpath d='M12.71 11.29A5.22 5.22 0 0 0 9 10c-.55 0-1 .45-1 1a5.22 5.22 0 0 0 1.29 3.71'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23c8a84e' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.82-.13 2.68-.36'/%3E%3Cpath d='M20 10c-2-2-5-3.5-8-3.5'/%3E%3Cpath d='M22 2L13 11'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%2395d5b2' stroke-width='1.2'%3E%3Cpath d='M6 3v12'/%3E%3Cpath d='M18 9a3 3 0 0 0-3-3h-2a3 3 0 0 0 0 6h2a3 3 0 0 1 0 6h-2a3 3 0 0 1-3-3'/%3E%3C/svg%3E");
+  background-position:
+    8vw 12vh,
+    72vw 28vh,
+    35vw 65vh;
+  background-size: 28px 28px, 22px 22px, 20px 20px;
+  background-repeat: no-repeat;
+  opacity: 0.09;
+  animation: leaf-sway-1 20s ease-in-out infinite;
 }
 
-/* Layer 2: Small critters & butterflies — faster flutter */
+/* ── Layer 2: More scattered leaf/nature silhouettes — offset ── */
 body.theme-forest::after {
-  content: '\1F98B  \1F41B  \2728  \1F98E  \1F98B  \2728  \1F41E  \1F98B  \2728  \1F43F  \2728  \1F98B';
+  content: '';
   position: fixed;
-  top: 8vh; left: 5vw;
-  width: 100vw; height: 100vh;
-  font-size: 1.4rem;
-  line-height: 4;
-  letter-spacing: 5vw;
-  word-spacing: 6vw;
-  white-space: pre-wrap;
-  overflow: hidden;
+  inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.06;
-  animation: forest-float-2 18s ease-in-out infinite;
-  padding: 8vh 6vw;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='%235cb88a' stroke-width='1.2'%3E%3Cpath d='M17 8C8 10 5.9 16.17 3.82 21.34l1.89-.82L5 22l1-1c3-4 5.5-7 12-9'/%3E%3Cpath d='M12.71 11.29A5.22 5.22 0 0 0 9 10c-.55 0-1 .45-1 1a5.22 5.22 0 0 0 1.29 3.71'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='%23c8a84e' fill-opacity='0.3' stroke='%23c8a84e' stroke-width='1'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cline x1='12' y1='2' x2='12' y2='6'/%3E%3Cline x1='12' y1='18' x2='12' y2='22'/%3E%3Cline x1='4.93' y1='4.93' x2='7.76' y2='7.76'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2395d5b2' stroke-width='1.2' stroke-linecap='round'%3E%3Cpath d='M17 8C8 10 5.9 16.17 3.82 21.34l1.89-.82L5 22l1-1c3-4 5.5-7 12-9'/%3E%3C/svg%3E");
+  background-position:
+    85vw 15vh,
+    22vw 42vh,
+    58vw 78vh;
+  background-size: 24px 24px, 18px 18px, 22px 22px;
+  background-repeat: no-repeat;
+  opacity: 0.07;
+  animation: leaf-sway-2 16s ease-in-out infinite;
 }
 
-/* Layer 3: Fireflies — glowing dots scattered via box-shadow */
+/* ── Layer 3: Fireflies — glowing dots (gold) with pulsing + wandering ── */
 .theme-forest #main-content::before {
   content: '';
   position: fixed;
   top: 0; left: 0;
   width: 4px; height: 4px;
   border-radius: 50%;
-  background: #c8a84e;
+  background: rgba(200,168,78,0.9);
   pointer-events: none;
   z-index: 1;
   box-shadow:
-    12vw 15vh 6px 1px rgba(200,168,78,0.6),
-    45vw 8vh 4px 1px rgba(200,168,78,0.5),
-    78vw 22vh 5px 1px rgba(200,168,78,0.7),
-    25vw 45vh 3px 1px rgba(200,168,78,0.4),
-    62vw 55vh 6px 1px rgba(200,168,78,0.6),
-    88vw 35vh 4px 1px rgba(200,168,78,0.5),
-    35vw 72vh 5px 1px rgba(200,168,78,0.7),
-    8vw 60vh 3px 1px rgba(200,168,78,0.4),
-    55vw 82vh 6px 1px rgba(200,168,78,0.6),
-    72vw 68vh 4px 1px rgba(200,168,78,0.5),
-    18vw 88vh 5px 1px rgba(92,184,138,0.5),
-    92vw 75vh 3px 1px rgba(92,184,138,0.4),
-    42vw 92vh 4px 1px rgba(200,168,78,0.5),
-    5vw 30vh 5px 1px rgba(92,184,138,0.6),
-    68vw 42vh 3px 1px rgba(200,168,78,0.4);
-  animation: firefly-pulse 6s ease-in-out infinite;
+    12vw 15vh 8px 2px rgba(200,168,78,0.7),
+    45vw 8vh 6px 2px rgba(200,168,78,0.6),
+    78vw 22vh 7px 2px rgba(200,168,78,0.8),
+    25vw 45vh 5px 1px rgba(200,168,78,0.5),
+    62vw 55vh 8px 2px rgba(200,168,78,0.7),
+    88vw 35vh 6px 2px rgba(200,168,78,0.6),
+    35vw 72vh 7px 2px rgba(200,168,78,0.8),
+    8vw 60vh 5px 1px rgba(200,168,78,0.5),
+    55vw 82vh 8px 2px rgba(200,168,78,0.7),
+    72vw 68vh 6px 2px rgba(200,168,78,0.6),
+    18vw 88vh 7px 2px rgba(92,184,138,0.6),
+    92vw 75vh 5px 1px rgba(92,184,138,0.5),
+    42vw 92vh 6px 2px rgba(200,168,78,0.6),
+    5vw 30vh 7px 2px rgba(92,184,138,0.7),
+    68vw 42vh 5px 1px rgba(200,168,78,0.5);
+  animation:
+    firefly-pulse-1 6s ease-in-out infinite,
+    firefly-drift-1 12s ease-in-out infinite;
 }
 
-/* Layer 4: Second set of fireflies — offset timing */
+/* ── Layer 4: Second firefly set — green-tinted, offset timing ── */
 .theme-forest #main-content::after {
   content: '';
   position: fixed;
   top: 0; left: 0;
   width: 3px; height: 3px;
   border-radius: 50%;
-  background: #95d5b2;
+  background: rgba(92,184,138,0.9);
   pointer-events: none;
   z-index: 1;
   box-shadow:
-    20vw 12vh 5px 1px rgba(92,184,138,0.6),
-    50vw 28vh 4px 1px rgba(200,168,78,0.7),
-    82vw 18vh 6px 1px rgba(92,184,138,0.5),
-    15vw 52vh 4px 1px rgba(200,168,78,0.6),
-    70vw 48vh 5px 1px rgba(92,184,138,0.7),
-    38vw 65vh 3px 1px rgba(200,168,78,0.5),
-    58vw 78vh 4px 1px rgba(92,184,138,0.6),
-    85vw 58vh 5px 1px rgba(200,168,78,0.4),
-    28vw 85vh 6px 1px rgba(92,184,138,0.5),
-    48vw 38vh 3px 1px rgba(200,168,78,0.6);
-  animation: firefly-pulse 6s ease-in-out infinite 3s;
+    20vw 12vh 7px 2px rgba(92,184,138,0.7),
+    50vw 28vh 6px 2px rgba(200,168,78,0.8),
+    82vw 18vh 8px 2px rgba(92,184,138,0.6),
+    15vw 52vh 6px 2px rgba(200,168,78,0.7),
+    70vw 48vh 7px 2px rgba(92,184,138,0.8),
+    38vw 65vh 5px 1px rgba(200,168,78,0.6),
+    58vw 78vh 6px 2px rgba(92,184,138,0.7),
+    85vw 58vh 7px 2px rgba(200,168,78,0.5),
+    28vw 85vh 8px 2px rgba(92,184,138,0.6),
+    48vw 38vh 5px 1px rgba(200,168,78,0.7);
+  animation:
+    firefly-pulse-2 6s ease-in-out infinite 3s,
+    firefly-drift-2 14s ease-in-out infinite 2s;
+}
+
+/* ── Layer 5: Misty forest floor glow ──────────────────────────── */
+.theme-forest .messages-area::before {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 120px;
+  background: linear-gradient(0deg, rgba(92,184,138,0.04) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+  animation: forest-mist 8s ease-in-out infinite;
 }
 
 /* Vine border accent on sidebar */
