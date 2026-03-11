@@ -950,7 +950,7 @@ app.delete('/api/announcements/:id', mainAuth, (req, res) => {
 
 app.get('/api/settings', mainAuth, (_, res) => {
   const s = rd(F.settings);
-  res.json({ emails: s.emails, vaultPasscodeSet: !!s.vaultPasscode });
+  res.json({ emails: s.emails, vaultPasscodeSet: !!s.vaultPasscode, bellSchedule: s.bellSchedule || null, preferences: s.preferences || {}, _scheduleSkips: s._scheduleSkips || {} });
 });
 
 app.get('/api/settings/email-status', mainAuth, async (_, res) => {
