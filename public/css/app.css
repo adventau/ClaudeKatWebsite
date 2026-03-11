@@ -2746,3 +2746,283 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .reply-preview[data-reply-id]:hover {
   background: rgba(124, 58, 237, 0.12);
 }
+
+/* ── CUSTOM SELECT DROPDOWN ─────────────────────────────────────────── */
+.custom-select-wrap {
+  position: relative;
+  width: auto;
+  display: inline-block;
+}
+.custom-select-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-input, 10px);
+  padding: 9px 13px;
+  font-family: var(--font-main);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 140px;
+  justify-content: space-between;
+}
+.custom-select-btn:hover { border-color: var(--border-focus); }
+.custom-select-btn:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--glow); outline: none; }
+.custom-select-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  background: var(--bg-modal, var(--bg-sidebar));
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  z-index: 100;
+  padding: 4px;
+  animation: customSelectIn 0.12s ease;
+}
+@keyframes customSelectIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.custom-select-option {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.1s;
+}
+.custom-select-option:hover { background: var(--bg-hover); }
+.custom-select-option.selected { background: rgba(124, 58, 237, 0.15); color: var(--accent, #7c3aed); font-weight: 600; }
+
+/* ── CUSTOM TIME PICKER (bell schedule) ─────────────────────────────── */
+.custom-time-input {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+.custom-time-btn {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-input, 10px);
+  padding: 7px 10px;
+  font-family: var(--font-main);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+.custom-time-btn.has-value { color: var(--text-primary); font-weight: 500; }
+.custom-time-btn:hover { border-color: var(--border-focus); }
+.custom-time-picker-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-modal, var(--bg-sidebar));
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  padding: 12px;
+  z-index: 200;
+  animation: customSelectIn 0.12s ease;
+  min-width: 180px;
+}
+.ctp-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+.ctp-spinbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.ctp-spin {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  transition: background 0.1s;
+  line-height: 1;
+}
+.ctp-spin:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ctp-input {
+  width: 36px !important;
+  text-align: center;
+  font-size: 1.1rem !important;
+  font-weight: 600;
+  padding: 4px !important;
+  border-radius: 8px !important;
+}
+.ctp-colon { font-size: 1.1rem; font-weight: 700; color: var(--text-muted); }
+.ctp-ampm {
+  background: var(--accent, #7c3aed);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-main);
+  transition: opacity 0.15s;
+  margin-left: 4px;
+}
+.ctp-ampm:hover { opacity: 0.85; }
+.ctp-done {
+  margin-top: 8px;
+  width: 100%;
+  text-align: center;
+}
+
+/* ── CUSTOM DATETIME PICKER (reminders) ─────────────────────────────── */
+.custom-datetime-wrap { position: relative; }
+.custom-datetime-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-input, 10px);
+  padding: 9px 13px;
+  font-family: var(--font-main);
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.custom-datetime-btn:hover { border-color: var(--border-focus); }
+.custom-datetime-btn:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--glow); outline: none; }
+.custom-datetime-picker {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: var(--bg-modal, var(--bg-sidebar));
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.35);
+  padding: 14px;
+  z-index: 200;
+  min-width: 280px;
+  animation: customSelectIn 0.15s ease;
+}
+.cdtp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.cdtp-month { font-weight: 700; font-size: 0.9rem; color: var(--text-primary); }
+.cdtp-nav {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: 1.2rem; padding: 4px 8px; border-radius: 8px; transition: background 0.1s;
+}
+.cdtp-nav:hover { background: var(--bg-hover); }
+.cdtp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+.cdtp-day-header { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); padding: 4px 0; }
+.cdtp-day {
+  padding: 6px 0;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.1s;
+}
+.cdtp-day:hover { background: var(--bg-hover); }
+.cdtp-day-empty { cursor: default; }
+.cdtp-today { font-weight: 700; color: var(--accent, #7c3aed); }
+.cdtp-selected { background: var(--accent, #7c3aed) !important; color: #fff !important; font-weight: 700; }
+.cdtp-time-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.cdtp-time-label { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; display: block; }
+.cdtp-time-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
+}
+.cdtp-time-spinbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.cdtp-spin-btn {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: 0.65rem; padding: 1px 8px; border-radius: 6px;
+  transition: background 0.1s; line-height: 1;
+}
+.cdtp-spin-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.cdtp-time-input {
+  width: 36px !important;
+  text-align: center;
+  font-size: 1.05rem !important;
+  font-weight: 600;
+  padding: 4px !important;
+  border-radius: 8px !important;
+}
+.cdtp-time-colon { font-size: 1.05rem; font-weight: 700; color: var(--text-muted); }
+.cdtp-ampm-btn {
+  background: var(--accent, #7c3aed);
+  color: #fff; border: none; border-radius: 8px;
+  padding: 5px 10px; font-size: 0.78rem; font-weight: 700;
+  cursor: pointer; font-family: var(--font-main); margin-left: 4px;
+  transition: opacity 0.15s;
+}
+.cdtp-ampm-btn:hover { opacity: 0.85; }
+.cdtp-actions { margin-top: 10px; text-align: right; }
+.btn-sm { padding: 5px 14px; font-size: 0.8rem; }
+
+/* ── CUSTOM PRIORITY SELECTOR ───────────────────────────────────────── */
+.custom-priority-wrap {
+  display: flex;
+  gap: 6px;
+}
+.custom-priority-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-family: var(--font-main);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.custom-priority-btn:hover { border-color: var(--border-focus); }
+.custom-priority-btn.active {
+  border-color: var(--accent, #7c3aed);
+  background: rgba(124, 58, 237, 0.12);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.priority-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.priority-low { background: #22c55e; }
+.priority-normal { background: #3b82f6; }
+.priority-high { background: #ef4444; }
