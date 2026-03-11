@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════════
    ROYAL KAT & KAI VAULT — Sound System (Web Audio API)
-   Each theme has its own acoustic personality
+   Every theme has its own complete acoustic personality:
+   keystrokes, send/recv, errors, notifications, ringtones & call sounds
 ═══════════════════════════════════════════════════════════════════ */
 
 const SoundSystem = (() => {
@@ -8,50 +9,160 @@ const SoundSystem = (() => {
   let enabled = true;
   let theme = 'dark';
 
+  // ═════════════════════════════════════════════════════════════════
+  // THEME SOUND PROFILES — each theme gets unique audio character
+  // ═════════════════════════════════════════════════════════════════
+
   const profiles = {
+
+    // ── KALIPH: AVNT Purple — Cyber/tech, aggressive sawtooth, digital glitch ──
     kaliph: {
-      keystroke: { type: 'sawtooth', freq: [180, 200, 220], dur: 0.04, gain: 0.07, detune: 100 },
-      send:  { type: 'sine', freqs: [300, 400, 600], dur: 0.25, gain: 0.12 },
-      recv:  { type: 'triangle', freqs: [800, 1000], dur: 0.3, gain: 0.1 },
-      error: { type: 'sawtooth', freqs: [120, 90], dur: 0.2, gain: 0.1 },
-      notif: { type: 'sine', freqs: [880, 1100, 880], dur: 0.4, gain: 0.12 },
+      keystroke:  { type: 'sawtooth', freq: [180, 200, 220], dur: 0.04, gain: 0.07, detune: 100 },
+      send:       { type: 'sine', freqs: [300, 400, 600], dur: 0.25, gain: 0.12 },
+      recv:       { type: 'triangle', freqs: [800, 1000], dur: 0.3, gain: 0.1 },
+      error:      { type: 'sawtooth', freqs: [120, 90], dur: 0.2, gain: 0.1 },
+      notif:      { type: 'sine', freqs: [880, 1100, 880], dur: 0.4, gain: 0.12 },
+      ring_out:   { type: 'sine', freqs: [400, 500], dur: 0.4, gain: 0.08, gap: 0.15 },
+      ring_in:    { type: 'sawtooth', freqs: [600, 750, 900], dur: 0.2, gain: 0.09, gap: 0.15 },
+      hangup:     { type: 'sawtooth', freqs: [500, 300, 150], dur: 0.12, gain: 0.1 },
+      mute:       { type: 'sawtooth', freqs: [250, 150], dur: 0.08, gain: 0.08 },
+      unmute:     { type: 'sawtooth', freqs: [200, 350], dur: 0.08, gain: 0.08 },
+      share_on:   { type: 'sine', freqs: [400, 600, 800], dur: 0.1, gain: 0.07 },
+      share_off:  { type: 'sine', freqs: [600, 400], dur: 0.1, gain: 0.06 },
     },
+
+    // ── KATHRINE: Royal Violet — Elegant, airy, high sparkle, gentle harp ──
     kathrine: {
-      keystroke: { type: 'sine', freq: [900, 1000, 850], dur: 0.06, gain: 0.04, detune: 0 },
-      send:  { type: 'sine', freqs: [1046, 1318, 1568], dur: 0.3, gain: 0.08 },
-      recv:  { type: 'sine', freqs: [1174, 1397], dur: 0.35, gain: 0.08 },
-      error: { type: 'triangle', freqs: [400, 300], dur: 0.2, gain: 0.08 },
-      notif: { type: 'sine', freqs: [1318, 1568, 1760], dur: 0.5, gain: 0.1 },
+      keystroke:  { type: 'sine', freq: [900, 1000, 850], dur: 0.06, gain: 0.04, detune: 0 },
+      send:       { type: 'sine', freqs: [1046, 1318, 1568], dur: 0.3, gain: 0.08 },
+      recv:       { type: 'sine', freqs: [1174, 1397], dur: 0.35, gain: 0.08 },
+      error:      { type: 'triangle', freqs: [400, 300], dur: 0.2, gain: 0.08 },
+      notif:      { type: 'sine', freqs: [1318, 1568, 1760], dur: 0.5, gain: 0.1 },
+      ring_out:   { type: 'sine', freqs: [880, 1047], dur: 0.45, gain: 0.06, gap: 0.2 },
+      ring_in:    { type: 'sine', freqs: [1047, 1319, 1568], dur: 0.25, gain: 0.08, gap: 0.18 },
+      hangup:     { type: 'sine', freqs: [784, 523], dur: 0.18, gain: 0.07 },
+      mute:       { type: 'sine', freqs: [523, 392], dur: 0.1, gain: 0.05 },
+      unmute:     { type: 'sine', freqs: [523, 784], dur: 0.1, gain: 0.06 },
+      share_on:   { type: 'sine', freqs: [784, 988, 1319], dur: 0.12, gain: 0.06 },
+      share_off:  { type: 'sine', freqs: [988, 784], dur: 0.1, gain: 0.05 },
     },
+
+    // ── ROYAL: Crimson Throne — Brass fanfare, regal triangle, bold ──
     royal: {
-      keystroke: { type: 'triangle', freq: [300, 320, 280], dur: 0.07, gain: 0.08, detune: 20 },
-      send:  { type: 'triangle', freqs: [196, 247, 294], dur: 0.35, gain: 0.14 },
-      recv:  { type: 'triangle', freqs: [261, 330], dur: 0.4, gain: 0.12 },
-      error: { type: 'square', freqs: [150, 130], dur: 0.25, gain: 0.1 },
-      notif: { type: 'triangle', freqs: [440, 554, 659], dur: 0.6, gain: 0.14 },
+      keystroke:  { type: 'triangle', freq: [300, 320, 280], dur: 0.07, gain: 0.08, detune: 20 },
+      send:       { type: 'triangle', freqs: [196, 247, 294], dur: 0.35, gain: 0.14 },
+      recv:       { type: 'triangle', freqs: [261, 330], dur: 0.4, gain: 0.12 },
+      error:      { type: 'square', freqs: [150, 130], dur: 0.25, gain: 0.1 },
+      notif:      { type: 'triangle', freqs: [440, 554, 659], dur: 0.6, gain: 0.14 },
+      ring_out:   { type: 'triangle', freqs: [294, 370], dur: 0.5, gain: 0.1, gap: 0.2 },
+      ring_in:    { type: 'triangle', freqs: [330, 415, 494, 554], dur: 0.3, gain: 0.12, gap: 0.12 },
+      hangup:     { type: 'triangle', freqs: [370, 247, 196], dur: 0.2, gain: 0.1 },
+      mute:       { type: 'triangle', freqs: [247, 196], dur: 0.12, gain: 0.08 },
+      unmute:     { type: 'triangle', freqs: [247, 370], dur: 0.12, gain: 0.09 },
+      share_on:   { type: 'triangle', freqs: [330, 440, 554], dur: 0.15, gain: 0.08 },
+      share_off:  { type: 'triangle', freqs: [440, 330], dur: 0.12, gain: 0.07 },
     },
+
+    // ── LIGHT: Pristine — Crisp clicks, clean sine, bright & minimal ──
     light: {
-      keystroke: { type: 'square', freq: [600, 650, 700], dur: 0.02, gain: 0.04, detune: 0 },
-      send:  { type: 'sine', freqs: [523, 659, 784], dur: 0.2, gain: 0.08 },
-      recv:  { type: 'sine', freqs: [784, 988], dur: 0.25, gain: 0.07 },
-      error: { type: 'square', freqs: [300, 250], dur: 0.15, gain: 0.07 },
-      notif: { type: 'sine', freqs: [784, 988, 1175], dur: 0.4, gain: 0.09 },
+      keystroke:  { type: 'square', freq: [600, 650, 700], dur: 0.02, gain: 0.04, detune: 0 },
+      send:       { type: 'sine', freqs: [523, 659, 784], dur: 0.2, gain: 0.08 },
+      recv:       { type: 'sine', freqs: [784, 988], dur: 0.25, gain: 0.07 },
+      error:      { type: 'square', freqs: [300, 250], dur: 0.15, gain: 0.07 },
+      notif:      { type: 'sine', freqs: [784, 988, 1175], dur: 0.4, gain: 0.09 },
+      ring_out:   { type: 'sine', freqs: [659, 784], dur: 0.3, gain: 0.07, gap: 0.15 },
+      ring_in:    { type: 'sine', freqs: [784, 988, 1175], dur: 0.2, gain: 0.08, gap: 0.15 },
+      hangup:     { type: 'sine', freqs: [659, 440], dur: 0.12, gain: 0.07 },
+      mute:       { type: 'square', freqs: [400, 300], dur: 0.06, gain: 0.05 },
+      unmute:     { type: 'square', freqs: [400, 550], dur: 0.06, gain: 0.06 },
+      share_on:   { type: 'sine', freqs: [659, 784, 988], dur: 0.1, gain: 0.06 },
+      share_off:  { type: 'sine', freqs: [784, 659], dur: 0.08, gain: 0.05 },
     },
+
+    // ── DARK: Midnight — Smooth, low sine, moody undertones ──
     dark: {
-      keystroke: { type: 'sine', freq: [400, 420, 440], dur: 0.035, gain: 0.04, detune: 50 },
-      send:  { type: 'sine', freqs: [392, 494, 587], dur: 0.22, gain: 0.09 },
-      recv:  { type: 'sine', freqs: [587, 740], dur: 0.3, gain: 0.08 },
-      error: { type: 'triangle', freqs: [200, 170], dur: 0.2, gain: 0.09 },
-      notif: { type: 'sine', freqs: [659, 784, 988], dur: 0.4, gain: 0.1 },
+      keystroke:  { type: 'sine', freq: [400, 420, 440], dur: 0.035, gain: 0.04, detune: 50 },
+      send:       { type: 'sine', freqs: [392, 494, 587], dur: 0.22, gain: 0.09 },
+      recv:       { type: 'sine', freqs: [587, 740], dur: 0.3, gain: 0.08 },
+      error:      { type: 'triangle', freqs: [200, 170], dur: 0.2, gain: 0.09 },
+      notif:      { type: 'sine', freqs: [659, 784, 988], dur: 0.4, gain: 0.1 },
+      ring_out:   { type: 'sine', freqs: [440, 520], dur: 0.4, gain: 0.08, gap: 0.15 },
+      ring_in:    { type: 'sine', freqs: [523, 659, 784], dur: 0.25, gain: 0.1, gap: 0.2 },
+      hangup:     { type: 'sine', freqs: [480, 320], dur: 0.15, gain: 0.08 },
+      mute:       { type: 'sine', freqs: [200, 150], dur: 0.1, gain: 0.08 },
+      unmute:     { type: 'sine', freqs: [300, 450], dur: 0.08, gain: 0.07 },
+      share_on:   { type: 'sine', freqs: [523, 659, 784], dur: 0.12, gain: 0.07 },
+      share_off:  { type: 'sine', freqs: [659, 523], dur: 0.1, gain: 0.06 },
     },
+
+    // ── HEAVEN: Celestial — Ethereal, airy, angelic high chimes, bell-like ──
     heaven: {
-      keystroke: { type: 'sine', freq: [1200, 1300, 1100], dur: 0.08, gain: 0.03, detune: 0 },
-      send:  { type: 'sine', freqs: [1047, 1319, 1568, 2093], dur: 0.5, gain: 0.07 },
-      recv:  { type: 'sine', freqs: [1174, 1568], dur: 0.55, gain: 0.06 },
-      error: { type: 'sine', freqs: [600, 500], dur: 0.3, gain: 0.06 },
-      notif: { type: 'sine', freqs: [1568, 2093, 2637], dur: 0.7, gain: 0.08 },
+      keystroke:  { type: 'sine', freq: [1200, 1300, 1100], dur: 0.08, gain: 0.03, detune: 0 },
+      send:       { type: 'sine', freqs: [1047, 1319, 1568, 2093], dur: 0.5, gain: 0.07 },
+      recv:       { type: 'sine', freqs: [1174, 1568], dur: 0.55, gain: 0.06 },
+      error:      { type: 'sine', freqs: [600, 500], dur: 0.3, gain: 0.06 },
+      notif:      { type: 'sine', freqs: [1568, 2093, 2637], dur: 0.7, gain: 0.08 },
+      ring_out:   { type: 'sine', freqs: [1047, 1319], dur: 0.6, gain: 0.05, gap: 0.25 },
+      ring_in:    { type: 'sine', freqs: [1319, 1568, 2093, 2637], dur: 0.35, gain: 0.06, gap: 0.2 },
+      hangup:     { type: 'sine', freqs: [1047, 784, 659], dur: 0.25, gain: 0.05 },
+      mute:       { type: 'sine', freqs: [784, 659], dur: 0.15, gain: 0.04 },
+      unmute:     { type: 'sine', freqs: [784, 1047], dur: 0.15, gain: 0.05 },
+      share_on:   { type: 'sine', freqs: [1319, 1568, 2093], dur: 0.18, gain: 0.05 },
+      share_off:  { type: 'sine', freqs: [1568, 1319], dur: 0.15, gain: 0.04 },
+    },
+
+    // ── ROSEWOOD: Rose & Ember — Warm, intimate, soft plucks, cozy hearth ──
+    rosewood: {
+      keystroke:  { type: 'sine', freq: [520, 550, 490], dur: 0.05, gain: 0.05, detune: 10 },
+      send:       { type: 'sine', freqs: [349, 440, 523], dur: 0.3, gain: 0.09 },
+      recv:       { type: 'triangle', freqs: [440, 554], dur: 0.35, gain: 0.08 },
+      error:      { type: 'triangle', freqs: [220, 185], dur: 0.22, gain: 0.08 },
+      notif:      { type: 'sine', freqs: [554, 659, 784], dur: 0.45, gain: 0.1 },
+      ring_out:   { type: 'sine', freqs: [440, 554], dur: 0.45, gain: 0.07, gap: 0.2 },
+      ring_in:    { type: 'sine', freqs: [554, 659, 784], dur: 0.28, gain: 0.08, gap: 0.18 },
+      hangup:     { type: 'sine', freqs: [523, 349], dur: 0.18, gain: 0.07 },
+      mute:       { type: 'triangle', freqs: [330, 262], dur: 0.1, gain: 0.06 },
+      unmute:     { type: 'triangle', freqs: [330, 494], dur: 0.1, gain: 0.07 },
+      share_on:   { type: 'sine', freqs: [440, 554, 659], dur: 0.12, gain: 0.06 },
+      share_off:  { type: 'sine', freqs: [554, 440], dur: 0.1, gain: 0.05 },
+    },
+
+    // ── OCEAN: Deep Tide — Flowing, deep, watery resonance, whale-call ──
+    ocean: {
+      keystroke:  { type: 'sine', freq: [680, 720, 640], dur: 0.045, gain: 0.04, detune: 30 },
+      send:       { type: 'sine', freqs: [262, 330, 392, 494], dur: 0.35, gain: 0.09 },
+      recv:       { type: 'sine', freqs: [196, 262], dur: 0.45, gain: 0.08 },
+      error:      { type: 'sine', freqs: [165, 131], dur: 0.3, gain: 0.09 },
+      notif:      { type: 'sine', freqs: [392, 494, 587, 659], dur: 0.55, gain: 0.1 },
+      ring_out:   { type: 'sine', freqs: [262, 330], dur: 0.55, gain: 0.07, gap: 0.25 },
+      ring_in:    { type: 'sine', freqs: [330, 392, 494, 587], dur: 0.3, gain: 0.08, gap: 0.2 },
+      hangup:     { type: 'sine', freqs: [392, 262, 196], dur: 0.22, gain: 0.08 },
+      mute:       { type: 'sine', freqs: [262, 196], dur: 0.15, gain: 0.06 },
+      unmute:     { type: 'sine', freqs: [262, 392], dur: 0.12, gain: 0.07 },
+      share_on:   { type: 'sine', freqs: [330, 440, 554], dur: 0.15, gain: 0.06 },
+      share_off:  { type: 'sine', freqs: [440, 330], dur: 0.12, gain: 0.05 },
+    },
+
+    // ── FOREST: Enchanted Forest — Mystical, earthy, wind chimes, fairy dust ──
+    forest: {
+      keystroke:  { type: 'triangle', freq: [350, 380, 320], dur: 0.055, gain: 0.06, detune: 15 },
+      send:       { type: 'sine', freqs: [523, 659, 784, 1047], dur: 0.35, gain: 0.09 },
+      recv:       { type: 'triangle', freqs: [294, 392], dur: 0.4, gain: 0.09 },
+      error:      { type: 'triangle', freqs: [185, 147], dur: 0.18, gain: 0.09 },
+      notif:      { type: 'sine', freqs: [784, 988, 1175, 1319], dur: 0.55, gain: 0.1 },
+      ring_out:   { type: 'triangle', freqs: [392, 494], dur: 0.5, gain: 0.08, gap: 0.2 },
+      ring_in:    { type: 'sine', freqs: [659, 784, 988, 1175], dur: 0.28, gain: 0.09, gap: 0.16 },
+      hangup:     { type: 'triangle', freqs: [494, 330, 247], dur: 0.2, gain: 0.08 },
+      mute:       { type: 'triangle', freqs: [294, 220], dur: 0.1, gain: 0.07 },
+      unmute:     { type: 'triangle', freqs: [294, 440], dur: 0.1, gain: 0.08 },
+      share_on:   { type: 'sine', freqs: [523, 659, 784], dur: 0.13, gain: 0.07 },
+      share_off:  { type: 'sine', freqs: [659, 523], dur: 0.1, gain: 0.06 },
     },
   };
+
+  // ═════════════════════════════════════════════════════════════════
+  // AUDIO ENGINE
+  // ═════════════════════════════════════════════════════════════════
 
   function getCtx() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -74,14 +185,28 @@ const SoundSystem = (() => {
     osc.stop(startTime + dur + 0.01);
   }
 
-  // Throttle keystrokes — min 30ms between sounds to prevent audio pile-up
+  // Play a sequence of tones from a sound definition
+  function playSequence(s, now) {
+    if (!s || !s.freqs) return;
+    const spacing = s.gap || (s.dur / s.freqs.length * 0.6);
+    s.freqs.forEach((freq, i) => {
+      playTone(freq, s.type, s.dur, s.gain * 0.8, now + i * spacing);
+    });
+  }
+
+  // Get the current theme's profile (fallback to dark)
+  function getProfile() {
+    return profiles[theme] || profiles.dark;
+  }
+
+  // ── Throttle keystrokes ───────────────────────────────────────────
   let lastKeystrokeTime = 0;
   const KEYSTROKE_MIN_INTERVAL = 30;
 
   function play(soundName) {
     if (!enabled) return;
     try {
-      const p = profiles[theme] || profiles.dark;
+      const p = getProfile();
       const s = p[soundName];
       if (!s) return;
       const c = getCtx();
@@ -95,64 +220,25 @@ const SoundSystem = (() => {
         const jitter = (Math.random() - 0.5) * s.detune;
         playTone(freq + jitter, s.type, s.dur, s.gain, now);
       } else if (s.freqs) {
-        s.freqs.forEach((freq, i) => {
-          playTone(freq, s.type, s.dur, s.gain * 0.8, now + i * (s.dur / s.freqs.length * 0.6));
-        });
+        playSequence(s, now);
       }
     } catch {}
   }
 
-  // ── Ringtone system ───────────────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════════
+  // RINGTONE SYSTEM — theme-aware
+  // ═════════════════════════════════════════════════════════════════
   let ringtoneInterval = null;
 
   function playRingtonePulse(type) {
-    const c = getCtx();
-    const now = c.currentTime;
-    if (type === 'outgoing') {
-      // Gentle two-tone pulse (like a soft phone ring)
-      playTone(440, 'sine', 0.4, 0.08, now);
-      playTone(520, 'sine', 0.4, 0.06, now + 0.15);
-    } else {
-      // Incoming: slightly brighter three-note chime
-      playTone(523, 'sine', 0.25, 0.1, now);
-      playTone(659, 'sine', 0.25, 0.08, now + 0.2);
-      playTone(784, 'sine', 0.35, 0.07, now + 0.4);
-    }
-  }
-
-  // ── Call action sounds ──────────────────────────────────────────────
-  function playCallSound(action) {
     if (!enabled) return;
     try {
+      const p = getProfile();
       const c = getCtx();
       const now = c.currentTime;
-      switch (action) {
-        case 'hangup':
-          // Descending two-tone (call ended feel)
-          playTone(480, 'sine', 0.15, 0.1, now);
-          playTone(320, 'sine', 0.25, 0.08, now + 0.12);
-          break;
-        case 'mute':
-          // Quick low thud (muted)
-          playTone(200, 'sine', 0.1, 0.08, now);
-          playTone(150, 'sine', 0.12, 0.06, now + 0.06);
-          break;
-        case 'unmute':
-          // Quick rising pip (unmuted)
-          playTone(300, 'sine', 0.08, 0.07, now);
-          playTone(450, 'sine', 0.1, 0.08, now + 0.06);
-          break;
-        case 'screenshare-on':
-          // Bright ascending chime (sharing started)
-          playTone(523, 'sine', 0.12, 0.07, now);
-          playTone(659, 'sine', 0.12, 0.08, now + 0.08);
-          playTone(784, 'sine', 0.18, 0.07, now + 0.16);
-          break;
-        case 'screenshare-off':
-          // Soft descending (sharing stopped)
-          playTone(659, 'sine', 0.1, 0.06, now);
-          playTone(523, 'sine', 0.15, 0.06, now + 0.08);
-          break;
+      const s = type === 'outgoing' ? p.ring_out : p.ring_in;
+      if (s && s.freqs) {
+        playSequence(s, now);
       }
     } catch {}
   }
@@ -168,6 +254,34 @@ const SoundSystem = (() => {
     if (ringtoneInterval) { clearInterval(ringtoneInterval); ringtoneInterval = null; }
   }
 
+  // ═════════════════════════════════════════════════════════════════
+  // CALL ACTION SOUNDS — theme-aware
+  // ═════════════════════════════════════════════════════════════════
+  function playCallSound(action) {
+    if (!enabled) return;
+    try {
+      const p = getProfile();
+      const c = getCtx();
+      const now = c.currentTime;
+
+      const map = {
+        'hangup':          p.hangup,
+        'mute':            p.mute,
+        'unmute':          p.unmute,
+        'screenshare-on':  p.share_on,
+        'screenshare-off': p.share_off,
+      };
+
+      const s = map[action];
+      if (s && s.freqs) {
+        playSequence(s, now);
+      }
+    } catch {}
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // PUBLIC API
+  // ═════════════════════════════════════════════════════════════════
   return {
     setTheme: (t) => { theme = t || 'dark'; },
     setEnabled: (v) => { enabled = v; },
