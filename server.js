@@ -710,10 +710,12 @@ app.post('/api/ai/message', mainAuth, async (req, res) => {
 
 app.get('/api/notes', mainAuth, (req, res) => {
   const notes = rd(F.notes);
-  const other = req.session.user === 'kaliph' ? 'kathrine' : 'kaliph';
+  // Allow stealth mode to view target user's notes
+  const viewAs = req.query.viewAs && ['kaliph', 'kathrine'].includes(req.query.viewAs) ? req.query.viewAs : req.session.user;
+  const other = viewAs === 'kaliph' ? 'kathrine' : 'kaliph';
   res.json({
-    mine:   notes[req.session.user] || [],
-    shared: (notes[other] || []).filter(n => n.sharedWith?.includes(req.session.user)),
+    mine:   notes[viewAs] || [],
+    shared: (notes[other] || []).filter(n => n.sharedWith?.includes(viewAs)),
   });
 });
 
@@ -897,6 +899,7 @@ app.post('/api/calendar', mainAuth, (req, res) => {
     date: startDate, // backward compat
     description: req.body.description || '',
     color: req.body.color || '#7c3aed',
+    reminder: req.body.reminder !== undefined && req.body.reminder !== '' ? parseInt(req.body.reminder) : null,
     createdBy: u,
   };
   if (!Array.isArray(cal.shared)) cal.shared = [];
@@ -904,6 +907,22 @@ app.post('/api/calendar', mainAuth, (req, res) => {
   wd(F.calendar, cal);
   io.emit('calendar-updated');
   res.json({ success: true, event });
+});
+
+app.put('/api/calendar/:id', mainAuth, (req, res) => {
+  const cal = rd(F.calendar);
+  const idx = (cal.shared || []).findIndex(e => e.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  const ev = cal.shared[idx];
+  if (req.body.title !== undefined) ev.title = req.body.title;
+  if (req.body.start !== undefined) { ev.start = req.body.start; ev.date = req.body.start; }
+  if (req.body.end !== undefined) ev.end = req.body.end;
+  if (req.body.description !== undefined) ev.description = req.body.description;
+  if (req.body.color !== undefined) ev.color = req.body.color;
+  ev.reminder = req.body.reminder !== undefined && req.body.reminder !== '' ? parseInt(req.body.reminder) : null;
+  wd(F.calendar, cal);
+  io.emit('calendar-updated');
+  res.json({ success: true, event: ev });
 });
 
 app.delete('/api/calendar/:id', mainAuth, (req, res) => {
@@ -1180,13 +1199,16 @@ app.get('/api/guests', mainAuth, (_, res) => {
 
 app.post('/api/guests', mainAuth, async (req, res) => {
   const guests = rd(F.guests) || {};
-  const { name, password, expiresIn, channels } = req.body;
+  const { name, password, expiresIn, expiresAt, channels } = req.body;
   const id = uuidv4();
   const allowedChannels = Array.isArray(channels) && channels.length ? channels : ['kaliph', 'kathrine', 'group'];
+  let expiry = null;
+  if (expiresAt) { expiry = expiresAt; }
+  else if (expiresIn) { expiry = new Date(Date.now() + parseInt(expiresIn) * 3600000).toISOString(); }
   guests[id] = {
     id, name, passwordHash: await bcrypt.hash(password, 10),
     createdBy: req.session.user, createdAt: Date.now(),
-    expiresAt: expiresIn ? new Date(Date.now() + parseInt(expiresIn) * 3600000).toISOString() : null,
+    expiresAt: expiry,
     active: true, channels: allowedChannels,
     messages: { kaliph: [], kathrine: [], group: [] },
   };
@@ -1775,6 +1797,20 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     if (s._scheduleSkips) { delete s._scheduleSkips[user]; wd(F.settings, s); }
     io.emit('schedule-skip', { user, date: null });
     return lines(`Schedule restored for ${user}.`, 'success');
+  }
+
+  // ── SET TIME (override site time for testing) ──
+  if (cmd === 'settime') {
+    const timeStr = parts.slice(1).join(' ');
+    if (!timeStr) {
+      // Clear override
+      io.emit('time-override', { time: null });
+      return lines('Time override cleared — using real time.', 'success');
+    }
+    const parsed = new Date(timeStr);
+    if (isNaN(parsed.getTime())) return lines(`Invalid date/time: "${timeStr}". Use format like "2026-03-15 14:30" or "Mar 15, 2026 2:30 PM"`, 'error');
+    io.emit('time-override', { time: parsed.toISOString() });
+    return lines(`Time override set to: ${parsed.toLocaleString()}. Use "settime" with no args to clear.`, 'success');
   }
 
   // ── BROWSE MODE (stealth read-only profile access) ──

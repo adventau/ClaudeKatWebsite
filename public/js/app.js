@@ -358,8 +358,13 @@ function applyUserData(me, other) {
   document.getElementById('profile-bio').value = me.bio || '';
   if (me.nameStyle?.color) document.getElementById('profile-name-color').value = me.nameStyle.color;
   if (me.banner) {
-    document.getElementById('banner-preview').style.display = '';
-    document.getElementById('banner-preview-img').src = me.banner;
+    const bannerEl = document.getElementById('profile-edit-banner');
+    if (bannerEl) { bannerEl.style.backgroundImage = `url(${me.banner})`; bannerEl.style.backgroundSize = 'cover'; }
+  }
+  const namePreview = document.getElementById('profile-edit-name-preview');
+  if (namePreview) {
+    namePreview.textContent = me.displayName || me.name;
+    if (me.nameStyle?.color) namePreview.style.color = me.nameStyle.color;
   }
   // Store name colors for chat rendering
   if (me.nameStyle?.color) nameColors[currentUser] = me.nameStyle.color;
@@ -438,6 +443,7 @@ async function selectTheme(themeId) {
 // ── Navigation ────────────────────────────────────────────────────────
 let currentSection = 'chat';
 function showSection(name, el) {
+  SoundSystem.navigate();
   currentSection = name;
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -662,7 +668,7 @@ function buildMsgElement(msg) {
   if (msg.priority) {
     const pb = document.createElement('div');
     pb.className = 'msg-priority-badge';
-    pb.innerHTML = '🔴 Priority';
+    pb.innerHTML = '<i data-lucide="alert-triangle" style="width:11px;height:11px"></i> Priority';
     content.appendChild(pb);
   }
 
@@ -1920,6 +1926,16 @@ function setupSocketEvents() {
     loadReminders();
   });
 
+  socket.on('time-override', ({ time }) => {
+    if (time) {
+      window._timeOverride = new Date(time);
+      showToast('⏰ Time override active: ' + window._timeOverride.toLocaleString());
+    } else {
+      window._timeOverride = null;
+      showToast('⏰ Time override cleared — using real time.');
+    }
+  });
+
   socket.on('show-update-log', ({ target }) => {
     if (target === 'both' || target === currentUser) {
       localStorage.removeItem('rkk-changelog-dismissed-' + currentUser);
@@ -2020,7 +2036,8 @@ async function clearBrainstorm() {
 
 // ── Notes ─────────────────────────────────────────────────────────────
 async function loadNotes() {
-  const data = await fetch('/api/notes').then(r => r.json());
+  const url = stealthMode ? `/api/notes?viewAs=${currentUser}` : '/api/notes';
+  const data = await fetch(url).then(r => r.json());
   allNotes = data;
   renderNotesList();
 }
@@ -2097,6 +2114,7 @@ function openNote(id) {
               <span class="todo-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
             </div>
             <span class="todo-item-text">${item.text}</span>
+            ${isOwn ? `<button class="todo-item-edit" onclick="event.stopPropagation();editTodoItem('${id}',${i})" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px"></i></button>` : ''}
             ${isOwn ? `<button class="todo-item-del" onclick="event.stopPropagation();removeTodoItem('${id}',${i})" title="Remove">✕</button>` : ''}
           </div>`).join('')}
         ${isOwn ? `<div style="margin-top:8px;display:flex;gap:6px">
@@ -2208,6 +2226,37 @@ async function addTodoItemToNote(noteId) {
   openNote(noteId);
 }
 
+function editTodoItem(noteId, idx) {
+  const note = (allNotes.mine||[]).find(n => n.id === noteId);
+  if (!note || !note.todos[idx]) return;
+  const items = document.querySelectorAll('#todo-list-editor .todo-item');
+  const item = items[idx];
+  if (!item) return;
+  const textEl = item.querySelector('.todo-item-text');
+  if (!textEl) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = note.todos[idx].text;
+  input.style.cssText = 'flex:1;font-size:inherit;background:var(--bg-card);border:1px solid var(--accent);border-radius:6px;padding:4px 8px;color:var(--text-primary);outline:none';
+  let saved = false;
+  const save = async () => {
+    if (saved) return;
+    saved = true;
+    const newText = input.value.trim();
+    if (newText && newText !== note.todos[idx].text) {
+      note.todos[idx].text = newText;
+      await fetch(`/api/notes/${noteId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ todos: note.todos }) });
+      await loadNotes();
+    }
+    openNote(noteId);
+  };
+  input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') openNote(noteId); };
+  input.onblur = save;
+  textEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
 async function shareNote(id) {
   await fetch(`/api/notes/${id}/share`, { method: 'POST' });
   await loadNotes(); openNote(id);
@@ -2290,12 +2339,21 @@ async function renderCalendar() {
         const titleSpan = document.createElement('span');
         titleSpan.textContent = ev.title;
         el.appendChild(titleSpan);
+        const btns = document.createElement('span');
+        btns.className = 'cal-event-btns';
+        const editBtn = document.createElement('button');
+        editBtn.className = 'cal-event-edit';
+        editBtn.innerHTML = '✎';
+        editBtn.title = 'Edit event';
+        editBtn.onclick = (e) => { e.stopPropagation(); editCalEvent(ev.id); };
+        btns.appendChild(editBtn);
         const delBtn = document.createElement('button');
         delBtn.className = 'cal-event-del';
         delBtn.textContent = '✕';
         delBtn.title = 'Delete event';
         delBtn.onclick = (e) => { e.stopPropagation(); deleteCalEvent(ev.id); };
-        el.appendChild(delBtn);
+        btns.appendChild(delBtn);
+        el.appendChild(btns);
         cell.appendChild(el);
       }
     } else {
@@ -2345,14 +2403,23 @@ async function renderCalendar() {
             titleSpan.textContent = isEventStart || rowStart.getDate() === 1 ? ev.title : '';
             bar.appendChild(titleSpan);
 
-            // Delete button only on first segment
+            // Edit & delete buttons only on first segment
             if (isEventStart) {
+              const btns = document.createElement('span');
+              btns.className = 'cal-event-btns';
+              const editBtn = document.createElement('button');
+              editBtn.className = 'cal-event-edit';
+              editBtn.innerHTML = '✎';
+              editBtn.title = 'Edit event';
+              editBtn.onclick = (e) => { e.stopPropagation(); editCalEvent(ev.id); };
+              btns.appendChild(editBtn);
               const delBtn = document.createElement('button');
               delBtn.className = 'cal-event-del';
               delBtn.textContent = '✕';
               delBtn.title = 'Delete event';
               delBtn.onclick = (e) => { e.stopPropagation(); deleteCalEvent(ev.id); };
-              bar.appendChild(delBtn);
+              btns.appendChild(delBtn);
+              bar.appendChild(btns);
             }
 
             startCell.appendChild(bar);
@@ -2527,7 +2594,163 @@ async function saveEvent() {
 async function deleteCalEvent(eventId) {
   await fetch(`/api/calendar/${eventId}`, { method: 'DELETE' });
   renderCalendar();
+  SoundSystem.deleteSnd();
   showToast('Event deleted');
+}
+
+// ── Edit Event Date Picker (EEDP) ─────────────────────────────────────
+let eedpYear, eedpMonth, eedpSelectStart = null, eedpSelectEnd = null, eedpPickerOpen = false;
+
+function toggleEditEventDatePicker() {
+  const picker = document.getElementById('edit-event-date-picker');
+  eedpPickerOpen = !eedpPickerOpen;
+  picker.style.display = eedpPickerOpen ? '' : 'none';
+  if (eedpPickerOpen) {
+    const today = new Date();
+    if (!eedpYear) { eedpYear = today.getFullYear(); eedpMonth = today.getMonth(); }
+    renderEedpGrid();
+  }
+}
+
+function eedpPrev() { eedpMonth--; if (eedpMonth < 0) { eedpMonth = 11; eedpYear--; } renderEedpGrid(); }
+function eedpNext() { eedpMonth++; if (eedpMonth > 11) { eedpMonth = 0; eedpYear++; } renderEedpGrid(); }
+
+function renderEedpGrid() {
+  document.getElementById('eedp-month-label').textContent =
+    new Date(eedpYear, eedpMonth).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  const grid = document.getElementById('eedp-grid');
+  Array.from(grid.children).slice(7).forEach(c => c.remove());
+
+  const firstDay = new Date(eedpYear, eedpMonth, 1).getDay();
+  const daysInMonth = new Date(eedpYear, eedpMonth + 1, 0).getDate();
+  const today = new Date();
+
+  for (let i = 0; i < firstDay; i++) {
+    const empty = document.createElement('div');
+    empty.className = 'edp-day edp-day-empty';
+    grid.appendChild(empty);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement('div');
+    cell.className = 'edp-day';
+    const dateStr = `${eedpYear}-${String(eedpMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+    if (d === today.getDate() && eedpMonth === today.getMonth() && eedpYear === today.getFullYear()) {
+      cell.classList.add('edp-today');
+    }
+
+    if (eedpSelectStart && eedpSelectEnd) {
+      const s = eedpSelectStart <= eedpSelectEnd ? eedpSelectStart : eedpSelectEnd;
+      const e = eedpSelectStart <= eedpSelectEnd ? eedpSelectEnd : eedpSelectStart;
+      if (dateStr === s && dateStr === e) cell.classList.add('edp-selected-single');
+      else if (dateStr === s) cell.classList.add('edp-range-start');
+      else if (dateStr === e) cell.classList.add('edp-range-end');
+      else if (dateStr > s && dateStr < e) cell.classList.add('edp-range-mid');
+    } else if (eedpSelectStart && dateStr === eedpSelectStart) {
+      cell.classList.add('edp-selected-single');
+    }
+
+    cell.textContent = d;
+    cell.onclick = () => eedpSelectDate(dateStr);
+    grid.appendChild(cell);
+  }
+}
+
+function eedpSelectDate(dateStr) {
+  if (!eedpSelectStart || eedpSelectEnd) {
+    eedpSelectStart = dateStr;
+    eedpSelectEnd = null;
+  } else {
+    if (dateStr === eedpSelectStart) {
+      eedpSelectEnd = dateStr;
+    } else if (dateStr < eedpSelectStart) {
+      eedpSelectEnd = eedpSelectStart;
+      eedpSelectStart = dateStr;
+    } else {
+      eedpSelectEnd = dateStr;
+    }
+  }
+  document.getElementById('edit-event-start-date').value = eedpSelectStart;
+  document.getElementById('edit-event-end-date').value = eedpSelectEnd || eedpSelectStart;
+  updateEditEventDateDisplay();
+  renderEedpGrid();
+}
+
+function updateEditEventDateDisplay() {
+  const display = document.getElementById('edit-event-date-display');
+  const start = eedpSelectStart;
+  const end = eedpSelectEnd || eedpSelectStart;
+  if (!start) { display.textContent = 'Select date(s)...'; display.classList.remove('has-value'); return; }
+  const fmt = (ds) => {
+    const d = new Date(ds + 'T00:00:00');
+    return d.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+  display.textContent = (start === end || !end) ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
+  display.classList.add('has-value');
+}
+
+// ── Edit & Update Calendar Events ─────────────────────────────────────
+async function editCalEvent(eventId) {
+  const calData = await fetch('/api/calendar').then(r => r.json()).catch(() => ({}));
+  const events = calData.shared || [];
+  const ev = events.find(e => e.id === eventId);
+  if (!ev) return showToast('Event not found');
+
+  document.getElementById('edit-event-id').value = ev.id;
+  document.getElementById('edit-event-title').value = ev.title || '';
+  document.getElementById('edit-event-desc').value = ev.description || '';
+  document.getElementById('edit-event-color').value = ev.color || '#7c3aed';
+
+  const reminderSelect = document.getElementById('edit-event-reminder');
+  if (ev.reminder != null) {
+    reminderSelect.value = String(ev.reminder);
+  } else {
+    reminderSelect.value = '';
+  }
+
+  // Set up edit date picker state
+  eedpSelectStart = ev.start || ev.date;
+  eedpSelectEnd = ev.end || eedpSelectStart;
+  document.getElementById('edit-event-start-date').value = eedpSelectStart;
+  document.getElementById('edit-event-end-date').value = eedpSelectEnd;
+  updateEditEventDateDisplay();
+
+  const d = new Date(eedpSelectStart + 'T00:00:00');
+  eedpYear = d.getFullYear();
+  eedpMonth = d.getMonth();
+
+  openModal('edit-event-modal');
+  document.getElementById('edit-event-date-picker').style.display = 'none';
+  eedpPickerOpen = false;
+}
+
+async function updateCalEvent() {
+  const id = document.getElementById('edit-event-id').value;
+  const title = document.getElementById('edit-event-title').value.trim();
+  const start = document.getElementById('edit-event-start-date').value;
+  const end = document.getElementById('edit-event-end-date').value || start;
+  if (!title) return showToast('Event title required');
+  if (!start) return showToast('Date required');
+
+  const reminderVal = document.getElementById('edit-event-reminder').value;
+  await fetch(`/api/calendar/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      start,
+      end,
+      description: document.getElementById('edit-event-desc').value,
+      color: document.getElementById('edit-event-color').value,
+      reminder: reminderVal !== '' ? parseInt(reminderVal) : null,
+    })
+  });
+
+  closeModal('edit-event-modal');
+  renderCalendar();
+  showToast('Event updated!');
 }
 
 // ── Calendar Event Banner & Reminders ──────────────────────────────────
@@ -2555,13 +2778,16 @@ async function checkTodayEvents() {
       banner.style.display = '';
     }
 
-    // Check reminders — show toast for events with reminders matching today
+    // Check reminders — show toast for events with reminders matching today (once per session)
     const todayDate = new Date(today + 'T00:00:00');
     events.forEach(ev => {
       if (ev.reminder == null) return;
       const evStart = new Date((ev.start || ev.date) + 'T00:00:00');
       const daysUntil = Math.round((evStart - todayDate) / 86400000);
       if (daysUntil === ev.reminder) {
+        const shownKey = 'rkk-event-reminder-shown-' + ev.id;
+        if (sessionStorage.getItem(shownKey)) return;
+        sessionStorage.setItem(shownKey, '1');
         const when = daysUntil === 0 ? 'today' : daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`;
         showToast(`📅 Reminder: "${ev.title}" is ${when}!`);
       }
@@ -3838,8 +4064,8 @@ async function uploadBanner(input) {
   const r = await fetch(`/api/users/${currentUser}/banner`, { method: 'POST', body: fd });
   const d = await r.json();
   if (d.banner) {
-    document.getElementById('banner-preview').style.display = '';
-    document.getElementById('banner-preview-img').src = d.banner;
+    const bannerEl = document.getElementById('profile-edit-banner');
+    if (bannerEl) { bannerEl.style.backgroundImage = `url(${d.banner})`; bannerEl.style.backgroundSize = 'cover'; }
     showToast('🖼️ Banner updated!');
   }
 }
@@ -3870,7 +4096,9 @@ async function viewProfile(username) {
   const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
   const pvPresence = u._presence || 'offline';
   const pvStatus = pvPresence === 'online' ? 'online' : pvPresence === 'idle' ? 'idle' : 'invisible';
-  document.getElementById('pv-status-dot').style.background = statusColors[pvStatus] || '#22c55e';
+  const pvDot = document.getElementById('pv-status-dot');
+  pvDot.style.background = statusColors[pvStatus] || '#22c55e';
+  pvDot.className = 'pc-status-dot' + (pvStatus === 'online' ? ' online' : '');
   // Names
   const nameEl = document.getElementById('pv-name');
   nameEl.textContent = u.displayName || capitalize(u.name);
@@ -4129,16 +4357,18 @@ async function loadGuests() {
     }
     return `
     <div class="guest-pass-card">
+      <div class="guest-pass-avatar"><i data-lucide="user" style="width:20px;height:20px"></i></div>
       <div class="guest-pass-info">
         <div class="guest-pass-name">${escapeHtml(g.name)}</div>
         <div class="guest-pass-meta">${expiryInfo}${g.createdBy ? ' · Created by ' + capitalize(g.createdBy) : ''}</div>
         <div class="guest-pass-channels">${badges}</div>
       </div>
       <div class="guest-pass-actions">
-        <button class="btn-danger" style="padding:6px 14px;font-size:0.78rem;border-radius:8px" onclick="revokeGuest('${g.id}','${escapeHtml(g.name)}')">Revoke</button>
+        <button class="btn-ghost guest-pass-action-btn" onclick="revokeGuest('${g.id}','${escapeHtml(g.name)}')" title="Revoke"><i data-lucide="trash-2" style="width:15px;height:15px;color:#ef4444"></i></button>
       </div>
     </div>`;
   }).join('');
+  if (window.lucide) lucide.createIcons();
   // Start countdown timers
   startGuestCountdowns();
   // Update guest-to-guest channel options in the creation form
@@ -4154,10 +4384,11 @@ function startGuestCountdowns() {
       if (diff <= 0) {
         el.innerHTML = '<span style="color:#ef4444">Expired</span>';
       } else {
-        const hrs = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+        const hrs = Math.floor((diff % 86400000) / 3600000);
         const mins = Math.floor((diff % 3600000) / 60000);
         const secs = Math.floor((diff % 60000) / 1000);
-        el.textContent = `⏱ ${hrs}h ${mins}m ${secs}s`;
+        el.textContent = days > 0 ? `⏱ ${days}d ${hrs}h ${mins}m ${secs}s` : `⏱ ${hrs}h ${mins}m ${secs}s`;
       }
     });
   }, 1000);
@@ -4169,31 +4400,49 @@ function updateGuestChannelOptions(activeGuests) {
   if (!container) return;
   container.innerHTML = '';
   activeGuests.forEach(g => {
-    container.innerHTML += `<label class="channel-perm-check"><input type="checkbox" data-guest-channel="${g.id}"> <span>Chat with ${escapeHtml(g.name)} (guest)</span></label>`;
+    container.innerHTML += `<label class="channel-perm-check"><div class="toggle-switch"><input type="checkbox" data-guest-channel="${g.id}"><span class="toggle-slider"></span></div><i data-lucide="user" style="width:14px;height:14px;color:var(--accent)"></i> <span>Chat with ${escapeHtml(g.name)} (guest)</span></label>`;
   });
+}
+
+function toggleGuestExpiryMode() {
+  const mode = document.getElementById('guest-expires-mode').value;
+  const durEl = document.getElementById('guest-expiry-duration');
+  const dtEl = document.getElementById('guest-expiry-datetime');
+  durEl.style.display = mode === 'duration' ? 'flex' : 'none';
+  dtEl.style.display = mode === 'datetime' ? 'block' : 'none';
 }
 
 async function createGuest() {
   const name = document.getElementById('guest-name').value.trim();
   const pw   = document.getElementById('guest-pw').value;
-  const exp  = document.getElementById('guest-expires').value;
   if (!name || !pw) return showToast('⚠️ Name and password required');
+  // Compute expiration
+  const mode = document.getElementById('guest-expires-mode').value;
+  let expiresAt = null;
+  if (mode === 'duration') {
+    const hrs = parseInt(document.getElementById('guest-expires-hours').value) || 0;
+    const mins = parseInt(document.getElementById('guest-expires-minutes').value) || 0;
+    if (hrs || mins) expiresAt = new Date(Date.now() + hrs * 3600000 + mins * 60000).toISOString();
+  } else if (mode === 'datetime') {
+    const dt = document.getElementById('guest-expires-at').value;
+    if (dt) expiresAt = new Date(dt).toISOString();
+  }
   const channels = [];
   if (document.getElementById('guest-perm-kaliph').checked) channels.push('kaliph');
   if (document.getElementById('guest-perm-kathrine').checked) channels.push('kathrine');
   if (document.getElementById('guest-perm-group').checked) channels.push('group');
-  // Guest-to-guest channels
   document.querySelectorAll('#guest-to-guest-perms input[data-guest-channel]').forEach(cb => {
     if (cb.checked) channels.push('guest-' + cb.dataset.guestChannel);
   });
   if (!channels.length) return showToast('⚠️ Select at least one channel');
   await fetch('/api/guests', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, password: pw, expiresIn: exp || null, channels })
+    body: JSON.stringify({ name, password: pw, expiresAt, channels })
   });
   document.getElementById('guest-name').value = '';
   document.getElementById('guest-pw').value = '';
-  document.getElementById('guest-expires').value = '';
+  document.getElementById('guest-expires-mode').value = 'never';
+  toggleGuestExpiryMode();
   document.getElementById('guest-perm-kaliph').checked = true;
   document.getElementById('guest-perm-kathrine').checked = true;
   document.getElementById('guest-perm-group').checked = true;
@@ -5161,7 +5410,8 @@ function setupKeyboardShortcuts() {
     if (mod && e.key === 'n') { e.preventDefault(); openModal('new-note-modal'); }
     if (mod && e.key === 'e' && focused) { e.preventDefault(); openEmojiPicker({clientX:100,clientY:400,stopPropagation:()=>{}}, 'msg'); }
     if (e.key === 'Escape') { closeAllModals(); closeContextMenu(); document.getElementById('emoji-picker').classList.remove('open'); document.getElementById('reaction-picker').classList.remove('open'); }
-    if (noMod && !focused) {
+    const anyInputFocused = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable);
+    if (noMod && !anyInputFocused) {
       if (e.key === '/') { e.preventDefault(); input.focus(); }
     }
   });
@@ -5345,9 +5595,9 @@ async function syncMissedMessages() {
 }
 
 // ── Modal helpers ─────────────────────────────────────────────────────
-function openModal(id)  { document.getElementById(id)?.classList.add('open'); }
-function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
-function closeAllModals() { document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); }
+function openModal(id)  { document.getElementById(id)?.classList.add('open'); SoundSystem.modalOpen(); }
+function closeModal(id) { document.getElementById(id)?.classList.remove('open'); SoundSystem.modalClose(); }
+function closeAllModals() { document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); SoundSystem.modalClose(); }
 
 // Click outside modal
 document.addEventListener('click', e => {
@@ -5365,12 +5615,25 @@ document.addEventListener('click', e => {
 
 // ── Notifications + Push (Service Worker) ─────────────────────────────
 async function requestNotificationPermission() {
-  if (!('Notification' in window)) return;
+  if (!('Notification' in window)) {
+    showToast('Your browser does not support notifications');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    showToast('Notifications are blocked. Please enable them in your browser settings.');
+    return;
+  }
   if (Notification.permission === 'default') {
     const result = await Notification.requestPermission();
-    if (result === 'granted') await registerPushSubscription();
+    if (result === 'granted') {
+      await registerPushSubscription();
+      showToast('🔔 Desktop notifications enabled!');
+    } else {
+      showToast('Notification permission was denied.');
+    }
   } else if (Notification.permission === 'granted') {
     await registerPushSubscription();
+    showToast('🔔 Desktop notifications are already enabled!');
   }
 }
 
@@ -5486,12 +5749,16 @@ function jumpToMessage(msgId) {
 let _reminders = [];
 let _remindersTab = 'upcoming';
 let _reminderCheckInterval = null;
+let _remindersLoading = false;
 
 async function loadReminders() {
+  if (_remindersLoading) return;
+  _remindersLoading = true;
   try {
     const resp = await fetch('/api/reminders');
     _reminders = await resp.json();
   } catch { _reminders = []; }
+  _remindersLoading = false;
   renderReminders();
   updateReminderBadge();
 }
@@ -5703,12 +5970,17 @@ async function snoozeReminder(id) {
 
 async function deleteReminder(id) {
   await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
+  SoundSystem.deleteSnd();
   showToast('🗑️ Reminder deleted');
   await loadReminders();
 }
 
 function showReminderNotification(data) {
   if (data.user !== currentUser) return;
+  // Only show once per session to prevent popup spam on reload
+  const shownKey = 'rkk-reminder-toast-' + data.id;
+  if (sessionStorage.getItem(shownKey)) return;
+  sessionStorage.setItem(shownKey, '1');
   // Create rich notification toast
   const c = document.getElementById('toast-container');
   const toast = document.createElement('div');
@@ -5744,6 +6016,52 @@ function startReminderChecker() {
 
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
+  {
+    version: '3.4.0',
+    date: 'Mar 11 2026',
+    intro: 'Massive update — event editing, reminder fixes, modernized UI across the board, theme refinements, guest pass overhaul, and more.',
+    sections: [
+      { icon: '📅', title: 'Calendar & Events', items: [
+        { name: 'Edit Events', desc: 'Click the pencil icon on any calendar event to edit its title, dates, description, color, and reminder.' },
+        { name: 'Eval Time Override', desc: 'Set the site\'s time via eval for testing calendar events and reminders.' },
+      ]},
+      { icon: '🔔', title: 'Reminders', items: [
+        { name: 'No More Popup Spam', desc: 'Reminder and event notifications no longer re-show every time you load the site.' },
+        { name: 'Duplication Fix', desc: 'Fixed a bug where reminders could appear duplicated in the list.' },
+        { name: 'Modern Notify Toggles', desc: 'The "Notify via" checkboxes are now sleek toggle switches matching the site design.' },
+      ]},
+      { icon: '🎨', title: 'UI & Themes', items: [
+        { name: 'Priority Badge Refresh', desc: 'Priority message indicator redesigned with a clean icon-based pill instead of emoji.' },
+        { name: 'Priority Notifications UI', desc: 'Priority notification styling now matches the site\'s native design language.' },
+        { name: 'Dark Theme Chat Fix', desc: 'Main chat area on dark theme optimized for smaller screens — no more needing to zoom out on Chromebook.' },
+        { name: 'Dark Theme Chat Tab Centered', desc: 'Chat tab now properly centered on dark theme.' },
+        { name: 'Text & Font Optimization', desc: 'Optimized all text, fonts, and buttons across every theme so nothing is too bright or too dark to see.' },
+        { name: 'Kaliph\'s Theme Revamp', desc: 'Kaliph\'s AVNT theme has been visually revamped with a fresh modern look.' },
+        { name: 'Celestial Heaven Replaced', desc: 'Celestial Heaven theme has been redone with an improved design.' },
+        { name: 'Enchanted Forest Text Size', desc: 'Increased text size on the Enchanted Forest theme for better readability.' },
+        { name: 'Royal K&K Logo Sizing', desc: 'Royal K&K header logo is now bigger and more prominent on each theme.' },
+      ]},
+      { icon: '💬', title: 'Chat & Messaging', items: [
+        { name: 'Slash Commands Everywhere', desc: 'Slash key now works in all text boxes across the site, not just the main chat input.' },
+        { name: 'More Sound Effects', desc: 'Added more sound effects throughout the site for a richer audio experience.' },
+      ]},
+      { icon: '📝', title: 'Notes & Todos', items: [
+        { name: 'Stealth Mode Notes Fix', desc: 'In stealth mode, notes and todos now correctly use "My Notes" instead of the other user\'s.' },
+        { name: 'Editable Todo Items', desc: 'Todo list items can now be edited after being added — clicking opens edit mode instead of just toggling done.' },
+      ]},
+      { icon: '🔒', title: 'Settings & Security', items: [
+        { name: 'Desktop Notifications Fixed', desc: 'Desktop notifications button in settings now properly requests and enables browser notifications.' },
+        { name: 'Channel Permissions Revamp', desc: 'Revamped the channel permissions tab in guest settings with a cleaner layout.' },
+        { name: 'Guest Pass Expiration Revamp', desc: 'Guest pass expiration now allows more specific countdowns — down to minutes or a set time.' },
+        { name: 'Guest Passes Page Revamp', desc: 'Guest passes page modernized with updated UI and improved workflow.' },
+      ]},
+      { icon: '👤', title: 'Profiles & Login', items: [
+        { name: 'Profile UI Revamp', desc: 'Profile change UI has been slightly revamped for a cleaner look.' },
+        { name: 'Profile Animations', desc: 'Opening profiles now has smooth animations and a modern layout inspired by Discord.' },
+        { name: 'New Login Screen', desc: 'Fresh new login screen design.' },
+      ]},
+    ],
+  },
   {
     version: '3.3.0',
     date: 'Mar 11 2026',
