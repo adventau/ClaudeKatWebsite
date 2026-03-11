@@ -3324,13 +3324,38 @@ async function loadBellSchedule() {
 function loadBellScheduleUI() {
   const bs = window._bellSchedule;
   if (!bs) return;
-  ['kaliph', 'kathrine'].forEach(person => {
-    const data = bs[person] || { regular: [], lateStart: [], lateStartDay: '' };
-    const daySelect = document.getElementById('late-day-' + person);
-    if (daySelect) daySelect.value = data.lateStartDay || '';
-    renderScheduleList(person, 'regular', data.regular || []);
-    renderScheduleList(person, 'lateStart', data.lateStart || []);
-  });
+  const person = currentUser;
+  if (!person) return;
+  const container = document.getElementById('my-schedule-container');
+  if (!container) return;
+  const displayName = person.charAt(0).toUpperCase() + person.slice(1);
+  const data = bs[person] || { regular: [], lateStart: [], lateStartDay: '' };
+  container.innerHTML = `
+    <div class="schedule-person-group">
+      <div class="schedule-person-label">${displayName}'s Schedule</div>
+      <div class="form-row" style="margin-bottom:10px">
+        <label>Late Start Day</label>
+        <select id="late-day-${person}" style="width:auto">
+          <option value="">None</option>
+          <option value="monday">Monday</option>
+          <option value="tuesday">Tuesday</option>
+          <option value="wednesday">Wednesday</option>
+          <option value="thursday">Thursday</option>
+          <option value="friday">Friday</option>
+        </select>
+      </div>
+      <div class="schedule-type-tabs">
+        <button class="schedule-type-btn active" onclick="switchScheduleType('${person}','regular',this)">Regular</button>
+        <button class="schedule-type-btn" onclick="switchScheduleType('${person}','lateStart',this)">Late Start</button>
+      </div>
+      <div id="schedule-list-${person}-regular" class="schedule-list"></div>
+      <div id="schedule-list-${person}-lateStart" class="schedule-list" style="display:none"></div>
+      <button class="email-add-btn" onclick="addPeriodRow('${person}')">+ Add Period</button>
+    </div>`;
+  const daySelect = document.getElementById('late-day-' + person);
+  if (daySelect) daySelect.value = data.lateStartDay || '';
+  renderScheduleList(person, 'regular', data.regular || []);
+  renderScheduleList(person, 'lateStart', data.lateStart || []);
 }
 
 function renderScheduleList(person, type, periods) {
@@ -3390,14 +3415,14 @@ function getScheduleValues(person, type) {
 }
 
 async function saveBellSchedule() {
-  const data = {};
-  ['kaliph', 'kathrine'].forEach(person => {
-    data[person] = {
-      regular: getScheduleValues(person, 'regular'),
-      lateStart: getScheduleValues(person, 'lateStart'),
-      lateStartDay: document.getElementById('late-day-' + person)?.value || '',
-    };
-  });
+  const person = currentUser;
+  if (!person) return;
+  const data = Object.assign({}, window._bellSchedule || {});
+  data[person] = {
+    regular: getScheduleValues(person, 'regular'),
+    lateStart: getScheduleValues(person, 'lateStart'),
+    lateStartDay: document.getElementById('late-day-' + person)?.value || '',
+  };
   await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bellSchedule: data }) });
   window._bellSchedule = data;
   updateClassDisplays();

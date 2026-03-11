@@ -725,51 +725,8 @@
             <h3>Bell Schedule</h3>
             <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem">Set up your class schedule. Your current class will show automatically in the chat header and profile.</p>
 
-            <!-- Kaliph's Schedule -->
-            <div class="schedule-person-group">
-              <div class="schedule-person-label">Kaliph's Schedule</div>
-              <div class="form-row" style="margin-bottom:10px">
-                <label>Late Start Day</label>
-                <select id="late-day-kaliph" style="width:auto">
-                  <option value="">None</option>
-                  <option value="monday">Monday</option>
-                  <option value="tuesday">Tuesday</option>
-                  <option value="wednesday">Wednesday</option>
-                  <option value="thursday">Thursday</option>
-                  <option value="friday">Friday</option>
-                </select>
-              </div>
-              <div class="schedule-type-tabs">
-                <button class="schedule-type-btn active" onclick="switchScheduleType('kaliph','regular',this)">Regular</button>
-                <button class="schedule-type-btn" onclick="switchScheduleType('kaliph','lateStart',this)">Late Start</button>
-              </div>
-              <div id="schedule-list-kaliph-regular" class="schedule-list"></div>
-              <div id="schedule-list-kaliph-lateStart" class="schedule-list" style="display:none"></div>
-              <button class="email-add-btn" onclick="addPeriodRow('kaliph')">+ Add Period</button>
-            </div>
-
-            <!-- Kathrine's Schedule -->
-            <div class="schedule-person-group">
-              <div class="schedule-person-label">Kathrine's Schedule</div>
-              <div class="form-row" style="margin-bottom:10px">
-                <label>Late Start Day</label>
-                <select id="late-day-kathrine" style="width:auto">
-                  <option value="">None</option>
-                  <option value="monday">Monday</option>
-                  <option value="tuesday">Tuesday</option>
-                  <option value="wednesday">Wednesday</option>
-                  <option value="thursday">Thursday</option>
-                  <option value="friday">Friday</option>
-                </select>
-              </div>
-              <div class="schedule-type-tabs">
-                <button class="schedule-type-btn active" onclick="switchScheduleType('kathrine','regular',this)">Regular</button>
-                <button class="schedule-type-btn" onclick="switchScheduleType('kathrine','lateStart',this)">Late Start</button>
-              </div>
-              <div id="schedule-list-kathrine-regular" class="schedule-list"></div>
-              <div id="schedule-list-kathrine-lateStart" class="schedule-list" style="display:none"></div>
-              <button class="email-add-btn" onclick="addPeriodRow('kathrine')">+ Add Period</button>
-            </div>
+            <!-- Current user's schedule (populated dynamically) -->
+            <div id="my-schedule-container"></div>
 
             <button class="btn-primary" onclick="saveBellSchedule()" style="margin-top:12px">Save Schedules</button>
           </div>
