@@ -298,60 +298,58 @@
     .theme-royal:hover .card-badge { box-shadow: 0 0 10px rgba(245,158,11,0.2); }
     .theme-royal .ripple { background: rgba(245,158,11,0.2); }
 
-    /* ── T4: Pristine Light — Clean / Bright / Indigo ──────────────── */
+    /* ── T4: Pristine Light — Modern / Warm-Neutral / Clean ─────────── */
     .theme-light {
-      background: linear-gradient(160deg, #e8eaf6 0%, #f0f0ff 40%, #e8ecf8 70%, #dde3f5 100%);
-      border-color: rgba(99,102,241,0.25);
+      background: linear-gradient(160deg, #f5f5f5 0%, #fafafa 40%, #f0f0f0 70%, #e8e8e8 100%);
+      border-color: rgba(0,0,0,0.1);
     }
-    .theme-light .card-content, .theme-light .card-status { color: rgba(30,41,59,0.7); }
+    .theme-light .card-content, .theme-light .card-status { color: #6b6b6b; }
     .theme-light:hover {
       transform: translateY(-10px) scale(1.04);
-      box-shadow: 0 20px 50px rgba(99,102,241,0.25), 0 0 80px rgba(129,140,248,0.1);
-      border-color: rgba(99,102,241,0.5);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.08);
+      border-color: rgba(0,0,0,0.2);
     }
     .theme-light::before {
-      background: linear-gradient(45deg, transparent 30%, rgba(99,102,241,0.08) 50%, transparent 70%);
+      background: linear-gradient(45deg, transparent 30%, rgba(0,0,0,0.03) 50%, transparent 70%);
       transform: translateX(-100%) rotate(45deg); transition: none;
     }
     .theme-light:hover::before { animation: shimmer-sweep 0.8s ease; }
     .theme-light::after { background: none; }
-    .theme-light .card-glow { background: radial-gradient(circle, rgba(99,102,241,0.25) 0%, rgba(129,140,248,0.12) 40%, transparent 70%); }
-    .theme-light .card-avatar { background: linear-gradient(135deg, #6366f1, #818cf8); border-color: rgba(99,102,241,0.4); box-shadow: 0 0 16px rgba(99,102,241,0.35); }
-    .theme-light:hover .card-avatar { transform: scale(1.1); box-shadow: 0 0 24px rgba(99,102,241,0.5), 0 0 48px rgba(129,140,248,0.2); }
-    .theme-light .card-name { font-family: 'Josefin Sans', sans-serif; font-size: 1.9rem; font-weight: 300; background: linear-gradient(135deg, #4f46e5, #6366f1); -webkit-background-clip: text; background-clip: text; }
+    .theme-light .card-glow { background: radial-gradient(circle, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.03) 40%, transparent 70%); }
+    .theme-light .card-avatar { background: #1a1a1a; border-color: rgba(0,0,0,0.15); box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+    .theme-light:hover .card-avatar { transform: scale(1.1); box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+    .theme-light .card-name { font-family: 'Inter', sans-serif; font-size: 1.8rem; font-weight: 600; background: linear-gradient(135deg, #0d0d0d, #4a4a4a); -webkit-background-clip: text; background-clip: text; }
     .theme-light:hover .card-name { transform: scale(1.06); }
-    .theme-light .card-theme-label { color: rgba(99,102,241,0.6); font-family: 'Josefin Sans', sans-serif; }
-    .theme-light .card-enter-hint { color: rgba(30,41,59,0.4); font-family: 'Josefin Sans', sans-serif; }
-    .theme-light .card-badge { font-family: 'Josefin Sans', sans-serif; color: rgba(99,102,241,0.6); border: 1px solid rgba(99,102,241,0.2); }
-    .theme-light .ripple { background: rgba(99,102,241,0.15); }
+    .theme-light .card-theme-label { color: #9b9b9b; font-family: 'Inter', sans-serif; }
+    .theme-light .card-enter-hint { color: #b0b0b0; font-family: 'Inter', sans-serif; }
+    .theme-light .card-badge { font-family: 'Inter', sans-serif; color: #6b6b6b; border: 1px solid rgba(0,0,0,0.12); }
+    .theme-light .ripple { background: rgba(0,0,0,0.08); }
 
-    /* ── T5: Midnight Dark — Slate / Cool / Geometric ──────────────── */
+    /* ── T5: Midnight Dark — Modern / Warm-Dark / Refined ───────────── */
     .theme-dark {
-      background: linear-gradient(160deg, #0c1222 0%, #111827 40%, #0e1525 70%, #080e1c 100%);
-      border-color: rgba(129,140,248,0.15);
+      background: linear-gradient(160deg, #1a1a1a 0%, #212121 40%, #1e1e1e 70%, #151515 100%);
+      border-color: rgba(255,255,255,0.08);
     }
     .theme-dark:hover {
       transform: translateY(-10px) scale(1.03);
-      box-shadow: 0 20px 50px rgba(129,140,248,0.3), 0 0 80px rgba(99,102,241,0.12);
-      border-color: rgba(129,140,248,0.4);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.18);
     }
     .theme-dark::before {
-      background: conic-gradient(from 180deg at 50% 50%, transparent 0deg, rgba(129,140,248,0.06) 90deg, transparent 180deg, rgba(99,102,241,0.04) 270deg, transparent 360deg);
+      background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.02) 50%, transparent 70%);
+      transform: translateX(-100%) rotate(45deg); transition: none;
     }
-    .theme-dark:hover::before { opacity: 1; animation: geo-rotate 8s linear infinite; }
-    .theme-dark::after {
-      background: repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(129,140,248,0.015) 20px, rgba(129,140,248,0.015) 21px);
-    }
-    .theme-dark:hover::after { opacity: 1; }
-    .theme-dark .card-glow { background: radial-gradient(circle, rgba(129,140,248,0.4) 0%, rgba(99,102,241,0.2) 35%, transparent 70%); }
-    .theme-dark .card-avatar { background: linear-gradient(135deg, #4f46e5, #818cf8); border-color: rgba(129,140,248,0.4); box-shadow: 0 0 20px rgba(129,140,248,0.35); }
-    .theme-dark:hover .card-avatar { transform: scale(1.1); box-shadow: 0 0 28px rgba(129,140,248,0.6), 0 0 50px rgba(99,102,241,0.2); }
-    .theme-dark .card-name { font-family: 'Space Grotesk', sans-serif; font-size: 1.8rem; font-weight: 600; background: linear-gradient(135deg, #c7d2fe, #818cf8); -webkit-background-clip: text; background-clip: text; }
+    .theme-dark:hover::before { animation: shimmer-sweep 0.8s ease; }
+    .theme-dark::after { background: none; }
+    .theme-dark .card-glow { background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 40%, transparent 70%); }
+    .theme-dark .card-avatar { background: #e8e8e8; border-color: rgba(255,255,255,0.15); box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
+    .theme-dark:hover .card-avatar { transform: scale(1.1); box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 0 40px rgba(255,255,255,0.05); }
+    .theme-dark .card-name { font-family: 'Inter', sans-serif; font-size: 1.8rem; font-weight: 600; background: linear-gradient(135deg, #ffffff, #b0b0b0); -webkit-background-clip: text; background-clip: text; }
     .theme-dark:hover .card-name { transform: scale(1.05); }
-    .theme-dark .card-theme-label { color: rgba(129,140,248,0.5); font-family: 'Space Grotesk', sans-serif; }
-    .theme-dark .card-enter-hint { font-family: 'Space Grotesk', sans-serif; }
-    .theme-dark .card-badge { font-family: 'Space Grotesk', sans-serif; color: rgba(129,140,248,0.6); border: 1px solid rgba(129,140,248,0.2); }
-    .theme-dark .ripple { background: rgba(129,140,248,0.2); }
+    .theme-dark .card-theme-label { color: rgba(255,255,255,0.35); font-family: 'Inter', sans-serif; }
+    .theme-dark .card-enter-hint { font-family: 'Inter', sans-serif; }
+    .theme-dark .card-badge { font-family: 'Inter', sans-serif; color: rgba(255,255,255,0.45); border: 1px solid rgba(255,255,255,0.1); }
+    .theme-dark .ripple { background: rgba(255,255,255,0.1); }
 
     /* ── T6: Celestial Heaven — Gold / Warm / Divine ────────────────── */
     .theme-heaven {
@@ -935,8 +933,8 @@
       kaliph:   { bg: '#0d0820', accent: '#7c3aed', accent2: '#a78bfa', glow: 'rgba(124,58,237,0.3)', border: 'rgba(124,58,237,0.25)' },
       kathrine: { bg: '#0d0716', accent: '#8b5cf6', accent2: '#c084fc', glow: 'rgba(139,92,246,0.3)', border: 'rgba(139,92,246,0.25)' },
       royal:    { bg: '#0a0703', accent: '#d97706', accent2: '#f59e0b', glow: 'rgba(217,119,6,0.3)', border: 'rgba(180,120,30,0.4)' },
-      light:    { bg: '#0f1528', accent: '#6366f1', accent2: '#a5b4fc', glow: 'rgba(99,102,241,0.25)', border: 'rgba(99,102,241,0.3)' },
-      dark:     { bg: '#0f172a', accent: '#818cf8', accent2: '#c7d2fe', glow: 'rgba(129,140,248,0.2)', border: 'rgba(99,102,241,0.2)' },
+      light:    { bg: '#e8e8e8', accent: '#0d0d0d', accent2: '#6b6b6b', glow: 'rgba(0,0,0,0.08)', border: 'rgba(0,0,0,0.12)' },
+      dark:     { bg: '#1a1a1a', accent: '#e8e8e8', accent2: '#a0a0a0', glow: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.1)' },
       heaven:   { bg: '#15120a', accent: '#c8a96e', accent2: '#e8d5a3', glow: 'rgba(200,169,110,0.25)', border: 'rgba(200,169,110,0.35)' },
       rosewood: { bg: '#0c0912', accent: '#c8967a', accent2: '#e8c9a0', glow: 'rgba(200,150,122,0.22)', border: 'rgba(200,150,120,0.18)' },
       ocean:    { bg: '#060d10', accent: '#14b8a6', accent2: '#2dd4bf', glow: 'rgba(20,184,166,0.25)', border: 'rgba(20,184,166,0.2)' },
