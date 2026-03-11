@@ -3324,13 +3324,15 @@ async function loadBellSchedule() {
 function loadBellScheduleUI() {
   const bs = window._bellSchedule;
   if (!bs) return;
-  ['kaliph', 'kathrine'].forEach(person => {
-    const data = bs[person] || { regular: [], lateStart: [], lateStartDay: '' };
-    const daySelect = document.getElementById('late-day-' + person);
-    if (daySelect) daySelect.value = data.lateStartDay || '';
-    renderScheduleList(person, 'regular', data.regular || []);
-    renderScheduleList(person, 'lateStart', data.lateStart || []);
-  });
+  const person = currentUser; // only show current user's schedule
+  const data = bs[person] || { regular: [], lateStart: [], lateStartDay: '' };
+  const label = document.getElementById('my-schedule-label');
+  if (label) label.textContent = (person === 'kaliph' ? "Kaliph's" : "Kathrine's") + ' Schedule';
+  // Set late day via custom select
+  const dayVal = data.lateStartDay || '';
+  setCustomSelectValue('late-day-mine', dayVal, dayVal ? dayVal.charAt(0).toUpperCase() + dayVal.slice(1) : 'None');
+  renderScheduleList('mine', 'regular', data.regular || []);
+  renderScheduleList('mine', 'lateStart', data.lateStart || []);
 }
 
 function renderScheduleList(person, type, periods) {
@@ -3340,8 +3342,12 @@ function renderScheduleList(person, type, periods) {
   list.innerHTML = periods.map((p, i) => `
     <div class="schedule-row">
       <input type="text" value="${escapeHtml(p.label || '')}" placeholder="Period name" data-field="label">
-      <input type="time" value="${p.start || ''}" data-field="start">
-      <input type="time" value="${p.end || ''}" data-field="end">
+      <div class="custom-time-input" data-field="start" data-value="${p.start || ''}">
+        <button type="button" class="custom-time-btn" onclick="openTimePicker(this)">${p.start ? formatTime12(p.start) : 'Start'}</button>
+      </div>
+      <div class="custom-time-input" data-field="end" data-value="${p.end || ''}">
+        <button type="button" class="custom-time-btn" onclick="openTimePicker(this)">${p.end ? formatTime12(p.end) : 'End'}</button>
+      </div>
       <button class="email-remove-btn" onclick="removePeriodRow('${person}','${type}',${i})" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
   `).join('');
@@ -3384,22 +3390,24 @@ function getScheduleValues(person, type) {
   if (!list) return [];
   return Array.from(list.querySelectorAll('.schedule-row')).map(row => ({
     label: row.querySelector('[data-field="label"]')?.value.trim() || '',
-    start: row.querySelector('[data-field="start"]')?.value || '',
-    end: row.querySelector('[data-field="end"]')?.value || '',
+    start: row.querySelector('.custom-time-input[data-field="start"]')?.dataset.value || '',
+    end: row.querySelector('.custom-time-input[data-field="end"]')?.dataset.value || '',
   }));
 }
 
 async function saveBellSchedule() {
-  const data = {};
-  ['kaliph', 'kathrine'].forEach(person => {
-    data[person] = {
-      regular: getScheduleValues(person, 'regular'),
-      lateStart: getScheduleValues(person, 'lateStart'),
-      lateStartDay: document.getElementById('late-day-' + person)?.value || '',
-    };
-  });
-  await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bellSchedule: data }) });
-  window._bellSchedule = data;
+  // Merge with existing schedule so we don't overwrite the other user's data
+  const existing = window._bellSchedule || { kaliph: { regular: [], lateStart: [], lateStartDay: '' }, kathrine: { regular: [], lateStart: [], lateStartDay: '' } };
+  const me = currentUser;
+  const lateDayVal = getCustomSelectValue('late-day-mine');
+  existing[me] = {
+    regular: getScheduleValues('mine', 'regular'),
+    lateStart: getScheduleValues('mine', 'lateStart'),
+    lateStartDay: lateDayVal,
+  };
+  const resp = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bellSchedule: existing }) });
+  if (!resp.ok) { showToast('Failed to save schedule'); return; }
+  window._bellSchedule = existing;
   updateClassDisplays();
   showToast('Bell schedule saved!');
 }
@@ -3408,6 +3416,272 @@ function toggleCountdown(el) {
   window._countdownEnabled = el.checked;
   fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ countdownEnabled: el.checked }) });
   updateClassDisplays();
+}
+
+// ── CUSTOM UI COMPONENTS ──────────────────────────────────────────────────
+
+// ── Custom Select Dropdown ────────────────────────────────────────────────
+function toggleCustomSelect(id) {
+  const dropdown = document.getElementById(id + '-dropdown');
+  if (!dropdown) return;
+  const isOpen = dropdown.style.display !== 'none';
+  closeAllCustomSelects();
+  if (!isOpen) dropdown.style.display = '';
+}
+function closeAllCustomSelects() {
+  document.querySelectorAll('.custom-select-dropdown').forEach(d => d.style.display = 'none');
+}
+function selectCustomOption(id, value, label) {
+  const btn = document.getElementById(id + '-btn');
+  if (btn) btn.querySelector('.custom-select-text').textContent = label;
+  const dropdown = document.getElementById(id + '-dropdown');
+  if (dropdown) {
+    dropdown.querySelectorAll('.custom-select-option').forEach(o => o.classList.toggle('selected', o.dataset.value === value));
+    dropdown.style.display = 'none';
+  }
+  // Store value on the wrap
+  const wrap = document.getElementById(id + '-wrap');
+  if (wrap) wrap.dataset.value = value;
+}
+function getCustomSelectValue(id) {
+  const wrap = document.getElementById(id + '-wrap');
+  return wrap?.dataset.value ?? '';
+}
+function setCustomSelectValue(id, value, label) {
+  const wrap = document.getElementById(id + '-wrap');
+  if (wrap) wrap.dataset.value = value;
+  const btn = document.getElementById(id + '-btn');
+  if (btn) btn.querySelector('.custom-select-text').textContent = label;
+  const dropdown = document.getElementById(id + '-dropdown');
+  if (dropdown) dropdown.querySelectorAll('.custom-select-option').forEach(o => o.classList.toggle('selected', o.dataset.value === value));
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.custom-select-wrap')) closeAllCustomSelects();
+  if (!e.target.closest('.custom-time-picker-popup') && !e.target.closest('.custom-time-btn')) closeTimePicker();
+});
+
+// ── Custom Time Picker (for bell schedule) ────────────────────────────────
+let _activeTimePicker = null;
+function formatTime12(time24) {
+  if (!time24) return '';
+  const [h, m] = time24.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+function parseTime12(h, m, ampm) {
+  let hour = parseInt(h) || 0;
+  if (ampm === 'PM' && hour !== 12) hour += 12;
+  if (ampm === 'AM' && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, '0')}:${String(parseInt(m) || 0).padStart(2, '0')}`;
+}
+
+function openTimePicker(btnEl) {
+  closeTimePicker();
+  const wrap = btnEl.closest('.custom-time-input');
+  const currentVal = wrap.dataset.value || '';
+  let h = 12, m = 0, ampm = 'AM';
+  if (currentVal) {
+    const [hh, mm] = currentVal.split(':').map(Number);
+    ampm = hh >= 12 ? 'PM' : 'AM';
+    h = hh % 12 || 12;
+    m = mm;
+  }
+  const popup = document.createElement('div');
+  popup.className = 'custom-time-picker-popup';
+  popup.innerHTML = `
+    <div class="ctp-row">
+      <div class="ctp-spinbox">
+        <button type="button" class="ctp-spin" onclick="ctpSpin(this,'hour',1)">&#9650;</button>
+        <input type="text" class="ctp-input" data-role="hour" value="${h}" maxlength="2" onclick="this.select()">
+        <button type="button" class="ctp-spin" onclick="ctpSpin(this,'hour',-1)">&#9660;</button>
+      </div>
+      <span class="ctp-colon">:</span>
+      <div class="ctp-spinbox">
+        <button type="button" class="ctp-spin" onclick="ctpSpin(this,'minute',1)">&#9650;</button>
+        <input type="text" class="ctp-input" data-role="minute" value="${String(m).padStart(2,'0')}" maxlength="2" onclick="this.select()">
+        <button type="button" class="ctp-spin" onclick="ctpSpin(this,'minute',-1)">&#9660;</button>
+      </div>
+      <button type="button" class="ctp-ampm" onclick="ctpToggleAmPm(this)">${ampm}</button>
+    </div>
+    <button type="button" class="btn-ghost btn-sm ctp-done" onclick="ctpDone(this)">Done</button>
+  `;
+  wrap.appendChild(popup);
+  _activeTimePicker = { popup, wrap, btnEl };
+}
+function closeTimePicker() {
+  if (_activeTimePicker) {
+    _activeTimePicker.popup.remove();
+    _activeTimePicker = null;
+  }
+}
+function ctpSpin(el, role, dir) {
+  const popup = el.closest('.custom-time-picker-popup');
+  const input = popup.querySelector(`[data-role="${role}"]`);
+  let val = parseInt(input.value) || 0;
+  if (role === 'hour') { val += dir; if (val > 12) val = 1; if (val < 1) val = 12; input.value = val; }
+  else { val += dir * 5; if (val >= 60) val = 0; if (val < 0) val = 55; input.value = String(val).padStart(2, '0'); }
+}
+function ctpToggleAmPm(el) { el.textContent = el.textContent === 'AM' ? 'PM' : 'AM'; }
+function ctpDone(el) {
+  if (!_activeTimePicker) return;
+  const popup = el.closest('.custom-time-picker-popup');
+  const h = popup.querySelector('[data-role="hour"]').value;
+  const m = popup.querySelector('[data-role="minute"]').value;
+  const ampm = popup.querySelector('.ctp-ampm').textContent;
+  const time24 = parseTime12(h, m, ampm);
+  _activeTimePicker.wrap.dataset.value = time24;
+  _activeTimePicker.btnEl.textContent = formatTime12(time24);
+  _activeTimePicker.btnEl.classList.add('has-value');
+  closeTimePicker();
+}
+
+// ── Custom DateTime Picker (for reminders) ────────────────────────────────
+const _cdtpState = {};
+function initCdtp(id) {
+  if (!_cdtpState[id]) _cdtpState[id] = { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDate: null };
+}
+function toggleDatetimePicker(id) {
+  initCdtp(id);
+  const picker = document.getElementById(id + '-picker');
+  if (!picker) return;
+  const isOpen = picker.style.display !== 'none';
+  if (isOpen) { picker.style.display = 'none'; return; }
+  picker.style.display = '';
+  renderCdtpCalendar(id);
+}
+function closeDatetimePicker(id) {
+  const picker = document.getElementById(id + '-picker');
+  if (picker) picker.style.display = 'none';
+  // Commit value
+  commitDatetimeValue(id);
+}
+function commitDatetimeValue(id) {
+  initCdtp(id);
+  const st = _cdtpState[id];
+  if (!st.selectedDate) return;
+  const hEl = document.getElementById(id + '-hour');
+  const mEl = document.getElementById(id + '-minute');
+  const apEl = document.getElementById(id + '-ampm');
+  let hour = parseInt(hEl?.value) || 12;
+  const minute = parseInt(mEl?.value) || 0;
+  const ampm = apEl?.textContent || 'AM';
+  if (ampm === 'PM' && hour !== 12) hour += 12;
+  if (ampm === 'AM' && hour === 12) hour = 0;
+  const dt = new Date(st.selectedDate);
+  dt.setHours(hour, minute, 0, 0);
+  // Set the hidden input value in ISO-like format for submission
+  const isoLocal = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0') + 'T' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+  document.getElementById(id).value = isoLocal;
+  // Update button text
+  const btn = document.getElementById(id + '-btn');
+  if (btn) {
+    const h12 = dt.getHours() % 12 || 12;
+    const ap = dt.getHours() >= 12 ? 'PM' : 'AM';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    btn.querySelector('.custom-datetime-text').textContent = `${months[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()} at ${h12}:${String(dt.getMinutes()).padStart(2,'0')} ${ap}`;
+  }
+}
+function renderCdtpCalendar(id) {
+  const st = _cdtpState[id];
+  const grid = document.getElementById(id + '-grid');
+  const label = document.getElementById(id + '-month');
+  if (!grid || !label) return;
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  label.textContent = months[st.month] + ' ' + st.year;
+  // Clear day cells (keep headers)
+  const headers = grid.querySelectorAll('.cdtp-day-header');
+  grid.innerHTML = '';
+  headers.forEach(h => grid.appendChild(h));
+  const firstDay = new Date(st.year, st.month, 1).getDay();
+  const daysInMonth = new Date(st.year, st.month + 1, 0).getDate();
+  const today = new Date(); today.setHours(0,0,0,0);
+  for (let i = 0; i < firstDay; i++) { const empty = document.createElement('div'); empty.className = 'cdtp-day cdtp-day-empty'; grid.appendChild(empty); }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement('div');
+    cell.className = 'cdtp-day';
+    cell.textContent = d;
+    const cellDate = new Date(st.year, st.month, d);
+    if (cellDate.getTime() === today.getTime()) cell.classList.add('cdtp-today');
+    if (st.selectedDate && cellDate.toDateString() === st.selectedDate.toDateString()) cell.classList.add('cdtp-selected');
+    cell.onclick = () => { st.selectedDate = cellDate; renderCdtpCalendar(id); commitDatetimeValue(id); };
+    grid.appendChild(cell);
+  }
+}
+function cdtpPrev(id) { initCdtp(id); const st = _cdtpState[id]; st.month--; if (st.month < 0) { st.month = 11; st.year--; } renderCdtpCalendar(id); }
+function cdtpNext(id) { initCdtp(id); const st = _cdtpState[id]; st.month++; if (st.month > 11) { st.month = 0; st.year++; } renderCdtpCalendar(id); }
+function cdtpSpinHour(id, dir) {
+  const el = document.getElementById(id + '-hour');
+  let v = parseInt(el.value) || 12;
+  v += dir; if (v > 12) v = 1; if (v < 1) v = 12;
+  el.value = v;
+  commitDatetimeValue(id);
+}
+function cdtpSpinMinute(id, dir) {
+  const el = document.getElementById(id + '-minute');
+  let v = parseInt(el.value) || 0;
+  v += dir * 5; if (v >= 60) v = 0; if (v < 0) v = 55;
+  el.value = String(v).padStart(2, '0');
+  commitDatetimeValue(id);
+}
+function cdtpToggleAmPm(id) {
+  const el = document.getElementById(id + '-ampm');
+  el.textContent = el.textContent === 'AM' ? 'PM' : 'AM';
+  commitDatetimeValue(id);
+}
+function cdtpClampHour(id) {
+  const el = document.getElementById(id + '-hour');
+  let v = parseInt(el.value) || 12;
+  if (v < 1) v = 1; if (v > 12) v = 12;
+  el.value = v;
+  commitDatetimeValue(id);
+}
+function cdtpClampMinute(id) {
+  const el = document.getElementById(id + '-minute');
+  let v = parseInt(el.value) || 0;
+  if (v < 0) v = 0; if (v > 59) v = 59;
+  el.value = String(v).padStart(2, '0');
+  commitDatetimeValue(id);
+}
+function setDatetimePickerValue(id, date) {
+  initCdtp(id);
+  const st = _cdtpState[id];
+  st.selectedDate = new Date(date);
+  st.year = st.selectedDate.getFullYear();
+  st.month = st.selectedDate.getMonth();
+  const h = st.selectedDate.getHours();
+  const m = st.selectedDate.getMinutes();
+  const h12 = h % 12 || 12;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hEl = document.getElementById(id + '-hour');
+  const mEl = document.getElementById(id + '-minute');
+  const apEl = document.getElementById(id + '-ampm');
+  if (hEl) hEl.value = h12;
+  if (mEl) mEl.value = String(m).padStart(2, '0');
+  if (apEl) apEl.textContent = ampm;
+  commitDatetimeValue(id);
+}
+function resetDatetimePicker(id) {
+  _cdtpState[id] = { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDate: null };
+  document.getElementById(id).value = '';
+  const btn = document.getElementById(id + '-btn');
+  if (btn) btn.querySelector('.custom-datetime-text').textContent = 'Select date & time...';
+  const hEl = document.getElementById(id + '-hour');
+  const mEl = document.getElementById(id + '-minute');
+  const apEl = document.getElementById(id + '-ampm');
+  if (hEl) hEl.value = '12';
+  if (mEl) mEl.value = '00';
+  if (apEl) apEl.textContent = 'AM';
+}
+
+// ── Custom Priority Selector ──────────────────────────────────────────────
+function selectPriority(id, value) {
+  const wrap = document.getElementById(id + '-wrap');
+  if (wrap) wrap.querySelectorAll('.custom-priority-btn').forEach(b => b.classList.toggle('active', b.dataset.value === value));
+  const hidden = document.getElementById(id);
+  if (hidden) hidden.value = value;
 }
 
 // ── GET CURRENT CLASS ──────────────────────────────────────────────────────
@@ -5330,10 +5604,10 @@ async function saveReminder() {
       title,
       description: document.getElementById('reminder-desc').value.trim(),
       datetime: new Date(datetime).toISOString(),
-      repeat: document.getElementById('reminder-repeat').value,
+      repeat: getCustomSelectValue('reminder-repeat'),
       notify: {
         site: document.getElementById('reminder-notify-site').checked,
-        push: document.getElementById('reminder-notify-push').checked,
+        push: false,
         email: document.getElementById('reminder-notify-email').checked,
       },
       priority: document.getElementById('reminder-priority').value,
@@ -5344,11 +5618,11 @@ async function saveReminder() {
   document.getElementById('reminder-title').value = '';
   document.getElementById('reminder-desc').value = '';
   document.getElementById('reminder-datetime').value = '';
-  document.getElementById('reminder-repeat').value = '';
+  resetDatetimePicker('reminder-datetime');
+  setCustomSelectValue('reminder-repeat', '', 'No repeat');
   document.getElementById('reminder-notify-site').checked = true;
-  document.getElementById('reminder-notify-push').checked = false;
   document.getElementById('reminder-notify-email').checked = false;
-  document.getElementById('reminder-priority').value = 'normal';
+  selectPriority('reminder-priority', 'normal');
 
   closeModal('new-reminder-modal');
   showToast('🔔 Reminder created!');
@@ -5361,15 +5635,17 @@ function editReminder(id) {
   document.getElementById('edit-reminder-id').value = r.id;
   document.getElementById('edit-reminder-title').value = r.title;
   document.getElementById('edit-reminder-desc').value = r.description || '';
-  // Convert ISO to datetime-local format
+  // Set datetime via custom picker
   const dt = new Date(r.datetime);
-  const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  document.getElementById('edit-reminder-datetime').value = local;
-  document.getElementById('edit-reminder-repeat').value = r.repeat || '';
+  setDatetimePickerValue('edit-reminder-datetime', dt);
+  // Set repeat via custom select
+  const repeatVal = r.repeat || '';
+  const repeatLabels = { '': 'No repeat', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+  setCustomSelectValue('edit-reminder-repeat', repeatVal, repeatLabels[repeatVal] || 'No repeat');
   document.getElementById('edit-reminder-notify-site').checked = r.notify?.site ?? true;
-  document.getElementById('edit-reminder-notify-push').checked = r.notify?.push ?? false;
   document.getElementById('edit-reminder-notify-email').checked = r.notify?.email ?? false;
-  document.getElementById('edit-reminder-priority').value = r.priority || 'normal';
+  // Set priority via custom buttons
+  selectPriority('edit-reminder-priority', r.priority || 'normal');
   openModal('edit-reminder-modal');
 }
 
@@ -5387,10 +5663,10 @@ async function updateReminder() {
       title,
       description: document.getElementById('edit-reminder-desc').value.trim(),
       datetime: new Date(datetime).toISOString(),
-      repeat: document.getElementById('edit-reminder-repeat').value,
+      repeat: getCustomSelectValue('edit-reminder-repeat'),
       notify: {
         site: document.getElementById('edit-reminder-notify-site').checked,
-        push: document.getElementById('edit-reminder-notify-push').checked,
+        push: false,
         email: document.getElementById('edit-reminder-notify-email').checked,
       },
       priority: document.getElementById('edit-reminder-priority').value,

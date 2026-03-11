@@ -722,56 +722,39 @@
         <!-- Bell Schedule tab -->
         <div class="settings-panel" id="tab-bellschedule">
           <div class="settings-section">
-            <h3>Bell Schedule</h3>
+            <h3>My Bell Schedule</h3>
             <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem">Set up your class schedule. Your current class will show automatically in the chat header and profile.</p>
 
-            <!-- Kaliph's Schedule -->
-            <div class="schedule-person-group">
-              <div class="schedule-person-label">Kaliph's Schedule</div>
+            <!-- Current user's schedule (populated dynamically) -->
+            <div class="schedule-person-group" id="my-schedule-group">
+              <div class="schedule-person-label" id="my-schedule-label">My Schedule</div>
               <div class="form-row" style="margin-bottom:10px">
                 <label>Late Start Day</label>
-                <select id="late-day-kaliph" style="width:auto">
-                  <option value="">None</option>
-                  <option value="monday">Monday</option>
-                  <option value="tuesday">Tuesday</option>
-                  <option value="wednesday">Wednesday</option>
-                  <option value="thursday">Thursday</option>
-                  <option value="friday">Friday</option>
-                </select>
+                <div class="custom-select-wrap" id="late-day-mine-wrap">
+                  <button class="custom-select-btn" id="late-day-mine-btn" onclick="toggleCustomSelect('late-day-mine')" type="button">
+                    <span class="custom-select-text">None</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  <div class="custom-select-dropdown" id="late-day-mine-dropdown">
+                    <div class="custom-select-option selected" data-value="" onclick="selectCustomOption('late-day-mine','','None')">None</div>
+                    <div class="custom-select-option" data-value="monday" onclick="selectCustomOption('late-day-mine','monday','Monday')">Monday</div>
+                    <div class="custom-select-option" data-value="tuesday" onclick="selectCustomOption('late-day-mine','tuesday','Tuesday')">Tuesday</div>
+                    <div class="custom-select-option" data-value="wednesday" onclick="selectCustomOption('late-day-mine','wednesday','Wednesday')">Wednesday</div>
+                    <div class="custom-select-option" data-value="thursday" onclick="selectCustomOption('late-day-mine','thursday','Thursday')">Thursday</div>
+                    <div class="custom-select-option" data-value="friday" onclick="selectCustomOption('late-day-mine','friday','Friday')">Friday</div>
+                  </div>
+                </div>
               </div>
               <div class="schedule-type-tabs">
-                <button class="schedule-type-btn active" onclick="switchScheduleType('kaliph','regular',this)">Regular</button>
-                <button class="schedule-type-btn" onclick="switchScheduleType('kaliph','lateStart',this)">Late Start</button>
+                <button class="schedule-type-btn active" onclick="switchScheduleType('mine','regular',this)">Regular</button>
+                <button class="schedule-type-btn" onclick="switchScheduleType('mine','lateStart',this)">Late Start</button>
               </div>
-              <div id="schedule-list-kaliph-regular" class="schedule-list"></div>
-              <div id="schedule-list-kaliph-lateStart" class="schedule-list" style="display:none"></div>
-              <button class="email-add-btn" onclick="addPeriodRow('kaliph')">+ Add Period</button>
+              <div id="schedule-list-mine-regular" class="schedule-list"></div>
+              <div id="schedule-list-mine-lateStart" class="schedule-list" style="display:none"></div>
+              <button class="email-add-btn" onclick="addPeriodRow('mine')">+ Add Period</button>
             </div>
 
-            <!-- Kathrine's Schedule -->
-            <div class="schedule-person-group">
-              <div class="schedule-person-label">Kathrine's Schedule</div>
-              <div class="form-row" style="margin-bottom:10px">
-                <label>Late Start Day</label>
-                <select id="late-day-kathrine" style="width:auto">
-                  <option value="">None</option>
-                  <option value="monday">Monday</option>
-                  <option value="tuesday">Tuesday</option>
-                  <option value="wednesday">Wednesday</option>
-                  <option value="thursday">Thursday</option>
-                  <option value="friday">Friday</option>
-                </select>
-              </div>
-              <div class="schedule-type-tabs">
-                <button class="schedule-type-btn active" onclick="switchScheduleType('kathrine','regular',this)">Regular</button>
-                <button class="schedule-type-btn" onclick="switchScheduleType('kathrine','lateStart',this)">Late Start</button>
-              </div>
-              <div id="schedule-list-kathrine-regular" class="schedule-list"></div>
-              <div id="schedule-list-kathrine-lateStart" class="schedule-list" style="display:none"></div>
-              <button class="email-add-btn" onclick="addPeriodRow('kathrine')">+ Add Period</button>
-            </div>
-
-            <button class="btn-primary" onclick="saveBellSchedule()" style="margin-top:12px">Save Schedules</button>
+            <button class="btn-primary" onclick="saveBellSchedule()" style="margin-top:12px">Save Schedule</button>
           </div>
         </div>
 
@@ -1005,32 +988,84 @@
     <div class="form-row"><label>Description</label><textarea id="reminder-desc" rows="2" placeholder="Optional details..."></textarea></div>
     <div class="form-row">
       <label>Date & Time</label>
-      <input type="datetime-local" id="reminder-datetime">
+      <div class="custom-datetime-wrap" id="reminder-datetime-wrap">
+        <button class="custom-datetime-btn" id="reminder-datetime-btn" onclick="toggleDatetimePicker('reminder-datetime')" type="button">
+          <i data-lucide="calendar" style="width:15px;height:15px;opacity:0.5"></i>
+          <span class="custom-datetime-text">Select date & time...</span>
+        </button>
+        <input type="hidden" id="reminder-datetime">
+        <div class="custom-datetime-picker" id="reminder-datetime-picker" style="display:none">
+          <div class="cdtp-date-section">
+            <div class="cdtp-header">
+              <button class="btn-icon cdtp-nav" onclick="cdtpPrev('reminder-datetime')" type="button">‹</button>
+              <span class="cdtp-month" id="reminder-datetime-month"></span>
+              <button class="btn-icon cdtp-nav" onclick="cdtpNext('reminder-datetime')" type="button">›</button>
+            </div>
+            <div class="cdtp-grid" id="reminder-datetime-grid">
+              <div class="cdtp-day-header">S</div><div class="cdtp-day-header">M</div><div class="cdtp-day-header">T</div>
+              <div class="cdtp-day-header">W</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">F</div>
+              <div class="cdtp-day-header">S</div>
+            </div>
+          </div>
+          <div class="cdtp-time-section">
+            <label class="cdtp-time-label">Time</label>
+            <div class="cdtp-time-row">
+              <div class="cdtp-time-spinbox">
+                <button type="button" class="cdtp-spin-btn" onclick="cdtpSpinHour('reminder-datetime',1)">&#9650;</button>
+                <input type="text" class="cdtp-time-input" id="reminder-datetime-hour" value="12" maxlength="2" onclick="this.select()" onchange="cdtpClampHour('reminder-datetime')">
+                <button type="button" class="cdtp-spin-btn" onclick="cdtpSpinHour('reminder-datetime',-1)">&#9660;</button>
+              </div>
+              <span class="cdtp-time-colon">:</span>
+              <div class="cdtp-time-spinbox">
+                <button type="button" class="cdtp-spin-btn" onclick="cdtpSpinMinute('reminder-datetime',1)">&#9650;</button>
+                <input type="text" class="cdtp-time-input" id="reminder-datetime-minute" value="00" maxlength="2" onclick="this.select()" onchange="cdtpClampMinute('reminder-datetime')">
+                <button type="button" class="cdtp-spin-btn" onclick="cdtpSpinMinute('reminder-datetime',-1)">&#9660;</button>
+              </div>
+              <button type="button" class="cdtp-ampm-btn" id="reminder-datetime-ampm" onclick="cdtpToggleAmPm('reminder-datetime')">AM</button>
+            </div>
+          </div>
+          <div class="cdtp-actions">
+            <button class="btn-ghost btn-sm" onclick="closeDatetimePicker('reminder-datetime')" type="button">Done</button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="form-row">
       <label>Repeat</label>
-      <select id="reminder-repeat" style="width:auto">
-        <option value="">No repeat</option>
-        <option value="daily">Daily</option>
-        <option value="weekly">Weekly</option>
-        <option value="monthly">Monthly</option>
-      </select>
+      <div class="custom-select-wrap" id="reminder-repeat-wrap">
+        <button class="custom-select-btn" id="reminder-repeat-btn" onclick="toggleCustomSelect('reminder-repeat')" type="button">
+          <span class="custom-select-text">No repeat</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="custom-select-dropdown" id="reminder-repeat-dropdown">
+          <div class="custom-select-option selected" data-value="" onclick="selectCustomOption('reminder-repeat','','No repeat')">No repeat</div>
+          <div class="custom-select-option" data-value="daily" onclick="selectCustomOption('reminder-repeat','daily','Daily')">Daily</div>
+          <div class="custom-select-option" data-value="weekly" onclick="selectCustomOption('reminder-repeat','weekly','Weekly')">Weekly</div>
+          <div class="custom-select-option" data-value="monthly" onclick="selectCustomOption('reminder-repeat','monthly','Monthly')">Monthly</div>
+        </div>
+      </div>
     </div>
     <div class="form-row">
       <label>Notify via</label>
       <div class="reminder-notify-options">
         <label class="reminder-notify-check"><input type="checkbox" id="reminder-notify-site" checked> <i data-lucide="monitor" style="width:14px;height:14px"></i> Site</label>
-        <label class="reminder-notify-check"><input type="checkbox" id="reminder-notify-push"> <i data-lucide="smartphone" style="width:14px;height:14px"></i> Push</label>
         <label class="reminder-notify-check"><input type="checkbox" id="reminder-notify-email"> <i data-lucide="mail" style="width:14px;height:14px"></i> Email</label>
       </div>
     </div>
     <div class="form-row">
       <label>Priority</label>
-      <select id="reminder-priority" style="width:auto">
-        <option value="normal">Normal</option>
-        <option value="high">High</option>
-        <option value="low">Low</option>
-      </select>
+      <div class="custom-priority-wrap" id="reminder-priority-wrap">
+        <button class="custom-priority-btn selected" data-value="low" onclick="selectPriority('reminder-priority','low')">
+          <span class="priority-dot priority-low"></span> Low
+        </button>
+        <button class="custom-priority-btn selected active" data-value="normal" onclick="selectPriority('reminder-priority','normal')">
+          <span class="priority-dot priority-normal"></span> Normal
+        </button>
+        <button class="custom-priority-btn" data-value="high" onclick="selectPriority('reminder-priority','high')">
+          <span class="priority-dot priority-high"></span> High
+        </button>
+      </div>
+      <input type="hidden" id="reminder-priority" value="normal">
     </div>
     <div style="display:flex;gap:8px;margin-top:1rem">
       <button class="btn-primary" onclick="saveReminder()">Save Reminder</button>
@@ -1050,32 +1085,84 @@
     <div class="form-row"><label>Description</label><textarea id="edit-reminder-desc" rows="2"></textarea></div>
     <div class="form-row">
       <label>Date & Time</label>
-      <input type="datetime-local" id="edit-reminder-datetime">
+      <div class="custom-datetime-wrap" id="edit-reminder-datetime-wrap">
+        <button class="custom-datetime-btn" id="edit-reminder-datetime-btn" onclick="toggleDatetimePicker('edit-reminder-datetime')" type="button">
+          <i data-lucide="calendar" style="width:15px;height:15px;opacity:0.5"></i>
+          <span class="custom-datetime-text">Select date & time...</span>
+        </button>
+        <input type="hidden" id="edit-reminder-datetime">
+        <div class="custom-datetime-picker" id="edit-reminder-datetime-picker" style="display:none">
+          <div class="cdtp-date-section">
+            <div class="cdtp-header">
+              <button class="btn-icon cdtp-nav" onclick="cdtpPrev('edit-reminder-datetime')" type="button">‹</button>
+              <span class="cdtp-month" id="edit-reminder-datetime-month"></span>
+              <button class="btn-icon cdtp-nav" onclick="cdtpNext('edit-reminder-datetime')" type="button">›</button>
+            </div>
+            <div class="cdtp-grid" id="edit-reminder-datetime-grid">
+              <div class="cdtp-day-header">S</div><div class="cdtp-day-header">M</div><div class="cdtp-day-header">T</div>
+              <div class="cdtp-day-header">W</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">F</div>
+              <div class="cdtp-day-header">S</div>
+            </div>
+          </div>
+          <div class="cdtp-time-section">
+            <label class="cdtp-time-label">Time</label>
+            <div class="cdtp-time-row">
+              <div class="cdtp-time-spinbox">
+                <button type="button" class="cdtp-spin-btn" onclick="cdtpSpinHour('edit-reminder-datetime',1)">&#9650;</button>
+                <input type="text" class="cdtp-time-input" id="edit-reminder-datetime-hour" value="12" maxlength="2" onclick="this.select()" onchange="cdtpClampHour('edit-reminder-datetime')">
+                <button type="button" class="cdtp-spin-btn" onclick="cdtpSpinHour('edit-reminder-datetime',-1)">&#9660;</button>
+              </div>
+              <span class="cdtp-time-colon">:</span>
+              <div class="cdtp-time-spinbox">
+                <button type="button" class="cdtp-spin-btn" onclick="cdtpSpinMinute('edit-reminder-datetime',1)">&#9650;</button>
+                <input type="text" class="cdtp-time-input" id="edit-reminder-datetime-minute" value="00" maxlength="2" onclick="this.select()" onchange="cdtpClampMinute('edit-reminder-datetime')">
+                <button type="button" class="cdtp-spin-btn" onclick="cdtpSpinMinute('edit-reminder-datetime',-1)">&#9660;</button>
+              </div>
+              <button type="button" class="cdtp-ampm-btn" id="edit-reminder-datetime-ampm" onclick="cdtpToggleAmPm('edit-reminder-datetime')">AM</button>
+            </div>
+          </div>
+          <div class="cdtp-actions">
+            <button class="btn-ghost btn-sm" onclick="closeDatetimePicker('edit-reminder-datetime')" type="button">Done</button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="form-row">
       <label>Repeat</label>
-      <select id="edit-reminder-repeat" style="width:auto">
-        <option value="">No repeat</option>
-        <option value="daily">Daily</option>
-        <option value="weekly">Weekly</option>
-        <option value="monthly">Monthly</option>
-      </select>
+      <div class="custom-select-wrap" id="edit-reminder-repeat-wrap">
+        <button class="custom-select-btn" id="edit-reminder-repeat-btn" onclick="toggleCustomSelect('edit-reminder-repeat')" type="button">
+          <span class="custom-select-text">No repeat</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="custom-select-dropdown" id="edit-reminder-repeat-dropdown">
+          <div class="custom-select-option selected" data-value="" onclick="selectCustomOption('edit-reminder-repeat','','No repeat')">No repeat</div>
+          <div class="custom-select-option" data-value="daily" onclick="selectCustomOption('edit-reminder-repeat','daily','Daily')">Daily</div>
+          <div class="custom-select-option" data-value="weekly" onclick="selectCustomOption('edit-reminder-repeat','weekly','Weekly')">Weekly</div>
+          <div class="custom-select-option" data-value="monthly" onclick="selectCustomOption('edit-reminder-repeat','monthly','Monthly')">Monthly</div>
+        </div>
+      </div>
     </div>
     <div class="form-row">
       <label>Notify via</label>
       <div class="reminder-notify-options">
         <label class="reminder-notify-check"><input type="checkbox" id="edit-reminder-notify-site"> <i data-lucide="monitor" style="width:14px;height:14px"></i> Site</label>
-        <label class="reminder-notify-check"><input type="checkbox" id="edit-reminder-notify-push"> <i data-lucide="smartphone" style="width:14px;height:14px"></i> Push</label>
         <label class="reminder-notify-check"><input type="checkbox" id="edit-reminder-notify-email"> <i data-lucide="mail" style="width:14px;height:14px"></i> Email</label>
       </div>
     </div>
     <div class="form-row">
       <label>Priority</label>
-      <select id="edit-reminder-priority" style="width:auto">
-        <option value="normal">Normal</option>
-        <option value="high">High</option>
-        <option value="low">Low</option>
-      </select>
+      <div class="custom-priority-wrap" id="edit-reminder-priority-wrap">
+        <button class="custom-priority-btn" data-value="low" onclick="selectPriority('edit-reminder-priority','low')">
+          <span class="priority-dot priority-low"></span> Low
+        </button>
+        <button class="custom-priority-btn active" data-value="normal" onclick="selectPriority('edit-reminder-priority','normal')">
+          <span class="priority-dot priority-normal"></span> Normal
+        </button>
+        <button class="custom-priority-btn" data-value="high" onclick="selectPriority('edit-reminder-priority','high')">
+          <span class="priority-dot priority-high"></span> High
+        </button>
+      </div>
+      <input type="hidden" id="edit-reminder-priority" value="normal">
     </div>
     <input type="hidden" id="edit-reminder-id">
     <div style="display:flex;gap:8px;margin-top:1rem">
