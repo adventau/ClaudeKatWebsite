@@ -710,10 +710,12 @@ app.post('/api/ai/message', mainAuth, async (req, res) => {
 
 app.get('/api/notes', mainAuth, (req, res) => {
   const notes = rd(F.notes);
-  const other = req.session.user === 'kaliph' ? 'kathrine' : 'kaliph';
+  // Allow stealth mode to view target user's notes
+  const viewAs = req.query.viewAs && ['kaliph', 'kathrine'].includes(req.query.viewAs) ? req.query.viewAs : req.session.user;
+  const other = viewAs === 'kaliph' ? 'kathrine' : 'kaliph';
   res.json({
-    mine:   notes[req.session.user] || [],
-    shared: (notes[other] || []).filter(n => n.sharedWith?.includes(req.session.user)),
+    mine:   notes[viewAs] || [],
+    shared: (notes[other] || []).filter(n => n.sharedWith?.includes(viewAs)),
   });
 });
 
@@ -1792,6 +1794,20 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     if (s._scheduleSkips) { delete s._scheduleSkips[user]; wd(F.settings, s); }
     io.emit('schedule-skip', { user, date: null });
     return lines(`Schedule restored for ${user}.`, 'success');
+  }
+
+  // ── SET TIME (override site time for testing) ──
+  if (cmd === 'settime') {
+    const timeStr = parts.slice(1).join(' ');
+    if (!timeStr) {
+      // Clear override
+      io.emit('time-override', { time: null });
+      return lines('Time override cleared — using real time.', 'success');
+    }
+    const parsed = new Date(timeStr);
+    if (isNaN(parsed.getTime())) return lines(`Invalid date/time: "${timeStr}". Use format like "2026-03-15 14:30" or "Mar 15, 2026 2:30 PM"`, 'error');
+    io.emit('time-override', { time: parsed.toISOString() });
+    return lines(`Time override set to: ${parsed.toLocaleString()}. Use "settime" with no args to clear.`, 'success');
   }
 
   // ── BROWSE MODE (stealth read-only profile access) ──

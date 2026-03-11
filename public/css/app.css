@@ -33,13 +33,13 @@ html, body { height: 100%; overflow: hidden; }
 
 .site-title {
   font-family: var(--font-heading, 'Inter');
-  font-size: 0.85rem;
-  font-weight: 700;
+  font-size: 1.1rem;
+  font-weight: 800;
   background: linear-gradient(135deg, var(--accent), var(--accent2, var(--accent)));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   white-space: nowrap;
 }
 

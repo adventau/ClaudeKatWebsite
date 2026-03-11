@@ -438,6 +438,7 @@ async function selectTheme(themeId) {
 // ── Navigation ────────────────────────────────────────────────────────
 let currentSection = 'chat';
 function showSection(name, el) {
+  SoundSystem.navigate();
   currentSection = name;
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -1920,6 +1921,16 @@ function setupSocketEvents() {
     loadReminders();
   });
 
+  socket.on('time-override', ({ time }) => {
+    if (time) {
+      window._timeOverride = new Date(time);
+      showToast('⏰ Time override active: ' + window._timeOverride.toLocaleString());
+    } else {
+      window._timeOverride = null;
+      showToast('⏰ Time override cleared — using real time.');
+    }
+  });
+
   socket.on('show-update-log', ({ target }) => {
     if (target === 'both' || target === currentUser) {
       localStorage.removeItem('rkk-changelog-dismissed-' + currentUser);
@@ -2020,7 +2031,8 @@ async function clearBrainstorm() {
 
 // ── Notes ─────────────────────────────────────────────────────────────
 async function loadNotes() {
-  const data = await fetch('/api/notes').then(r => r.json());
+  const url = stealthMode ? `/api/notes?viewAs=${currentUser}` : '/api/notes';
+  const data = await fetch(url).then(r => r.json());
   allNotes = data;
   renderNotesList();
 }
@@ -2545,6 +2557,7 @@ async function saveEvent() {
 async function deleteCalEvent(eventId) {
   await fetch(`/api/calendar/${eventId}`, { method: 'DELETE' });
   renderCalendar();
+  SoundSystem.deleteSnd();
   showToast('Event deleted');
 }
 
@@ -5337,7 +5350,8 @@ function setupKeyboardShortcuts() {
     if (mod && e.key === 'n') { e.preventDefault(); openModal('new-note-modal'); }
     if (mod && e.key === 'e' && focused) { e.preventDefault(); openEmojiPicker({clientX:100,clientY:400,stopPropagation:()=>{}}, 'msg'); }
     if (e.key === 'Escape') { closeAllModals(); closeContextMenu(); document.getElementById('emoji-picker').classList.remove('open'); document.getElementById('reaction-picker').classList.remove('open'); }
-    if (noMod && !focused) {
+    const anyInputFocused = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable);
+    if (noMod && !anyInputFocused) {
       if (e.key === '/') { e.preventDefault(); input.focus(); }
     }
   });
@@ -5521,9 +5535,9 @@ async function syncMissedMessages() {
 }
 
 // ── Modal helpers ─────────────────────────────────────────────────────
-function openModal(id)  { document.getElementById(id)?.classList.add('open'); }
-function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
-function closeAllModals() { document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); }
+function openModal(id)  { document.getElementById(id)?.classList.add('open'); SoundSystem.modalOpen(); }
+function closeModal(id) { document.getElementById(id)?.classList.remove('open'); SoundSystem.modalClose(); }
+function closeAllModals() { document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); SoundSystem.modalClose(); }
 
 // Click outside modal
 document.addEventListener('click', e => {
@@ -5541,12 +5555,25 @@ document.addEventListener('click', e => {
 
 // ── Notifications + Push (Service Worker) ─────────────────────────────
 async function requestNotificationPermission() {
-  if (!('Notification' in window)) return;
+  if (!('Notification' in window)) {
+    showToast('Your browser does not support notifications');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    showToast('Notifications are blocked. Please enable them in your browser settings.');
+    return;
+  }
   if (Notification.permission === 'default') {
     const result = await Notification.requestPermission();
-    if (result === 'granted') await registerPushSubscription();
+    if (result === 'granted') {
+      await registerPushSubscription();
+      showToast('🔔 Desktop notifications enabled!');
+    } else {
+      showToast('Notification permission was denied.');
+    }
   } else if (Notification.permission === 'granted') {
     await registerPushSubscription();
+    showToast('🔔 Desktop notifications are already enabled!');
   }
 }
 
@@ -5883,6 +5910,7 @@ async function snoozeReminder(id) {
 
 async function deleteReminder(id) {
   await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
+  SoundSystem.deleteSnd();
   showToast('🗑️ Reminder deleted');
   await loadReminders();
 }

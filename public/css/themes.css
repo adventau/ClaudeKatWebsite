@@ -1127,6 +1127,7 @@
   padding: 0;
   overflow: visible;
   gap: 2px;
+  margin: 0 auto;
 }
 /* Hide section labels in top bar */
 .theme-dark .nav-section-label { display: none; }
@@ -1216,7 +1217,7 @@
 .theme-dark .msg-row {
   width: 100%;
 }
-.theme-dark .msg-content { max-width: 80%; }
+.theme-dark .msg-content { max-width: 85%; }
 .theme-dark .date-sep {
   width: 100%;
   color: #444444;
@@ -1515,6 +1516,18 @@
 .theme-dark .toggle-slider { background: #363636; }
 .theme-dark .toggle input:checked + .toggle-slider { background: #e8e8e8; }
 .theme-dark .toggle input:checked + .toggle-slider::before { background: #0d0d0d; }
+
+/* Dark: Chromebook / small laptop responsive fixes */
+@media (max-height: 720px) {
+  .theme-dark #sidebar { height: 48px; }
+  .theme-dark .nav-item { padding: 6px 12px; font-size: 0.78rem; }
+  .theme-dark .avatar-wrapper, .theme-dark .sidebar-user .avatar { width: 28px !important; height: 28px !important; }
+  .theme-dark .input-area { padding: 4px 20px 12px; }
+  .theme-dark .messages-area { padding: 12px 20px 8px; }
+  .theme-dark .msg-content { max-width: 90%; }
+  .theme-dark .chat-header { padding: 6px 20px; }
+  .theme-dark #app { grid-template-rows: 48px 1fr; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════
    THEME: HEAVEN  —  "Celestial"
@@ -1873,6 +1886,14 @@
 
   --msg-gradient: linear-gradient(135deg, #2d6a4f, #52b788);
 }
+
+/* Forest: increase base text size for better readability with serif font */
+.theme-forest { font-size: 1.02rem; }
+.theme-forest .msg-bubble { font-size: 1rem; }
+.theme-forest .nav-item { font-size: 0.92rem; }
+.theme-forest .reminder-title { font-size: 0.95rem; }
+.theme-forest .note-item-title { font-size: 0.92rem; }
+.theme-forest .section-title { font-size: 1.1rem; }
 
 /* ── Forest component overrides ─────────────────────────────────── */
 .theme-forest #sidebar {
