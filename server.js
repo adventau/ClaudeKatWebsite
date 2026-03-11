@@ -1199,13 +1199,16 @@ app.get('/api/guests', mainAuth, (_, res) => {
 
 app.post('/api/guests', mainAuth, async (req, res) => {
   const guests = rd(F.guests) || {};
-  const { name, password, expiresIn, channels } = req.body;
+  const { name, password, expiresIn, expiresAt, channels } = req.body;
   const id = uuidv4();
   const allowedChannels = Array.isArray(channels) && channels.length ? channels : ['kaliph', 'kathrine', 'group'];
+  let expiry = null;
+  if (expiresAt) { expiry = expiresAt; }
+  else if (expiresIn) { expiry = new Date(Date.now() + parseInt(expiresIn) * 3600000).toISOString(); }
   guests[id] = {
     id, name, passwordHash: await bcrypt.hash(password, 10),
     createdBy: req.session.user, createdAt: Date.now(),
-    expiresAt: expiresIn ? new Date(Date.now() + parseInt(expiresIn) * 3600000).toISOString() : null,
+    expiresAt: expiry,
     active: true, channels: allowedChannels,
     messages: { kaliph: [], kathrine: [], group: [] },
   };

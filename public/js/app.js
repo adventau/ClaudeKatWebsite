@@ -358,8 +358,13 @@ function applyUserData(me, other) {
   document.getElementById('profile-bio').value = me.bio || '';
   if (me.nameStyle?.color) document.getElementById('profile-name-color').value = me.nameStyle.color;
   if (me.banner) {
-    document.getElementById('banner-preview').style.display = '';
-    document.getElementById('banner-preview-img').src = me.banner;
+    const bannerEl = document.getElementById('profile-edit-banner');
+    if (bannerEl) { bannerEl.style.backgroundImage = `url(${me.banner})`; bannerEl.style.backgroundSize = 'cover'; }
+  }
+  const namePreview = document.getElementById('profile-edit-name-preview');
+  if (namePreview) {
+    namePreview.textContent = me.displayName || me.name;
+    if (me.nameStyle?.color) namePreview.style.color = me.nameStyle.color;
   }
   // Store name colors for chat rendering
   if (me.nameStyle?.color) nameColors[currentUser] = me.nameStyle.color;
@@ -2109,6 +2114,7 @@ function openNote(id) {
               <span class="todo-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
             </div>
             <span class="todo-item-text">${item.text}</span>
+            ${isOwn ? `<button class="todo-item-edit" onclick="event.stopPropagation();editTodoItem('${id}',${i})" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px"></i></button>` : ''}
             ${isOwn ? `<button class="todo-item-del" onclick="event.stopPropagation();removeTodoItem('${id}',${i})" title="Remove">✕</button>` : ''}
           </div>`).join('')}
         ${isOwn ? `<div style="margin-top:8px;display:flex;gap:6px">
@@ -2218,6 +2224,37 @@ async function addTodoItemToNote(noteId) {
   });
   await loadNotes();
   openNote(noteId);
+}
+
+function editTodoItem(noteId, idx) {
+  const note = (allNotes.mine||[]).find(n => n.id === noteId);
+  if (!note || !note.todos[idx]) return;
+  const items = document.querySelectorAll('#todo-list-editor .todo-item');
+  const item = items[idx];
+  if (!item) return;
+  const textEl = item.querySelector('.todo-item-text');
+  if (!textEl) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = note.todos[idx].text;
+  input.style.cssText = 'flex:1;font-size:inherit;background:var(--bg-card);border:1px solid var(--accent);border-radius:6px;padding:4px 8px;color:var(--text-primary);outline:none';
+  let saved = false;
+  const save = async () => {
+    if (saved) return;
+    saved = true;
+    const newText = input.value.trim();
+    if (newText && newText !== note.todos[idx].text) {
+      note.todos[idx].text = newText;
+      await fetch(`/api/notes/${noteId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ todos: note.todos }) });
+      await loadNotes();
+    }
+    openNote(noteId);
+  };
+  input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') openNote(noteId); };
+  input.onblur = save;
+  textEl.replaceWith(input);
+  input.focus();
+  input.select();
 }
 
 async function shareNote(id) {
@@ -4027,8 +4064,8 @@ async function uploadBanner(input) {
   const r = await fetch(`/api/users/${currentUser}/banner`, { method: 'POST', body: fd });
   const d = await r.json();
   if (d.banner) {
-    document.getElementById('banner-preview').style.display = '';
-    document.getElementById('banner-preview-img').src = d.banner;
+    const bannerEl = document.getElementById('profile-edit-banner');
+    if (bannerEl) { bannerEl.style.backgroundImage = `url(${d.banner})`; bannerEl.style.backgroundSize = 'cover'; }
     showToast('🖼️ Banner updated!');
   }
 }
@@ -4059,7 +4096,9 @@ async function viewProfile(username) {
   const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
   const pvPresence = u._presence || 'offline';
   const pvStatus = pvPresence === 'online' ? 'online' : pvPresence === 'idle' ? 'idle' : 'invisible';
-  document.getElementById('pv-status-dot').style.background = statusColors[pvStatus] || '#22c55e';
+  const pvDot = document.getElementById('pv-status-dot');
+  pvDot.style.background = statusColors[pvStatus] || '#22c55e';
+  pvDot.className = 'pc-status-dot' + (pvStatus === 'online' ? ' online' : '');
   // Names
   const nameEl = document.getElementById('pv-name');
   nameEl.textContent = u.displayName || capitalize(u.name);
@@ -4318,16 +4357,18 @@ async function loadGuests() {
     }
     return `
     <div class="guest-pass-card">
+      <div class="guest-pass-avatar"><i data-lucide="user" style="width:20px;height:20px"></i></div>
       <div class="guest-pass-info">
         <div class="guest-pass-name">${escapeHtml(g.name)}</div>
         <div class="guest-pass-meta">${expiryInfo}${g.createdBy ? ' · Created by ' + capitalize(g.createdBy) : ''}</div>
         <div class="guest-pass-channels">${badges}</div>
       </div>
       <div class="guest-pass-actions">
-        <button class="btn-danger" style="padding:6px 14px;font-size:0.78rem;border-radius:8px" onclick="revokeGuest('${g.id}','${escapeHtml(g.name)}')">Revoke</button>
+        <button class="btn-ghost guest-pass-action-btn" onclick="revokeGuest('${g.id}','${escapeHtml(g.name)}')" title="Revoke"><i data-lucide="trash-2" style="width:15px;height:15px;color:#ef4444"></i></button>
       </div>
     </div>`;
   }).join('');
+  if (window.lucide) lucide.createIcons();
   // Start countdown timers
   startGuestCountdowns();
   // Update guest-to-guest channel options in the creation form
@@ -4343,10 +4384,11 @@ function startGuestCountdowns() {
       if (diff <= 0) {
         el.innerHTML = '<span style="color:#ef4444">Expired</span>';
       } else {
-        const hrs = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+        const hrs = Math.floor((diff % 86400000) / 3600000);
         const mins = Math.floor((diff % 3600000) / 60000);
         const secs = Math.floor((diff % 60000) / 1000);
-        el.textContent = `⏱ ${hrs}h ${mins}m ${secs}s`;
+        el.textContent = days > 0 ? `⏱ ${days}d ${hrs}h ${mins}m ${secs}s` : `⏱ ${hrs}h ${mins}m ${secs}s`;
       }
     });
   }, 1000);
@@ -4358,31 +4400,49 @@ function updateGuestChannelOptions(activeGuests) {
   if (!container) return;
   container.innerHTML = '';
   activeGuests.forEach(g => {
-    container.innerHTML += `<label class="channel-perm-check"><input type="checkbox" data-guest-channel="${g.id}"> <span>Chat with ${escapeHtml(g.name)} (guest)</span></label>`;
+    container.innerHTML += `<label class="channel-perm-check"><div class="toggle-switch"><input type="checkbox" data-guest-channel="${g.id}"><span class="toggle-slider"></span></div><i data-lucide="user" style="width:14px;height:14px;color:var(--accent)"></i> <span>Chat with ${escapeHtml(g.name)} (guest)</span></label>`;
   });
+}
+
+function toggleGuestExpiryMode() {
+  const mode = document.getElementById('guest-expires-mode').value;
+  const durEl = document.getElementById('guest-expiry-duration');
+  const dtEl = document.getElementById('guest-expiry-datetime');
+  durEl.style.display = mode === 'duration' ? 'flex' : 'none';
+  dtEl.style.display = mode === 'datetime' ? 'block' : 'none';
 }
 
 async function createGuest() {
   const name = document.getElementById('guest-name').value.trim();
   const pw   = document.getElementById('guest-pw').value;
-  const exp  = document.getElementById('guest-expires').value;
   if (!name || !pw) return showToast('⚠️ Name and password required');
+  // Compute expiration
+  const mode = document.getElementById('guest-expires-mode').value;
+  let expiresAt = null;
+  if (mode === 'duration') {
+    const hrs = parseInt(document.getElementById('guest-expires-hours').value) || 0;
+    const mins = parseInt(document.getElementById('guest-expires-minutes').value) || 0;
+    if (hrs || mins) expiresAt = new Date(Date.now() + hrs * 3600000 + mins * 60000).toISOString();
+  } else if (mode === 'datetime') {
+    const dt = document.getElementById('guest-expires-at').value;
+    if (dt) expiresAt = new Date(dt).toISOString();
+  }
   const channels = [];
   if (document.getElementById('guest-perm-kaliph').checked) channels.push('kaliph');
   if (document.getElementById('guest-perm-kathrine').checked) channels.push('kathrine');
   if (document.getElementById('guest-perm-group').checked) channels.push('group');
-  // Guest-to-guest channels
   document.querySelectorAll('#guest-to-guest-perms input[data-guest-channel]').forEach(cb => {
     if (cb.checked) channels.push('guest-' + cb.dataset.guestChannel);
   });
   if (!channels.length) return showToast('⚠️ Select at least one channel');
   await fetch('/api/guests', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, password: pw, expiresIn: exp || null, channels })
+    body: JSON.stringify({ name, password: pw, expiresAt, channels })
   });
   document.getElementById('guest-name').value = '';
   document.getElementById('guest-pw').value = '';
-  document.getElementById('guest-expires').value = '';
+  document.getElementById('guest-expires-mode').value = 'never';
+  toggleGuestExpiryMode();
   document.getElementById('guest-perm-kaliph').checked = true;
   document.getElementById('guest-perm-kathrine').checked = true;
   document.getElementById('guest-perm-group').checked = true;
