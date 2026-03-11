@@ -256,7 +256,51 @@ html, body { height: 100%; overflow: hidden; }
   line-height: 1.2;
 }
 .chat-header-status { font-size: 0.72rem; color: var(--text-muted); margin-top: 1px; }
+.chat-header-class {
+  font-size: 0.68rem; color: var(--accent, #7c3aed); margin-top: 2px;
+  display: none; /* shown by JS when active */
+}
+.chat-header-class:not(:empty) { display: block; }
+.sidebar-class-label {
+  font-size: 0.65rem; color: var(--accent, #7c3aed); margin-top: 1px;
+  display: none;
+}
+.sidebar-class-label:not(:empty) { display: block; }
 .chat-actions { display: flex; gap: 4px; align-items: center; }
+
+/* ── Today's Event Banner ──────────────────────────────────────── */
+.event-today-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 28px;
+  background: linear-gradient(90deg, rgba(124,58,237,0.08), rgba(59,130,246,0.08));
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem; flex-shrink: 0;
+}
+.event-today-icon { font-size: 0.85rem; }
+.event-today-text { color: var(--text-secondary); font-weight: 500; flex: 1; }
+.event-today-dismiss {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: 0.75rem; padding: 2px 4px; border-radius: 4px; opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.event-today-dismiss:hover { opacity: 1; }
+
+/* ── Class Countdown Bar ───────────────────────────────────────── */
+.class-countdown-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 28px;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem; flex-shrink: 0;
+}
+.class-countdown-icon { font-size: 0.85rem; }
+.class-countdown-text { color: var(--text-secondary); font-weight: 500; }
+.class-countdown-timer {
+  margin-left: auto; font-weight: 700;
+  font-family: 'Space Grotesk', var(--font-main);
+  color: var(--accent, #7c3aed); font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
 
 /* Messages area — spacious like iMessage */
 .messages-area {
@@ -1942,6 +1986,39 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 }
 .email-add-btn:hover { border-color: var(--accent); background: var(--bg-hover); }
 
+/* ── BELL SCHEDULE SETTINGS ───────────────────────────────────── */
+.schedule-person-group {
+  margin-bottom: 24px; padding: 16px; border-radius: 12px;
+  background: var(--bg-input, rgba(0,0,0,0.05)); border: 1px solid var(--border);
+}
+.schedule-person-label {
+  font-weight: 700; font-size: 0.88rem; color: var(--text-primary);
+  margin-bottom: 12px;
+}
+.schedule-type-tabs {
+  display: flex; gap: 4px; margin-bottom: 10px;
+}
+.schedule-type-btn {
+  padding: 5px 14px; border-radius: 8px; font-size: 0.78rem;
+  font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+  background: none; color: var(--text-muted); transition: all 0.15s;
+}
+.schedule-type-btn.active {
+  background: var(--accent, #7c3aed); color: #fff; border-color: var(--accent, #7c3aed);
+}
+.schedule-type-btn:hover:not(.active) { background: var(--bg-hover); }
+.schedule-list { display: flex; flex-direction: column; gap: 6px; }
+.schedule-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.schedule-row input[type="text"] {
+  flex: 2; min-width: 0; font-size: 0.82rem;
+}
+.schedule-row input[type="time"] {
+  flex: 1; min-width: 0; font-size: 0.82rem;
+}
+.schedule-row .email-remove-btn { flex-shrink: 0; }
+
 /* ── CONFIRM DIALOG ─────────────────────────────────────────────── */
 .btn-danger {
   background: linear-gradient(135deg, #ef4444, #dc2626);
@@ -2269,7 +2346,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .pinned-item-time { color: var(--text-muted); font-size: 0.7rem; }
 .pinned-item-text {
   font-size: 0.8rem; color: var(--text-secondary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: pre-wrap; word-break: break-word;
 }
 .pinned-unpin-btn {
   position: absolute; top: 8px; right: 6px;
@@ -2461,4 +2538,211 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   .stealth-label { font-size: 0.72rem; }
   .stealth-btn { padding: 3px 8px; font-size: 0.72rem; }
   .stealth-back span { display: none; }
+}
+
+/* ── Reminders ─────────────────────────────────────────────────────────── */
+
+.reminder-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--bg-input, rgba(0,0,0,0.04));
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.reminder-card:hover {
+  border-color: var(--accent, #7c3aed);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.08);
+}
+.reminder-card.priority-high {
+  border-left: 3px solid #ef4444;
+}
+.reminder-card.priority-low {
+  opacity: 0.75;
+}
+.reminder-card.completed {
+  opacity: 0.5;
+}
+.reminder-card.completed .reminder-title {
+  text-decoration: line-through;
+}
+
+.reminder-check {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  transition: all 0.2s;
+  background: transparent;
+}
+.reminder-check:hover {
+  border-color: var(--accent, #7c3aed);
+  background: rgba(124, 58, 237, 0.08);
+}
+.reminder-check.checked {
+  background: var(--accent, #7c3aed);
+  border-color: var(--accent, #7c3aed);
+  color: #fff;
+}
+
+.reminder-body {
+  flex: 1;
+  min-width: 0;
+}
+.reminder-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.reminder-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.reminder-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.reminder-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.reminder-meta-item.overdue {
+  color: #ef4444;
+  font-weight: 600;
+}
+.reminder-actions {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.reminder-card:hover .reminder-actions {
+  opacity: 1;
+}
+.reminder-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+.reminder-action-btn:hover {
+  background: rgba(124, 58, 237, 0.1);
+  color: var(--accent, #7c3aed);
+}
+
+.reminder-notify-options {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.reminder-notify-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+.reminder-notify-check input[type="checkbox"] {
+  accent-color: var(--accent, #7c3aed);
+}
+
+/* Reminder notification toast (on-site) */
+.reminder-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--bg-sidebar, #1a1a2e);
+  border: 1px solid var(--accent, #7c3aed);
+  border-radius: 12px;
+  padding: 12px 16px;
+  max-width: 360px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  animation: slideInRight 0.3s ease;
+  pointer-events: auto;
+}
+.reminder-toast-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+.reminder-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+.reminder-toast-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+.reminder-toast-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.reminder-toast-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.reminder-toast-btn {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.reminder-toast-btn:hover {
+  background: var(--accent, #7c3aed);
+  color: #fff;
+  border-color: var(--accent, #7c3aed);
+}
+.reminder-toast-btn.dismiss {
+  opacity: 0.6;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Reply jump highlight */
+.msg-bubble.highlight-jump {
+  animation: highlightPulse 1.5s ease;
+}
+@keyframes highlightPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.5); }
+  50%  { box-shadow: 0 0 0 6px rgba(124, 58, 237, 0.2); }
+  100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+}
+
+/* Clickable reply preview */
+.reply-preview[data-reply-id] {
+  cursor: pointer;
+}
+.reply-preview[data-reply-id]:hover {
+  background: rgba(124, 58, 237, 0.12);
 }

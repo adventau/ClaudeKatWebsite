@@ -37,6 +37,7 @@ const F = {
   settings:      path.join(DATA_DIR, 'settings.json'),
   suggestions:   path.join(DATA_DIR, 'suggestions.json'),
   pushSubs:      path.join(DATA_DIR, 'push-subscriptions.json'),
+  reminders:     path.join(DATA_DIR, 'reminders.json'),
 };
 
 // ── Web Push (VAPID) ─────────────────────────────────────────────────────────
@@ -993,6 +994,12 @@ app.put('/api/settings', mainAuth, async (req, res) => {
   if (req.body.newPassword) s.sitePassword = await bcrypt.hash(req.body.newPassword, 10);
   if (req.body.emails) s.emails = { ...s.emails, ...req.body.emails };
   if (req.body.vaultPasscode) s.vaultPasscode = req.body.vaultPasscode;
+  if (req.body.bellSchedule) s.bellSchedule = req.body.bellSchedule;
+  if (typeof req.body.countdownEnabled === 'boolean') {
+    if (!s.preferences) s.preferences = {};
+    if (!s.preferences[req.session.user]) s.preferences[req.session.user] = {};
+    s.preferences[req.session.user].countdownEnabled = req.body.countdownEnabled;
+  }
   wd(F.settings, s);
   res.json({ success: true });
 });
@@ -1030,6 +1037,123 @@ app.post('/api/push/unsubscribe', mainAuth, (req, res) => {
   }
   res.json({ success: true });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REMINDERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/reminders', mainAuth, (req, res) => {
+  const all = rd(F.reminders) || [];
+  const user = req.session.user;
+  res.json(all.filter(r => r.createdBy === user || r.forUser === 'both'));
+});
+
+app.post('/api/reminders', mainAuth, (req, res) => {
+  const all = rd(F.reminders) || [];
+  const reminder = {
+    id: uuidv4(),
+    title: req.body.title,
+    description: req.body.description || '',
+    datetime: req.body.datetime,
+    repeat: req.body.repeat || '',
+    notify: req.body.notify || { site: true, push: false, email: false },
+    priority: req.body.priority || 'normal',
+    completed: false,
+    snoozedUntil: null,
+    createdBy: req.session.user,
+    forUser: req.body.forUser || req.session.user,
+    createdAt: Date.now(),
+    lastNotified: null,
+  };
+  all.push(reminder);
+  wd(F.reminders, all);
+  io.emit('reminder-updated');
+  res.json({ success: true, reminder });
+});
+
+app.put('/api/reminders/:id', mainAuth, (req, res) => {
+  const all = rd(F.reminders) || [];
+  const idx = all.findIndex(r => r.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  Object.assign(all[idx], req.body, { id: req.params.id });
+  wd(F.reminders, all);
+  io.emit('reminder-updated');
+  res.json({ success: true, reminder: all[idx] });
+});
+
+app.delete('/api/reminders/:id', mainAuth, (req, res) => {
+  let all = rd(F.reminders) || [];
+  all = all.filter(r => r.id !== req.params.id);
+  wd(F.reminders, all);
+  io.emit('reminder-updated');
+  res.json({ success: true });
+});
+
+// Check and fire due reminders (called by setInterval on server)
+async function checkDueReminders() {
+  const all = rd(F.reminders) || [];
+  const now = Date.now();
+  let changed = false;
+
+  for (const r of all) {
+    if (r.completed) continue;
+    if (r.snoozedUntil && now < new Date(r.snoozedUntil).getTime()) continue;
+    const rTime = new Date(r.datetime).getTime();
+    if (isNaN(rTime) || rTime > now) continue;
+    // Already notified within the last 5 minutes? Skip
+    if (r.lastNotified && now - r.lastNotified < 300000) continue;
+
+    r.lastNotified = now;
+    changed = true;
+
+    const user = r.createdBy;
+
+    // Push notification
+    if (r.notify?.push) {
+      await sendPushToUser(user, {
+        title: '🔔 Reminder: ' + r.title,
+        body: r.description || 'Your reminder is due!',
+        tag: 'reminder-' + r.id,
+        url: '/app',
+      });
+    }
+
+    // Email notification
+    if (r.notify?.email) {
+      const s = rd(F.settings);
+      const emailData = s.emails?.[user];
+      let emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
+      if (!emails.length && s.emails?.shared) emails = [s.emails.shared];
+      for (const email of emails) {
+        await sendMail(email, '🔔 Reminder: ' + r.title,
+          `<h2 style="color:#7c3aed">🔔 ${r.title}</h2>` +
+          (r.description ? `<p>${r.description}</p>` : '') +
+          `<p style="color:#666;font-size:0.85rem">From Royal Kat &amp; Kai Vault</p>`
+        );
+      }
+    }
+
+    // Site notification via socket
+    if (r.notify?.site) {
+      io.emit('reminder-due', { id: r.id, title: r.title, description: r.description, user });
+    }
+
+    // Handle repeat
+    if (r.repeat) {
+      const d = new Date(r.datetime);
+      if (r.repeat === 'daily') d.setDate(d.getDate() + 1);
+      else if (r.repeat === 'weekly') d.setDate(d.getDate() + 7);
+      else if (r.repeat === 'monthly') d.setMonth(d.getMonth() + 1);
+      r.datetime = d.toISOString();
+      r.lastNotified = null;
+    }
+  }
+
+  if (changed) wd(F.reminders, all);
+}
+
+// Check reminders every 30 seconds
+setInterval(checkDueReminders, 30000);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SUGGESTIONS
@@ -1628,6 +1752,29 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       ],
       openUrl: `/app?stealth=${user}`,
     };
+  }
+
+  // ── SKIP SCHEDULE (abandon bell schedule for today) ──
+  if (cmd === 'skipclass' || cmd === 'skipschedule') {
+    const user = parts[1]?.toLowerCase();
+    if (!user) return lines('Usage: skipclass <user> — skip bell schedule for today', 'warn');
+    const s = rd(F.settings);
+    if (!s.bellSchedule || !s.bellSchedule[user]) return lines(`No bell schedule found for "${user}"`, 'error');
+    if (!s._scheduleSkips) s._scheduleSkips = {};
+    const today = new Date().toISOString().split('T')[0];
+    s._scheduleSkips[user] = today;
+    wd(F.settings, s);
+    io.emit('schedule-skip', { user, date: today });
+    return lines(`Schedule skipped for ${user} today (${today}). Will resume tomorrow.`, 'success');
+  }
+
+  if (cmd === 'unskipclass' || cmd === 'unskipschedule') {
+    const user = parts[1]?.toLowerCase();
+    if (!user) return lines('Usage: unskipclass <user> — restore bell schedule for today', 'warn');
+    const s = rd(F.settings);
+    if (s._scheduleSkips) { delete s._scheduleSkips[user]; wd(F.settings, s); }
+    io.emit('schedule-skip', { user, date: null });
+    return lines(`Schedule restored for ${user}.`, 'success');
   }
 
   // ── BROWSE MODE (stealth read-only profile access) ──

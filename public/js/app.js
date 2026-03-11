@@ -175,6 +175,15 @@ async function init() {
   // Show update log if user hasn't dismissed the latest version
   if (!stealthMode) checkAndShowUpdateLog();
 
+  // Load bell schedule and start class updater
+  loadBellSchedule().then(() => startClassUpdater());
+
+  // Check for today's calendar events and reminders
+  checkTodayEvents();
+
+  // Load reminders and start checker
+  loadReminders().then(() => startReminderChecker());
+
   // Set up drag & drop and paste for message input
   setupDragDropPaste();
 
@@ -277,6 +286,16 @@ function togglePriorityRow() {
   btn?.classList.toggle('active', showing);
 }
 
+function buildStatusText(presenceText, user) {
+  let text = presenceText;
+  const u = window._users?.[user];
+  if (u?.customStatus) {
+    const emoji = u.statusEmoji ? u.statusEmoji + ' ' : '';
+    text += ' · ' + emoji + u.customStatus;
+  }
+  return text;
+}
+
 function applyUserData(me, other) {
   // Cache user data for call overlay & notifications
   window._users = window._users || {};
@@ -314,10 +333,10 @@ function applyUserData(me, other) {
   const presence = other._presence || 'offline';
   if (presence === 'online') {
     setStatusDot('other-status-dot', 'online');
-    document.getElementById('other-status-label').textContent = 'Online';
+    document.getElementById('other-status-label').textContent = buildStatusText('Online', otherUser);
   } else if (presence === 'idle') {
     setStatusDot('other-status-dot', 'idle');
-    document.getElementById('other-status-label').textContent = 'Idle';
+    document.getElementById('other-status-label').textContent = buildStatusText('Idle', otherUser);
   } else if (other.lastSeen) {
     setStatusDot('other-status-dot', 'invisible');
     document.getElementById('other-status-label').textContent = formatLastSeen(other.lastSeen);
@@ -379,6 +398,21 @@ function applyTheme(themeId) {
   // AVNT footer
   const footer = document.getElementById('avnt-footer');
   if (footer) footer.style.display = themeId === 'kaliph' ? 'flex' : 'none';
+  // Reposition search bar for dark theme (sidebar becomes top bar, header is hidden)
+  repositionSearchForTheme();
+}
+
+function repositionSearchForTheme() {
+  const wrap = document.getElementById('search-wrap');
+  if (!wrap) return;
+  const isDark = document.body.classList.contains('theme-dark');
+  if (isDark) {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && wrap.parentElement?.id !== 'sidebar') sidebar.appendChild(wrap);
+  } else {
+    const headerCenter = document.querySelector('.header-center');
+    if (headerCenter && !headerCenter.contains(wrap)) headerCenter.appendChild(wrap);
+  }
 }
 
 function buildThemeGrid() {
@@ -425,6 +459,7 @@ function showSection(name, el) {
   if (name === 'contacts')  loadContacts();
   if (name === 'vault')     { resetVault(); }
   if (name === 'announcements') loadAnnouncements();
+  if (name === 'reminders') loadReminders();
   if (name === 'guest-messages') {
     loadGuestMessages();
     // Clear unread for active guest
@@ -542,13 +577,19 @@ function renderMessages(filter = null) {
     area.appendChild(buildMsgElement(msg));
   });
 
-  // If there's a NEW marker, scroll to it instead of the bottom
-  const marker = area.querySelector('.new-msg-marker');
-  if (marker) {
-    marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  } else {
-    area.scrollTop = area.scrollHeight;
-  }
+  // Scroll to NEW marker or bottom — use instant scroll + retry for reliability
+  requestAnimationFrame(() => {
+    const marker = area.querySelector('.new-msg-marker');
+    if (marker) {
+      marker.scrollIntoView({ behavior: 'instant', block: 'center' });
+      // Retry after images may have loaded to correct position
+      setTimeout(() => marker.scrollIntoView({ behavior: 'instant', block: 'center' }), 300);
+      setTimeout(() => marker.scrollIntoView({ behavior: 'instant', block: 'center' }), 800);
+    } else {
+      area.scrollTop = area.scrollHeight;
+      setTimeout(() => { area.scrollTop = area.scrollHeight; }, 300);
+    }
+  });
 }
 
 function buildMsgElement(msg) {
@@ -635,7 +676,9 @@ function buildMsgElement(msg) {
     if (orig) {
       const rp = document.createElement('div');
       rp.className = 'reply-preview';
+      rp.setAttribute('data-reply-id', msg.replyTo);
       rp.textContent = (orig.text || '').substring(0, 80) + (orig.text?.length > 80 ? '…' : '');
+      rp.onclick = (e) => { e.stopPropagation(); jumpToMessage(msg.replyTo); };
       bubble.appendChild(rp);
     }
   }
@@ -1183,7 +1226,7 @@ async function togglePinnedPanel() {
       ? `<img src="${senderData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
       : `<span>${(m.sender || 'U')[0].toUpperCase()}</span>`;
     const chatColor = m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : 'var(--kathrine-color, #c084fc)';
-    const text = (m.text || '').substring(0, 120) || (m.files?.length ? '📎 File' : m.voiceUrl ? '🎙️ Voice message' : '(no text)');
+    const text = m.text || (m.files?.length ? '📎 File' : m.voiceUrl ? '🎙️ Voice message' : '(no text)');
     const time = new Date(m.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
     return `<div class="pinned-item" onclick="scrollToMessage('${m.id}')">
       <div class="pinned-item-header">
@@ -1759,13 +1802,16 @@ function setupSocketEvents() {
     if (el) el.style.display = v ? 'flex' : 'none';
   });
 
-  socket.on('status-changed', ({ user, status }) => {
+  socket.on('status-changed', ({ user, status, customStatus, statusEmoji }) => {
     if (user === otherUser) {
-      // Only update if user is actually online (don't override last seen)
+      // Update cached user data for buildStatusText
+      if (window._users?.[user]) {
+        if (customStatus !== undefined) window._users[user].customStatus = customStatus;
+        if (statusEmoji !== undefined) window._users[user].statusEmoji = statusEmoji;
+      }
       setStatusDot('other-status-dot', status);
       const sLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
-      document.getElementById('other-status-label').textContent = sLabels[status] || 'Online';
-      // If they set themselves to a real status, they're active — stop last seen
+      document.getElementById('other-status-label').textContent = buildStatusText(sLabels[status] || 'Online', otherUser);
       if (status !== 'invisible') stopLastSeenUpdater();
     }
   });
@@ -1777,11 +1823,11 @@ function setupSocketEvents() {
       if (state === 'online') {
         stopLastSeenUpdater();
         setStatusDot('other-status-dot', 'online');
-        document.getElementById('other-status-label').textContent = 'Online';
+        document.getElementById('other-status-label').textContent = buildStatusText('Online', otherUser);
       } else if (state === 'idle') {
         stopLastSeenUpdater();
         setStatusDot('other-status-dot', 'idle');
-        document.getElementById('other-status-label').textContent = 'Idle';
+        document.getElementById('other-status-label').textContent = buildStatusText('Idle', otherUser);
       } else {
         // offline — show last seen
         setStatusDot('other-status-dot', 'invisible');
@@ -1799,6 +1845,8 @@ function setupSocketEvents() {
   }, 60000);
 
   socket.on('user-updated', ({ user, data }) => {
+    // Update cached user data
+    if (window._users?.[user]) Object.assign(window._users[user], data);
     if (user === currentUser) {
       if (data.theme) applyTheme(data.theme);
       if (data.displayName) {
@@ -1813,6 +1861,17 @@ function setupSocketEvents() {
         oAvatarDiv.innerHTML = `<img src="${data.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
         if (!oWrapper.querySelector('.status-indicator')) {
           oWrapper.insertAdjacentHTML('beforeend', `<div class="status-indicator ${data.status||'online'}" id="other-status-dot"></div>`);
+        }
+      }
+      // Refresh status text with custom status
+      if (data.customStatus !== undefined || data.statusEmoji !== undefined) {
+        const label = document.getElementById('other-status-label');
+        const dot = document.getElementById('other-status-dot');
+        if (label && dot) {
+          const isOnline = dot.classList.contains('online');
+          const isIdle = dot.classList.contains('idle');
+          if (isOnline) label.textContent = buildStatusText('Online', otherUser);
+          else if (isIdle) label.textContent = buildStatusText('Idle', otherUser);
         }
       }
     }
@@ -1850,6 +1909,15 @@ function setupSocketEvents() {
 
   socket.on('calendar-updated', () => {
     if (currentSection === 'calendar') renderCalendar();
+  });
+
+  socket.on('reminder-updated', () => {
+    loadReminders();
+  });
+
+  socket.on('reminder-due', (data) => {
+    showReminderNotification(data);
+    loadReminders();
   });
 
   socket.on('show-update-log', ({ target }) => {
@@ -2430,6 +2498,7 @@ async function saveEvent() {
   const end = document.getElementById('event-end-date').value || start;
   if (!title) return showToast('Event title required');
   if (!start) return showToast('Date required');
+  const reminderVal = document.getElementById('event-reminder')?.value;
   await fetch('/api/calendar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -2438,6 +2507,7 @@ async function saveEvent() {
       end,
       description: document.getElementById('event-desc').value,
       color: document.getElementById('event-color').value,
+      reminder: reminderVal !== '' ? parseInt(reminderVal) : null,
     })
   });
   // Reset form
@@ -2458,6 +2528,51 @@ async function deleteCalEvent(eventId) {
   await fetch(`/api/calendar/${eventId}`, { method: 'DELETE' });
   renderCalendar();
   showToast('Event deleted');
+}
+
+// ── Calendar Event Banner & Reminders ──────────────────────────────────
+let _eventBannerDismissed = false;
+
+async function checkTodayEvents() {
+  try {
+    const calData = await fetch('/api/calendar').then(r => r.json()).catch(() => ({}));
+    const events = calData.shared || [];
+    if (!events.length) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const todayEvents = events.filter(ev => {
+      const start = ev.start || ev.date;
+      const end = ev.end || start;
+      return start <= today && today <= end;
+    });
+
+    // Show today's events banner
+    const banner = document.getElementById('event-today-banner');
+    const textEl = document.getElementById('event-today-text');
+    if (banner && textEl && todayEvents.length > 0 && !_eventBannerDismissed) {
+      const names = todayEvents.map(e => e.title).join(', ');
+      textEl.textContent = 'Today: ' + names;
+      banner.style.display = '';
+    }
+
+    // Check reminders — show toast for events with reminders matching today
+    const todayDate = new Date(today + 'T00:00:00');
+    events.forEach(ev => {
+      if (ev.reminder == null) return;
+      const evStart = new Date((ev.start || ev.date) + 'T00:00:00');
+      const daysUntil = Math.round((evStart - todayDate) / 86400000);
+      if (daysUntil === ev.reminder) {
+        const when = daysUntil === 0 ? 'today' : daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`;
+        showToast(`📅 Reminder: "${ev.title}" is ${when}!`);
+      }
+    });
+  } catch {}
+}
+
+function dismissEventBanner() {
+  _eventBannerDismissed = true;
+  const banner = document.getElementById('event-today-banner');
+  if (banner) banner.style.display = 'none';
 }
 
 // ── Vault ──────────────────────────────────────────────────────────────
@@ -3066,6 +3181,7 @@ function openSettingsModal() {
   loadSettings();
   loadGuests();
   loadSuggestions();
+  loadBellSchedule().then(() => loadBellScheduleUI());
   if (window.lucide) lucide.createIcons();
   // Close mobile sidebar when opening settings on tablet
   if (window.innerWidth <= 834) closeMobileSidebar();
@@ -3183,6 +3299,197 @@ function getEmailValues(person) {
   const list = document.getElementById(`${person}-emails-list`);
   if (!list) return [];
   return Array.from(list.querySelectorAll(`input[data-person="${person}"]`)).map(i => i.value.trim());
+}
+
+// ── BELL SCHEDULE ──────────────────────────────────────────────────────────
+window._bellSchedule = null;
+window._scheduleSkips = {};
+window._countdownEnabled = true;
+let _classInterval = null;
+
+async function loadBellSchedule() {
+  try {
+    const s = await fetch('/api/settings').then(r => r.json());
+    window._bellSchedule = s.bellSchedule || { kaliph: { regular: [], lateStart: [], lateStartDay: '' }, kathrine: { regular: [], lateStart: [], lateStartDay: '' } };
+    window._scheduleSkips = s._scheduleSkips || {};
+    if (s.preferences && s.preferences[currentUser]) {
+      window._countdownEnabled = s.preferences[currentUser].countdownEnabled !== false;
+    }
+    const toggle = document.getElementById('toggle-countdown');
+    if (toggle) toggle.checked = window._countdownEnabled;
+    return window._bellSchedule;
+  } catch { return null; }
+}
+
+function loadBellScheduleUI() {
+  const bs = window._bellSchedule;
+  if (!bs) return;
+  ['kaliph', 'kathrine'].forEach(person => {
+    const data = bs[person] || { regular: [], lateStart: [], lateStartDay: '' };
+    const daySelect = document.getElementById('late-day-' + person);
+    if (daySelect) daySelect.value = data.lateStartDay || '';
+    renderScheduleList(person, 'regular', data.regular || []);
+    renderScheduleList(person, 'lateStart', data.lateStart || []);
+  });
+}
+
+function renderScheduleList(person, type, periods) {
+  const list = document.getElementById(`schedule-list-${person}-${type}`);
+  if (!list) return;
+  if (!periods.length) { list.innerHTML = '<div style="font-size:0.78rem;color:var(--text-muted);padding:4px 0">No periods added yet.</div>'; return; }
+  list.innerHTML = periods.map((p, i) => `
+    <div class="schedule-row">
+      <input type="text" value="${escapeHtml(p.label || '')}" placeholder="Period name" data-field="label">
+      <input type="time" value="${p.start || ''}" data-field="start">
+      <input type="time" value="${p.end || ''}" data-field="end">
+      <button class="email-remove-btn" onclick="removePeriodRow('${person}','${type}',${i})" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+  `).join('');
+}
+
+function switchScheduleType(person, type, btn) {
+  const group = btn.closest('.schedule-person-group');
+  group.querySelectorAll('.schedule-type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  group.querySelectorAll('.schedule-list').forEach(l => l.style.display = 'none');
+  const target = document.getElementById(`schedule-list-${person}-${type}`);
+  if (target) target.style.display = '';
+}
+
+function getActiveScheduleType(person) {
+  const group = document.getElementById(`schedule-list-${person}-regular`)?.closest('.schedule-person-group');
+  if (!group) return 'regular';
+  const activeBtn = group.querySelector('.schedule-type-btn.active');
+  return activeBtn?.textContent.trim() === 'Late Start' ? 'lateStart' : 'regular';
+}
+
+function addPeriodRow(person) {
+  const type = getActiveScheduleType(person);
+  const periods = getScheduleValues(person, type);
+  periods.push({ label: '', start: '', end: '' });
+  renderScheduleList(person, type, periods);
+  const list = document.getElementById(`schedule-list-${person}-${type}`);
+  const inputs = list?.querySelectorAll('input[type="text"]');
+  if (inputs?.length) inputs[inputs.length - 1].focus();
+}
+
+function removePeriodRow(person, type, index) {
+  const periods = getScheduleValues(person, type);
+  periods.splice(index, 1);
+  renderScheduleList(person, type, periods);
+}
+
+function getScheduleValues(person, type) {
+  const list = document.getElementById(`schedule-list-${person}-${type}`);
+  if (!list) return [];
+  return Array.from(list.querySelectorAll('.schedule-row')).map(row => ({
+    label: row.querySelector('[data-field="label"]')?.value.trim() || '',
+    start: row.querySelector('[data-field="start"]')?.value || '',
+    end: row.querySelector('[data-field="end"]')?.value || '',
+  }));
+}
+
+async function saveBellSchedule() {
+  const data = {};
+  ['kaliph', 'kathrine'].forEach(person => {
+    data[person] = {
+      regular: getScheduleValues(person, 'regular'),
+      lateStart: getScheduleValues(person, 'lateStart'),
+      lateStartDay: document.getElementById('late-day-' + person)?.value || '',
+    };
+  });
+  await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bellSchedule: data }) });
+  window._bellSchedule = data;
+  updateClassDisplays();
+  showToast('Bell schedule saved!');
+}
+
+function toggleCountdown(el) {
+  window._countdownEnabled = el.checked;
+  fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ countdownEnabled: el.checked }) });
+  updateClassDisplays();
+}
+
+// ── GET CURRENT CLASS ──────────────────────────────────────────────────────
+function getCurrentClass(username) {
+  const bs = window._bellSchedule;
+  if (!bs || !bs[username]) return null;
+  // Check if schedule is skipped today
+  const today = new Date().toISOString().split('T')[0];
+  if (window._scheduleSkips[username] === today) return null;
+  const data = bs[username];
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayName = days[new Date().getDay()];
+  // Weekend — no class
+  if (dayName === 'sunday' || dayName === 'saturday') return null;
+  const schedule = (data.lateStartDay && data.lateStartDay === dayName) ? (data.lateStart || []) : (data.regular || []);
+  if (!schedule.length) return null;
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  for (const period of schedule) {
+    if (!period.start || !period.end) continue;
+    const [sh, sm] = period.start.split(':').map(Number);
+    const [eh, em] = period.end.split(':').map(Number);
+    const startMins = sh * 60 + sm;
+    const endMins = eh * 60 + em;
+    if (nowMins >= startMins && nowMins < endMins) {
+      return { label: period.label, start: period.start, end: period.end, endMins };
+    }
+  }
+  return null;
+}
+
+function formatCountdown(endMins) {
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowSecs = now.getSeconds();
+  const totalSecsLeft = (endMins - nowMins) * 60 - nowSecs;
+  if (totalSecsLeft <= 0) return '0:00';
+  const m = Math.floor(totalSecsLeft / 60);
+  const s = totalSecsLeft % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+function updateClassDisplays() {
+  // Other user — chat header + profile
+  const otherClass = getCurrentClass(otherUser);
+  const otherLabel = document.getElementById('other-class-label');
+  if (otherLabel) otherLabel.textContent = otherClass ? '📚 ' + otherClass.label : '';
+
+  // Current user — sidebar
+  const myClass = getCurrentClass(currentUser);
+  const myLabel = document.getElementById('my-class-label');
+  if (myLabel) myLabel.textContent = myClass ? '📚 ' + myClass.label : '';
+
+  // Countdown bar — only for current user
+  const bar = document.getElementById('class-countdown-bar');
+  const textEl = document.getElementById('class-countdown-text');
+  const timerEl = document.getElementById('class-countdown-timer');
+  if (bar && textEl && timerEl) {
+    if (myClass && window._countdownEnabled) {
+      bar.style.display = '';
+      textEl.textContent = myClass.label + ' ends in';
+      timerEl.textContent = formatCountdown(myClass.endMins);
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+}
+
+function startClassUpdater() {
+  updateClassDisplays();
+  if (_classInterval) clearInterval(_classInterval);
+  // Update every second for smooth countdown
+  _classInterval = setInterval(updateClassDisplays, 1000);
+}
+
+// Listen for schedule skip from eval
+if (typeof socket !== 'undefined') {
+  socket?.on('schedule-skip', data => {
+    if (data.date) window._scheduleSkips[data.user] = data.date;
+    else delete window._scheduleSkips[data.user];
+    updateClassDisplays();
+  });
 }
 
 async function saveProfile() {
@@ -3318,6 +3625,14 @@ async function viewProfile(username) {
   // Custom status (legacy display — now merged into status section above)
   const csEl = document.getElementById('pv-custom-status');
   csEl.style.display = 'none'; // Hidden — shown in status section now
+  // Current class
+  const classSec = document.getElementById('pv-class-section');
+  const classText = document.getElementById('pv-class-text');
+  if (classSec && classText) {
+    const cls = getCurrentClass(username);
+    if (cls) { classSec.style.display = ''; classText.textContent = '📚 ' + cls.label + ' (' + cls.start + ' – ' + cls.end + ')'; }
+    else classSec.style.display = 'none';
+  }
   // Pronouns
   const pronounsSec = document.getElementById('pv-pronouns-section');
   if (u.pronouns) { pronounsSec.style.display = ''; document.getElementById('pv-pronouns').textContent = u.pronouns; }
@@ -4498,6 +4813,9 @@ function executeSearch() {
   // Show no-search state
   if (!textQuery && !searchFilters.length) { showSearchFilters(); return; }
 
+  // Sort by newest first
+  hits.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
   const count = hits.length;
   let html = `<div class="search-results-header">
     <span class="search-results-count">${count} result${count !== 1 ? 's' : ''}</span>
@@ -4507,7 +4825,7 @@ function executeSearch() {
     html += '<div class="search-result-item"><div class="search-result-text" style="color:var(--text-muted);text-align:center">No messages found</div></div>';
   } else {
     html += hits.slice(0, 25).map(m => {
-      const time = formatTime(m.timestamp);
+      const time = formatSearchTime(m.timestamp);
       const text = highlight(m.text || '', textQuery);
       return `<div class="search-result-item" onclick="clickSearchResult('${m.id}')">
         <div class="search-result-top">
@@ -4843,6 +5161,15 @@ function showToast(msg, duration = 3000) {
 // ── Utility ───────────────────────────────────────────────────────────
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 function formatTime(ts) { return new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); }
+function formatSearchTime(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return time;
+  const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday ' + time;
+  return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()} ${time}`;
+}
 function formatDate(ts) {
   if (!ts) return '';
   const d = new Date(ts);
@@ -4864,8 +5191,329 @@ async function logout() {
   window.location.href = '/';
 }
 
+// ── Jump to Message (Reply click) ─────────────────────────────────────
+function jumpToMessage(msgId) {
+  const area = document.getElementById('messages-area');
+  if (!area) return;
+  const msgEl = area.querySelector(`[data-msg-id="${msgId}"]`);
+  if (msgEl) {
+    msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const bubble = msgEl.querySelector('.msg-bubble');
+    if (bubble) {
+      bubble.classList.remove('highlight-jump');
+      void bubble.offsetWidth;
+      bubble.classList.add('highlight-jump');
+      setTimeout(() => bubble.classList.remove('highlight-jump'), 1600);
+    }
+  }
+}
+
+// ── Reminders ─────────────────────────────────────────────────────────
+let _reminders = [];
+let _remindersTab = 'upcoming';
+let _reminderCheckInterval = null;
+
+async function loadReminders() {
+  try {
+    const resp = await fetch('/api/reminders');
+    _reminders = await resp.json();
+  } catch { _reminders = []; }
+  renderReminders();
+  updateReminderBadge();
+}
+
+function updateReminderBadge() {
+  const now = Date.now();
+  const due = _reminders.filter(r => !r.completed && new Date(r.datetime).getTime() <= now).length;
+  const badge = document.getElementById('reminders-badge');
+  if (badge) {
+    badge.textContent = due;
+    badge.style.display = due > 0 ? '' : 'none';
+  }
+}
+
+function switchRemindersTab(tab, el) {
+  _remindersTab = tab;
+  document.querySelectorAll('#section-reminders .section-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderReminders();
+}
+
+function renderReminders() {
+  const container = document.getElementById('reminders-list');
+  if (!container) return;
+
+  const now = Date.now();
+  let filtered = _reminders;
+
+  if (_remindersTab === 'upcoming') {
+    filtered = _reminders.filter(r => !r.completed).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  } else if (_remindersTab === 'completed') {
+    filtered = _reminders.filter(r => r.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+  } else {
+    filtered = [..._reminders].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  }
+
+  if (!filtered.length) {
+    const msg = _remindersTab === 'upcoming' ? 'No upcoming reminders' :
+                _remindersTab === 'completed' ? 'No completed reminders' : 'No reminders yet';
+    container.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon"><i data-lucide="bell-ring" style="width:48px;height:48px;opacity:0.4"></i></div>
+      <div class="empty-state-text">${msg}</div>
+      <div class="empty-state-sub">Create a reminder to get notified via push, email, or on-site.</div>
+    </div>`;
+    if (window.lucide) lucide.createIcons({ target: container });
+    return;
+  }
+
+  container.innerHTML = filtered.map(r => {
+    const rTime = new Date(r.datetime);
+    const isOverdue = !r.completed && rTime.getTime() <= now;
+    const timeStr = formatReminderTime(r.datetime);
+    const priorityClass = r.priority === 'high' ? ' priority-high' : r.priority === 'low' ? ' priority-low' : '';
+    const completedClass = r.completed ? ' completed' : '';
+
+    const notifyIcons = [];
+    if (r.notify?.site) notifyIcons.push('<i data-lucide="monitor" style="width:12px;height:12px"></i>');
+    if (r.notify?.push) notifyIcons.push('<i data-lucide="smartphone" style="width:12px;height:12px"></i>');
+    if (r.notify?.email) notifyIcons.push('<i data-lucide="mail" style="width:12px;height:12px"></i>');
+
+    return `<div class="reminder-card${priorityClass}${completedClass}" data-id="${r.id}">
+      <div class="reminder-check${r.completed ? ' checked' : ''}" onclick="toggleReminderComplete('${r.id}')" title="${r.completed ? 'Mark incomplete' : 'Mark complete'}">
+        ${r.completed ? '<i data-lucide="check" style="width:14px;height:14px"></i>' : ''}
+      </div>
+      <div class="reminder-body">
+        <div class="reminder-title">${escapeHtml(r.title)}</div>
+        ${r.description ? `<div class="reminder-desc">${escapeHtml(r.description)}</div>` : ''}
+        <div class="reminder-meta">
+          <span class="reminder-meta-item${isOverdue ? ' overdue' : ''}">
+            <i data-lucide="${isOverdue ? 'alert-circle' : 'clock'}" style="width:12px;height:12px"></i>
+            ${isOverdue && !r.completed ? 'Overdue · ' : ''}${timeStr}
+          </span>
+          ${r.repeat ? `<span class="reminder-meta-item"><i data-lucide="repeat" style="width:12px;height:12px"></i> ${capitalize(r.repeat)}</span>` : ''}
+          ${notifyIcons.length ? `<span class="reminder-meta-item">${notifyIcons.join(' ')}</span>` : ''}
+        </div>
+      </div>
+      <div class="reminder-actions">
+        ${!r.completed ? `<button class="reminder-action-btn" onclick="snoozeReminder('${r.id}')" title="Snooze 1 hour"><i data-lucide="alarm-clock" style="width:14px;height:14px"></i></button>` : ''}
+        <button class="reminder-action-btn" onclick="editReminder('${r.id}')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+        <button class="reminder-action-btn" onclick="deleteReminder('${r.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+
+  if (window.lucide) lucide.createIcons({ target: container });
+}
+
+function formatReminderTime(dt) {
+  const d = new Date(dt);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return 'Today ' + time;
+  const tmrw = new Date(now); tmrw.setDate(tmrw.getDate() + 1);
+  if (d.toDateString() === tmrw.toDateString()) return 'Tomorrow ' + time;
+  const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday ' + time;
+  return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()} ${time}`;
+}
+
+async function saveReminder() {
+  const title = document.getElementById('reminder-title').value.trim();
+  const datetime = document.getElementById('reminder-datetime').value;
+  if (!title) return showToast('Reminder title required');
+  if (!datetime) return showToast('Date & time required');
+
+  await fetch('/api/reminders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      description: document.getElementById('reminder-desc').value.trim(),
+      datetime: new Date(datetime).toISOString(),
+      repeat: document.getElementById('reminder-repeat').value,
+      notify: {
+        site: document.getElementById('reminder-notify-site').checked,
+        push: document.getElementById('reminder-notify-push').checked,
+        email: document.getElementById('reminder-notify-email').checked,
+      },
+      priority: document.getElementById('reminder-priority').value,
+    }),
+  });
+
+  // Reset form
+  document.getElementById('reminder-title').value = '';
+  document.getElementById('reminder-desc').value = '';
+  document.getElementById('reminder-datetime').value = '';
+  document.getElementById('reminder-repeat').value = '';
+  document.getElementById('reminder-notify-site').checked = true;
+  document.getElementById('reminder-notify-push').checked = false;
+  document.getElementById('reminder-notify-email').checked = false;
+  document.getElementById('reminder-priority').value = 'normal';
+
+  closeModal('new-reminder-modal');
+  showToast('🔔 Reminder created!');
+  await loadReminders();
+}
+
+function editReminder(id) {
+  const r = _reminders.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('edit-reminder-id').value = r.id;
+  document.getElementById('edit-reminder-title').value = r.title;
+  document.getElementById('edit-reminder-desc').value = r.description || '';
+  // Convert ISO to datetime-local format
+  const dt = new Date(r.datetime);
+  const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  document.getElementById('edit-reminder-datetime').value = local;
+  document.getElementById('edit-reminder-repeat').value = r.repeat || '';
+  document.getElementById('edit-reminder-notify-site').checked = r.notify?.site ?? true;
+  document.getElementById('edit-reminder-notify-push').checked = r.notify?.push ?? false;
+  document.getElementById('edit-reminder-notify-email').checked = r.notify?.email ?? false;
+  document.getElementById('edit-reminder-priority').value = r.priority || 'normal';
+  openModal('edit-reminder-modal');
+}
+
+async function updateReminder() {
+  const id = document.getElementById('edit-reminder-id').value;
+  const title = document.getElementById('edit-reminder-title').value.trim();
+  const datetime = document.getElementById('edit-reminder-datetime').value;
+  if (!title) return showToast('Title required');
+  if (!datetime) return showToast('Date & time required');
+
+  await fetch(`/api/reminders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      description: document.getElementById('edit-reminder-desc').value.trim(),
+      datetime: new Date(datetime).toISOString(),
+      repeat: document.getElementById('edit-reminder-repeat').value,
+      notify: {
+        site: document.getElementById('edit-reminder-notify-site').checked,
+        push: document.getElementById('edit-reminder-notify-push').checked,
+        email: document.getElementById('edit-reminder-notify-email').checked,
+      },
+      priority: document.getElementById('edit-reminder-priority').value,
+    }),
+  });
+
+  closeModal('edit-reminder-modal');
+  showToast('🔔 Reminder updated!');
+  await loadReminders();
+}
+
+async function toggleReminderComplete(id) {
+  const r = _reminders.find(x => x.id === id);
+  if (!r) return;
+  await fetch(`/api/reminders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ completed: !r.completed, completedAt: !r.completed ? Date.now() : null }),
+  });
+  await loadReminders();
+  showToast(r.completed ? '🔔 Reminder reopened' : '✅ Reminder completed!');
+}
+
+async function snoozeReminder(id) {
+  const snoozeUntil = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+  await fetch(`/api/reminders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ snoozedUntil: snoozeUntil, lastNotified: null }),
+  });
+  showToast('⏰ Snoozed for 1 hour');
+  await loadReminders();
+}
+
+async function deleteReminder(id) {
+  await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
+  showToast('🗑️ Reminder deleted');
+  await loadReminders();
+}
+
+function showReminderNotification(data) {
+  if (data.user !== currentUser) return;
+  // Create rich notification toast
+  const c = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'reminder-toast';
+  toast.innerHTML = `
+    <div class="reminder-toast-icon">🔔</div>
+    <div class="reminder-toast-body">
+      <div class="reminder-toast-title">${escapeHtml(data.title)}</div>
+      ${data.description ? `<div class="reminder-toast-desc">${escapeHtml(data.description)}</div>` : ''}
+      <div class="reminder-toast-actions">
+        <button class="reminder-toast-btn" onclick="snoozeReminder('${data.id}');this.closest('.reminder-toast').remove()">Snooze</button>
+        <button class="reminder-toast-btn" onclick="toggleReminderComplete('${data.id}');this.closest('.reminder-toast').remove()">Done</button>
+        <button class="reminder-toast-btn dismiss" onclick="this.closest('.reminder-toast').remove()">Dismiss</button>
+      </div>
+    </div>
+  `;
+  c.appendChild(toast);
+  // Auto-dismiss after 30 seconds
+  setTimeout(() => { if (toast.parentElement) toast.remove(); }, 30000);
+
+  // Also send desktop notification
+  sendDesktopNotif('🔔 Reminder: ' + data.title, data.description || 'Your reminder is due!');
+}
+
+function startReminderChecker() {
+  if (_reminderCheckInterval) clearInterval(_reminderCheckInterval);
+  _reminderCheckInterval = setInterval(() => {
+    updateReminderBadge();
+    // Re-render if on reminders tab to update overdue status
+    if (currentSection === 'reminders') renderReminders();
+  }, 30000);
+}
+
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
+  {
+    version: '3.3.0',
+    date: 'Mar 11 2026',
+    intro: 'Full reminders system with multi-channel notifications, plus click-to-jump on replied messages.',
+    sections: [
+      { icon: '🔔', title: 'Reminders', items: [
+        { name: 'Reminders Tab', desc: 'New dedicated Reminders section in the sidebar — create, edit, and manage reminders with priority levels.' },
+        { name: 'Multi-Channel Notifications', desc: 'Get notified via on-site toast, push notification, and/or email — choose per reminder.' },
+        { name: 'Snooze & Repeat', desc: 'Snooze reminders for 1 hour, or set them to repeat daily, weekly, or monthly.' },
+        { name: 'Smart Badge', desc: 'Sidebar badge shows count of overdue reminders at a glance.' },
+        { name: 'Rich Toast Notifications', desc: 'On-site reminders show as rich toasts with Snooze, Done, and Dismiss actions.' },
+      ]},
+      { icon: '💬', title: 'Chat', items: [
+        { name: 'Click to Jump on Replies', desc: 'Click a replied message preview to jump to and highlight the original message.' },
+      ]},
+    ],
+  },
+  {
+    version: '3.2.0',
+    date: 'Mar 11 2026',
+    intro: 'Bell schedules, smarter search, calendar reminders, and a bunch of quality-of-life fixes.',
+    sections: [
+      { icon: '🔔', title: 'Bell Schedule', items: [
+        { name: 'Schedule Builder', desc: 'Add your class schedule in Settings with period names and times.' },
+        { name: 'Late Start Support', desc: 'Configure a separate late-start schedule and pick your late-start day.' },
+        { name: 'Current Class Display', desc: 'Your current class shows automatically in the chat header, sidebar, and profile.' },
+        { name: 'Class Countdown Timer', desc: 'Countdown until your current class ends, shown in a bar above the chat. Toggle it off in Chat settings.' },
+        { name: 'Skip Schedule (Eval)', desc: 'Use "skipclass <user>" in eval to skip the bell schedule for a day.' },
+      ]},
+      { icon: '💬', title: 'Chat & Search', items: [
+        { name: 'Custom Status in Header', desc: 'Custom status text and emoji now show inline with presence in the chat header.' },
+        { name: 'Search: Newest First', desc: 'Search results now show latest messages at the top.' },
+        { name: 'Search: Better Times', desc: 'Search results show "Yesterday 3:30 PM" or "3/10/2026 3:30 PM" for older messages.' },
+        { name: 'Pinned Messages: Full Text', desc: 'Pinned messages panel now shows the complete message instead of truncating.' },
+        { name: 'Chat Layout: Full Width', desc: 'Chat messages now fill the full screen width in light and dark themes.' },
+        { name: 'Scroll to Last Read', desc: 'Fixed unreliable scroll position when opening the site — now reliably jumps to your last read message.' },
+      ]},
+      { icon: '📅', title: 'Calendar', items: [
+        { name: 'Event Reminders', desc: 'Set a reminder when creating events — get notified 0-7 days before.' },
+        { name: 'Today\'s Events Banner', desc: 'A subtle banner shows at the top of chat when you have events today.' },
+      ]},
+      { icon: '🎨', title: 'Dark Theme', items: [
+        { name: 'Search Bar Restored', desc: 'Search bar now appears in the dark theme horizontal top bar.' },
+      ]},
+    ],
+  },
   {
     version: '3.1.0',
     date: 'Mar 10 2026',

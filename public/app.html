@@ -63,6 +63,7 @@
         <div class="sidebar-user-name" id="my-name">Kaliph</div>
         <div class="sidebar-user-status" style="position:relative">
           <span id="my-status-text" style="cursor:pointer" onclick="toggleStatusMenu()">● Online</span>
+          <div class="sidebar-class-label" id="my-class-label"></div>
           <div class="status-menu" id="status-menu">
             <div class="status-option" onclick="setStatus('online')"><span class="status-dot-sm" style="background:var(--status-online)"></span>Online</div>
             <div class="status-option" onclick="setStatus('idle')"><span class="status-dot-sm" style="background:var(--status-idle)"></span>Idle</div>
@@ -99,6 +100,10 @@
       </div>
       <div class="nav-item" data-section="guest-messages" onclick="showSection('guest-messages',this)">
         <span class="nav-icon"><i data-lucide="message-square-plus"></i></span><span class="nav-label">Guest Messages</span>
+      </div>
+      <div class="nav-item" data-section="reminders" onclick="showSection('reminders',this)">
+        <span class="nav-icon"><i data-lucide="bell-ring"></i></span><span class="nav-label">Reminders</span>
+        <span class="nav-badge" id="reminders-badge" style="display:none">0</span>
       </div>
 
       <div class="nav-section-label">System</div>
@@ -158,6 +163,7 @@
         <div class="chat-header-info">
           <div class="chat-header-name" id="other-name" style="cursor:pointer" onclick="viewProfile(otherUser)">Kathrine</div>
           <div class="chat-header-status" id="other-status-label">Online</div>
+          <div class="chat-header-class" id="other-class-label"></div>
         </div>
         <div class="chat-actions">
           <button class="btn-icon" onclick="togglePinnedPanel()" title="Pinned Messages" id="pinned-btn"><i data-lucide="pin"></i></button>
@@ -177,6 +183,20 @@
       </div>
 
       <!-- Messages -->
+      <!-- Today's events banner -->
+      <div class="event-today-banner" id="event-today-banner" style="display:none">
+        <span class="event-today-icon">📅</span>
+        <span class="event-today-text" id="event-today-text"></span>
+        <button class="event-today-dismiss" onclick="dismissEventBanner()" title="Dismiss">✕</button>
+      </div>
+
+      <!-- Class countdown bar -->
+      <div class="class-countdown-bar" id="class-countdown-bar" style="display:none">
+        <span class="class-countdown-icon">📚</span>
+        <span class="class-countdown-text" id="class-countdown-text"></span>
+        <span class="class-countdown-timer" id="class-countdown-timer"></span>
+      </div>
+
       <div class="messages-area" id="messages-area">
         <div class="wallpaper-overlay"></div>
         <div class="empty-state" id="chat-empty">
@@ -448,6 +468,28 @@
       </div>
     </section>
 
+    <!-- ── REMINDERS ──────────────────────────────────────────── -->
+    <section id="section-reminders" class="section">
+      <div class="section-header">
+        <span class="section-title">Reminders</span>
+        <button class="btn-primary" onclick="openModal('new-reminder-modal')">+ New Reminder</button>
+      </div>
+      <div class="section-tabs">
+        <div class="section-tab active" onclick="switchRemindersTab('upcoming',this)">Upcoming</div>
+        <div class="section-tab" onclick="switchRemindersTab('all',this)">All</div>
+        <div class="section-tab" onclick="switchRemindersTab('completed',this)">Completed</div>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:1rem" id="reminders-list-wrap">
+        <div id="reminders-list">
+          <div class="empty-state">
+            <div class="empty-state-icon"><i data-lucide="bell-ring" style="width:48px;height:48px;opacity:0.4"></i></div>
+            <div class="empty-state-text">No reminders yet</div>
+            <div class="empty-state-sub">Create a reminder to get notified via push, email, or on-site.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main><!-- /main-content -->
 </div><!-- /app -->
 
@@ -469,6 +511,7 @@
         <div class="settings-tab" onclick="switchSettingsTab('guests',this)"><i data-lucide="user-plus"></i><span>Guests</span></div>
         <div class="settings-tab" onclick="switchSettingsTab('security',this)"><i data-lucide="shield"></i><span>Security</span></div>
         <div class="settings-tab" onclick="switchSettingsTab('shortcuts',this)"><i data-lucide="keyboard"></i><span>Shortcuts</span></div>
+        <div class="settings-tab" onclick="switchSettingsTab('bellschedule',this)"><i data-lucide="clock"></i><span>Bell Schedule</span></div>
         <div class="settings-tab" onclick="switchSettingsTab('suggestions',this)"><i data-lucide="message-square"></i><span>Feedback</span></div>
         <div class="settings-tab" onclick="switchSettingsTab('updates',this)"><i data-lucide="scroll-text"></i><span>Updates</span></div>
       </div>
@@ -564,6 +607,10 @@
             <div class="settings-row">
               <div><div class="settings-label">Desktop Notifications</div><div class="settings-sublabel">Browser push notifications for new messages</div></div>
               <button class="btn-ghost" onclick="requestNotificationPermission()">Enable Notifications</button>
+            </div>
+            <div class="settings-row">
+              <div><div class="settings-label">Class Countdown Timer</div><div class="settings-sublabel">Show a countdown bar in chat until the current class ends</div></div>
+              <label class="toggle"><input type="checkbox" id="toggle-countdown" onchange="toggleCountdown(this)" checked><span class="toggle-slider"></span></label>
             </div>
           </div>
         </div>
@@ -669,6 +716,62 @@
               <div class="settings-row"><span class="settings-label">Emoji picker</span><kbd style="background:var(--bg-card);padding:2px 8px;border-radius:4px;font-size:0.8rem">Ctrl + E</kbd></div>
               <div class="settings-row"><span class="settings-label">Dismiss modal/menu</span><kbd style="background:var(--bg-card);padding:2px 8px;border-radius:4px;font-size:0.8rem">Escape</kbd></div>
             </div>
+          </div>
+        </div>
+
+        <!-- Bell Schedule tab -->
+        <div class="settings-panel" id="tab-bellschedule">
+          <div class="settings-section">
+            <h3>Bell Schedule</h3>
+            <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem">Set up your class schedule. Your current class will show automatically in the chat header and profile.</p>
+
+            <!-- Kaliph's Schedule -->
+            <div class="schedule-person-group">
+              <div class="schedule-person-label">Kaliph's Schedule</div>
+              <div class="form-row" style="margin-bottom:10px">
+                <label>Late Start Day</label>
+                <select id="late-day-kaliph" style="width:auto">
+                  <option value="">None</option>
+                  <option value="monday">Monday</option>
+                  <option value="tuesday">Tuesday</option>
+                  <option value="wednesday">Wednesday</option>
+                  <option value="thursday">Thursday</option>
+                  <option value="friday">Friday</option>
+                </select>
+              </div>
+              <div class="schedule-type-tabs">
+                <button class="schedule-type-btn active" onclick="switchScheduleType('kaliph','regular',this)">Regular</button>
+                <button class="schedule-type-btn" onclick="switchScheduleType('kaliph','lateStart',this)">Late Start</button>
+              </div>
+              <div id="schedule-list-kaliph-regular" class="schedule-list"></div>
+              <div id="schedule-list-kaliph-lateStart" class="schedule-list" style="display:none"></div>
+              <button class="email-add-btn" onclick="addPeriodRow('kaliph')">+ Add Period</button>
+            </div>
+
+            <!-- Kathrine's Schedule -->
+            <div class="schedule-person-group">
+              <div class="schedule-person-label">Kathrine's Schedule</div>
+              <div class="form-row" style="margin-bottom:10px">
+                <label>Late Start Day</label>
+                <select id="late-day-kathrine" style="width:auto">
+                  <option value="">None</option>
+                  <option value="monday">Monday</option>
+                  <option value="tuesday">Tuesday</option>
+                  <option value="wednesday">Wednesday</option>
+                  <option value="thursday">Thursday</option>
+                  <option value="friday">Friday</option>
+                </select>
+              </div>
+              <div class="schedule-type-tabs">
+                <button class="schedule-type-btn active" onclick="switchScheduleType('kathrine','regular',this)">Regular</button>
+                <button class="schedule-type-btn" onclick="switchScheduleType('kathrine','lateStart',this)">Late Start</button>
+              </div>
+              <div id="schedule-list-kathrine-regular" class="schedule-list"></div>
+              <div id="schedule-list-kathrine-lateStart" class="schedule-list" style="display:none"></div>
+              <button class="email-add-btn" onclick="addPeriodRow('kathrine')">+ Add Period</button>
+            </div>
+
+            <button class="btn-primary" onclick="saveBellSchedule()" style="margin-top:12px">Save Schedules</button>
           </div>
         </div>
 
@@ -873,9 +976,111 @@
     </div>
     <div class="form-row"><label>Description</label><textarea id="event-desc" rows="2" placeholder="Optional description"></textarea></div>
     <div class="form-row"><label>Color</label><input type="color" id="event-color" value="#7c3aed" style="width:60px;height:32px"></div>
+    <div class="form-row">
+      <label>Reminder</label>
+      <select id="event-reminder" style="width:auto">
+        <option value="">No reminder</option>
+        <option value="0">Day of event</option>
+        <option value="1">1 day before</option>
+        <option value="2">2 days before</option>
+        <option value="3">3 days before</option>
+        <option value="7">1 week before</option>
+      </select>
+    </div>
     <div style="display:flex;gap:8px;margin-top:1rem">
       <button class="btn-primary" onclick="saveEvent()">Save Event</button>
       <button class="btn-ghost" onclick="closeModal('new-event-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Reminder -->
+<div class="modal-overlay" id="new-reminder-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <span class="modal-title">New Reminder</span>
+      <button class="btn-icon" onclick="closeModal('new-reminder-modal')">✕</button>
+    </div>
+    <div class="form-row"><label>Title</label><input type="text" id="reminder-title" placeholder="What do you want to be reminded about?"></div>
+    <div class="form-row"><label>Description</label><textarea id="reminder-desc" rows="2" placeholder="Optional details..."></textarea></div>
+    <div class="form-row">
+      <label>Date & Time</label>
+      <input type="datetime-local" id="reminder-datetime">
+    </div>
+    <div class="form-row">
+      <label>Repeat</label>
+      <select id="reminder-repeat" style="width:auto">
+        <option value="">No repeat</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Notify via</label>
+      <div class="reminder-notify-options">
+        <label class="reminder-notify-check"><input type="checkbox" id="reminder-notify-site" checked> <i data-lucide="monitor" style="width:14px;height:14px"></i> Site</label>
+        <label class="reminder-notify-check"><input type="checkbox" id="reminder-notify-push"> <i data-lucide="smartphone" style="width:14px;height:14px"></i> Push</label>
+        <label class="reminder-notify-check"><input type="checkbox" id="reminder-notify-email"> <i data-lucide="mail" style="width:14px;height:14px"></i> Email</label>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Priority</label>
+      <select id="reminder-priority" style="width:auto">
+        <option value="normal">Normal</option>
+        <option value="high">High</option>
+        <option value="low">Low</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:1rem">
+      <button class="btn-primary" onclick="saveReminder()">Save Reminder</button>
+      <button class="btn-ghost" onclick="closeModal('new-reminder-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Reminder -->
+<div class="modal-overlay" id="edit-reminder-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <span class="modal-title">Edit Reminder</span>
+      <button class="btn-icon" onclick="closeModal('edit-reminder-modal')">✕</button>
+    </div>
+    <div class="form-row"><label>Title</label><input type="text" id="edit-reminder-title"></div>
+    <div class="form-row"><label>Description</label><textarea id="edit-reminder-desc" rows="2"></textarea></div>
+    <div class="form-row">
+      <label>Date & Time</label>
+      <input type="datetime-local" id="edit-reminder-datetime">
+    </div>
+    <div class="form-row">
+      <label>Repeat</label>
+      <select id="edit-reminder-repeat" style="width:auto">
+        <option value="">No repeat</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Notify via</label>
+      <div class="reminder-notify-options">
+        <label class="reminder-notify-check"><input type="checkbox" id="edit-reminder-notify-site"> <i data-lucide="monitor" style="width:14px;height:14px"></i> Site</label>
+        <label class="reminder-notify-check"><input type="checkbox" id="edit-reminder-notify-push"> <i data-lucide="smartphone" style="width:14px;height:14px"></i> Push</label>
+        <label class="reminder-notify-check"><input type="checkbox" id="edit-reminder-notify-email"> <i data-lucide="mail" style="width:14px;height:14px"></i> Email</label>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Priority</label>
+      <select id="edit-reminder-priority" style="width:auto">
+        <option value="normal">Normal</option>
+        <option value="high">High</option>
+        <option value="low">Low</option>
+      </select>
+    </div>
+    <input type="hidden" id="edit-reminder-id">
+    <div style="display:flex;gap:8px;margin-top:1rem">
+      <button class="btn-primary" onclick="updateReminder()">Update</button>
+      <button class="btn-ghost" onclick="closeModal('edit-reminder-modal')">Cancel</button>
     </div>
   </div>
 </div>
@@ -1066,6 +1271,10 @@
       </div>
       <div class="pc-divider"></div>
       <div class="pc-section" id="pv-status-section"></div>
+      <div class="pc-section" id="pv-class-section" style="display:none">
+        <div class="pc-section-label">CURRENT CLASS</div>
+        <div id="pv-class-text" style="font-size:0.85rem"></div>
+      </div>
       <div class="pc-section" id="pv-pronouns-section" style="display:none">
         <div class="pc-section-title">PRONOUNS</div>
         <div class="pc-section-text" id="pv-pronouns"></div>

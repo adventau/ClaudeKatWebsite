@@ -1164,6 +1164,26 @@
 /* Icons in nav — slightly smaller for horizontal */
 .theme-dark .nav-item .nav-icon svg { width: 14px; height: 14px; }
 
+/* Search bar — repositioned into sidebar top bar */
+.theme-dark #sidebar .search-wrap {
+  flex: 0 0 auto;
+  max-width: 260px;
+  margin-left: auto;
+  margin-right: 8px;
+}
+.theme-dark #sidebar .search-inner {
+  background: #242424;
+  border-color: #303030;
+  min-height: 32px;
+  border-radius: 8px;
+  padding: 2px 10px;
+}
+.theme-dark #sidebar .search-inner .search-icon { color: #555; }
+.theme-dark #sidebar #search-bar {
+  font-size: 0.78rem;
+  color: #e0e0e0;
+}
+.theme-dark #sidebar #search-bar::placeholder { color: #555; }
 /* AVNT footer — hide in top bar mode */
 .theme-dark #avnt-footer { display: none !important; }
 
