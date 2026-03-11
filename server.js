@@ -9,7 +9,7 @@ const bcrypt = require('bcrypt');
 const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
-const nodemailer = require('nodemailer');
+// nodemailer removed — using EmailJS HTTP API instead
 const webpush = require('web-push');
 
 const app = express();
@@ -139,39 +139,45 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
-// ── Email (Gmail SMTP) ───────────────────────────────────────────────────────
-const EMAIL_USER = process.env.EMAIL_USER || 'royalkvault@gmail.com';
-const EMAIL_PASS = process.env.EMAIL_PASS || 'qzqnfnauyzozrlug';
-let _transporter = null;
-
-function mailer() {
-  if (!_transporter) {
-    _transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
-      pool: true,
-      maxConnections: 3,
-    });
-  }
-  return _transporter;
-}
+// ── Email (EmailJS HTTP API) ─────────────────────────────────────────────────
+const EMAILJS_SERVICE_ID   = 'service_b9w5l9r';
+const EMAILJS_TEMPLATE_ID  = 'template_3r5tv4v';
+const EMAILJS_PUBLIC_KEY   = 'LeXXDyvjvPYB_pG9r';
+const EMAILJS_PRIVATE_KEY  = 'VBsWqAY8qB-yCCTogSyYl';
 
 async function sendMail(to, subject, html, attachments = []) {
   if (!to) { console.error('Mail error: no recipient email configured'); return false; }
-  if (!EMAIL_USER || !EMAIL_PASS) {
-    console.error('Mail error: EMAIL_USER + EMAIL_PASS not configured');
-    return false;
-  }
+  // Extract plain text from html for the message field
+  const plainText = html.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
   try {
-    await mailer().sendMail({ from: EMAIL_USER, to, subject, html, attachments });
-    console.log(`Mail sent via SMTP to ${to}`);
-    return true;
+    const resp = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: EMAILJS_SERVICE_ID,
+        template_id: EMAILJS_TEMPLATE_ID,
+        user_id: EMAILJS_PUBLIC_KEY,
+        accessToken: EMAILJS_PRIVATE_KEY,
+        template_params: {
+          to_email: to,
+          from_name: 'Royal Kat & Kai Vault',
+          subject: subject,
+          message: plainText,
+          site_url: process.env.RAILWAY_PUBLIC_DOMAIN
+            ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+            : `http://localhost:${process.env.PORT || 3000}`,
+        },
+      }),
+    });
+    if (resp.ok) {
+      console.log(`Mail sent via EmailJS to ${to}`);
+      return true;
+    }
+    const errText = await resp.text();
+    console.error(`Mail error (${resp.status}): ${errText}`);
+    return false;
   } catch (e) {
     console.error('Mail error:', e.message);
-    // Reset transporter on connection errors so next attempt creates a fresh one
-    if (e.code === 'EAUTH' || e.code === 'ESOCKET' || e.code === 'ECONNECTION' || e.code === 'ETIMEDOUT') {
-      _transporter = null;
-    }
     return false;
   }
 }
@@ -385,7 +391,7 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
     let emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
     // Fallback: if no per-user email, try shared email, then env EMAIL_USER
     if (emails.length === 0 && settings.emails?.shared) emails = [settings.emails.shared];
-    if (emails.length === 0 && EMAIL_USER) emails = [EMAIL_USER];
+    if (emails.length === 0) emails = ['royalkvault@gmail.com'];
     const senderName = sender.charAt(0).toUpperCase() + sender.slice(1);
     const subject = `🔴 Priority Message from ${senderName}`;
     const html = `<h2 style="color:#7c3aed">🔴 Priority Message</h2>
@@ -747,18 +753,15 @@ app.get('/api/settings', mainAuth, (_, res) => {
 });
 
 app.get('/api/settings/email-status', mainAuth, async (_, res) => {
-  const configured = !!(EMAIL_USER && EMAIL_PASS);
-  let canConnect = false;
-  if (configured) {
-    try { await mailer().verify(); canConnect = true; } catch { canConnect = false; }
-  }
+  const configured = !!(EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY);
+  const canConnect = configured; // EmailJS uses HTTPS, always reachable
   const s = rd(F.settings);
   const hasRecipients = !!(
     (s.emails?.kaliph && (Array.isArray(s.emails.kaliph) ? s.emails.kaliph.filter(e => e).length : s.emails.kaliph)) ||
     (s.emails?.kathrine && (Array.isArray(s.emails.kathrine) ? s.emails.kathrine.filter(e => e).length : s.emails.kathrine)) ||
     s.emails?.shared
   );
-  res.json({ configured, canConnect, hasRecipients, provider: configured ? 'gmail' : 'none' });
+  res.json({ configured, canConnect, hasRecipients, provider: configured ? 'emailjs' : 'none' });
 });
 
 app.post('/api/settings/test-email', mainAuth, async (req, res) => {
@@ -2013,16 +2016,10 @@ server.listen(PORT, async () => {
   console.log(`   Running on → http://localhost:${PORT}`);
   console.log(`   Backdoor   → http://localhost:${PORT}/backdoor`);
   // Email status check
-  if (!EMAIL_USER || !EMAIL_PASS) {
-    console.log(`   Email      → ❌ NOT configured (set EMAIL_USER+EMAIL_PASS in .env)`);
+  if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY) {
+    console.log(`   Email      → ✅ EmailJS configured (${EMAILJS_SERVICE_ID})`);
   } else {
-    try {
-      await mailer().verify();
-      console.log(`   Email      → ✅ Gmail SMTP ready (${EMAIL_USER})`);
-    } catch (e) {
-      console.log(`   Email      → ⚠️  Gmail configured but connection failed: ${e.message}`);
-      _transporter = null;
-    }
+    console.log(`   Email      → ❌ EmailJS not configured`);
   }
   console.log(`🏰 ══════════════════════════════════════════ 🏰\n`);
 });
