@@ -563,6 +563,219 @@
 .theme-light #app-header { backdrop-filter: none; -webkit-backdrop-filter: none; }
 .theme-light .chat-header { backdrop-filter: none; -webkit-backdrop-filter: none; }
 
+/* ── Light: CREATIVE LAYOUTS — per-section overrides ─────────────── */
+
+/* SIDEBAR → RIGHT SIDE — flip the entire grid */
+.theme-light #app {
+  grid-template-columns: 1fr 240px;
+  grid-template-areas: "header sidebar" "main sidebar";
+}
+.theme-light #app.sidebar-collapsed {
+  grid-template-columns: 1fr 68px;
+}
+/* Sidebar border flips to left */
+.theme-light #sidebar {
+  border-left: 1px solid #ececec;
+  border-right: none;
+  border-radius: 0;
+}
+/* Nav items — rounded pill style with left accent on active */
+.theme-light .nav-item.active {
+  border-left: 3px solid #0d0d0d;
+  padding-left: 11px;
+}
+
+/* NOTES — flipped panels (editor left, list right) + card list */
+.theme-light .two-panel {
+  grid-template-columns: 1fr 240px;
+  direction: ltr;
+}
+.theme-light .panel-list {
+  order: 2;
+  border-right: none;
+  border-left: 1px solid #ececec;
+  background: #fafafa;
+  padding: 10px;
+}
+.theme-light .panel-content {
+  order: 1;
+  background: #ffffff;
+  padding: 24px 32px;
+}
+.theme-light .note-item {
+  background: #ffffff;
+  border: 1px solid #ececec;
+  border-radius: 14px;
+  margin-bottom: 6px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.theme-light .note-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+  background: #ffffff;
+}
+.theme-light .note-item.active {
+  border-color: #0d0d0d;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* CALENDAR — floating day cards with rounded corners */
+.theme-light .cal-grid {
+  border: none;
+  border-radius: 0;
+  gap: 6px;
+  padding: 4px;
+}
+.theme-light .cal-day-header {
+  background: transparent;
+  border-bottom: none;
+  color: #9b9b9b;
+  font-size: 0.68rem;
+  padding: 8px 4px;
+}
+.theme-light .cal-day {
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
+  border-radius: 14px;
+  min-height: 76px;
+  padding: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.theme-light .cal-day:nth-child(7n) { border-right: 1px solid #f0f0f0; }
+.theme-light .cal-day:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  background: #ffffff;
+}
+.theme-light .cal-day.today {
+  background: #f7f7f7;
+  border-color: #0d0d0d;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.theme-light .cal-day-empty {
+  background: #fafafa;
+  border-color: transparent;
+  box-shadow: none;
+  opacity: 0.4;
+}
+.theme-light .cal-event {
+  border-radius: 8px;
+  font-size: 0.65rem;
+}
+
+/* VAULT — horizontal list rows instead of grid */
+.theme-light .vault-grid {
+  grid-template-columns: 1fr;
+  gap: 6px;
+  padding: 12px 20px;
+}
+.theme-light .vault-item {
+  flex-direction: row;
+  text-align: left;
+  padding: 14px 18px;
+  border-radius: 14px;
+  gap: 14px;
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
+}
+.theme-light .vault-item:hover {
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.theme-light .vault-item-icon { font-size: 1.6rem; flex-shrink: 0; }
+.theme-light .vault-item-thumb {
+  width: 48px;
+  height: 48px;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+/* CONTACTS — larger avatars, card style with hover lift */
+.theme-light .contact-card {
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
+  border-radius: 16px;
+  padding: 14px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.theme-light .contact-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+.theme-light .contact-avatar {
+  width: 52px;
+  height: 52px;
+  font-size: 1.2rem;
+  background: #1a1a1a;
+}
+.theme-light .contact-group-letter {
+  color: #0d0d0d;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding: 16px 4px 6px;
+}
+
+/* SETTINGS MODAL — wider, rounded, floating feel */
+.theme-light .settings-modal {
+  border-radius: 24px;
+  border: 1px solid #ececec;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.15);
+  max-width: 780px;
+}
+.theme-light .settings-modal .settings-tabs {
+  background: #fafafa;
+  border-right: 1px solid #ececec;
+  border-radius: 24px 0 0 24px;
+  padding: 16px 10px;
+}
+.theme-light .settings-modal .settings-tab.active {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  color: #0d0d0d;
+}
+.theme-light .theme-card {
+  border-radius: 16px;
+  border: 2px solid #ececec;
+}
+.theme-light .theme-card.active {
+  border-color: #0d0d0d !important;
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.08);
+}
+/* Section tabs — pill style */
+.theme-light .section-tabs {
+  background: #fafafa;
+  border-bottom: none;
+  padding: 8px 16px;
+  gap: 4px;
+}
+.theme-light .section-tab {
+  border-radius: 10px;
+  padding: 7px 16px;
+  border: none;
+  font-weight: 500;
+}
+.theme-light .section-tab.active {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  color: #0d0d0d;
+  font-weight: 600;
+  border: none;
+}
+/* Vault passcode screen — clean */
+.theme-light .vault-passcode-screen {
+  background: #ffffff;
+}
+.theme-light .passcode-digit {
+  background: #f4f4f4;
+  border-color: #e0e0e0;
+  color: #0d0d0d;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    THEME: DARK  —  "Midnight"
    Modern warm-dark, subtle depth, refined
@@ -802,6 +1015,241 @@
 .theme-dark .chat-header { backdrop-filter: none; -webkit-backdrop-filter: none; }
 /* Status dot: match sidebar bg */
 .theme-dark .status-indicator { border-color: #141414; }
+
+/* ── Dark: CREATIVE LAYOUTS — per-section overrides ──────────────── */
+
+/* SIDEBAR — narrow with glowing active indicator */
+.theme-dark #app {
+  grid-template-columns: 220px 1fr;
+}
+.theme-dark #app.sidebar-collapsed {
+  grid-template-columns: 64px 1fr;
+}
+.theme-dark .sidebar-user {
+  margin: 4px 8px 8px;
+  padding: 10px;
+  border-radius: 14px;
+  border-bottom: none;
+  background: rgba(255,255,255,0.03);
+}
+.theme-dark .nav-item.active {
+  background: rgba(255,255,255,0.06);
+  box-shadow: inset 3px 0 0 #e8e8e8;
+  padding-left: 11px;
+}
+
+/* NOTES — dark glass panels, monochrome editor */
+.theme-dark .two-panel {
+  grid-template-columns: 240px 1fr;
+}
+.theme-dark .panel-list {
+  background: #141414;
+  border-right: 1px solid #222222;
+  padding: 8px;
+}
+.theme-dark .panel-content {
+  background: #1a1a1a;
+  padding: 24px 28px;
+}
+.theme-dark .note-item {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid #262626;
+  border-radius: 12px;
+  margin-bottom: 4px;
+  padding: 12px;
+  transition: all 0.2s;
+}
+.theme-dark .note-item:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: #363636;
+}
+.theme-dark .note-item.active {
+  background: rgba(255,255,255,0.08);
+  border-color: #e8e8e8;
+  box-shadow: 0 0 12px rgba(255,255,255,0.04);
+}
+.theme-dark .note-item-title { color: #e0e0e0; }
+
+/* CALENDAR — dark floating cells with glow on today */
+.theme-dark .cal-grid {
+  border: none;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 0;
+}
+.theme-dark .cal-day-header {
+  background: transparent;
+  border-bottom: none;
+  color: #555555;
+  font-size: 0.68rem;
+  padding: 8px 4px;
+}
+.theme-dark .cal-day {
+  background: #1e1e1e;
+  border: 1px solid #262626;
+  border-radius: 12px;
+  min-height: 76px;
+  padding: 8px;
+  transition: all 0.2s;
+}
+.theme-dark .cal-day:nth-child(7n) { border-right: 1px solid #262626; }
+.theme-dark .cal-day:hover {
+  background: #242424;
+  border-color: #383838;
+}
+.theme-dark .cal-day.today {
+  background: #242424;
+  border-color: #e8e8e8;
+  box-shadow: 0 0 20px rgba(255,255,255,0.04), 0 0 4px rgba(255,255,255,0.08);
+}
+.theme-dark .cal-day-empty {
+  background: #151515;
+  border-color: transparent;
+  opacity: 0.3;
+}
+.theme-dark .cal-day.today .cal-day-num {
+  background: #e8e8e8;
+  color: #0d0d0d !important;
+}
+.theme-dark .cal-event {
+  border-radius: 8px;
+  opacity: 0.9;
+}
+.theme-dark .cal-month { color: #e0e0e0; }
+
+/* VAULT — glassmorphism dark cards */
+.theme-dark .vault-grid {
+  gap: 10px;
+  padding: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.theme-dark .vault-item {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 18px;
+  padding: 18px 14px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: all 0.25s;
+}
+.theme-dark .vault-item:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+}
+.theme-dark .vault-item-name { color: #e0e0e0; }
+.theme-dark .vault-passcode-screen {
+  background: #141414;
+}
+.theme-dark .passcode-digit {
+  background: #242424;
+  border-color: #363636;
+  color: #e8e8e8;
+}
+
+/* CONTACTS — dark glass cards, glowing avatar ring */
+.theme-dark .contact-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 14px 18px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.theme-dark .contact-card:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.1);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  transform: translateY(-2px);
+}
+.theme-dark .contact-avatar {
+  background: #303030;
+  border: 2px solid #404040;
+  box-shadow: 0 0 10px rgba(255,255,255,0.04);
+}
+.theme-dark .contact-group-letter {
+  color: #e8e8e8;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+/* SETTINGS — full-width takeover style modal */
+.theme-dark .settings-modal {
+  max-width: 860px;
+  border-radius: 20px;
+  border: 1px solid #262626;
+  background: #171717;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+}
+.theme-dark .settings-modal-header {
+  border-bottom: 1px solid #222222;
+  padding: 20px 28px 16px;
+}
+.theme-dark .settings-modal .settings-tabs {
+  background: #141414;
+  border-right: 1px solid #222222;
+  border-radius: 20px 0 0 20px;
+  padding: 16px 10px;
+  width: 200px;
+}
+.theme-dark .settings-modal .settings-tab {
+  border-radius: 10px;
+  color: #888888;
+}
+.theme-dark .settings-modal .settings-tab.active {
+  background: rgba(255,255,255,0.06);
+  color: #e8e8e8;
+  box-shadow: inset 3px 0 0 #e8e8e8;
+}
+.theme-dark .settings-modal .settings-tab:hover {
+  color: #b0b0b0;
+}
+.theme-dark .theme-card {
+  border: 2px solid #303030;
+  border-radius: 14px;
+}
+.theme-dark .theme-card:hover {
+  border-color: #555555;
+}
+.theme-dark .theme-card.active {
+  border-color: #e8e8e8 !important;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.08);
+}
+.theme-dark .theme-preview-name {
+  background: #1e1e1e;
+  color: #b0b0b0;
+}
+/* Section tabs — subtle pill with glow */
+.theme-dark .section-tabs {
+  background: #141414;
+  border-bottom: none;
+  padding: 8px 16px;
+  gap: 4px;
+}
+.theme-dark .section-tab {
+  border-radius: 10px;
+  padding: 7px 16px;
+  border: none;
+  color: #666666;
+  font-weight: 500;
+}
+.theme-dark .section-tab.active {
+  background: rgba(255,255,255,0.06);
+  color: #e8e8e8;
+  font-weight: 600;
+  border: none;
+  box-shadow: 0 0 8px rgba(255,255,255,0.03);
+}
+/* Settings rows — cleaner dividers */
+.theme-dark .settings-row {
+  border-bottom-color: #222222;
+}
+/* Toggle switch — inverted for dark */
+.theme-dark .toggle-slider { background: #363636; }
+.theme-dark .toggle input:checked + .toggle-slider { background: #e8e8e8; }
+.theme-dark .toggle input:checked + .toggle-slider::before { background: #0d0d0d; }
 
 /* ═══════════════════════════════════════════════════════════════════
    THEME: HEAVEN  —  "Celestial"
