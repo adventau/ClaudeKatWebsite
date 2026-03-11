@@ -5931,18 +5931,46 @@ const CHANGELOG = [
   {
     version: '3.4.0',
     date: 'Mar 11 2026',
-    intro: 'Edit calendar events, reminder bug fixes, and a modernized notification UI.',
+    intro: 'Massive update — event editing, reminder fixes, modernized UI across the board, theme refinements, guest pass overhaul, and more.',
     sections: [
-      { icon: '📅', title: 'Calendar', items: [
+      { icon: '📅', title: 'Calendar & Events', items: [
         { name: 'Edit Events', desc: 'Click the pencil icon on any calendar event to edit its title, dates, description, color, and reminder.' },
+        { name: 'Eval Time Override', desc: 'Set the site\'s time via eval for testing calendar events and reminders.' },
       ]},
       { icon: '🔔', title: 'Reminders', items: [
         { name: 'No More Popup Spam', desc: 'Reminder and event notifications no longer re-show every time you load the site.' },
         { name: 'Duplication Fix', desc: 'Fixed a bug where reminders could appear duplicated in the list.' },
         { name: 'Modern Notify Toggles', desc: 'The "Notify via" checkboxes are now sleek toggle switches matching the site design.' },
       ]},
-      { icon: '🎨', title: 'UI', items: [
+      { icon: '🎨', title: 'UI & Themes', items: [
         { name: 'Priority Badge Refresh', desc: 'Priority message indicator redesigned with a clean icon-based pill instead of emoji.' },
+        { name: 'Priority Notifications UI', desc: 'Priority notification styling now matches the site\'s native design language.' },
+        { name: 'Dark Theme Chat Fix', desc: 'Main chat area on dark theme optimized for smaller screens — no more needing to zoom out on Chromebook.' },
+        { name: 'Dark Theme Chat Tab Centered', desc: 'Chat tab now properly centered on dark theme.' },
+        { name: 'Text & Font Optimization', desc: 'Optimized all text, fonts, and buttons across every theme so nothing is too bright or too dark to see.' },
+        { name: 'Kaliph\'s Theme Revamp', desc: 'Kaliph\'s AVNT theme has been visually revamped with a fresh modern look.' },
+        { name: 'Celestial Heaven Replaced', desc: 'Celestial Heaven theme has been redone with an improved design.' },
+        { name: 'Enchanted Forest Text Size', desc: 'Increased text size on the Enchanted Forest theme for better readability.' },
+        { name: 'Royal K&K Logo Sizing', desc: 'Royal K&K header logo is now bigger and more prominent on each theme.' },
+      ]},
+      { icon: '💬', title: 'Chat & Messaging', items: [
+        { name: 'Slash Commands Everywhere', desc: 'Slash key now works in all text boxes across the site, not just the main chat input.' },
+        { name: 'More Sound Effects', desc: 'Added more sound effects throughout the site for a richer audio experience.' },
+      ]},
+      { icon: '📝', title: 'Notes & Todos', items: [
+        { name: 'Stealth Mode Notes Fix', desc: 'In stealth mode, notes and todos now correctly use "My Notes" instead of the other user\'s.' },
+        { name: 'Editable Todo Items', desc: 'Todo list items can now be edited after being added — clicking opens edit mode instead of just toggling done.' },
+      ]},
+      { icon: '🔒', title: 'Settings & Security', items: [
+        { name: 'Desktop Notifications Fixed', desc: 'Desktop notifications button in settings now properly requests and enables browser notifications.' },
+        { name: 'Channel Permissions Revamp', desc: 'Revamped the channel permissions tab in guest settings with a cleaner layout.' },
+        { name: 'Guest Pass Expiration Revamp', desc: 'Guest pass expiration now allows more specific countdowns — down to minutes or a set time.' },
+        { name: 'Guest Passes Page Revamp', desc: 'Guest passes page modernized with updated UI and improved workflow.' },
+      ]},
+      { icon: '👤', title: 'Profiles & Login', items: [
+        { name: 'Profile UI Revamp', desc: 'Profile change UI has been slightly revamped for a cleaner look.' },
+        { name: 'Profile Animations', desc: 'Opening profiles now has smooth animations and a modern layout inspired by Discord.' },
+        { name: 'New Login Screen', desc: 'Fresh new login screen design.' },
       ]},
     ],
   },
