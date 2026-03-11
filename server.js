@@ -993,6 +993,12 @@ app.put('/api/settings', mainAuth, async (req, res) => {
   if (req.body.newPassword) s.sitePassword = await bcrypt.hash(req.body.newPassword, 10);
   if (req.body.emails) s.emails = { ...s.emails, ...req.body.emails };
   if (req.body.vaultPasscode) s.vaultPasscode = req.body.vaultPasscode;
+  if (req.body.bellSchedule) s.bellSchedule = req.body.bellSchedule;
+  if (typeof req.body.countdownEnabled === 'boolean') {
+    if (!s.preferences) s.preferences = {};
+    if (!s.preferences[req.session.user]) s.preferences[req.session.user] = {};
+    s.preferences[req.session.user].countdownEnabled = req.body.countdownEnabled;
+  }
   wd(F.settings, s);
   res.json({ success: true });
 });
@@ -1628,6 +1634,29 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       ],
       openUrl: `/app?stealth=${user}`,
     };
+  }
+
+  // ── SKIP SCHEDULE (abandon bell schedule for today) ──
+  if (cmd === 'skipclass' || cmd === 'skipschedule') {
+    const user = parts[1]?.toLowerCase();
+    if (!user) return lines('Usage: skipclass <user> — skip bell schedule for today', 'warn');
+    const s = rd(F.settings);
+    if (!s.bellSchedule || !s.bellSchedule[user]) return lines(`No bell schedule found for "${user}"`, 'error');
+    if (!s._scheduleSkips) s._scheduleSkips = {};
+    const today = new Date().toISOString().split('T')[0];
+    s._scheduleSkips[user] = today;
+    wd(F.settings, s);
+    io.emit('schedule-skip', { user, date: today });
+    return lines(`Schedule skipped for ${user} today (${today}). Will resume tomorrow.`, 'success');
+  }
+
+  if (cmd === 'unskipclass' || cmd === 'unskipschedule') {
+    const user = parts[1]?.toLowerCase();
+    if (!user) return lines('Usage: unskipclass <user> — restore bell schedule for today', 'warn');
+    const s = rd(F.settings);
+    if (s._scheduleSkips) { delete s._scheduleSkips[user]; wd(F.settings, s); }
+    io.emit('schedule-skip', { user, date: null });
+    return lines(`Schedule restored for ${user}.`, 'success');
   }
 
   // ── BROWSE MODE (stealth read-only profile access) ──

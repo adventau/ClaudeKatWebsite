@@ -175,6 +175,12 @@ async function init() {
   // Show update log if user hasn't dismissed the latest version
   if (!stealthMode) checkAndShowUpdateLog();
 
+  // Load bell schedule and start class updater
+  loadBellSchedule().then(() => startClassUpdater());
+
+  // Check for today's calendar events and reminders
+  checkTodayEvents();
+
   // Set up drag & drop and paste for message input
   setupDragDropPaste();
 
@@ -277,6 +283,16 @@ function togglePriorityRow() {
   btn?.classList.toggle('active', showing);
 }
 
+function buildStatusText(presenceText, user) {
+  let text = presenceText;
+  const u = window._users?.[user];
+  if (u?.customStatus) {
+    const emoji = u.statusEmoji ? u.statusEmoji + ' ' : '';
+    text += ' · ' + emoji + u.customStatus;
+  }
+  return text;
+}
+
 function applyUserData(me, other) {
   // Cache user data for call overlay & notifications
   window._users = window._users || {};
@@ -314,10 +330,10 @@ function applyUserData(me, other) {
   const presence = other._presence || 'offline';
   if (presence === 'online') {
     setStatusDot('other-status-dot', 'online');
-    document.getElementById('other-status-label').textContent = 'Online';
+    document.getElementById('other-status-label').textContent = buildStatusText('Online', otherUser);
   } else if (presence === 'idle') {
     setStatusDot('other-status-dot', 'idle');
-    document.getElementById('other-status-label').textContent = 'Idle';
+    document.getElementById('other-status-label').textContent = buildStatusText('Idle', otherUser);
   } else if (other.lastSeen) {
     setStatusDot('other-status-dot', 'invisible');
     document.getElementById('other-status-label').textContent = formatLastSeen(other.lastSeen);
@@ -379,6 +395,21 @@ function applyTheme(themeId) {
   // AVNT footer
   const footer = document.getElementById('avnt-footer');
   if (footer) footer.style.display = themeId === 'kaliph' ? 'flex' : 'none';
+  // Reposition search bar for dark theme (sidebar becomes top bar, header is hidden)
+  repositionSearchForTheme();
+}
+
+function repositionSearchForTheme() {
+  const wrap = document.getElementById('search-wrap');
+  if (!wrap) return;
+  const isDark = document.body.classList.contains('theme-dark');
+  if (isDark) {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && wrap.parentElement?.id !== 'sidebar') sidebar.appendChild(wrap);
+  } else {
+    const headerCenter = document.querySelector('.header-center');
+    if (headerCenter && !headerCenter.contains(wrap)) headerCenter.appendChild(wrap);
+  }
 }
 
 function buildThemeGrid() {
@@ -542,13 +573,19 @@ function renderMessages(filter = null) {
     area.appendChild(buildMsgElement(msg));
   });
 
-  // If there's a NEW marker, scroll to it instead of the bottom
-  const marker = area.querySelector('.new-msg-marker');
-  if (marker) {
-    marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  } else {
-    area.scrollTop = area.scrollHeight;
-  }
+  // Scroll to NEW marker or bottom — use instant scroll + retry for reliability
+  requestAnimationFrame(() => {
+    const marker = area.querySelector('.new-msg-marker');
+    if (marker) {
+      marker.scrollIntoView({ behavior: 'instant', block: 'center' });
+      // Retry after images may have loaded to correct position
+      setTimeout(() => marker.scrollIntoView({ behavior: 'instant', block: 'center' }), 300);
+      setTimeout(() => marker.scrollIntoView({ behavior: 'instant', block: 'center' }), 800);
+    } else {
+      area.scrollTop = area.scrollHeight;
+      setTimeout(() => { area.scrollTop = area.scrollHeight; }, 300);
+    }
+  });
 }
 
 function buildMsgElement(msg) {
@@ -1183,7 +1220,7 @@ async function togglePinnedPanel() {
       ? `<img src="${senderData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
       : `<span>${(m.sender || 'U')[0].toUpperCase()}</span>`;
     const chatColor = m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : 'var(--kathrine-color, #c084fc)';
-    const text = (m.text || '').substring(0, 120) || (m.files?.length ? '📎 File' : m.voiceUrl ? '🎙️ Voice message' : '(no text)');
+    const text = m.text || (m.files?.length ? '📎 File' : m.voiceUrl ? '🎙️ Voice message' : '(no text)');
     const time = new Date(m.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
     return `<div class="pinned-item" onclick="scrollToMessage('${m.id}')">
       <div class="pinned-item-header">
@@ -1759,13 +1796,16 @@ function setupSocketEvents() {
     if (el) el.style.display = v ? 'flex' : 'none';
   });
 
-  socket.on('status-changed', ({ user, status }) => {
+  socket.on('status-changed', ({ user, status, customStatus, statusEmoji }) => {
     if (user === otherUser) {
-      // Only update if user is actually online (don't override last seen)
+      // Update cached user data for buildStatusText
+      if (window._users?.[user]) {
+        if (customStatus !== undefined) window._users[user].customStatus = customStatus;
+        if (statusEmoji !== undefined) window._users[user].statusEmoji = statusEmoji;
+      }
       setStatusDot('other-status-dot', status);
       const sLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
-      document.getElementById('other-status-label').textContent = sLabels[status] || 'Online';
-      // If they set themselves to a real status, they're active — stop last seen
+      document.getElementById('other-status-label').textContent = buildStatusText(sLabels[status] || 'Online', otherUser);
       if (status !== 'invisible') stopLastSeenUpdater();
     }
   });
@@ -1777,11 +1817,11 @@ function setupSocketEvents() {
       if (state === 'online') {
         stopLastSeenUpdater();
         setStatusDot('other-status-dot', 'online');
-        document.getElementById('other-status-label').textContent = 'Online';
+        document.getElementById('other-status-label').textContent = buildStatusText('Online', otherUser);
       } else if (state === 'idle') {
         stopLastSeenUpdater();
         setStatusDot('other-status-dot', 'idle');
-        document.getElementById('other-status-label').textContent = 'Idle';
+        document.getElementById('other-status-label').textContent = buildStatusText('Idle', otherUser);
       } else {
         // offline — show last seen
         setStatusDot('other-status-dot', 'invisible');
@@ -1799,6 +1839,8 @@ function setupSocketEvents() {
   }, 60000);
 
   socket.on('user-updated', ({ user, data }) => {
+    // Update cached user data
+    if (window._users?.[user]) Object.assign(window._users[user], data);
     if (user === currentUser) {
       if (data.theme) applyTheme(data.theme);
       if (data.displayName) {
@@ -1813,6 +1855,17 @@ function setupSocketEvents() {
         oAvatarDiv.innerHTML = `<img src="${data.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
         if (!oWrapper.querySelector('.status-indicator')) {
           oWrapper.insertAdjacentHTML('beforeend', `<div class="status-indicator ${data.status||'online'}" id="other-status-dot"></div>`);
+        }
+      }
+      // Refresh status text with custom status
+      if (data.customStatus !== undefined || data.statusEmoji !== undefined) {
+        const label = document.getElementById('other-status-label');
+        const dot = document.getElementById('other-status-dot');
+        if (label && dot) {
+          const isOnline = dot.classList.contains('online');
+          const isIdle = dot.classList.contains('idle');
+          if (isOnline) label.textContent = buildStatusText('Online', otherUser);
+          else if (isIdle) label.textContent = buildStatusText('Idle', otherUser);
         }
       }
     }
@@ -2430,6 +2483,7 @@ async function saveEvent() {
   const end = document.getElementById('event-end-date').value || start;
   if (!title) return showToast('Event title required');
   if (!start) return showToast('Date required');
+  const reminderVal = document.getElementById('event-reminder')?.value;
   await fetch('/api/calendar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -2438,6 +2492,7 @@ async function saveEvent() {
       end,
       description: document.getElementById('event-desc').value,
       color: document.getElementById('event-color').value,
+      reminder: reminderVal !== '' ? parseInt(reminderVal) : null,
     })
   });
   // Reset form
@@ -2458,6 +2513,51 @@ async function deleteCalEvent(eventId) {
   await fetch(`/api/calendar/${eventId}`, { method: 'DELETE' });
   renderCalendar();
   showToast('Event deleted');
+}
+
+// ── Calendar Event Banner & Reminders ──────────────────────────────────
+let _eventBannerDismissed = false;
+
+async function checkTodayEvents() {
+  try {
+    const calData = await fetch('/api/calendar').then(r => r.json()).catch(() => ({}));
+    const events = calData.shared || [];
+    if (!events.length) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const todayEvents = events.filter(ev => {
+      const start = ev.start || ev.date;
+      const end = ev.end || start;
+      return start <= today && today <= end;
+    });
+
+    // Show today's events banner
+    const banner = document.getElementById('event-today-banner');
+    const textEl = document.getElementById('event-today-text');
+    if (banner && textEl && todayEvents.length > 0 && !_eventBannerDismissed) {
+      const names = todayEvents.map(e => e.title).join(', ');
+      textEl.textContent = 'Today: ' + names;
+      banner.style.display = '';
+    }
+
+    // Check reminders — show toast for events with reminders matching today
+    const todayDate = new Date(today + 'T00:00:00');
+    events.forEach(ev => {
+      if (ev.reminder == null) return;
+      const evStart = new Date((ev.start || ev.date) + 'T00:00:00');
+      const daysUntil = Math.round((evStart - todayDate) / 86400000);
+      if (daysUntil === ev.reminder) {
+        const when = daysUntil === 0 ? 'today' : daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`;
+        showToast(`📅 Reminder: "${ev.title}" is ${when}!`);
+      }
+    });
+  } catch {}
+}
+
+function dismissEventBanner() {
+  _eventBannerDismissed = true;
+  const banner = document.getElementById('event-today-banner');
+  if (banner) banner.style.display = 'none';
 }
 
 // ── Vault ──────────────────────────────────────────────────────────────
@@ -3066,6 +3166,7 @@ function openSettingsModal() {
   loadSettings();
   loadGuests();
   loadSuggestions();
+  loadBellSchedule().then(() => loadBellScheduleUI());
   if (window.lucide) lucide.createIcons();
   // Close mobile sidebar when opening settings on tablet
   if (window.innerWidth <= 834) closeMobileSidebar();
@@ -3183,6 +3284,197 @@ function getEmailValues(person) {
   const list = document.getElementById(`${person}-emails-list`);
   if (!list) return [];
   return Array.from(list.querySelectorAll(`input[data-person="${person}"]`)).map(i => i.value.trim());
+}
+
+// ── BELL SCHEDULE ──────────────────────────────────────────────────────────
+window._bellSchedule = null;
+window._scheduleSkips = {};
+window._countdownEnabled = true;
+let _classInterval = null;
+
+async function loadBellSchedule() {
+  try {
+    const s = await fetch('/api/settings').then(r => r.json());
+    window._bellSchedule = s.bellSchedule || { kaliph: { regular: [], lateStart: [], lateStartDay: '' }, kathrine: { regular: [], lateStart: [], lateStartDay: '' } };
+    window._scheduleSkips = s._scheduleSkips || {};
+    if (s.preferences && s.preferences[currentUser]) {
+      window._countdownEnabled = s.preferences[currentUser].countdownEnabled !== false;
+    }
+    const toggle = document.getElementById('toggle-countdown');
+    if (toggle) toggle.checked = window._countdownEnabled;
+    return window._bellSchedule;
+  } catch { return null; }
+}
+
+function loadBellScheduleUI() {
+  const bs = window._bellSchedule;
+  if (!bs) return;
+  ['kaliph', 'kathrine'].forEach(person => {
+    const data = bs[person] || { regular: [], lateStart: [], lateStartDay: '' };
+    const daySelect = document.getElementById('late-day-' + person);
+    if (daySelect) daySelect.value = data.lateStartDay || '';
+    renderScheduleList(person, 'regular', data.regular || []);
+    renderScheduleList(person, 'lateStart', data.lateStart || []);
+  });
+}
+
+function renderScheduleList(person, type, periods) {
+  const list = document.getElementById(`schedule-list-${person}-${type}`);
+  if (!list) return;
+  if (!periods.length) { list.innerHTML = '<div style="font-size:0.78rem;color:var(--text-muted);padding:4px 0">No periods added yet.</div>'; return; }
+  list.innerHTML = periods.map((p, i) => `
+    <div class="schedule-row">
+      <input type="text" value="${escapeHtml(p.label || '')}" placeholder="Period name" data-field="label">
+      <input type="time" value="${p.start || ''}" data-field="start">
+      <input type="time" value="${p.end || ''}" data-field="end">
+      <button class="email-remove-btn" onclick="removePeriodRow('${person}','${type}',${i})" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+  `).join('');
+}
+
+function switchScheduleType(person, type, btn) {
+  const group = btn.closest('.schedule-person-group');
+  group.querySelectorAll('.schedule-type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  group.querySelectorAll('.schedule-list').forEach(l => l.style.display = 'none');
+  const target = document.getElementById(`schedule-list-${person}-${type}`);
+  if (target) target.style.display = '';
+}
+
+function getActiveScheduleType(person) {
+  const group = document.getElementById(`schedule-list-${person}-regular`)?.closest('.schedule-person-group');
+  if (!group) return 'regular';
+  const activeBtn = group.querySelector('.schedule-type-btn.active');
+  return activeBtn?.textContent.trim() === 'Late Start' ? 'lateStart' : 'regular';
+}
+
+function addPeriodRow(person) {
+  const type = getActiveScheduleType(person);
+  const periods = getScheduleValues(person, type);
+  periods.push({ label: '', start: '', end: '' });
+  renderScheduleList(person, type, periods);
+  const list = document.getElementById(`schedule-list-${person}-${type}`);
+  const inputs = list?.querySelectorAll('input[type="text"]');
+  if (inputs?.length) inputs[inputs.length - 1].focus();
+}
+
+function removePeriodRow(person, type, index) {
+  const periods = getScheduleValues(person, type);
+  periods.splice(index, 1);
+  renderScheduleList(person, type, periods);
+}
+
+function getScheduleValues(person, type) {
+  const list = document.getElementById(`schedule-list-${person}-${type}`);
+  if (!list) return [];
+  return Array.from(list.querySelectorAll('.schedule-row')).map(row => ({
+    label: row.querySelector('[data-field="label"]')?.value.trim() || '',
+    start: row.querySelector('[data-field="start"]')?.value || '',
+    end: row.querySelector('[data-field="end"]')?.value || '',
+  }));
+}
+
+async function saveBellSchedule() {
+  const data = {};
+  ['kaliph', 'kathrine'].forEach(person => {
+    data[person] = {
+      regular: getScheduleValues(person, 'regular'),
+      lateStart: getScheduleValues(person, 'lateStart'),
+      lateStartDay: document.getElementById('late-day-' + person)?.value || '',
+    };
+  });
+  await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bellSchedule: data }) });
+  window._bellSchedule = data;
+  updateClassDisplays();
+  showToast('Bell schedule saved!');
+}
+
+function toggleCountdown(el) {
+  window._countdownEnabled = el.checked;
+  fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ countdownEnabled: el.checked }) });
+  updateClassDisplays();
+}
+
+// ── GET CURRENT CLASS ──────────────────────────────────────────────────────
+function getCurrentClass(username) {
+  const bs = window._bellSchedule;
+  if (!bs || !bs[username]) return null;
+  // Check if schedule is skipped today
+  const today = new Date().toISOString().split('T')[0];
+  if (window._scheduleSkips[username] === today) return null;
+  const data = bs[username];
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayName = days[new Date().getDay()];
+  // Weekend — no class
+  if (dayName === 'sunday' || dayName === 'saturday') return null;
+  const schedule = (data.lateStartDay && data.lateStartDay === dayName) ? (data.lateStart || []) : (data.regular || []);
+  if (!schedule.length) return null;
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  for (const period of schedule) {
+    if (!period.start || !period.end) continue;
+    const [sh, sm] = period.start.split(':').map(Number);
+    const [eh, em] = period.end.split(':').map(Number);
+    const startMins = sh * 60 + sm;
+    const endMins = eh * 60 + em;
+    if (nowMins >= startMins && nowMins < endMins) {
+      return { label: period.label, start: period.start, end: period.end, endMins };
+    }
+  }
+  return null;
+}
+
+function formatCountdown(endMins) {
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowSecs = now.getSeconds();
+  const totalSecsLeft = (endMins - nowMins) * 60 - nowSecs;
+  if (totalSecsLeft <= 0) return '0:00';
+  const m = Math.floor(totalSecsLeft / 60);
+  const s = totalSecsLeft % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+function updateClassDisplays() {
+  // Other user — chat header + profile
+  const otherClass = getCurrentClass(otherUser);
+  const otherLabel = document.getElementById('other-class-label');
+  if (otherLabel) otherLabel.textContent = otherClass ? '📚 ' + otherClass.label : '';
+
+  // Current user — sidebar
+  const myClass = getCurrentClass(currentUser);
+  const myLabel = document.getElementById('my-class-label');
+  if (myLabel) myLabel.textContent = myClass ? '📚 ' + myClass.label : '';
+
+  // Countdown bar — only for current user
+  const bar = document.getElementById('class-countdown-bar');
+  const textEl = document.getElementById('class-countdown-text');
+  const timerEl = document.getElementById('class-countdown-timer');
+  if (bar && textEl && timerEl) {
+    if (myClass && window._countdownEnabled) {
+      bar.style.display = '';
+      textEl.textContent = myClass.label + ' ends in';
+      timerEl.textContent = formatCountdown(myClass.endMins);
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+}
+
+function startClassUpdater() {
+  updateClassDisplays();
+  if (_classInterval) clearInterval(_classInterval);
+  // Update every second for smooth countdown
+  _classInterval = setInterval(updateClassDisplays, 1000);
+}
+
+// Listen for schedule skip from eval
+if (typeof socket !== 'undefined') {
+  socket?.on('schedule-skip', data => {
+    if (data.date) window._scheduleSkips[data.user] = data.date;
+    else delete window._scheduleSkips[data.user];
+    updateClassDisplays();
+  });
 }
 
 async function saveProfile() {
@@ -3318,6 +3610,14 @@ async function viewProfile(username) {
   // Custom status (legacy display — now merged into status section above)
   const csEl = document.getElementById('pv-custom-status');
   csEl.style.display = 'none'; // Hidden — shown in status section now
+  // Current class
+  const classSec = document.getElementById('pv-class-section');
+  const classText = document.getElementById('pv-class-text');
+  if (classSec && classText) {
+    const cls = getCurrentClass(username);
+    if (cls) { classSec.style.display = ''; classText.textContent = '📚 ' + cls.label + ' (' + cls.start + ' – ' + cls.end + ')'; }
+    else classSec.style.display = 'none';
+  }
   // Pronouns
   const pronounsSec = document.getElementById('pv-pronouns-section');
   if (u.pronouns) { pronounsSec.style.display = ''; document.getElementById('pv-pronouns').textContent = u.pronouns; }
@@ -4498,6 +4798,9 @@ function executeSearch() {
   // Show no-search state
   if (!textQuery && !searchFilters.length) { showSearchFilters(); return; }
 
+  // Sort by newest first
+  hits.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
   const count = hits.length;
   let html = `<div class="search-results-header">
     <span class="search-results-count">${count} result${count !== 1 ? 's' : ''}</span>
@@ -4507,7 +4810,7 @@ function executeSearch() {
     html += '<div class="search-result-item"><div class="search-result-text" style="color:var(--text-muted);text-align:center">No messages found</div></div>';
   } else {
     html += hits.slice(0, 25).map(m => {
-      const time = formatTime(m.timestamp);
+      const time = formatSearchTime(m.timestamp);
       const text = highlight(m.text || '', textQuery);
       return `<div class="search-result-item" onclick="clickSearchResult('${m.id}')">
         <div class="search-result-top">
@@ -4843,6 +5146,15 @@ function showToast(msg, duration = 3000) {
 // ── Utility ───────────────────────────────────────────────────────────
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 function formatTime(ts) { return new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); }
+function formatSearchTime(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return time;
+  const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday ' + time;
+  return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()} ${time}`;
+}
 function formatDate(ts) {
   if (!ts) return '';
   const d = new Date(ts);
@@ -4866,6 +5178,35 @@ async function logout() {
 
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
+  {
+    version: '3.2.0',
+    date: 'Mar 11 2026',
+    intro: 'Bell schedules, smarter search, calendar reminders, and a bunch of quality-of-life fixes.',
+    sections: [
+      { icon: '🔔', title: 'Bell Schedule', items: [
+        { name: 'Schedule Builder', desc: 'Add your class schedule in Settings with period names and times.' },
+        { name: 'Late Start Support', desc: 'Configure a separate late-start schedule and pick your late-start day.' },
+        { name: 'Current Class Display', desc: 'Your current class shows automatically in the chat header, sidebar, and profile.' },
+        { name: 'Class Countdown Timer', desc: 'Countdown until your current class ends, shown in a bar above the chat. Toggle it off in Chat settings.' },
+        { name: 'Skip Schedule (Eval)', desc: 'Use "skipclass <user>" in eval to skip the bell schedule for a day.' },
+      ]},
+      { icon: '💬', title: 'Chat & Search', items: [
+        { name: 'Custom Status in Header', desc: 'Custom status text and emoji now show inline with presence in the chat header.' },
+        { name: 'Search: Newest First', desc: 'Search results now show latest messages at the top.' },
+        { name: 'Search: Better Times', desc: 'Search results show "Yesterday 3:30 PM" or "3/10/2026 3:30 PM" for older messages.' },
+        { name: 'Pinned Messages: Full Text', desc: 'Pinned messages panel now shows the complete message instead of truncating.' },
+        { name: 'Chat Layout: Full Width', desc: 'Chat messages now fill the full screen width in light and dark themes.' },
+        { name: 'Scroll to Last Read', desc: 'Fixed unreliable scroll position when opening the site — now reliably jumps to your last read message.' },
+      ]},
+      { icon: '📅', title: 'Calendar', items: [
+        { name: 'Event Reminders', desc: 'Set a reminder when creating events — get notified 0-7 days before.' },
+        { name: 'Today\'s Events Banner', desc: 'A subtle banner shows at the top of chat when you have events today.' },
+      ]},
+      { icon: '🎨', title: 'Dark Theme', items: [
+        { name: 'Search Bar Restored', desc: 'Search bar now appears in the dark theme horizontal top bar.' },
+      ]},
+    ],
+  },
   {
     version: '3.1.0',
     date: 'Mar 10 2026',

@@ -256,7 +256,51 @@ html, body { height: 100%; overflow: hidden; }
   line-height: 1.2;
 }
 .chat-header-status { font-size: 0.72rem; color: var(--text-muted); margin-top: 1px; }
+.chat-header-class {
+  font-size: 0.68rem; color: var(--accent, #7c3aed); margin-top: 2px;
+  display: none; /* shown by JS when active */
+}
+.chat-header-class:not(:empty) { display: block; }
+.sidebar-class-label {
+  font-size: 0.65rem; color: var(--accent, #7c3aed); margin-top: 1px;
+  display: none;
+}
+.sidebar-class-label:not(:empty) { display: block; }
 .chat-actions { display: flex; gap: 4px; align-items: center; }
+
+/* ── Today's Event Banner ──────────────────────────────────────── */
+.event-today-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 28px;
+  background: linear-gradient(90deg, rgba(124,58,237,0.08), rgba(59,130,246,0.08));
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem; flex-shrink: 0;
+}
+.event-today-icon { font-size: 0.85rem; }
+.event-today-text { color: var(--text-secondary); font-weight: 500; flex: 1; }
+.event-today-dismiss {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: 0.75rem; padding: 2px 4px; border-radius: 4px; opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.event-today-dismiss:hover { opacity: 1; }
+
+/* ── Class Countdown Bar ───────────────────────────────────────── */
+.class-countdown-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 28px;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.78rem; flex-shrink: 0;
+}
+.class-countdown-icon { font-size: 0.85rem; }
+.class-countdown-text { color: var(--text-secondary); font-weight: 500; }
+.class-countdown-timer {
+  margin-left: auto; font-weight: 700;
+  font-family: 'Space Grotesk', var(--font-main);
+  color: var(--accent, #7c3aed); font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
 
 /* Messages area — spacious like iMessage */
 .messages-area {
@@ -1942,6 +1986,39 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 }
 .email-add-btn:hover { border-color: var(--accent); background: var(--bg-hover); }
 
+/* ── BELL SCHEDULE SETTINGS ───────────────────────────────────── */
+.schedule-person-group {
+  margin-bottom: 24px; padding: 16px; border-radius: 12px;
+  background: var(--bg-input, rgba(0,0,0,0.05)); border: 1px solid var(--border);
+}
+.schedule-person-label {
+  font-weight: 700; font-size: 0.88rem; color: var(--text-primary);
+  margin-bottom: 12px;
+}
+.schedule-type-tabs {
+  display: flex; gap: 4px; margin-bottom: 10px;
+}
+.schedule-type-btn {
+  padding: 5px 14px; border-radius: 8px; font-size: 0.78rem;
+  font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+  background: none; color: var(--text-muted); transition: all 0.15s;
+}
+.schedule-type-btn.active {
+  background: var(--accent, #7c3aed); color: #fff; border-color: var(--accent, #7c3aed);
+}
+.schedule-type-btn:hover:not(.active) { background: var(--bg-hover); }
+.schedule-list { display: flex; flex-direction: column; gap: 6px; }
+.schedule-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.schedule-row input[type="text"] {
+  flex: 2; min-width: 0; font-size: 0.82rem;
+}
+.schedule-row input[type="time"] {
+  flex: 1; min-width: 0; font-size: 0.82rem;
+}
+.schedule-row .email-remove-btn { flex-shrink: 0; }
+
 /* ── CONFIRM DIALOG ─────────────────────────────────────────────── */
 .btn-danger {
   background: linear-gradient(135deg, #ef4444, #dc2626);
@@ -2269,7 +2346,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .pinned-item-time { color: var(--text-muted); font-size: 0.7rem; }
 .pinned-item-text {
   font-size: 0.8rem; color: var(--text-secondary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: pre-wrap; word-break: break-word;
 }
 .pinned-unpin-btn {
   position: absolute; top: 8px; right: 6px;
