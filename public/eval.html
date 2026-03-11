@@ -465,6 +465,8 @@ const COMMANDS = [
   { cmd: 'preview kathrine', desc: 'Act as Kathrine', cat: 'Users' },
   { cmd: 'browse kaliph', desc: 'Stealth read-only browse Kaliph', cat: 'Users' },
   { cmd: 'browse kathrine', desc: 'Stealth read-only browse Kathrine', cat: 'Users' },
+  { cmd: 'stealth kaliph', desc: 'Visual stealth preview as Kaliph (opens app)', cat: 'Users' },
+  { cmd: 'stealth kathrine', desc: 'Visual stealth preview as Kathrine (opens app)', cat: 'Users' },
   { cmd: 'reset user kaliph', desc: 'Reset Kaliph to default profile', cat: 'Users' },
   { cmd: 'reset user kathrine', desc: 'Reset Kathrine to default profile', cat: 'Users' },
   { cmd: 'toggle gif kaliph', desc: 'Toggle GIF for Kaliph', cat: 'Users' },
@@ -761,6 +763,7 @@ async function execCommand(raw) {
     if (d.table) printTable(d.table.headers, d.table.rows);
     if (d.messages) renderEditMessages(d.messages);
     if (d.html) printHTML(d.html);
+    if (d.openUrl) window.open(d.openUrl, '_blank');
   } catch (e) {
     print('Network error: ' + e.message, 'error');
   }
@@ -840,6 +843,8 @@ function showHelp() {
       ['set banner <user> clear', 'Clear banner'],
       ['force presence <user> <s>', 'Force online/idle/offline'],
       ['preview <user>', 'Act as user'],
+      ['browse <user>', 'Stealth read-only in terminal'],
+      ['stealth <user>', 'Visual stealth preview (opens app)'],
       ['reset user <user>', 'Reset profile to defaults'],
       ['toggle gif <user>', 'Toggle GIF feature'],
       ['toggle wallpaper <user>', 'Toggle wallpaper'],
