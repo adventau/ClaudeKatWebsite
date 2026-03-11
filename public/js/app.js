@@ -206,11 +206,6 @@ function switchStealthUser(user) {
   window.location.href = '/app?stealth=' + user;
 }
 
-function enterStealthFromProfile() {
-  const btn = document.getElementById('pv-stealth-btn');
-  const target = btn?.getAttribute('data-target');
-  if (target) window.location.href = '/app?stealth=' + target;
-}
 
 function setupDragDropPaste() {
   const inputArea = document.querySelector('.input-area');
@@ -3341,12 +3336,6 @@ async function viewProfile(username) {
   document.getElementById('pv-member-since').textContent = u.createdAt ? new Date(u.createdAt).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }) : 'The beginning';
   // Edit button (only for own profile)
   document.getElementById('pv-edit-btn').style.display = username === currentUser ? 'flex' : 'none';
-  // Stealth preview button (only for the other user's profile, not in stealth mode)
-  const stealthBtn = document.getElementById('pv-stealth-btn');
-  if (stealthBtn) {
-    stealthBtn.style.display = (username !== currentUser && !stealthMode) ? 'flex' : 'none';
-    stealthBtn.setAttribute('data-target', username);
-  }
   openModal('profile-viewer-modal');
   if (window.lucide) lucide.createIcons();
 }

@@ -1615,6 +1615,21 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     // Fallback: treat as regular command
   }
 
+  // ── STEALTH VISUAL MODE (opens app in stealth preview) ──
+  if (cmd === 'stealth') {
+    const user = parts[1]?.toLowerCase();
+    if (!user) return lines('Usage: stealth <user> — opens the app in visual stealth mode', 'warn');
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    return {
+      lines: [
+        { text: `Opening visual stealth preview as ${users[user].displayName || user}...`, cls: 'highlight' },
+        { text: `The app will open in a new tab with the stealth banner.`, cls: 'dim' },
+      ],
+      openUrl: `/app?stealth=${user}`,
+    };
+  }
+
   // ── BROWSE MODE (stealth read-only profile access) ──
   if (cmd === 'browse') {
     const user = parts[1]?.toLowerCase();
