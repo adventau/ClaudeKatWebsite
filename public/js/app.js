@@ -11,6 +11,10 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+// ── Stealth preview mode ─────────────────────────────────────────────
+let stealthMode = false;
+let stealthRealUser = null;  // The actual logged-in user when in stealth
+
 // ── Global state ─────────────────────────────────────────────────────
 let currentUser = null;
 let otherUser   = null;
@@ -89,6 +93,7 @@ const socket = io({ reconnection: true, reconnectionDelay: 1000, reconnectionAtt
 
 // Re-join rooms on reconnect so messages keep flowing
 socket.on('connect', () => {
+  if (stealthMode) return; // Don't emit presence in stealth mode
   if (typeof currentUser === 'string' && currentUser) {
     socket.emit('user-online', { user: currentUser });
     // Sync any messages we missed during disconnection
@@ -98,14 +103,28 @@ socket.on('connect', () => {
 
 // ── Init ──────────────────────────────────────────────────────────────
 async function init() {
+  // Check for stealth preview mode (?stealth=username)
+  const urlParams = new URLSearchParams(window.location.search);
+  const stealthTarget = urlParams.get('stealth')?.toLowerCase();
+
   const r = await fetch('/api/auth/session');
   const data = await r.json();
   if (!data.authenticated || !data.user) {
     window.location.href = '/';
     return;
   }
-  currentUser = data.user;
-  otherUser   = currentUser === 'kaliph' ? 'kathrine' : 'kaliph';
+
+  // Stealth mode: view as another user without affecting their presence
+  if (stealthTarget && ['kaliph', 'kathrine'].includes(stealthTarget)) {
+    stealthMode = true;
+    stealthRealUser = data.user;
+    currentUser = stealthTarget;
+    otherUser = stealthTarget === 'kaliph' ? 'kathrine' : 'kaliph';
+    activateStealthBanner(stealthTarget);
+  } else {
+    currentUser = data.user;
+    otherUser   = currentUser === 'kaliph' ? 'kathrine' : 'kaliph';
+  }
 
   const users = await fetch('/api/users').then(r => r.json());
   applyUserData(users[currentUser], users[otherUser]);
@@ -113,14 +132,20 @@ async function init() {
   buildThemeGrid();
   populateEmojiGrid();
   setupKeyboardShortcuts();
-  setupActivityTracking();
+  if (!stealthMode) setupActivityTracking();
   setupSocketEvents();
 
-  socket.emit('user-online', { user: currentUser });
-
-  // When connecting, always show as online (override any stale stored status)
-  setStatusDot('my-status-dot', 'online');
-  updateStatusText('online');
+  // In stealth mode: don't emit presence, don't update anything
+  if (!stealthMode) {
+    socket.emit('user-online', { user: currentUser });
+    setStatusDot('my-status-dot', 'online');
+    updateStatusText('online');
+  } else {
+    // Show the target user's actual status in stealth
+    const presence = users[currentUser]?._presence || 'offline';
+    setStatusDot('my-status-dot', presence);
+    updateStatusText(presence);
+  }
 
   // Load last-read timestamp for unread tracking
   chatLastReadTs = parseInt(localStorage.getItem('chatLastReadTs_' + currentUser) || '0', 10);
@@ -137,20 +162,53 @@ async function init() {
     ).length;
     updateUnreadBadge();
   }
-  // Mark as read since chat is the default section
-  if (currentSection === 'chat') clearUnreadBadge();
+  // Mark as read since chat is the default section (skip in stealth)
+  if (currentSection === 'chat' && !stealthMode) clearUnreadBadge();
 
   checkAndShowAnnouncements();
-  requestNotificationPermission();
+  if (!stealthMode) requestNotificationPermission();
 
   // Reveal chat content now that messages are loaded (prevents flash of empty state)
   document.body.classList.add('app-loaded');
 
   // Show update log if user hasn't dismissed the latest version
-  checkAndShowUpdateLog();
+  if (!stealthMode) checkAndShowUpdateLog();
 
   // Set up drag & drop and paste for message input
   setupDragDropPaste();
+
+  // In stealth mode, disable the input area
+  if (stealthMode) {
+    const msgInput = document.getElementById('msg-input');
+    if (msgInput) { msgInput.disabled = true; msgInput.placeholder = 'Stealth mode — read only'; }
+    const sendBtn = document.querySelector('.send-btn');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = '0.3'; sendBtn.style.pointerEvents = 'none'; }
+  }
+}
+
+// ── Stealth Mode Helpers ──────────────────────────────────────────────
+function activateStealthBanner(target) {
+  document.getElementById('app').classList.add('stealth-active');
+  const banner = document.getElementById('stealth-banner');
+  if (banner) banner.style.display = '';
+  const nameEl = document.getElementById('stealth-target-name');
+  if (nameEl) nameEl.textContent = target.charAt(0).toUpperCase() + target.slice(1);
+  const select = document.getElementById('stealth-user-select');
+  if (select) select.value = target;
+}
+
+function exitStealthMode() {
+  window.location.href = '/app';
+}
+
+function switchStealthUser(user) {
+  window.location.href = '/app?stealth=' + user;
+}
+
+function enterStealthFromProfile() {
+  const btn = document.getElementById('pv-stealth-btn');
+  const target = btn?.getAttribute('data-target');
+  if (target) window.location.href = '/app?stealth=' + target;
 }
 
 function setupDragDropPaste() {
@@ -398,7 +456,7 @@ function updateUnreadBadge() {
 function clearUnreadBadge() {
   unreadCount = 0;
   chatLastReadTs = Date.now();
-  localStorage.setItem('chatLastReadTs_' + currentUser, chatLastReadTs);
+  if (!stealthMode) localStorage.setItem('chatLastReadTs_' + currentUser, chatLastReadTs);
   updateUnreadBadge();
   // Remove the NEW marker if present
   const marker = document.querySelector('.new-msg-marker');
@@ -723,7 +781,7 @@ function buildMsgElement(msg) {
 }
 
 async function sendMessage() {
-  if (isSending) return;
+  if (stealthMode || isSending) return;
   hideEmojiAutocomplete();
   const input = document.getElementById('msg-input');
   // Convert any :emoji_name: shortcodes to actual emoji before sending
@@ -1740,6 +1798,7 @@ function setupSocketEvents() {
 
   // Heartbeat — update lastSeen on server every 60s, only while active
   setInterval(() => {
+    if (stealthMode) return; // Don't send heartbeats in stealth mode
     if (!_isAutoIdle) socket.emit('heartbeat', { user: currentUser });
   }, 60000);
 
@@ -1842,6 +1901,7 @@ function setupSocketEvents() {
 }
 
 async function markMessageRead(msgId) {
+  if (stealthMode) return; // Don't mark messages as read in stealth mode
   await fetch(`/api/messages/${msgId}/read`, { method: 'POST' });
 }
 
@@ -3274,6 +3334,12 @@ async function viewProfile(username) {
   document.getElementById('pv-member-since').textContent = u.createdAt ? new Date(u.createdAt).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }) : 'The beginning';
   // Edit button (only for own profile)
   document.getElementById('pv-edit-btn').style.display = username === currentUser ? 'flex' : 'none';
+  // Stealth preview button (only for the other user's profile, not in stealth mode)
+  const stealthBtn = document.getElementById('pv-stealth-btn');
+  if (stealthBtn) {
+    stealthBtn.style.display = (username !== currentUser && !stealthMode) ? 'flex' : 'none';
+    stealthBtn.setAttribute('data-target', username);
+  }
   openModal('profile-viewer-modal');
   if (window.lucide) lucide.createIcons();
 }
@@ -3667,6 +3733,7 @@ function toggleStatusMenu() {
 }
 
 async function setStatus(status) {
+  if (stealthMode) return; // Can't change status in stealth mode
   document.getElementById('status-menu').classList.remove('open');
   setStatusDot('my-status-dot', status);
   updateStatusText(status);
@@ -4645,11 +4712,13 @@ function checkActivity() {
 
 // Save lastSeen when user closes tab or navigates away
 window.addEventListener('beforeunload', () => {
+  if (stealthMode) return; // Don't update lastSeen in stealth mode
   navigator.sendBeacon('/api/users/' + currentUser + '/lastseen', '');
 });
 
 // Tab hidden = go idle, tab visible = come back online + sync messages
 document.addEventListener('visibilitychange', () => {
+  if (stealthMode) return; // Don't emit presence in stealth mode
   if (document.hidden) {
     if (!_isAutoIdle) {
       _isAutoIdle = 'idle';
@@ -4790,6 +4859,7 @@ function formatDate(ts) {
 function triggerFileUpload() { document.getElementById('file-input').click(); }
 
 async function logout() {
+  if (stealthMode) { window.location.href = '/app'; return; }
   // Immediately broadcast offline + save lastSeen before leaving
   socket.emit('user-invisible', { user: currentUser });
   navigator.sendBeacon('/api/users/' + currentUser + '/lastseen', '');
