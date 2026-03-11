@@ -27,6 +27,27 @@
 </style>
 <div id="app">
 
+  <!-- Stealth preview banner (Discord-style "Viewing as" bar) -->
+  <div id="stealth-banner" style="display:none">
+    <div class="stealth-banner-inner">
+      <button class="stealth-btn stealth-back" onclick="exitStealthMode()">
+        <i data-lucide="arrow-left" style="width:14px;height:14px"></i>
+        Back to Your Profile
+      </button>
+      <span class="stealth-label">You are viewing this app as <strong id="stealth-target-name">User</strong>.</span>
+      <div class="stealth-right">
+        <div class="stealth-select-wrap">
+          <select id="stealth-user-select" onchange="switchStealthUser(this.value)">
+            <option value="kaliph">Kaliph</option>
+            <option value="kathrine">Kathrine</option>
+          </select>
+          <i data-lucide="chevron-down" style="width:14px;height:14px;position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:0.7"></i>
+        </div>
+        <button class="stealth-btn stealth-disable" onclick="exitStealthMode()">Disable</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ══════════════════════════════════════════════════════════
        SIDEBAR
   ══════════════════════════════════════════════════════════ -->
@@ -1063,6 +1084,9 @@
       </div>
       <button class="pc-edit-btn" id="pv-edit-btn" onclick="closeModal('profile-viewer-modal');setTimeout(openSettingsModal,150)" style="display:none">
         <i data-lucide="pencil" style="width:14px;height:14px"></i> Edit Profile
+      </button>
+      <button class="pc-edit-btn" id="pv-stealth-btn" onclick="enterStealthFromProfile()" style="display:none;background:rgba(88,101,242,0.15);color:#5865f2;border-color:rgba(88,101,242,0.3)">
+        <i data-lucide="eye" style="width:14px;height:14px"></i> View as This User
       </button>
     </div>
   </div>

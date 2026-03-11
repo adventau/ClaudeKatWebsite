@@ -2370,3 +2370,95 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   transition: background 0.1s;
 }
 .rep-emoji-btn:hover { background: var(--bg-hover); transform: scale(1.15); }
+
+/* ── Stealth Preview Banner ──────────────────────────────────────── */
+#stealth-banner {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  z-index: 9999;
+  background: linear-gradient(90deg, #4752c4 0%, #5865f2 50%, #4752c4 100%);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  border-bottom: 2px solid rgba(0,0,0,0.2);
+}
+#app.stealth-active {
+  grid-template-rows: 40px 60px 1fr;
+  grid-template-areas: "stealth stealth" "sidebar header" "sidebar main";
+}
+#app.stealth-active #stealth-banner { grid-area: stealth; display: flex !important; }
+.stealth-banner-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 16px;
+  height: 40px;
+  gap: 12px;
+}
+.stealth-label {
+  flex: 1;
+  text-align: center;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stealth-label strong { font-weight: 700; }
+.stealth-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stealth-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.stealth-select-wrap select {
+  appearance: none;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #fff;
+  padding: 4px 28px 4px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  outline: none;
+  transition: background 0.15s;
+}
+.stealth-select-wrap select:hover { background: rgba(255,255,255,0.25); }
+.stealth-select-wrap select option { background: #4752c4; color: #fff; }
+.stealth-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  font-size: 0.78rem;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.stealth-btn:hover { background: rgba(255,255,255,0.25); }
+.stealth-disable { background: rgba(255,60,60,0.2); border-color: rgba(255,60,60,0.35); }
+.stealth-disable:hover { background: rgba(255,60,60,0.4); }
+@media (max-width: 834px) {
+  #app.stealth-active {
+    grid-template-rows: 40px 60px 1fr;
+    grid-template-columns: 1fr;
+    grid-template-areas: "stealth" "header" "main";
+  }
+}
+@media (max-width: 600px) {
+  .stealth-label { font-size: 0.72rem; }
+  .stealth-btn { padding: 3px 8px; font-size: 0.72rem; }
+  .stealth-back span { display: none; }
+}

@@ -207,6 +207,10 @@ app.post('/api/auth/password', async (req, res) => {
     if (!g.active) continue;
     if (g.expiresAt && new Date() > new Date(g.expiresAt)) continue;
     if (bcrypt.compareSync(password, g.passwordHash)) {
+      // Clear any stale main-user session data so guest doesn't inherit it
+      delete req.session.authenticated;
+      delete req.session.user;
+      delete req.session.loginTime;
       req.session.isGuest = true;
       req.session.guestId = id;
       return res.json({ success: true, isGuest: true, guestName: g.name });
@@ -270,6 +274,20 @@ app.get('/api/auth/session', (req, res) => {
     user: req.session?.user || null,
     isGuest: !!req.session?.isGuest,
     guestId: req.session?.guestId || null,
+  });
+});
+
+// Stealth preview — view as another user without affecting their presence/lastSeen/unread
+app.get('/api/auth/stealth', (req, res) => {
+  if (!req.session?.authenticated || !req.session?.user) return res.status(401).json({ error: 'Not authenticated' });
+  const target = req.query.target?.toLowerCase();
+  if (!target || !['kaliph', 'kathrine'].includes(target)) return res.status(400).json({ error: 'Invalid target user' });
+  // Return session info with the stealth target — does NOT modify the actual session
+  res.json({
+    authenticated: true,
+    user: target,
+    realUser: req.session.user,
+    stealth: true,
   });
 });
 
@@ -1087,13 +1105,15 @@ app.post('/api/guests/:id/message', (req, res) => {
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
-  const { text, target } = req.body;
+  const { text, target, sender: clientSender } = req.body;
   // Validate channel access for guests
   if (req.session.isGuest) {
     const allowed = g.channels || ['kaliph','kathrine','group'];
     if (!allowed.includes(target)) return res.status(403).json({ error: 'No access to this channel' });
   }
-  const sender = req.session.user || g.name;  // Main user takes priority over guest session
+  // Guest sessions use client-sent name (supports renames) or fallback to stored name;
+  // Main users always use their authenticated profile name (can't be spoofed)
+  const sender = req.session.isGuest ? (clientSender || g.name) : req.session.user;
   const msg = { id: uuidv4(), sender, text, timestamp: Date.now() };
   if (!g.messages[target]) g.messages[target] = [];
   g.messages[target].push(msg);
