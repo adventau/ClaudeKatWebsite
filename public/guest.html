@@ -332,6 +332,68 @@
     body.host-theme-heaven header { background: rgba(255,255,255,0.97); }
     body.host-theme-heaven .channel-bar { background: #fafaf8; }
     body.host-theme-heaven .input-area { background: #fafaf8; }
+    body.host-theme-rosewood {
+      --bg: #0c0912; --surface: #120e1c; --border: rgba(200,150,120,0.18);
+      --accent: #c8967a; --accent2: #e8c9a0; --text: #f0e8e0; --muted: rgba(240,232,224,0.45);
+      --glow: rgba(200,150,122,0.22); --msg-self: linear-gradient(135deg,#7c3aed,#a855a0);
+    }
+    body.host-theme-ocean {
+      --bg: #060d10; --surface: #0a1418; --border: rgba(20,184,166,0.2);
+      --accent: #14b8a6; --accent2: #2dd4bf; --text: #e0f2f1; --muted: rgba(224,242,241,0.45);
+      --glow: rgba(20,184,166,0.22); --msg-self: linear-gradient(135deg,#0d9488,#2dd4bf);
+    }
+
+    /* ── Guest Profile Viewer ──────────────────────────────── */
+    .guest-profile-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+      animation: fadeIn 0.2s ease;
+    }
+    .guest-profile-overlay.open { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .guest-profile-card {
+      width: 320px; border-radius: 16px; overflow: hidden;
+      background: var(--surface); border: 1px solid var(--border);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+      animation: slideUp 0.25s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .gp-banner { height: 80px; background: linear-gradient(135deg, var(--accent), var(--bg)); background-size: cover; background-position: center; }
+    .gp-avatar-wrap { display: flex; justify-content: center; margin-top: -32px; position: relative; }
+    .gp-avatar {
+      width: 64px; height: 64px; border-radius: 50%; overflow: hidden;
+      border: 3px solid var(--surface);
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; font-weight: 700; color: #fff;
+    }
+    .gp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .gp-status-dot {
+      position: absolute; bottom: 2px; right: calc(50% - 34px);
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid var(--surface); background: #22c55e;
+    }
+    .gp-body { padding: 12px 20px 20px; text-align: center; }
+    .gp-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 2px; }
+    .gp-username { font-size: 0.78rem; color: var(--muted); margin-bottom: 8px; }
+    .gp-status-row {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      font-size: 0.8rem; color: var(--muted); margin-bottom: 10px;
+    }
+    .gp-divider { height: 1px; background: var(--border); margin: 10px 0; }
+    .gp-section { text-align: left; margin-bottom: 8px; }
+    .gp-section-title { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.06em; margin-bottom: 3px; }
+    .gp-section-text { font-size: 0.82rem; }
+    .gp-close-btn {
+      display: block; width: 100%; margin-top: 8px;
+      padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+      background: transparent; color: var(--text); cursor: pointer;
+      font-size: 0.8rem; transition: background 0.15s;
+    }
+    .gp-close-btn:hover { background: rgba(255,255,255,0.06); }
+    .msg-avatar.clickable { cursor: pointer; }
+    .msg-avatar.clickable:hover { transform: scale(1.1); transition: transform 0.15s; }
   </style>
 </head>
 <body>
@@ -387,6 +449,32 @@
       <textarea id="msg-input" placeholder="Type a message…" rows="1"></textarea>
     </div>
     <button class="send-btn" onclick="sendMsg()">➤</button>
+  </div>
+
+  <!-- Guest Profile Viewer -->
+  <div class="guest-profile-overlay" id="guest-profile-overlay" onclick="if(event.target===this)closeGuestProfile()">
+    <div class="guest-profile-card">
+      <div class="gp-banner" id="gp-banner"></div>
+      <div class="gp-avatar-wrap">
+        <div class="gp-avatar" id="gp-avatar"><span>K</span></div>
+        <div class="gp-status-dot" id="gp-status-dot"></div>
+      </div>
+      <div class="gp-body">
+        <div class="gp-name" id="gp-name"></div>
+        <div class="gp-username" id="gp-username"></div>
+        <div class="gp-status-row" id="gp-status-row"></div>
+        <div class="gp-divider"></div>
+        <div class="gp-section" id="gp-bio-section">
+          <div class="gp-section-title">About Me</div>
+          <div class="gp-section-text" id="gp-bio">No bio set.</div>
+        </div>
+        <div class="gp-section" id="gp-member-section">
+          <div class="gp-section-title">Member Since</div>
+          <div class="gp-section-text" id="gp-member-since">The beginning</div>
+        </div>
+        <button class="gp-close-btn" onclick="closeGuestProfile()">Close</button>
+      </div>
+    </div>
   </div>
 
   <!-- Watermark -->
@@ -475,6 +563,8 @@
       renderChannel();
       // Load creator's theme info for guest settings
       loadCreatorTheme();
+      // Load host user data for profile viewing
+      loadHostUsers();
     }
 
     // Real-time — single handler per channel (no duplicates)
@@ -600,17 +690,27 @@
 
   function buildMsgEl(msg) {
     const isSelf = msg.sender === guestName;
+    const isHost = !isSelf && (msg.sender === 'kaliph' || msg.sender === 'kathrine');
     const row = document.createElement('div');
     row.className = `msg-row ${isSelf ? 'self' : 'other'}`;
     const avatar = document.createElement('div');
-    avatar.className = 'msg-avatar';
-    avatar.textContent = (msg.sender || 'G')[0].toUpperCase();
-    if (!isSelf) avatar.style.background = msg.sender === 'kaliph'
+    avatar.className = 'msg-avatar' + (isHost ? ' clickable' : '');
+    // Use host avatar if available
+    const hostData = (window._hostUsers || {})[msg.sender];
+    if (isHost && hostData?.avatar) {
+      avatar.innerHTML = `<img src="${hostData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    } else {
+      avatar.textContent = (msg.sender || 'G')[0].toUpperCase();
+    }
+    if (!isSelf && !hostData?.avatar) avatar.style.background = msg.sender === 'kaliph'
       ? 'linear-gradient(135deg,#7c3aed,#3b82f6)'
       : 'linear-gradient(135deg,#8b5cf6,#c084fc)';
+    if (isHost) avatar.onclick = () => showGuestProfile(msg.sender);
     const content = document.createElement('div');
+    content.className = 'msg-content-wrap';
+    const senderLabel = isSelf ? 'You' : capitalize(msg.sender);
     content.innerHTML = `
-      <div class="msg-sender">${isSelf ? 'You' : msg.sender}</div>
+      <div class="msg-sender"${isHost ? ` style="cursor:pointer" onclick="showGuestProfile('${msg.sender}')"` : ''}>${senderLabel}</div>
       <div class="msg-bubble ${isSelf ? 'self' : 'other'}">${escHtml(msg.text)}</div>
       <div class="msg-time">${formatTime(msg.timestamp)}</div>`;
     if (isSelf) { row.appendChild(content); row.appendChild(avatar); }
@@ -708,6 +808,68 @@
   function toggleSound() {
     soundEnabled = document.getElementById('toggle-sound').checked;
     sessionStorage.setItem('guestSound', soundEnabled ? 'true' : 'false');
+  }
+
+  // ── Guest Profile Viewer ─────────────────────────────────────────
+  window._hostUsers = {};
+
+  async function loadHostUsers() {
+    try {
+      const users = await fetch('/api/users').then(r => r.json());
+      window._hostUsers = users || {};
+    } catch {}
+  }
+
+  async function showGuestProfile(username) {
+    // Ensure host data is loaded
+    if (!window._hostUsers[username]) await loadHostUsers();
+    const u = window._hostUsers[username];
+    if (!u) return;
+    // Banner
+    const banner = document.getElementById('gp-banner');
+    if (u.banner) {
+      banner.style.backgroundImage = `url(${u.banner})`;
+      banner.style.backgroundSize = 'cover';
+      banner.style.backgroundPosition = 'center';
+    } else {
+      banner.style.backgroundImage = '';
+      banner.style.background = `linear-gradient(135deg, var(--accent), var(--bg))`;
+    }
+    // Avatar
+    const avatarEl = document.getElementById('gp-avatar');
+    if (u.avatar) {
+      avatarEl.innerHTML = `<img src="${u.avatar}" alt="">`;
+    } else {
+      avatarEl.innerHTML = `<span>${(u.displayName || u.name)[0].toUpperCase()}</span>`;
+    }
+    // Status dot
+    const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
+    const presence = u._presence || 'offline';
+    document.getElementById('gp-status-dot').style.background = statusColors[presence === 'online' ? 'online' : presence === 'idle' ? 'idle' : 'invisible'] || '#6b7280';
+    // Name
+    const nameEl = document.getElementById('gp-name');
+    nameEl.textContent = u.displayName || capitalize(u.name);
+    if (u.nameStyle?.color) nameEl.style.color = u.nameStyle.color;
+    else nameEl.style.color = '';
+    // Username
+    document.getElementById('gp-username').textContent = u.name + (u.pronouns ? ' \u2022 ' + u.pronouns : '');
+    // Status row
+    const statusIcons = { online: '🟢', idle: '🌙', dnd: '⛔', invisible: '⚫' };
+    const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
+    const userStatus = u.status || 'online';
+    let statusHtml = `<span>${statusIcons[userStatus] || '🟢'}</span><span>${statusLabels[userStatus] || 'Online'}</span>`;
+    if (u.customStatus) statusHtml += `<span>— ${escHtml(u.customStatus)}</span>`;
+    document.getElementById('gp-status-row').innerHTML = statusHtml;
+    // Bio
+    document.getElementById('gp-bio').textContent = u.bio || 'No bio set.';
+    // Member since
+    document.getElementById('gp-member-since').textContent = u.createdAt ? new Date(u.createdAt).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }) : 'The beginning';
+    // Open
+    document.getElementById('guest-profile-overlay').classList.add('open');
+  }
+
+  function closeGuestProfile() {
+    document.getElementById('guest-profile-overlay').classList.remove('open');
   }
 
   function showToast(text) {

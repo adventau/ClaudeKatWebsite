@@ -318,6 +318,21 @@ app.post('/api/users/:user/avatar', mainAuth, upload.single('avatar'), (req, res
   res.json({ success: true, avatar: users[req.params.user].avatar });
 });
 
+// ── Update Status (status + customStatus from profile) ──────────────────────
+app.post('/api/users/:user/status', mainAuth, (req, res) => {
+  if (req.session.user !== req.params.user) return res.status(403).json({ error: 'Forbidden' });
+  const users = rd(F.users);
+  const u = users[req.params.user];
+  if (!u) return res.status(404).json({ error: 'User not found' });
+  if (req.body.status) u.status = req.body.status;
+  if (req.body.customStatus !== undefined) u.customStatus = req.body.customStatus;
+  if (req.body.statusEmoji !== undefined) u.statusEmoji = req.body.statusEmoji;
+  wd(F.users, users);
+  io.emit('user-updated', { user: req.params.user, data: users[req.params.user] });
+  io.emit('status-changed', { user: req.params.user, status: u.status });
+  res.json({ success: true, user: u });
+});
+
 app.post('/api/users/:user/banner', mainAuth, upload.single('banner'), (req, res) => {
   if (req.session.user !== req.params.user) return res.status(403).json({ error: 'Forbidden' });
   const users = rd(F.users);
@@ -517,6 +532,124 @@ app.put('/api/messages/:id', mainAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// ── Pin / Unpin Messages ────────────────────────────────────────────────────
+app.post('/api/messages/:id/pin', mainAuth, (req, res) => {
+  const msgs = rd(F.messages);
+  const msg = (msgs.main || []).find(m => m.id === req.params.id);
+  if (!msg) return res.status(404).json({ error: 'Message not found' });
+  msg.pinned = true;
+  msg.pinnedBy = req.session.user;
+  msg.pinnedAt = Date.now();
+  wd(F.messages, msgs);
+  // Send system message about the pin
+  const pinNotice = {
+    id: uuidv4(), sender: 'system', type: 'pin-notice', text: '',
+    files: [], priority: false, replyTo: null,
+    timestamp: Date.now(), edited: false, editedAt: null,
+    reactions: {}, read: true, readAt: null, unsendable: false,
+    aiGenerated: false, systemMessage: true,
+    pinnedMsgId: msg.id, pinnedBy: req.session.user,
+  };
+  msgs.main.push(pinNotice);
+  wd(F.messages, msgs);
+  io.emit('msg-pinned', { id: msg.id, pinnedBy: req.session.user, pinnedAt: msg.pinnedAt });
+  io.emit('new-message', pinNotice);
+  res.json({ success: true });
+});
+
+app.post('/api/messages/:id/unpin', mainAuth, (req, res) => {
+  const msgs = rd(F.messages);
+  const msg = (msgs.main || []).find(m => m.id === req.params.id);
+  if (!msg) return res.status(404).json({ error: 'Message not found' });
+  msg.pinned = false;
+  delete msg.pinnedBy;
+  delete msg.pinnedAt;
+  wd(F.messages, msgs);
+  io.emit('msg-unpinned', { id: msg.id });
+  res.json({ success: true });
+});
+
+app.get('/api/messages/pinned', mainAuth, (_, res) => {
+  const msgs = rd(F.messages);
+  const pinned = (msgs.main || []).filter(m => m.pinned);
+  res.json(pinned);
+});
+
+// ── Link Preview (OpenGraph) ──────────────────────────────────────────────────
+const linkPreviewCache = new Map();
+
+function fetchPage(targetUrl) {
+  return new Promise((resolve, reject) => {
+    const httpsMod = require('https');
+    const httpMod = require('http');
+    const mod = targetUrl.startsWith('https') ? httpsMod : httpMod;
+    const timer = setTimeout(() => { reject(new Error('Timeout')); }, 4000);
+
+    const r = mod.get(targetUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-US,en;q=0.9' },
+      timeout: 4000,
+    }, resp => {
+      // Follow one redirect
+      if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
+        resp.resume(); // drain
+        clearTimeout(timer);
+        let loc = resp.headers.location;
+        if (loc.startsWith('/')) { const u = new URL(targetUrl); loc = u.origin + loc; }
+        return fetchPage(loc).then(resolve).catch(reject);
+      }
+      let d = ''; resp.setEncoding('utf8');
+      resp.on('data', c => { d += c; if (d.length > 50000) { resp.destroy(); clearTimeout(timer); resolve(d); } });
+      resp.on('end', () => { clearTimeout(timer); resolve(d); });
+      resp.on('error', () => { clearTimeout(timer); reject(new Error('Response error')); });
+    });
+    r.on('error', (e) => { clearTimeout(timer); reject(e); });
+    r.on('timeout', () => { r.destroy(); clearTimeout(timer); reject(new Error('Timeout')); });
+  });
+}
+
+app.get('/api/link-preview', auth, async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: 'No URL' });
+  try { new URL(url); } catch { return res.status(400).json({ error: 'Invalid URL' }); }
+
+  if (linkPreviewCache.has(url)) return res.json(linkPreviewCache.get(url));
+
+  try {
+    const html = await fetchPage(url);
+
+    const meta = (name) => {
+      const re = new RegExp(`<meta[^>]*(?:property|name)=["']${name}["'][^>]*content=["']([^"']*?)["']`, 'i');
+      const re2 = new RegExp(`<meta[^>]*content=["']([^"']*?)["'][^>]*(?:property|name)=["']${name}["']`, 'i');
+      return (html.match(re) || html.match(re2) || [])[1] || '';
+    };
+    const titleTag = (html.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || '';
+
+    const data = {
+      title: meta('og:title') || meta('twitter:title') || titleTag,
+      description: meta('og:description') || meta('twitter:description') || meta('description'),
+      image: meta('og:image') || meta('twitter:image'),
+      siteName: meta('og:site_name') || new URL(url).hostname.replace('www.', ''),
+      url,
+    };
+
+    // Make relative image URLs absolute
+    if (data.image && !data.image.startsWith('http')) {
+      const u = new URL(url);
+      data.image = data.image.startsWith('/') ? u.origin + data.image : u.origin + '/' + data.image;
+    }
+
+    if (data.title || data.description || data.image) {
+      linkPreviewCache.set(url, data);
+      if (linkPreviewCache.size > 200) linkPreviewCache.delete(linkPreviewCache.keys().next().value);
+      res.json(data);
+    } else {
+      res.json({ error: 'No metadata found' });
+    }
+  } catch (err) {
+    res.json({ error: 'Failed to fetch' });
+  }
+});
+
 // ── Brainstorm ────────────────────────────────────────────────────────────────
 app.get('/api/brainstorm', mainAuth, (_, res) => {
   const msgs = rd(F.messages);
@@ -684,6 +817,51 @@ app.delete('/api/vault/:id', mainAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// GIF SEARCH (GIPHY proxy)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const GIPHY_API_KEY = process.env.GIPHY_API_KEY || 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65';
+
+app.get('/api/gif-search', mainAuth, async (req, res) => {
+  const q = req.query.q;
+  if (!q) return res.json({ data: [] });
+  try {
+    const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(q)}&limit=12&rating=pg-13&lang=en`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    const results = (data.data || []).map(g => ({
+      id: g.id,
+      url: g.images?.fixed_height?.url || g.images?.original?.url,
+      preview: g.images?.fixed_height_small?.url || g.images?.preview_gif?.url,
+      width: g.images?.fixed_height?.width,
+      height: g.images?.fixed_height?.height,
+    }));
+    res.json({ results });
+  } catch (e) {
+    console.error('GIF search error:', e.message);
+    res.json({ results: [], error: 'GIF search failed' });
+  }
+});
+
+app.get('/api/gif-trending', mainAuth, async (req, res) => {
+  try {
+    const url = `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=12&rating=pg-13`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    const results = (data.data || []).map(g => ({
+      id: g.id,
+      url: g.images?.fixed_height?.url || g.images?.original?.url,
+      preview: g.images?.fixed_height_small?.url || g.images?.preview_gif?.url,
+      width: g.images?.fixed_height?.width,
+      height: g.images?.fixed_height?.height,
+    }));
+    res.json({ results });
+  } catch (e) {
+    res.json({ results: [] });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // CALENDAR
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -691,9 +869,13 @@ app.get('/api/calendar', mainAuth, (_, res) => res.json(rd(F.calendar) || {}));
 
 app.post('/api/calendar', mainAuth, (req, res) => {
   const cal = rd(F.calendar); const u = req.session.user;
+  const startDate = req.body.start || req.body.date;
+  const endDate = req.body.end || startDate;
   const event = {
     id: uuidv4(), title: req.body.title,
-    date: req.body.date,
+    start: startDate,
+    end: endDate,
+    date: startDate, // backward compat
     description: req.body.description || '',
     color: req.body.color || '#7c3aed',
     createdBy: u,
@@ -1087,17 +1269,17 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     return lines(`Deleted message from ${removed.sender}: "${(removed.text || '').substring(0, 60)}"`, 'success');
   }
 
-  // ── UNSEND (bypass time limit) ──
+  // ── UNSEND (allow user to unsend — bypasses time limit) ──
   if (cmd === 'unsend') {
     const id = parts[1];
     if (!id) return lines('Usage: unsend <message-id>', 'warn');
     const msgs = rd(F.messages);
     const i = (msgs.main || []).findIndex(m => m.id === id || m.id.startsWith(id));
     if (i === -1) return lines('Message not found', 'error');
-    const removed = msgs.main.splice(i, 1)[0];
+    msgs.main[i].unsendable = true;
     wd(F.messages, msgs);
-    io.emit('msg-unsent', removed.id);
-    return lines(`Unsent message from ${removed.sender}: "${(removed.text || '').substring(0, 60)}"`, 'success');
+    io.emit('msg-unsend-allowed', { id: msgs.main[i].id });
+    return lines(`Marked message from ${msgs.main[i].sender} as unsendable (bypasses time limit): "${(msgs.main[i].text || '').substring(0, 60)}"`, 'success');
   }
 
   // ── EDIT MODE ──
@@ -1410,6 +1592,139 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       return lines(`Reaction ${emoji} toggled on message`, 'success');
     }
     // Fallback: treat as regular command
+  }
+
+  // ── BROWSE MODE (stealth read-only profile access) ──
+  if (cmd === 'browse') {
+    const user = parts[1]?.toLowerCase();
+    if (!user) return lines('Usage: browse <user> — stealth read-only profile access', 'warn');
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    const u = users[user];
+    const presence = onlineUsers[user]?.state || 'offline';
+    return {
+      setMode: 'browse', modeInfo: `Browsing ${u.displayName || user} (stealth read-only) — type "exit" to leave`,
+      previewUser: user,
+      lines: [
+        { text: `🔍 Stealth browse: ${u.displayName || user}`, cls: 'highlight' },
+        { text: `  Status: ${presence} | LastSeen: ${u.lastSeen ? new Date(u.lastSeen).toLocaleString() : 'never'}`, cls: 'data' },
+        { text: `  Theme: ${u.theme || 'default'} | Bio: ${u.bio || '(none)'}`, cls: 'data' },
+        { text: ``, cls: 'dim' },
+        { text: `Commands: messages [n], notes, vault, contacts, calendar, status, profile`, cls: 'dim' },
+        { text: `Read-only — no presence/read changes. Type "exit" to leave.`, cls: 'dim' },
+      ],
+    };
+  }
+
+  // ── BROWSE MODE COMMANDS ──
+  if (mode === 'browse' && previewUser) {
+    const browseUser = previewUser;
+
+    if (cmd === 'messages') {
+      const count = parseInt(parts[1]) || 20;
+      const msgs = rd(F.messages);
+      const userMsgs = (msgs.main || []).filter(m => m.sender === browseUser).slice(-count);
+      if (!userMsgs.length) return lines(`No messages from ${browseUser}`, 'dim');
+      const out = [{ text: `── Last ${userMsgs.length} messages from ${browseUser} ──`, cls: 'header' }];
+      userMsgs.forEach(m => {
+        const time = new Date(m.timestamp).toLocaleString();
+        const text = (m.text || '(media)').substring(0, 100);
+        const flags = [];
+        if (m.edited) flags.push('edited');
+        if (m.unsendable) flags.push('unsendable');
+        if (m.read) flags.push('read');
+        if (m.priority) flags.push('priority');
+        out.push({ text: `  [${time}] ${text}${flags.length ? ' (' + flags.join(', ') + ')' : ''}`, cls: 'data' });
+        out.push({ text: `    id: ${m.id}`, cls: 'dim' });
+      });
+      return { lines: out };
+    }
+
+    if (cmd === 'notes') {
+      const notes = rd(F.notes) || {};
+      const userNotes = notes[browseUser] || [];
+      if (!userNotes.length) return lines(`No notes for ${browseUser}`, 'dim');
+      const out = [{ text: `── ${browseUser}'s Notes (${userNotes.length}) ──`, cls: 'header' }];
+      userNotes.forEach(n => {
+        out.push({ text: `  ${n.title || '(untitled)'} — ${(n.content || '').substring(0, 80)}`, cls: 'data' });
+        out.push({ text: `    id: ${n.id} | ${new Date(n.updatedAt || n.createdAt).toLocaleString()}`, cls: 'dim' });
+      });
+      return { lines: out };
+    }
+
+    if (cmd === 'vault') {
+      const vault = rd(F.vault) || {};
+      const userVault = vault[browseUser] || [];
+      if (!userVault.length) return lines(`No vault items for ${browseUser}`, 'dim');
+      const out = [{ text: `── ${browseUser}'s Vault (${userVault.length}) ──`, cls: 'header' }];
+      userVault.forEach(v => {
+        out.push({ text: `  ${v.type || 'file'}: ${v.name || v.filename || '(unnamed)'}`, cls: 'data' });
+        out.push({ text: `    id: ${v.id} | ${new Date(v.uploadedAt || v.createdAt).toLocaleString()}`, cls: 'dim' });
+      });
+      return { lines: out };
+    }
+
+    if (cmd === 'contacts') {
+      const contacts = rd(F.contacts) || {};
+      const userContacts = contacts[browseUser] || [];
+      if (!userContacts.length) return lines(`No contacts for ${browseUser}`, 'dim');
+      const out = [{ text: `── ${browseUser}'s Contacts (${userContacts.length}) ──`, cls: 'header' }];
+      userContacts.forEach(c => {
+        out.push({ text: `  ${c.name} — ${c.phone || ''} ${c.email || ''}`, cls: 'data' });
+      });
+      return { lines: out };
+    }
+
+    if (cmd === 'calendar') {
+      const cal = rd(F.calendar) || {};
+      const sharedEvents = (cal.shared || []).filter(e => e.createdBy === browseUser);
+      const out = [{ text: `── Events created by ${browseUser} (${sharedEvents.length}) ──`, cls: 'header' }];
+      sharedEvents.forEach(e => {
+        const dateStr = e.start && e.end && e.start !== e.end ? `${e.start} → ${e.end}` : (e.date || e.start || '?');
+        out.push({ text: `  ${e.title} — ${dateStr}`, cls: 'data' });
+        out.push({ text: `    id: ${e.id}`, cls: 'dim' });
+      });
+      return { lines: out };
+    }
+
+    if (cmd === 'status') {
+      const users = rd(F.users);
+      const u = users[browseUser];
+      const presence = onlineUsers[browseUser]?.state || 'offline';
+      const msgs = rd(F.messages);
+      const unread = (msgs.main || []).filter(m => m.sender !== browseUser && !m.read).length;
+      return multi(
+        [`── ${u.displayName || browseUser} Status ──`, 'header'],
+        [`  Presence:  ${presence}`, 'data'],
+        [`  LastSeen:  ${u.lastSeen ? new Date(u.lastSeen).toLocaleString() : 'never'}`, 'data'],
+        [`  Unread:    ${unread} messages`, 'data'],
+        [`  Theme:     ${u.theme || 'default'}`, 'data'],
+        [`  Bio:       ${u.bio || '(none)'}`, 'data'],
+      );
+    }
+
+    if (cmd === 'profile') {
+      const users = rd(F.users);
+      const u = users[browseUser];
+      if (!u) return lines('User data not found', 'error');
+      return multi(
+        [`── ${u.displayName || browseUser} Profile ──`, 'header'],
+        [`  Display:   ${u.displayName || browseUser}`, 'data'],
+        [`  Bio:       ${u.bio || '(none)'}`, 'data'],
+        [`  Theme:     ${u.theme || 'default'}`, 'data'],
+        [`  Avatar:    ${u.avatar ? 'set' : 'none'}`, 'data'],
+        [`  Banner:    ${u.banner ? 'set' : 'none'}`, 'data'],
+        [`  Email:     ${u.email || '(none)'}`, 'data'],
+        [`  NameColor: ${u.nameStyle?.color || 'default'}`, 'data'],
+        [`  Passcode:  ${u.profilePasscode ? 'set' : 'none'}`, 'data'],
+      );
+    }
+
+    // Unknown browse command
+    return multi(
+      ['Unknown browse command', 'warn'],
+      ['Available: messages [n], notes, vault, contacts, calendar, status, profile', 'dim'],
+    );
   }
 
   // ── SETTINGS ──

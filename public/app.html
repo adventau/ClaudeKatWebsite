@@ -139,10 +139,20 @@
           <div class="chat-header-status" id="other-status-label">Online</div>
         </div>
         <div class="chat-actions">
+          <button class="btn-icon" onclick="togglePinnedPanel()" title="Pinned Messages" id="pinned-btn"><i data-lucide="pin"></i></button>
           <button class="btn-icon" onclick="startCall('audio')" title="Voice"><i data-lucide="phone"></i></button>
           <button class="btn-icon" onclick="startCall('video')" title="Video"><i data-lucide="video"></i></button>
           <button class="btn-icon" onclick="openModal('wallpaper-modal')" title="Wallpaper"><i data-lucide="image"></i></button>
         </div>
+      </div>
+
+      <!-- Pinned Messages Panel (Discord-style) -->
+      <div id="pinned-panel" class="pinned-panel">
+        <div class="pinned-panel-header">
+          <span class="pinned-panel-title">📌 Pinned Messages</span>
+          <button class="btn-icon" onclick="closePinnedPanel()" style="padding:4px"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+        </div>
+        <div id="pinned-list" class="pinned-list"></div>
       </div>
 
       <!-- Messages -->
@@ -180,6 +190,8 @@
 
       <!-- Input area -->
       <div class="input-area">
+        <!-- File attachment previews -->
+        <div id="file-attach-bar" class="file-attach-bar" style="display:none"></div>
         <!-- Reply preview -->
         <div id="reply-preview-bar">
           <span id="reply-preview-text">Replying to…</span>
@@ -216,6 +228,7 @@
           </select>
         </div>
 
+        <div id="emoji-autocomplete" class="emoji-autocomplete" style="display:none"></div>
         <div class="input-row">
           <div class="msg-input-wrap">
             <textarea id="msg-input" placeholder="Type a message…" rows="1"></textarea>
@@ -331,9 +344,23 @@
         <span class="section-title">Contacts</span>
         <button class="btn-primary" onclick="openModal('new-contact-modal')">+ Add Contact</button>
       </div>
-      <div style="flex:1;overflow-y:auto;padding:1rem">
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:0.75rem" id="contacts-grid">
-          <div class="empty-state" style="grid-column:1/-1">
+      <div style="padding:0 1rem">
+        <div class="contacts-toolbar">
+          <div class="contacts-search-wrap">
+            <i data-lucide="search" style="width:15px;height:15px;opacity:0.4"></i>
+            <input type="text" id="contacts-search" placeholder="Search contacts…" oninput="filterContacts(this.value)">
+          </div>
+          <select id="contacts-sort" onchange="loadContacts()" class="contacts-sort-select">
+            <option value="name-asc">Name A–Z</option>
+            <option value="name-desc">Name Z–A</option>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </div>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:0 1rem 1rem">
+        <div id="contacts-grid">
+          <div class="empty-state">
             <div class="empty-state-icon">📇</div>
             <div class="empty-state-text">No contacts yet</div>
           </div>
@@ -360,16 +387,8 @@
               <div class="guest-header-avatar" id="guest-chat-initial">G</div>
               <div class="guest-header-info">
                 <div class="guest-header-name" id="guest-chat-name">Guest</div>
-                <div class="guest-header-channel" id="guest-chat-channel">Group Chat</div>
+                <div class="guest-header-status" id="guest-chat-status">Guest Chat</div>
               </div>
-            </div>
-            <div class="guest-channel-tabs">
-              <button class="guest-tab active" data-ch="group" onclick="switchGuestChannel('group',this)">
-                <i data-lucide="users" style="width:14px;height:14px"></i> Group
-              </button>
-              <button class="guest-tab" data-ch="dm" onclick="switchGuestChannel('dm',this)">
-                <i data-lucide="message-circle" style="width:14px;height:14px"></i> Direct
-              </button>
             </div>
           </div>
           <!-- Messages area -->
@@ -757,6 +776,7 @@
   <div class="ctx-item" onclick="ctxReply()">↩️ Reply</div>
   <div class="ctx-item" onclick="ctxReact()">😊 React</div>
   <div class="ctx-item" onclick="ctxCopy()">📋 Copy Text</div>
+  <div class="ctx-item" id="ctx-pin-btn">📌 Pin Message</div>
   <div class="ctx-sep"></div>
   <div class="ctx-item" onclick="ctxEdit()" id="ctx-edit-btn">✏️ Edit</div>
   <div class="ctx-item danger" onclick="ctxUnsend()" id="ctx-unsend-btn">🗑️ Unsend</div>
@@ -806,13 +826,30 @@
 
 <!-- New Calendar Event -->
 <div class="modal-overlay" id="new-event-modal">
-  <div class="modal modal-sm">
+  <div class="modal" style="max-width:420px">
     <div class="modal-header">
       <span class="modal-title">New Event</span>
       <button class="btn-icon" onclick="closeModal('new-event-modal')">✕</button>
     </div>
     <div class="form-row"><label>Title</label><input type="text" id="event-title" placeholder="Event title"></div>
-    <div class="form-row"><label>Date</label><input type="date" id="event-date"></div>
+    <div class="form-row">
+      <label>Date</label>
+      <div class="event-date-display" id="event-date-display" onclick="toggleEventDatePicker()">Select date(s)...</div>
+      <input type="hidden" id="event-start-date">
+      <input type="hidden" id="event-end-date">
+    </div>
+    <div class="event-date-picker" id="event-date-picker" style="display:none">
+      <div class="edp-header">
+        <button class="btn-icon edp-nav" onclick="edpPrev()">‹</button>
+        <span class="edp-month" id="edp-month-label"></span>
+        <button class="btn-icon edp-nav" onclick="edpNext()">›</button>
+      </div>
+      <div class="edp-grid" id="edp-grid">
+        <div class="edp-day-header">S</div><div class="edp-day-header">M</div><div class="edp-day-header">T</div>
+        <div class="edp-day-header">W</div><div class="edp-day-header">T</div><div class="edp-day-header">F</div>
+        <div class="edp-day-header">S</div>
+      </div>
+    </div>
     <div class="form-row"><label>Description</label><textarea id="event-desc" rows="2" placeholder="Optional description"></textarea></div>
     <div class="form-row"><label>Color</label><input type="color" id="event-color" value="#7c3aed" style="width:60px;height:32px"></div>
     <div style="display:flex;gap:8px;margin-top:1rem">
@@ -864,6 +901,13 @@
   </div>
 </div>
 
+<!-- Contact Detail -->
+<div class="modal-overlay" id="contact-detail-modal">
+  <div class="modal modal-sm" style="max-width:380px">
+    <div id="contact-detail-content"></div>
+  </div>
+</div>
+
 <!-- New Contact -->
 <div class="modal-overlay" id="new-contact-modal">
   <div class="modal modal-sm">
@@ -872,7 +916,7 @@
       <button class="btn-icon" onclick="closeModal('new-contact-modal')">✕</button>
     </div>
     <div class="form-row"><label>Name *</label><input type="text" id="contact-name" placeholder="Full name"></div>
-    <div class="form-row"><label>Phone</label><input type="tel" id="contact-phone" placeholder="+1 (555) 000-0000"></div>
+    <div class="form-row"><label>Phone</label><input type="tel" id="contact-phone" placeholder="(555) 000-0000" oninput="formatPhoneInput(this)"></div>
     <div class="form-row"><label>Email</label><input type="email" id="contact-email" placeholder="contact@email.com"></div>
     <div class="form-row"><label>Notes</label><textarea id="contact-notes" rows="2" placeholder="Additional notes"></textarea></div>
     <div class="form-row">
@@ -945,10 +989,10 @@
       <button class="btn-icon" onclick="closeModal('gif-modal')">✕</button>
     </div>
     <div class="form-row">
-      <input type="text" id="gif-search-input" placeholder="Search GIFs (Tenor)…" oninput="searchGifs(this.value)">
+      <input type="text" id="gif-search-input" placeholder="Search GIFs…" oninput="searchGifs(this.value)">
     </div>
-    <div id="gif-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-height:300px;overflow-y:auto;margin-top:0.5rem">
-      <p style="grid-column:1/-1;color:var(--text-muted);font-size:0.85rem;text-align:center">Type to search for GIFs</p>
+    <div id="gif-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-height:320px;overflow-y:auto;margin-top:0.5rem;padding:2px">
+      <p style="grid-column:1/-1;color:var(--text-muted);font-size:0.85rem;text-align:center">Loading trending GIFs…</p>
     </div>
   </div>
 </div>
@@ -992,6 +1036,7 @@
         <span id="pv-custom-status-text"></span>
       </div>
       <div class="pc-divider"></div>
+      <div class="pc-section" id="pv-status-section"></div>
       <div class="pc-section" id="pv-pronouns-section" style="display:none">
         <div class="pc-section-title">PRONOUNS</div>
         <div class="pc-section-text" id="pv-pronouns"></div>
@@ -1011,6 +1056,39 @@
       <button class="pc-edit-btn" id="pv-edit-btn" onclick="closeModal('profile-viewer-modal');setTimeout(openSettingsModal,150)" style="display:none">
         <i data-lucide="pencil" style="width:14px;height:14px"></i> Edit Profile
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Status Editor Modal -->
+<div class="modal-overlay" id="status-editor-modal">
+  <div class="modal modal-sm" style="max-width:360px">
+    <div class="modal-header">
+      <h3>Set Your Status</h3>
+      <button class="btn-icon" onclick="closeModal('status-editor-modal')" style="padding:4px"><i data-lucide="x" style="width:16px;height:16px"></i></button>
+    </div>
+    <div style="padding:1rem;display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;display:block">Status</label>
+        <select id="se-status-select" class="input" style="width:100%">
+          <option value="online">🟢 Online</option>
+          <option value="idle">🌙 Idle</option>
+          <option value="dnd">⛔ Do Not Disturb</option>
+          <option value="invisible">⚫ Invisible</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;display:block">Custom Status</label>
+        <input type="text" id="se-custom-status" class="input" placeholder="What are you up to?" maxlength="80" style="width:100%">
+      </div>
+      <div>
+        <label style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;display:block">Status Emoji</label>
+        <input type="text" id="se-status-emoji" class="input" placeholder="😊" maxlength="4" style="width:80px">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn-ghost" onclick="clearStatus()" style="flex:1">Clear</button>
+        <button class="btn-primary" onclick="saveStatus()" style="flex:1">Save</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1040,15 +1118,18 @@
 
 <!-- Update Log Modal -->
 <div class="modal-overlay" id="update-log-modal">
-  <div class="modal" style="max-width:440px;width:100%">
-    <div class="modal-header">
-      <span class="modal-title">What's New</span>
+  <div class="modal" style="max-width:500px;width:100%">
+    <div class="modal-header" style="padding:1rem 1.25rem;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:1.1rem">✨</span>
+        <span class="modal-title" style="font-size:1rem;font-weight:700">What's New</span>
+      </div>
       <button class="btn-icon" onclick="dismissUpdateLog()">✕</button>
     </div>
-    <div id="update-log-content" style="padding:1rem 1.25rem;max-height:60vh;overflow-y:auto;font-size:0.85rem;line-height:1.6">
+    <div id="update-log-content" style="padding:1rem 1.25rem;max-height:65vh;overflow-y:auto;font-size:0.85rem;line-height:1.6">
     </div>
     <div style="padding:0.75rem 1.25rem;border-top:1px solid var(--border);text-align:center">
-      <button class="btn-primary" onclick="dismissUpdateLog()" style="min-width:120px">Got it</button>
+      <button class="btn-primary" onclick="dismissUpdateLog()" style="min-width:140px;font-weight:600">Got it!</button>
     </div>
   </div>
 </div>

@@ -52,6 +52,7 @@
     .badge-edit { background: rgba(255,170,0,0.15); color: #ffaa00; }
     .badge-preview { background: rgba(100,100,255,0.15); color: #8888ff; }
     .badge-maint { background: rgba(255,50,50,0.15); color: #ff4444; }
+    .badge-browse { background: rgba(0,200,255,0.15); color: #00ccff; }
 
     .term-output {
       flex: 1; overflow-y: auto; padding: 12px 16px;
@@ -462,6 +463,8 @@ const COMMANDS = [
   { cmd: 'force presence kathrine ', desc: 'Force presence (online/idle/offline)', cat: 'Users' },
   { cmd: 'preview kaliph', desc: 'Act as Kaliph', cat: 'Users' },
   { cmd: 'preview kathrine', desc: 'Act as Kathrine', cat: 'Users' },
+  { cmd: 'browse kaliph', desc: 'Stealth read-only browse Kaliph', cat: 'Users' },
+  { cmd: 'browse kathrine', desc: 'Stealth read-only browse Kathrine', cat: 'Users' },
   { cmd: 'reset user kaliph', desc: 'Reset Kaliph to default profile', cat: 'Users' },
   { cmd: 'reset user kathrine', desc: 'Reset Kathrine to default profile', cat: 'Users' },
   { cmd: 'toggle gif kaliph', desc: 'Toggle GIF for Kaliph', cat: 'Users' },
@@ -523,8 +526,21 @@ const PREVIEW_COMMANDS = [
   { cmd: 'exit', desc: 'Exit preview mode', cat: 'Preview' },
 ];
 
+// Browse mode commands (stealth read-only)
+const BROWSE_COMMANDS = [
+  { cmd: 'messages', desc: 'Show recent messages from this user', cat: 'Browse' },
+  { cmd: 'messages 50', desc: 'Show last 50 messages from this user', cat: 'Browse' },
+  { cmd: 'notes', desc: 'Show user notes', cat: 'Browse' },
+  { cmd: 'vault', desc: 'Show user vault items', cat: 'Browse' },
+  { cmd: 'contacts', desc: 'Show user contacts', cat: 'Browse' },
+  { cmd: 'calendar', desc: 'Show user calendar events', cat: 'Browse' },
+  { cmd: 'status', desc: 'Show presence/lastSeen/unread', cat: 'Browse' },
+  { cmd: 'profile', desc: 'Show full profile data', cat: 'Browse' },
+  { cmd: 'exit', desc: 'Exit browse mode', cat: 'Browse' },
+];
+
 function getMatchingCommands(input) {
-  const list = mode === 'preview' ? [...PREVIEW_COMMANDS, ...COMMANDS] : COMMANDS;
+  const list = mode === 'browse' ? [...BROWSE_COMMANDS, ...COMMANDS] : mode === 'preview' ? [...PREVIEW_COMMANDS, ...COMMANDS] : COMMANDS;
   if (!input) return list.slice(0, 15);
   const lower = input.toLowerCase();
   // Exact prefix match first, then fuzzy
@@ -713,11 +729,11 @@ function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 
 function setMode(m, info) {
   mode = m;
-  const badge = m === 'edit' ? 'badge-edit' : m === 'preview' ? 'badge-preview' : m === 'maintenance' ? 'badge-maint' : 'badge-normal';
+  const badge = m === 'edit' ? 'badge-edit' : m === 'preview' ? 'badge-preview' : m === 'browse' ? 'badge-browse' : m === 'maintenance' ? 'badge-maint' : 'badge-normal';
   modeBadge.className = 'mode-badge ' + badge;
   modeBadge.textContent = m.toUpperCase();
   if (info) headerInfo.textContent = info;
-  promptEl.textContent = m === 'edit' ? 'edit>' : m === 'preview' ? `${previewUser}>` : 'eval>';
+  promptEl.textContent = m === 'edit' ? 'edit>' : m === 'preview' ? `${previewUser}>` : m === 'browse' ? `🔍${previewUser}>` : 'eval>';
 }
 
 // ── Execute command ──

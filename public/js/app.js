@@ -36,6 +36,7 @@ let localStream  = null;
 let callType = null;
 let emojiTarget = 'msg';
 let currentEmojiReactMsgId = null;
+let pinnedPanelOpen = false;
 let isSending = false;
 let inactivityTimer = null;
 let warningTimer = null;
@@ -47,10 +48,30 @@ const WARNING_MS = 29 * 60 * 1000;
 let unreadCount = 0;
 let chatLastReadTs = 0; // Timestamp of last time user viewed chat
 
-const EMOJIS = ['😀','😂','😍','🥰','😎','🤩','😜','🤔','😮','😢','😡','🥳',
-  '🎉','🔥','💜','❤️','💙','💚','🖤','🤍','✨','⭐','🌙','☀️','🌈',
-  '💫','🦋','🌸','🍀','🎵','🎶','👑','💎','🔮','🎯','💡','🧠','🚀',
-  '🌊','🏆','💪','🙌','👏','🤝','✌️','👋','🙏','💅','🫶','❄️','🌺'];
+const EMOJIS = [
+  // Faces
+  '😀','😃','😄','😁','😂','🤣','😅','😊','😇','🥰','😍','🤩','😘','😗','😋','😛',
+  '😜','🤪','😝','🤑','🤗','🤭','🫢','🤫','🤔','🫡','🤐','🤨','😐','😑','😶',
+  '🫥','😏','😒','🙄','😬','😮‍💨','🤥','🫠','😌','😔','😪','🤤','😴','😷','🤒',
+  '🤕','🤢','🤮','🥵','🥶','🥴','😵','😵‍💫','🤯','🤠','🥳','🥸','😎','🤓','🧐',
+  // Emotional
+  '😕','🫤','😟','🙁','☹️','😮','😯','😲','😳','🥺','🥹','😦','😧','😨','😰',
+  '😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','🤬','😈',
+  '👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖',
+  // Gestures & people
+  '👋','🤚','🖐️','✋','🖖','🫱','🫲','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘',
+  '🤙','👈','👉','👆','🖕','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏',
+  '🙌','🫶','👐','🤲','🤝','🙏','✍️','💅','🤳','💪',
+  // Hearts & love
+  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','❣️','💕',
+  '💞','💓','💗','💖','💘','💝',
+  // Symbols & nature
+  '✨','⭐','🌟','💫','🔥','💥','🌈','☀️','🌙','⚡','❄️','🌊','🌸','🌺','🍀',
+  '🦋','🌹','🎵','🎶','🎤','🎧',
+  // Objects
+  '👑','💎','🔮','🎯','💡','🧠','🚀','🏆','🎉','🎊','🎁','🎀','🎗️','🏅','🥇',
+  '💰','💸','📱','💻','⌚','📷','🔔','🔕','📌','📍','✅','❌','⭕','💯',
+];
 
 const THEMES = [
   { id: 'kaliph',   name: 'AVNT Purple',       preview: 'linear-gradient(135deg,#08051a,#7c3aed,#3b82f6)' },
@@ -59,6 +80,8 @@ const THEMES = [
   { id: 'light',    name: 'Pristine Light',     preview: 'linear-gradient(135deg,#f8fafc,#6366f1,#e0e7ff)' },
   { id: 'dark',     name: 'Midnight Dark',      preview: 'linear-gradient(135deg,#0f172a,#818cf8,#1e293b)' },
   { id: 'heaven',   name: 'Celestial Heaven',   preview: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)' },
+  { id: 'rosewood', name: 'Rose & Ember',       preview: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)' },
+  { id: 'ocean',    name: 'Deep Tide',          preview: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)' },
 ];
 
 // ── Socket ────────────────────────────────────────────────────────────
@@ -105,7 +128,7 @@ async function init() {
   // Init Lucide icons early so UI is always visible
   if (window.lucide) lucide.createIcons();
 
-  await Promise.all([loadMessages(), loadAnnouncements()]).catch(console.error);
+  await Promise.all([loadMessages(), loadAnnouncements(), loadNotes(), loadContacts(), loadGuestMessages()]).catch(console.error);
 
   // Count initial unread messages (from other user, after last read time)
   if (chatLastReadTs) {
@@ -125,6 +148,61 @@ async function init() {
 
   // Show update log if user hasn't dismissed the latest version
   checkAndShowUpdateLog();
+
+  // Set up drag & drop and paste for message input
+  setupDragDropPaste();
+}
+
+function setupDragDropPaste() {
+  const inputArea = document.querySelector('.input-area');
+  const msgInput = document.getElementById('msg-input');
+  if (!inputArea) return;
+
+  // Drag & drop
+  let dragCounter = 0;
+  inputArea.addEventListener('dragenter', e => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter++;
+    inputArea.classList.add('drag-over');
+  });
+  inputArea.addEventListener('dragleave', e => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter--;
+    if (dragCounter <= 0) { dragCounter = 0; inputArea.classList.remove('drag-over'); }
+  });
+  inputArea.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+  inputArea.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter = 0;
+    inputArea.classList.remove('drag-over');
+    const files = e.dataTransfer?.files;
+    if (files && files.length) {
+      if (!window._pendingFiles) window._pendingFiles = [];
+      window._pendingFiles.push(...Array.from(files));
+      renderFileAttachBar();
+    }
+  });
+
+  // Paste images/files
+  if (msgInput) {
+    msgInput.addEventListener('paste', e => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files = [];
+      for (const item of items) {
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length) {
+        e.preventDefault();
+        if (!window._pendingFiles) window._pendingFiles = [];
+        window._pendingFiles.push(...files);
+        renderFileAttachBar();
+      }
+    });
+  }
 }
 
 // Format toolbar + priority row toggles
@@ -293,7 +371,11 @@ function showSection(name, el) {
   if (name === 'contacts')  loadContacts();
   if (name === 'vault')     { resetVault(); }
   if (name === 'announcements') loadAnnouncements();
-  if (name === 'guest-messages') loadGuestMessages();
+  if (name === 'guest-messages') {
+    loadGuestMessages();
+    // Clear unread for active guest
+    if (activeGuestId) { delete guestUnread[activeGuestId]; updateGuestNavBadge(); renderGuestList(); }
+  }
 
   // Close mobile sidebar when navigating on tablet
   if (window.innerWidth <= 834) closeMobileSidebar();
@@ -429,6 +511,19 @@ function buildMsgElement(msg) {
     return row;
   }
 
+  // Pin notice system messages
+  if (msg.type === 'pin-notice') {
+    const row = document.createElement('div');
+    row.className = 'msg-row pin-notice-row';
+    row.id = 'msg-' + msg.id;
+    const pinnerName = capitalize(msg.pinnedBy || 'someone');
+    row.innerHTML = `<div class="pin-notice">
+      <span class="pin-notice-icon">📌</span>
+      <span class="pin-notice-text"><a href="#" onclick="scrollToMessage('${msg.pinnedMsgId}');return false" class="pin-notice-link">New message pinned</a> by <strong>${escapeHtml(pinnerName)}</strong></span>
+    </div>`;
+    return row;
+  }
+
   const isSelf = msg.sender === currentUser;
   const isAI   = msg.sender === 'ai' || msg.aiGenerated;
 
@@ -491,9 +586,25 @@ function buildMsgElement(msg) {
     }
   }
 
+  // GIF messages — embed as image
+  if (msg.type === 'gif' && msg.text) {
+    const gifImg = document.createElement('img');
+    gifImg.src = msg.text;
+    gifImg.className = 'msg-gif';
+    gifImg.style.cssText = 'max-width:100%;border-radius:10px;cursor:pointer;display:block';
+    gifImg.loading = 'lazy';
+    gifImg.onclick = () => openLightbox(msg.text);
+    bubble.appendChild(gifImg);
+    bubble.style.padding = '4px';
+    bubble.style.background = 'transparent';
+  }
   // Apply text formatting
-  if (msg.text) {
+  else if (msg.text) {
     let t = msg.text;
+    // Convert :emoji_name: shortcodes to actual emoji
+    t = convertColonEmojis(t);
+    // Extract URLs before HTML-ifying for link previews
+    const urlMatches = t.match(/(https?:\/\/[^\s<]+)/g) || [];
     // Auto-detect URLs and make them clickable
     t = t.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;word-break:break-all">$1</a>');
     if (msg.formatting) {
@@ -507,6 +618,10 @@ function buildMsgElement(msg) {
       textNode.style.fontFamily = msg.formatting.font;
     }
     bubble.appendChild(textNode);
+    // Rich link previews for URLs
+    if (urlMatches.length > 0) {
+      urlMatches.slice(0, 2).forEach(url => renderLinkPreview(bubble, url));
+    }
   }
 
   // Files
@@ -518,8 +633,18 @@ function buildMsgElement(msg) {
       bubble.appendChild(img);
     } else if (file.type?.startsWith('audio') || file.url?.endsWith('.webm') || file.url?.endsWith('.ogg')) {
       const wrap = document.createElement('div');
-      wrap.className = 'msg-audio';
-      wrap.innerHTML = `<audio controls preload="metadata"><source src="${file.url}"></audio>`;
+      wrap.className = 'msg-audio-player';
+      const uid = 'aud-' + msg.id + '-' + Math.random().toString(36).slice(2,6);
+      wrap.innerHTML = `
+        <audio id="${uid}" preload="metadata" src="${file.url}"></audio>
+        <button class="audio-play-btn" onclick="toggleAudioPlay('${uid}', this)" title="Play">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <div class="audio-wave-track" onclick="seekAudio(event, '${uid}')">
+          <div class="audio-wave-progress" id="${uid}-prog"></div>
+        </div>
+        <span class="audio-time" id="${uid}-time">0:00</span>
+      `;
       bubble.appendChild(wrap);
     } else {
       const fileEl = document.createElement('div');
@@ -529,6 +654,13 @@ function buildMsgElement(msg) {
       bubble.appendChild(fileEl);
     }
   });
+
+  if (msg.pinned) {
+    const pin = document.createElement('div');
+    pin.className = 'msg-pinned-indicator';
+    pin.innerHTML = '📌 Pinned';
+    bubble.insertBefore(pin, bubble.firstChild);
+  }
 
   if (msg.edited) {
     const ed = document.createElement('span');
@@ -545,9 +677,13 @@ function buildMsgElement(msg) {
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
   const unsendBtn = (isSelf && msg.unsendable) ? `<button class="msg-action-btn msg-unsend-btn" data-msg-id="${msg.id}" onclick="quickUnsend('${msg.id}')" title="Unsend">🗑️</button>` : '';
+  const pinBtn = msg.pinned
+    ? `<button class="msg-action-btn" onclick="unpinMessage('${msg.id}')" title="Unpin">📌</button>`
+    : `<button class="msg-action-btn" onclick="pinMessage('${msg.id}')" title="Pin">📌</button>`;
   actions.innerHTML = `
     <button class="msg-action-btn react-trigger" onclick="showQuickReact('${msg.id}', this)" title="React">😊</button>
     <button class="msg-action-btn" onclick="setReply('${msg.id}')" title="Reply">↩</button>
+    ${pinBtn}
     <button class="msg-action-btn" onclick="copyMsgText('${msg.id}')" title="Copy">📋</button>
     ${isSelf ? `<button class="msg-action-btn" onclick="ctxMsgId='${msg.id}';ctxEdit()" title="Edit">✏️</button>` : ''}
     ${unsendBtn}
@@ -588,8 +724,10 @@ function buildMsgElement(msg) {
 
 async function sendMessage() {
   if (isSending) return;
+  hideEmojiAutocomplete();
   const input = document.getElementById('msg-input');
-  const text  = input.value.trim();
+  // Convert any :emoji_name: shortcodes to actual emoji before sending
+  const text  = convertColonEmojis(input.value.trim());
   const priority = document.getElementById('priority-checkbox').checked;
 
   if (!text && !window._pendingFiles?.length) return;
@@ -612,6 +750,13 @@ async function sendMessage() {
   resetInputHeight();
   cancelReply();
   document.getElementById('priority-checkbox').checked = false;
+  // Reset formatting state after send
+  formatting = { bold: false, italic: false, underline: false, font: 'default' };
+  input.classList.remove('fmt-bold', 'fmt-italic', 'fmt-underline');
+  input.style.fontFamily = '';
+  document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+  const fontSel = document.getElementById('font-select');
+  if (fontSel) fontSel.value = 'default';
   SoundSystem.send();
   socket.emit('stop-typing', { user: currentUser });
 
@@ -649,16 +794,52 @@ async function sendMessage() {
 }
 
 function handleFileSelect(input) {
-  window._pendingFiles = Array.from(input.files);
-  if (window._pendingFiles.length > 0) {
-    showToast(`📎 ${window._pendingFiles.length} file(s) ready to send`);
-  }
+  if (!window._pendingFiles) window._pendingFiles = [];
+  window._pendingFiles.push(...Array.from(input.files));
   input.value = '';
+  renderFileAttachBar();
+}
+
+function removeAttachedFile(idx) {
+  if (window._pendingFiles) {
+    window._pendingFiles.splice(idx, 1);
+    if (!window._pendingFiles.length) window._pendingFiles = null;
+  }
+  renderFileAttachBar();
+}
+
+function renderFileAttachBar() {
+  const bar = document.getElementById('file-attach-bar');
+  if (!bar) return;
+  const files = window._pendingFiles || [];
+  if (!files.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  bar.style.display = 'flex';
+  bar.innerHTML = files.map((f, i) => {
+    const isImage = f.type?.startsWith('image');
+    const icon = isImage ? '' : getFileIcon(f.type || '');
+    const thumb = isImage ? URL.createObjectURL(f) : '';
+    return `<div class="file-chip">
+      ${isImage ? `<img src="${thumb}" class="file-chip-thumb">` : `<span class="file-chip-icon">${icon}</span>`}
+      <span class="file-chip-name">${f.name.length > 18 ? f.name.slice(0,15) + '…' : f.name}</span>
+      <button class="file-chip-x" onclick="removeAttachedFile(${i})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function getFileIcon(mime) {
+  if (mime?.startsWith('image')) return '🖼️';
+  if (mime?.startsWith('video')) return '🎬';
+  if (mime?.startsWith('audio')) return '🎵';
+  if (mime?.includes('pdf')) return '📕';
+  if (mime?.includes('word') || mime?.includes('doc')) return '📄';
+  if (mime?.includes('zip') || mime?.includes('rar') || mime?.includes('compress')) return '📦';
+  return '📎';
 }
 
 function clearFilePreview() {
-  const fp = document.getElementById('file-preview');
-  if (fp) fp.remove();
+  window._pendingFiles = null;
+  const bar = document.getElementById('file-attach-bar');
+  if (bar) { bar.style.display = 'none'; bar.innerHTML = ''; }
 }
 
 // ── Voice Recording ───────────────────────────────────────────────────
@@ -734,9 +915,15 @@ function showContextMenu(e, msg) {
   const menu = document.getElementById('context-menu');
   const editBtn   = document.getElementById('ctx-edit-btn');
   const unsendBtn = document.getElementById('ctx-unsend-btn');
+  const pinBtn    = document.getElementById('ctx-pin-btn');
 
   editBtn.style.display   = msg.sender === currentUser ? '' : 'none';
   unsendBtn.style.display = (msg.sender === currentUser && msg.unsendable) ? '' : 'none';
+  // Pin/unpin toggle
+  if (pinBtn) {
+    pinBtn.textContent = msg.pinned ? '📌 Unpin Message' : '📌 Pin Message';
+    pinBtn.onclick = () => { msg.pinned ? ctxUnpin() : ctxPin(); };
+  }
 
   menu.style.left = Math.min(e.clientX, window.innerWidth  - 170) + 'px';
   menu.style.top  = Math.min(e.clientY, window.innerHeight - 200) + 'px';
@@ -786,6 +973,16 @@ async function ctxUnsend() {
   if (!d.success) showToast('⚠️ ' + (d.error || 'Cannot unsend'));
 }
 
+async function ctxPin() {
+  closeContextMenu();
+  await pinMessage(ctxMsgId);
+}
+
+async function ctxUnpin() {
+  closeContextMenu();
+  await unpinMessage(ctxMsgId);
+}
+
 async function reactToMessage(msgId, emoji) {
   await fetch(`/api/messages/${msgId}/react`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -813,12 +1010,76 @@ function showQuickReact(msgId, btnEl) {
   bar.className = 'msg-quick-react';
   bar.innerHTML = ['❤️','😂','👍','😮','😭','🔥','💜','✨'].map(e =>
     `<button onclick="reactToMessage('${msgId}','${e}');this.parentElement.remove()">${e}</button>`
-  ).join('');
+  ).join('') + `<button class="quick-react-add" onclick="openReactionPicker('${msgId}', this)" title="Add Emoji">+</button>`;
   content.appendChild(bar);
 
   // Auto-close when clicking elsewhere
-  const close = (e) => { if (!bar.contains(e.target) && e.target !== btnEl) { bar.remove(); document.removeEventListener('click', close); } };
+  const close = (e) => { if (!bar.contains(e.target) && e.target !== btnEl && !e.target.closest('.reaction-emoji-picker')) { bar.remove(); document.removeEventListener('click', close); } };
   setTimeout(() => document.addEventListener('click', close), 10);
+}
+
+// Full emoji picker for reactions
+function openReactionPicker(msgId, btnEl) {
+  // Remove any existing reaction picker
+  document.querySelectorAll('.reaction-emoji-picker').forEach(el => el.remove());
+
+  const picker = document.createElement('div');
+  picker.className = 'reaction-emoji-picker';
+  picker.dataset.msgId = msgId;
+  picker.innerHTML = `
+    <div class="rep-search-wrap"><input class="rep-search" type="text" placeholder="Search emoji..." oninput="filterReactionEmoji(this.value, this)"></div>
+    <div class="rep-grid">${EMOJIS.map(e => `<button class="rep-emoji-btn" onclick="pickReactionEmoji('${msgId}','${e}',this)">${e}</button>`).join('')}</div>
+  `;
+
+  // Position near the button
+  const rect = btnEl.getBoundingClientRect();
+  picker.style.position = 'fixed';
+  picker.style.left = Math.min(rect.left - 100, window.innerWidth - 310) + 'px';
+  picker.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+  document.body.appendChild(picker);
+
+  // Focus search
+  setTimeout(() => picker.querySelector('.rep-search')?.focus(), 50);
+
+  // Auto-close
+  const close = (e) => { if (!picker.contains(e.target) && e.target !== btnEl) { picker.remove(); document.removeEventListener('mousedown', close); } };
+  setTimeout(() => document.addEventListener('mousedown', close), 10);
+}
+
+function filterReactionEmoji(q, inputEl) {
+  const pickerEl = inputEl.closest('.reaction-emoji-picker');
+  const grid = pickerEl?.querySelector('.rep-grid');
+  if (!grid) return;
+  const msgId = pickerEl?.dataset.msgId || '';
+  if (!q) {
+    grid.innerHTML = EMOJIS.map(e => `<button class="rep-emoji-btn" onclick="pickReactionEmoji('${msgId}','${e}',this)">${e}</button>`).join('');
+    return;
+  }
+  const lower = q.toLowerCase();
+  const filtered = EMOJIS.filter(e =>
+    e.includes(q) || (EMOJI_NAMES[e] && EMOJI_NAMES[e].toLowerCase().includes(lower))
+  );
+  // Also search Discord names
+  const discordMatches = Object.entries(DISCORD_EMOJI)
+    .filter(([name]) => name.includes(lower))
+    .map(([, emoji]) => emoji.trim())
+    .filter(e => !filtered.includes(e));
+  const all = [...filtered, ...discordMatches].slice(0, 60);
+  grid.innerHTML = all.length
+    ? all.map(e => `<button class="rep-emoji-btn" onclick="pickReactionEmoji('${msgId}','${e}',this)">${e}</button>`).join('')
+    : '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted);font-size:0.8rem;padding:0.5rem">No emoji found</p>';
+}
+
+function pickReactionEmoji(msgId, emoji, btnEl) {
+  // Find msgId from the quick react bar if not passed
+  if (!msgId) {
+    const qr = document.querySelector('.msg-quick-react');
+    if (qr) msgId = qr.querySelector('[onclick*="reactToMessage"]')?.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+  }
+  if (msgId) reactToMessage(msgId, emoji);
+  // Clean up
+  btnEl?.closest('.reaction-emoji-picker')?.remove();
+  document.querySelectorAll('.msg-quick-react').forEach(el => el.remove());
 }
 
 async function addReaction(emoji) {
@@ -829,14 +1090,75 @@ async function addReaction(emoji) {
   document.getElementById('reaction-picker').classList.remove('open');
 }
 
+// ── Pinned Messages ──────────────────────────────────────────────────
+async function pinMessage(msgId) {
+  await fetch(`/api/messages/${msgId}/pin`, { method: 'POST' });
+}
+
+async function unpinMessage(msgId) {
+  await fetch(`/api/messages/${msgId}/unpin`, { method: 'POST' });
+}
+
+function scrollToMessage(msgId) {
+  const el = document.getElementById('msg-' + msgId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('msg-highlight');
+    setTimeout(() => el.classList.remove('msg-highlight'), 2000);
+  }
+  // Close pinned panel if open
+  closePinnedPanel();
+}
+
+async function togglePinnedPanel() {
+  const panel = document.getElementById('pinned-panel');
+  if (pinnedPanelOpen) { closePinnedPanel(); return; }
+  pinnedPanelOpen = true;
+  panel.classList.add('open');
+  // Fetch pinned messages
+  const pinned = await fetch('/api/messages/pinned').then(r => r.json());
+  const list = document.getElementById('pinned-list');
+  if (!pinned.length) {
+    list.innerHTML = '<div class="pinned-empty">No pinned messages</div>';
+    return;
+  }
+  list.innerHTML = pinned.map(m => {
+    const sender = capitalize(m.sender);
+    const text = (m.text || '').substring(0, 120) || (m.files?.length ? '📎 File' : '(no text)');
+    const time = new Date(m.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return `<div class="pinned-item" onclick="scrollToMessage('${m.id}')">
+      <div class="pinned-item-header"><strong>${escapeHtml(sender)}</strong><span class="pinned-item-time">${time}</span></div>
+      <div class="pinned-item-text">${escapeHtml(text)}</div>
+      <button class="pinned-unpin-btn" onclick="event.stopPropagation();unpinMessage('${m.id}')" title="Unpin">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function closePinnedPanel() {
+  pinnedPanelOpen = false;
+  const panel = document.getElementById('pinned-panel');
+  if (panel) panel.classList.remove('open');
+}
+
 // ── Text Formatting ───────────────────────────────────────────────────
 function applyFormat(type) {
   formatting[type] = !formatting[type];
   document.querySelectorAll('.format-btn').forEach(b => {
     if (b.onclick?.toString().includes(type)) b.classList.toggle('active', formatting[type]);
   });
+  // Live preview: apply formatting to textarea visually
+  const input = document.getElementById('msg-input');
+  if (input) {
+    input.classList.toggle('fmt-bold', !!formatting.bold);
+    input.classList.toggle('fmt-italic', !!formatting.italic);
+    input.classList.toggle('fmt-underline', !!formatting.underline);
+  }
 }
-function setFont(val) { formatting.font = val; }
+function setFont(val) {
+  formatting.font = val;
+  const input = document.getElementById('msg-input');
+  if (input) input.style.fontFamily = val === 'default' ? '' : val;
+}
 
 // ── Emoji ─────────────────────────────────────────────────────────────
 function populateEmojiGrid() {
@@ -845,10 +1167,123 @@ function populateEmojiGrid() {
   grid.innerHTML = EMOJIS.map(e => `<button class="emoji-btn" onclick="insertEmoji('${e}')">${e}</button>`).join('');
 }
 
+// Discord-style emoji shortcode map — :name: → emoji
+const DISCORD_EMOJI = {
+  // Faces - smileys
+  'grinning':'😀','smiley':'😃','smile':'😄','grin':'😁','joy':'😂','rofl':'🤣',
+  'sweat_smile':'😅','blush':'😊','innocent':'😇','smiling_face_with_hearts':'🥰',
+  'heart_eyes':'😍','star_struck':'🤩','kissing_heart':'😘','kissing':'😗',
+  'yum':'😋','stuck_out_tongue':'😛','stuck_out_tongue_winking_eye':'😜',
+  'zany_face':'🤪','stuck_out_tongue_closed_eyes':'😝','money_mouth':'🤑',
+  'hugging':'🤗','hand_over_mouth':'🤭','shushing_face':'🤫','thinking':'🤔',
+  'saluting_face':'🫡','zipper_mouth':'🤐','raised_eyebrow':'🤨','neutral_face':'😐',
+  'expressionless':'😑','no_mouth':'😶','dotted_line_face':'🫥','smirk':'😏',
+  'unamused':'😒','rolling_eyes':'🙄','grimacing':'😬','face_exhaling':'😮‍💨',
+  'lying_face':'🤥','melting_face':'🫠','relieved':'😌','pensive':'😔',
+  'sleepy':'😪','drooling_face':'🤤','sleeping':'😴','mask':'😷',
+  'face_with_thermometer':'🤒','head_bandage':'🤕','nauseated_face':'🤢',
+  'face_vomiting':'🤮','hot_face':'🥵','cold_face':'🥶','woozy_face':'🥴',
+  'dizzy_face':'😵','face_with_spiral_eyes':'😵‍💫','exploding_head':'🤯',
+  'cowboy':'🤠','partying_face':'🥳','disguised_face':'🥸','sunglasses':'😎',
+  'nerd':'🤓','monocle_face':'🧐',
+  // Emotional
+  'confused':'😕','face_with_diagonal_mouth':'🫤','worried':'😟',
+  'slightly_frowning_face':'🙁','frowning':'☹️','open_mouth':'😮',
+  'hushed':'😯','astonished':'😲','flushed':'😳','pleading_face':'🥺',
+  'face_holding_back_tears':'🥹','frowning_open_mouth':'😦','anguished':'😧',
+  'fearful':'😨','cold_sweat':'😰','disappointed_relieved':'😥','cry':'😢',
+  'sob':'😭','scream':'😱','confounded':'😖','persevere':'😣',
+  'disappointed':'😞','sweat':'😓','weary':'😩','tired_face':'😫',
+  'yawning_face':'🥱','triumph':'😤','rage':'😡','cursing_face':'🤬',
+  'smiling_imp':'😈','imp':'👿','skull':'💀','skull_crossbones':'☠️',
+  'poop':'💩','clown':'🤡','japanese_ogre':'👹','japanese_goblin':'👺',
+  'ghost':'👻','alien':'👽','space_invader':'👾','robot':'🤖',
+  // Gestures & people
+  'wave':'👋','raised_back_of_hand':'🤚','hand_splayed':'🖐️','raised_hand':'✋',
+  'vulcan':'🖖','rightwards_hand':'🫱','leftwards_hand':'🫲','ok_hand':'👌',
+  'pinched_fingers':'🤌','pinching_hand':'🤏','v':'✌️','crossed_fingers':'🤞',
+  'hand_with_index_finger_and_thumb_crossed':'🫰','love_you_gesture':'🤟',
+  'metal':'🤘','call_me':'🤙','point_left':'👈','point_right':'👉',
+  'point_up_2':'👆','middle_finger':'🖕','point_down':'👇','point_up':'☝️',
+  'index_pointing_at_the_viewer':'🫵','thumbsup':' 👍','thumbs_up':'👍','+1':'👍',
+  'thumbsdown':'👎','thumbs_down':'👎','-1':'👎','fist':'✊','punch':'👊',
+  'left_facing_fist':'🤛','right_facing_fist':'🤜','clap':'👏',
+  'raised_hands':'🙌','heart_hands':'🫶','open_hands':'👐','palms_up':'🤲',
+  'handshake':'🤝','pray':'🙏','writing_hand':'✍️','nail_care':'💅',
+  'selfie':'🤳','muscle':'💪','flexed_biceps':'💪',
+  // Hearts & love
+  'heart':'❤️','red_heart':'❤️','orange_heart':'🧡','yellow_heart':'💛',
+  'green_heart':'💚','blue_heart':'💙','purple_heart':'💜','black_heart':'🖤',
+  'white_heart':'🤍','brown_heart':'🤎','broken_heart':'💔','heart_on_fire':'❤️‍🔥',
+  'mending_heart':'❤️‍🩹','heart_exclamation':'❣️','two_hearts':'💕',
+  'revolving_hearts':'💞','heartbeat':'💓','heartpulse':'💗','sparkling_heart':'💖',
+  'cupid':'💘','gift_heart':'💝',
+  // Symbols & nature
+  'sparkles':'✨','star':'⭐','star2':'🌟','dizzy':'💫','fire':'🔥','boom':'💥',
+  'rainbow':'🌈','sunny':'☀️','crescent_moon':'🌙','zap':'⚡','snowflake':'❄️',
+  'ocean':'🌊','cherry_blossom':'🌸','hibiscus':'🌺','four_leaf_clover':'🍀',
+  'butterfly':'🦋','rose':'🌹','musical_note':'🎵','notes':'🎶','microphone':'🎤',
+  'headphones':'🎧',
+  // Objects
+  'crown':'👑','gem':'💎','crystal_ball':'🔮','dart':'🎯','bulb':'💡','brain':'🧠',
+  'rocket':'🚀','trophy':'🏆','tada':'🎉','confetti_ball':'🎊','gift':'🎁',
+  'ribbon':'🎀','reminder_ribbon':'🎗️','medal':'🏅','first_place':'🥇',
+  'moneybag':'💰','money_with_wings':'💸','iphone':'📱','computer':'💻',
+  'watch':'⌚','camera':'📷','bell':'🔔','no_bell':'🔕','pushpin':'📌',
+  'round_pushpin':'📍','white_check_mark':'✅','x':'❌','o':'⭕','100':'💯',
+  // Food & drink
+  'pizza':'🍕','hamburger':'🍔','fries':'🍟','hotdog':'🌭','taco':'🌮',
+  'burrito':'🌯','ice_cream':'🍦','doughnut':'🍩','cookie':'🍪','cake':'🎂',
+  'coffee':'☕','tea':'🍵','beer':'🍺','wine_glass':'🍷','cocktail':'🍸',
+  // Animals
+  'dog':'🐶','cat':'🐱','mouse':'🐭','hamster':'🐹','rabbit':'🐰',
+  'fox':'🦊','bear':'🐻','panda_face':'🐼','koala':'🐨','lion_face':'🦁',
+  'cow':'🐮','pig':'🐷','frog':'🐸','monkey_face':'🐵','chicken':'🐔',
+  'penguin':'🐧','bird':'🐦','eagle':'🦅','owl':'🦉','bat':'🦇',
+  'wolf':'🐺','horse':'🐴','unicorn':'🦄','bee':'🐝','snake':'🐍',
+  'turtle':'🐢','octopus':'🐙','shark':'🦈','whale':'🐳','dolphin':'🐬',
+  // Misc
+  'eyes':'👀','eye':'👁️','tongue':'👅','lips':'👄','kiss':'💋',
+  'droplet':'💧','sweat_drops':'💦','dash':'💨','zzz':'💤',
+  'speech_balloon':'💬','thought_balloon':'💭','anger':'💢',
+  'no_entry':'⛔','warning':'⚠️','radioactive':'☢️','biohazard':'☣️',
+  'heavy_plus_sign':'➕','heavy_minus_sign':'➖','question':'❓','exclamation':'❗',
+  'interrobang':'⁉️','wavy_dash':'〰️','recycle':'♻️','infinity':'♾️',
+  'peace':'☮️','yin_yang':'☯️','beginner':'🔰','trident':'🔱',
+  'flag_white':'🏳️','flag_black':'🏴','rainbow_flag':'🏳️‍🌈',
+  'pirate_flag':'🏴‍☠️','triangular_flag':'🚩','checkered_flag':'🏁',
+  'crossed_flags':'🎌',
+};
+
+// Build reverse lookup: emoji → discord name
+const EMOJI_TO_NAME = {};
+Object.entries(DISCORD_EMOJI).forEach(([name, emoji]) => {
+  const e = emoji.trim();
+  if (!EMOJI_TO_NAME[e]) EMOJI_TO_NAME[e] = name;
+});
+
+// Legacy EMOJI_NAMES for search (maps emoji → search keywords)
+const EMOJI_NAMES = {};
+Object.entries(DISCORD_EMOJI).forEach(([name, emoji]) => {
+  const e = emoji.trim();
+  const existing = EMOJI_NAMES[e] || '';
+  EMOJI_NAMES[e] = existing ? existing + ' ' + name.replace(/_/g, ' ') : name.replace(/_/g, ' ');
+});
+
 function filterEmoji(q) {
   const grid = document.getElementById('emoji-grid');
-  const filtered = q ? EMOJIS.filter(e => e.includes(q)) : EMOJIS;
-  grid.innerHTML = filtered.map(e => `<button class="emoji-btn" onclick="insertEmoji('${e}')">${e}</button>`).join('');
+  if (!q) {
+    grid.innerHTML = EMOJIS.map(e => `<button class="emoji-btn" onclick="insertEmoji('${e}')">${e}</button>`).join('');
+    return;
+  }
+  const lower = q.toLowerCase();
+  // Search by emoji character match OR by name
+  const filtered = EMOJIS.filter(e =>
+    e.includes(q) || (EMOJI_NAMES[e] && EMOJI_NAMES[e].toLowerCase().includes(lower))
+  );
+  grid.innerHTML = filtered.length
+    ? filtered.map(e => `<button class="emoji-btn" onclick="insertEmoji('${e}')">${e}</button>`).join('')
+    : '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted);font-size:0.8rem;padding:1rem">No emoji found</p>';
 }
 
 function openEmojiPicker(e, target) {
@@ -869,28 +1304,229 @@ function insertEmoji(emoji) {
   SoundSystem.keystroke();
 }
 
+// ── Emoji Autocomplete (Discord-style :name: ) ───────────────────────
+let emojiACOpen = false, emojiACIndex = 0, emojiACResults = [];
+
+function getEmojiColonQuery(input) {
+  const val = input.value, pos = input.selectionStart;
+  // Walk backwards from cursor to find ':'
+  let i = pos - 1;
+  while (i >= 0 && val[i] !== ':' && val[i] !== ' ' && val[i] !== '\n') i--;
+  if (i < 0 || val[i] !== ':') return null;
+  // Don't match if there's a closing : already (completed emoji)
+  const query = val.slice(i + 1, pos);
+  if (query.length < 2) return null;
+  return { start: i, end: pos, query: query.toLowerCase() };
+}
+
+function showEmojiAutocomplete(input) {
+  const match = getEmojiColonQuery(input);
+  const panel = document.getElementById('emoji-autocomplete');
+  if (!match) { hideEmojiAutocomplete(); return; }
+
+  const q = match.query;
+  emojiACResults = Object.entries(DISCORD_EMOJI)
+    .filter(([name]) => name.includes(q))
+    .slice(0, 8)
+    .map(([name, emoji]) => ({ name, emoji: emoji.trim() }));
+
+  if (!emojiACResults.length) { hideEmojiAutocomplete(); return; }
+
+  emojiACOpen = true;
+  emojiACIndex = 0;
+  panel.innerHTML = emojiACResults.map((r, i) =>
+    `<div class="emoji-ac-item ${i === 0 ? 'selected' : ''}" data-idx="${i}" onmousedown="selectEmojiAC(${i})" onmouseenter="hoverEmojiAC(${i})">
+      <span class="emoji-ac-emoji">${r.emoji}</span>
+      <span class="emoji-ac-name">:${r.name}:</span>
+    </div>`
+  ).join('');
+  panel.style.display = 'block';
+
+  // Position above input
+  const rect = input.getBoundingClientRect();
+  panel.style.left = rect.left + 'px';
+  panel.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+}
+
+function hideEmojiAutocomplete() {
+  emojiACOpen = false;
+  emojiACResults = [];
+  const panel = document.getElementById('emoji-autocomplete');
+  if (panel) panel.style.display = 'none';
+}
+
+function hoverEmojiAC(idx) {
+  emojiACIndex = idx;
+  document.querySelectorAll('.emoji-ac-item').forEach((el, i) => el.classList.toggle('selected', i === idx));
+}
+
+function selectEmojiAC(idx) {
+  const input = document.getElementById('msg-input');
+  const match = getEmojiColonQuery(input);
+  if (!match || !emojiACResults[idx]) return;
+  const r = emojiACResults[idx];
+  input.value = input.value.slice(0, match.start) + r.emoji + input.value.slice(match.end);
+  input.selectionStart = input.selectionEnd = match.start + r.emoji.length;
+  input.focus();
+  hideEmojiAutocomplete();
+}
+
+function handleEmojiACKeydown(e) {
+  if (!emojiACOpen) return false;
+  if (e.key === 'ArrowDown') { e.preventDefault(); emojiACIndex = (emojiACIndex + 1) % emojiACResults.length; hoverEmojiAC(emojiACIndex); return true; }
+  if (e.key === 'ArrowUp') { e.preventDefault(); emojiACIndex = (emojiACIndex - 1 + emojiACResults.length) % emojiACResults.length; hoverEmojiAC(emojiACIndex); return true; }
+  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); selectEmojiAC(emojiACIndex); return true; }
+  if (e.key === 'Escape') { hideEmojiAutocomplete(); return true; }
+  return false;
+}
+
+// Auto-convert completed :emoji_name: patterns in text
+function convertColonEmojis(text) {
+  return text.replace(/:([a-z0-9_+-]+):/gi, (match, name) => {
+    const emoji = DISCORD_EMOJI[name.toLowerCase()];
+    return emoji ? emoji.trim() : match;
+  });
+}
+
+// ── Link Previews ─────────────────────────────────────────────────────
+const linkPreviewCache = {};
+
+async function fetchLinkPreview(url) {
+  if (linkPreviewCache[url]) return linkPreviewCache[url];
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const resp = await fetch('/api/link-preview?url=' + encodeURIComponent(url), { signal: controller.signal });
+    clearTimeout(timeout);
+    const data = await resp.json();
+    if (data.error) return null;
+    linkPreviewCache[url] = data;
+    return data;
+  } catch { return null; }
+}
+
+function renderLinkPreview(bubble, url) {
+  // Don't preview GIF urls, image urls, or internal links
+  if (/\.(gif|png|jpg|jpeg|webp|svg|mp4|webm)(\?.*)?$/i.test(url)) return;
+  if (url.includes('/uploads/')) return;
+
+  fetchLinkPreview(url).then(data => {
+    if (!data || (!data.title && !data.description && !data.image)) return;
+    const card = document.createElement('a');
+    card.href = url;
+    card.target = '_blank';
+    card.rel = 'noopener noreferrer';
+    card.className = 'link-preview-card';
+    card.onclick = (e) => e.stopPropagation();
+
+    let html = '';
+    if (data.image) {
+      html += `<div class="lp-image"><img src="${escapeHtml(data.image)}" alt="" loading="lazy" onerror="this.parentElement.remove()"></div>`;
+    }
+    html += `<div class="lp-body">`;
+    if (data.siteName) html += `<div class="lp-site">${escapeHtml(data.siteName)}</div>`;
+    if (data.title) html += `<div class="lp-title">${escapeHtml(data.title)}</div>`;
+    if (data.description) {
+      const desc = data.description.length > 150 ? data.description.slice(0, 150) + '…' : data.description;
+      html += `<div class="lp-desc">${escapeHtml(desc)}</div>`;
+    }
+    html += `</div>`;
+    card.innerHTML = html;
+    bubble.appendChild(card);
+  });
+}
+
+// ── Custom Audio Player ───────────────────────────────────────────────
+function toggleAudioPlay(uid, btn) {
+  const audio = document.getElementById(uid);
+  if (!audio) return;
+  if (audio.paused) {
+    // Pause any other playing audio
+    document.querySelectorAll('.msg-audio-player audio').forEach(a => { if (a.id !== uid && !a.paused) a.pause(); });
+    audio.play();
+    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
+    audio.ontimeupdate = () => {
+      const pct = (audio.currentTime / audio.duration) * 100;
+      const prog = document.getElementById(uid + '-prog');
+      if (prog) prog.style.width = pct + '%';
+      const timeEl = document.getElementById(uid + '-time');
+      if (timeEl) timeEl.textContent = fmtAudioTime(audio.currentTime);
+    };
+    audio.onended = () => {
+      btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+      const prog = document.getElementById(uid + '-prog');
+      if (prog) prog.style.width = '0%';
+      const timeEl = document.getElementById(uid + '-time');
+      if (timeEl && audio.duration) timeEl.textContent = fmtAudioTime(audio.duration);
+    };
+  } else {
+    audio.pause();
+    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+  }
+}
+
+function seekAudio(e, uid) {
+  const audio = document.getElementById(uid);
+  if (!audio || !audio.duration) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  audio.currentTime = pct * audio.duration;
+}
+
+function fmtAudioTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
 // ── GIF Search ────────────────────────────────────────────────────────
-function openGifSearch() { openModal('gif-modal'); }
+function openGifSearch() {
+  openModal('gif-modal');
+  const grid = document.getElementById('gif-grid');
+  const input = document.getElementById('gif-search-input');
+  if (input) input.value = '';
+  // Load trending GIFs on open
+  loadTrendingGifs();
+}
 
 let gifTimeout = null;
+async function loadTrendingGifs() {
+  const grid = document.getElementById('gif-grid');
+  grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Loading…</p>';
+  try {
+    const r = await fetch('/api/gif-trending');
+    const d = await r.json();
+    renderGifResults(d.results || []);
+  } catch {
+    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
+  }
+}
+
 function searchGifs(q) {
   clearTimeout(gifTimeout);
-  if (!q.trim()) return;
+  if (!q.trim()) { loadTrendingGifs(); return; }
   gifTimeout = setTimeout(async () => {
     const grid = document.getElementById('gif-grid');
     grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Searching…</p>';
     try {
-      const r = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=LIVDSRZULELA&limit=9&media_filter=gif`);
+      const r = await fetch(`/api/gif-search?q=${encodeURIComponent(q)}`);
       const d = await r.json();
-      if (!d.results?.length) { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">No GIFs found</p>'; return; }
-      grid.innerHTML = d.results.map(g => {
-        const url = g.media_formats?.gif?.url || g.media_formats?.mediumgif?.url;
-        return `<img src="${url}" style="width:100%;border-radius:6px;cursor:pointer" onclick="sendGif('${url}')" loading="lazy">`;
-      }).join('');
+      renderGifResults(d.results || []);
     } catch {
-      grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Add a Tenor API key to enable GIF search</p>';
+      grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">GIF search failed</p>';
     }
   }, 400);
+}
+
+function renderGifResults(results) {
+  const grid = document.getElementById('gif-grid');
+  if (!results.length) {
+    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">No GIFs found</p>';
+    return;
+  }
+  grid.innerHTML = results.map(g =>
+    `<img src="${g.preview || g.url}" data-full="${g.url}" style="width:100%;border-radius:8px;cursor:pointer;aspect-ratio:${g.width || 200}/${g.height || 200};object-fit:cover" onclick="sendGif('${g.url}')" loading="lazy">`
+  ).join('');
 }
 
 async function sendGif(url) {
@@ -998,6 +1634,47 @@ function setupSocketEvents() {
     // Hide unsend button in hover bar
     const btn = document.querySelector(`.msg-unsend-btn[data-msg-id="${id}"]`);
     if (btn) btn.remove();
+  });
+
+  // Pinned messages
+  socket.on('msg-pinned', ({ id, pinnedBy, pinnedAt }) => {
+    const msg = allMessages.find(m => m.id === id);
+    if (msg) { msg.pinned = true; msg.pinnedBy = pinnedBy; msg.pinnedAt = pinnedAt; }
+    const el = document.getElementById('msg-' + id);
+    if (el) {
+      const bubble = el.querySelector('.msg-bubble');
+      if (bubble && !bubble.querySelector('.msg-pinned-indicator')) {
+        const pin = document.createElement('div');
+        pin.className = 'msg-pinned-indicator';
+        pin.innerHTML = '📌 Pinned';
+        bubble.insertBefore(pin, bubble.firstChild);
+      }
+    }
+  });
+
+  socket.on('msg-unpinned', ({ id }) => {
+    const msg = allMessages.find(m => m.id === id);
+    if (msg) { msg.pinned = false; delete msg.pinnedBy; delete msg.pinnedAt; }
+    const el = document.getElementById('msg-' + id);
+    if (el) {
+      const pin = el.querySelector('.msg-pinned-indicator');
+      if (pin) pin.remove();
+    }
+    // Refresh pinned panel if open
+    if (pinnedPanelOpen) togglePinnedPanel();
+  });
+
+  // Eval granted unsend permission (bypasses time limit)
+  socket.on('msg-unsend-allowed', ({ id }) => {
+    const msg = allMessages.find(m => m.id === id);
+    if (msg) {
+      msg.unsendable = true;
+      // Show unsend button if it's the current user's message
+      if (msg.sender === currentUser) {
+        const btn = document.querySelector(`.msg-unsend-btn[data-msg-id="${id}"]`);
+        if (btn) btn.style.display = '';
+      }
+    }
   });
 
   socket.on('user-typing', ({ user }) => {
@@ -1255,36 +1932,60 @@ function openNote(id) {
   const isOwn = (allNotes.mine || []).some(n => n.id === id);
 
   if (note.type === 'todo') {
+    const doneCount = (note.todos||[]).filter(t => t.done).length;
+    const totalCount = (note.todos||[]).length;
+    const pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
     editor.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-        <input type="text" id="edit-note-title" value="${note.title}" style="font-size:1.1rem;font-weight:700;flex:1;margin-right:1rem">
-        ${isOwn ? `
-          <button class="btn-ghost" onclick="shareNote('${id}')">${note.sharedWith?.includes(otherUser) ? '🔗 Unshare' : '🔗 Share'}</button>
-          <button class="btn-ghost" onclick="archiveNote('${id}')">${note.archived ? '📤 Unarchive' : '📦 Archive'}</button>
-          <button class="btn-danger" onclick="deleteNote('${id}')">🗑️</button>
-        ` : ''}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;gap:8px">
+        <input type="text" id="edit-note-title" value="${note.title}" style="font-size:1.1rem;font-weight:700;flex:1" ${isOwn?'':'readonly'}>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          ${isOwn ? `
+            <button class="btn-ghost" onclick="shareNote('${id}')" title="${note.sharedWith?.includes(otherUser) ? 'Unshare' : 'Share'}"><i data-lucide="link"></i> Share</button>
+            <button class="btn-ghost" onclick="archiveNote('${id}')" title="${note.archived ? 'Unarchive' : 'Archive'}"><i data-lucide="archive"></i> Archive</button>
+            <button class="btn-danger" onclick="deleteNote('${id}')" title="Delete"><i data-lucide="trash-2"></i></button>
+          ` : ''}
+        </div>
       </div>
+      ${totalCount ? `<div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:0.72rem;color:var(--text-muted)">${doneCount} of ${totalCount} complete</span>
+          <span style="font-size:0.72rem;font-weight:600;color:var(--accent)">${pct}%</span>
+        </div>
+        <div style="height:4px;border-radius:2px;background:var(--border);overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:2px;transition:width 0.3s"></div>
+        </div>
+      </div>` : ''}
       <div id="todo-list-editor">
         ${(note.todos||[]).map((item, i) => `
-          <div class="todo-item ${item.done ? 'done' : ''}">
-            <input type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleTodoItem('${id}',${i},this.checked)">
-            <span>${item.text}</span>
+          <div class="todo-item ${item.done ? 'done' : ''}" onclick="toggleTodoItem('${id}',${i},${!item.done})">
+            <div class="todo-check">
+              <span class="todo-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+            </div>
+            <span class="todo-item-text">${item.text}</span>
+            ${isOwn ? `<button class="todo-item-del" onclick="event.stopPropagation();removeTodoItem('${id}',${i})" title="Remove">✕</button>` : ''}
           </div>`).join('')}
-        ${isOwn ? `<div style="margin-top:0.5rem;display:flex;gap:6px"><input type="text" id="new-todo-item" placeholder="New item…" style="flex:1"><button class="btn-primary" onclick="addTodoItemToNote('${id}')">Add</button></div>` : ''}
+        ${isOwn ? `<div style="margin-top:8px;display:flex;gap:6px">
+          <input type="text" id="new-todo-item" placeholder="Add a task…" style="flex:1" onkeydown="if(event.key==='Enter'){addTodoItemToNote('${id}');event.preventDefault()}">
+          <button class="btn-primary" onclick="addTodoItemToNote('${id}')" style="border-radius:10px;padding:8px 16px">Add</button>
+        </div>` : ''}
       </div>
-      ${isOwn ? '<button class="btn-primary" onclick="saveCurrentNote()" style="margin-top:1rem">Save</button>' : ''}`;
+      ${isOwn ? '<button class="btn-primary" onclick="saveCurrentNote()" style="margin-top:1rem;width:100%;border-radius:10px">Save Changes</button>' : ''}`;
+    if (window.lucide) lucide.createIcons();
   } else {
     editor.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
-        <input type="text" id="edit-note-title" value="${note.title}" style="font-size:1.1rem;font-weight:700;flex:1;margin-right:1rem" ${isOwn?'':'readonly'}>
-        ${isOwn ? `
-          <button class="btn-ghost" onclick="shareNote('${id}')">${note.sharedWith?.includes(otherUser) ? '🔗 Unshare' : '🔗 Share'}</button>
-          <button class="btn-ghost" onclick="archiveNote('${id}')">${note.archived ? '📤 Unarchive' : '📦 Archive'}</button>
-          <button class="btn-danger" onclick="deleteNote('${id}')">🗑️</button>
-        ` : ''}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;gap:8px">
+        <input type="text" id="edit-note-title" value="${note.title}" style="font-size:1.1rem;font-weight:700;flex:1" ${isOwn?'':'readonly'}>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          ${isOwn ? `
+            <button class="btn-ghost" onclick="shareNote('${id}')" title="${note.sharedWith?.includes(otherUser) ? 'Unshare' : 'Share'}"><i data-lucide="link"></i> Share</button>
+            <button class="btn-ghost" onclick="archiveNote('${id}')" title="${note.archived ? 'Unarchive' : 'Archive'}"><i data-lucide="archive"></i> Archive</button>
+            <button class="btn-danger" onclick="deleteNote('${id}')" title="Delete"><i data-lucide="trash-2"></i></button>
+          ` : ''}
+        </div>
       </div>
-      <textarea id="edit-note-content" rows="20" style="width:100%" ${isOwn?'':'readonly'}>${note.content||''}</textarea>
-      ${isOwn ? '<div style="display:flex;gap:8px;margin-top:1rem"><button class="btn-primary" onclick="saveCurrentNote()">Save</button></div>' : ''}`;
+      <textarea id="edit-note-content" rows="20" style="width:100%;border-radius:10px;line-height:1.75" ${isOwn?'':'readonly'}>${note.content||''}</textarea>
+      ${isOwn ? '<button class="btn-primary" onclick="saveCurrentNote()" style="margin-top:1rem;width:100%;border-radius:10px">Save Changes</button>' : ''}`;
+    if (window.lucide) lucide.createIcons();
   }
 }
 
@@ -1344,6 +2045,18 @@ async function toggleTodoItem(noteId, idx, done) {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ todos: note.todos })
   });
+  openNote(noteId); // Re-render to update progress bar + checkbox state
+}
+
+async function removeTodoItem(noteId, idx) {
+  const note = (allNotes.mine||[]).find(n => n.id === noteId);
+  if (!note) return;
+  note.todos.splice(idx, 1);
+  await fetch(`/api/notes/${noteId}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ todos: note.todos })
+  });
+  openNote(noteId);
 }
 
 async function addTodoItemToNote(noteId) {
@@ -1405,6 +2118,8 @@ async function renderCalendar() {
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
   const today = new Date();
 
+  // Build day cells
+  const dayCells = {};
   for (let i = 0; i < firstDay; i++) {
     const d = document.createElement('div');
     d.className = 'cal-day cal-day-empty';
@@ -1416,48 +2131,257 @@ async function renderCalendar() {
     if (d === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear()) cell.classList.add('today');
     cell.innerHTML = `<div class="cal-day-num">${d}</div>`;
     const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const dayEvents = events.filter(e => (e.date || e.start)?.startsWith(dateStr));
-    dayEvents.forEach(ev => {
-      const el = document.createElement('div');
-      el.className = 'cal-event';
-      el.style.background = ev.color || 'var(--accent)';
-      el.title = ev.description || ev.title;
+    cell.dataset.date = dateStr;
+    dayCells[dateStr] = cell;
+    cell.ondblclick = () => { openEventModalForDate(dateStr); };
+    grid.appendChild(cell);
+  }
 
-      const titleSpan = document.createElement('span');
-      titleSpan.textContent = ev.title;
-      el.appendChild(titleSpan);
+  // Render events
+  events.forEach(ev => {
+    const evStart = ev.start || ev.date;
+    const evEnd = ev.end || evStart;
+    if (!evStart) return;
 
-      const delBtn = document.createElement('button');
-      delBtn.className = 'cal-event-del';
-      delBtn.textContent = '✕';
-      delBtn.title = 'Delete event';
-      delBtn.onclick = (e) => { e.stopPropagation(); deleteCalEvent(ev.id); };
-      el.appendChild(delBtn);
+    // Single-day event or multi-day?
+    if (evStart === evEnd) {
+      // Single-day: render as pill in that cell
+      const cell = dayCells[evStart];
+      if (cell) {
+        const el = document.createElement('div');
+        el.className = 'cal-event';
+        el.style.background = ev.color || 'var(--accent)';
+        el.title = ev.description || ev.title;
+        const titleSpan = document.createElement('span');
+        titleSpan.textContent = ev.title;
+        el.appendChild(titleSpan);
+        const delBtn = document.createElement('button');
+        delBtn.className = 'cal-event-del';
+        delBtn.textContent = '✕';
+        delBtn.title = 'Delete event';
+        delBtn.onclick = (e) => { e.stopPropagation(); deleteCalEvent(ev.id); };
+        el.appendChild(delBtn);
+        cell.appendChild(el);
+      }
+    } else {
+      // Multi-day: render spanning bars per week row
+      const startD = new Date(evStart + 'T00:00:00');
+      const endD = new Date(evEnd + 'T00:00:00');
+      const monthStart = new Date(calYear, calMonth, 1);
+      const monthEnd = new Date(calYear, calMonth, daysInMonth);
 
-      cell.appendChild(el);
-    });
-    cell.ondblclick = () => { document.getElementById('event-date').value = dateStr; openModal('new-event-modal'); };
+      // Clamp to visible month
+      const visStart = startD < monthStart ? monthStart : startD;
+      const visEnd = endD > monthEnd ? monthEnd : endD;
+
+      // Iterate day by day, grouping into week rows
+      let current = new Date(visStart);
+      let rowStart = new Date(current);
+
+      while (current <= visEnd) {
+        const dayOfWeek = current.getDay();
+        const isRowEnd = dayOfWeek === 6 || current.getTime() === visEnd.getTime();
+
+        if (isRowEnd) {
+          // Render bar from rowStart to current
+          const barStartStr = fmtDate(rowStart);
+          const barEndStr = fmtDate(current);
+          const startCell = dayCells[barStartStr];
+
+          if (startCell) {
+            const isEventStart = rowStart.getTime() === startD.getTime();
+            const isEventEnd = current.getTime() === endD.getTime();
+            const spanDays = Math.round((current - rowStart) / 86400000) + 1;
+
+            const bar = document.createElement('div');
+            bar.className = 'cal-event-bar';
+            if (isEventStart && isEventEnd) bar.classList.add('cal-bar-single');
+            else if (isEventStart) bar.classList.add('cal-bar-start');
+            else if (isEventEnd) bar.classList.add('cal-bar-end');
+            else bar.classList.add('cal-bar-mid');
+
+            bar.style.background = ev.color || 'var(--accent)';
+            bar.title = `${ev.title}${ev.description ? ' — ' + ev.description : ''}`;
+            // Span across cells using calc
+            bar.style.width = `calc(${spanDays * 100}% + ${(spanDays - 1) * 1}px)`;
+
+            const titleSpan = document.createElement('span');
+            titleSpan.className = 'cal-bar-title';
+            titleSpan.textContent = isEventStart || rowStart.getDate() === 1 ? ev.title : '';
+            bar.appendChild(titleSpan);
+
+            // Delete button only on first segment
+            if (isEventStart) {
+              const delBtn = document.createElement('button');
+              delBtn.className = 'cal-event-del';
+              delBtn.textContent = '✕';
+              delBtn.title = 'Delete event';
+              delBtn.onclick = (e) => { e.stopPropagation(); deleteCalEvent(ev.id); };
+              bar.appendChild(delBtn);
+            }
+
+            startCell.appendChild(bar);
+          }
+
+          // Start new row segment
+          const next = new Date(current);
+          next.setDate(next.getDate() + 1);
+          rowStart = new Date(next);
+        }
+
+        current.setDate(current.getDate() + 1);
+      }
+    }
+  });
+}
+
+function fmtDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ── Event Date Picker ──
+let edpYear, edpMonth, edpSelectStart = null, edpSelectEnd = null, edpPickerOpen = false;
+
+function openEventModalForDate(dateStr) {
+  edpSelectStart = dateStr;
+  edpSelectEnd = dateStr;
+  document.getElementById('event-start-date').value = dateStr;
+  document.getElementById('event-end-date').value = dateStr;
+  updateEventDateDisplay();
+  const d = new Date(dateStr + 'T00:00:00');
+  edpYear = d.getFullYear();
+  edpMonth = d.getMonth();
+  openModal('new-event-modal');
+  // Auto-open the date picker
+  document.getElementById('event-date-picker').style.display = '';
+  edpPickerOpen = true;
+  renderEdpGrid();
+}
+
+function toggleEventDatePicker() {
+  const picker = document.getElementById('event-date-picker');
+  edpPickerOpen = !edpPickerOpen;
+  picker.style.display = edpPickerOpen ? '' : 'none';
+  if (edpPickerOpen) {
+    const today = new Date();
+    if (!edpYear) { edpYear = today.getFullYear(); edpMonth = today.getMonth(); }
+    renderEdpGrid();
+  }
+}
+
+function edpPrev() { edpMonth--; if (edpMonth < 0) { edpMonth = 11; edpYear--; } renderEdpGrid(); }
+function edpNext() { edpMonth++; if (edpMonth > 11) { edpMonth = 0; edpYear++; } renderEdpGrid(); }
+
+function renderEdpGrid() {
+  document.getElementById('edp-month-label').textContent =
+    new Date(edpYear, edpMonth).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  const grid = document.getElementById('edp-grid');
+  Array.from(grid.children).slice(7).forEach(c => c.remove());
+
+  const firstDay = new Date(edpYear, edpMonth, 1).getDay();
+  const daysInMonth = new Date(edpYear, edpMonth + 1, 0).getDate();
+  const today = new Date();
+
+  for (let i = 0; i < firstDay; i++) {
+    const empty = document.createElement('div');
+    empty.className = 'edp-day edp-day-empty';
+    grid.appendChild(empty);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement('div');
+    cell.className = 'edp-day';
+    const dateStr = `${edpYear}-${String(edpMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+    if (d === today.getDate() && edpMonth === today.getMonth() && edpYear === today.getFullYear()) {
+      cell.classList.add('edp-today');
+    }
+
+    // Highlight selection range
+    if (edpSelectStart && edpSelectEnd) {
+      const s = edpSelectStart <= edpSelectEnd ? edpSelectStart : edpSelectEnd;
+      const e = edpSelectStart <= edpSelectEnd ? edpSelectEnd : edpSelectStart;
+      if (dateStr === s && dateStr === e) cell.classList.add('edp-selected-single');
+      else if (dateStr === s) cell.classList.add('edp-range-start');
+      else if (dateStr === e) cell.classList.add('edp-range-end');
+      else if (dateStr > s && dateStr < e) cell.classList.add('edp-range-mid');
+    } else if (edpSelectStart && dateStr === edpSelectStart) {
+      cell.classList.add('edp-selected-single');
+    }
+
+    cell.textContent = d;
+    cell.onclick = () => edpSelectDate(dateStr);
     grid.appendChild(cell);
   }
 }
 
+function edpSelectDate(dateStr) {
+  if (!edpSelectStart || edpSelectEnd) {
+    // First click or reset: set start
+    edpSelectStart = dateStr;
+    edpSelectEnd = null;
+  } else {
+    // Second click: set end (auto-sort)
+    if (dateStr === edpSelectStart) {
+      edpSelectEnd = dateStr; // same day = single day
+    } else if (dateStr < edpSelectStart) {
+      edpSelectEnd = edpSelectStart;
+      edpSelectStart = dateStr;
+    } else {
+      edpSelectEnd = dateStr;
+    }
+  }
+  document.getElementById('event-start-date').value = edpSelectStart;
+  document.getElementById('event-end-date').value = edpSelectEnd || edpSelectStart;
+  updateEventDateDisplay();
+  renderEdpGrid();
+}
+
+function updateEventDateDisplay() {
+  const display = document.getElementById('event-date-display');
+  const start = edpSelectStart;
+  const end = edpSelectEnd || edpSelectStart;
+  if (!start) { display.textContent = 'Select date(s)...'; return; }
+
+  const fmt = (ds) => {
+    const d = new Date(ds + 'T00:00:00');
+    return d.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  if (start === end || !end) {
+    display.textContent = fmt(start);
+  } else {
+    display.textContent = `${fmt(start)} – ${fmt(end)}`;
+  }
+  display.classList.add('has-value');
+}
+
 async function saveEvent() {
   const title = document.getElementById('event-title').value.trim();
-  const date = document.getElementById('event-date').value;
+  const start = document.getElementById('event-start-date').value;
+  const end = document.getElementById('event-end-date').value || start;
   if (!title) return showToast('Event title required');
-  if (!date) return showToast('Date required');
+  if (!start) return showToast('Date required');
   await fetch('/api/calendar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       title,
-      date,
+      start,
+      end,
       description: document.getElementById('event-desc').value,
       color: document.getElementById('event-color').value,
     })
   });
+  // Reset form
   document.getElementById('event-title').value = '';
-  document.getElementById('event-date').value = '';
+  document.getElementById('event-start-date').value = '';
+  document.getElementById('event-end-date').value = '';
   document.getElementById('event-desc').value = '';
+  document.getElementById('event-date-display').textContent = 'Select date(s)...';
+  document.getElementById('event-date-display').classList.remove('has-value');
+  edpSelectStart = null; edpSelectEnd = null; edpPickerOpen = false;
+  document.getElementById('event-date-picker').style.display = 'none';
   closeModal('new-event-modal');
   renderCalendar();
   showToast('Event saved!');
@@ -1633,30 +2557,119 @@ function getFileIcon(mime = '') {
 }
 
 // ── Contacts ──────────────────────────────────────────────────────────
+let allContactsCache = [];
+
 async function loadContacts() {
   try {
-    const contacts = await fetch('/api/contacts').then(r => r.json());
-    const grid = document.getElementById('contacts-grid');
-    if (!Array.isArray(contacts) || !contacts.length) {
-      grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon"><i data-lucide="users" style="width:48px;height:48px;opacity:0.5"></i></div><div class="empty-state-text">No contacts yet</div></div>';
-      if (window.lucide) lucide.createIcons();
-      return;
-    }
-    grid.innerHTML = contacts.map(c => `
-      <div class="contact-card">
-        <div class="contact-avatar">${c.photo ? `<img src="${c.photo}">` : (c.name ? c.name[0].toUpperCase() : '?')}</div>
-        <div class="contact-info">
-          <div class="contact-name">${c.name || 'Unknown'}</div>
-          ${c.phone ? `<div class="contact-detail">${c.phone}</div>` : ''}
-          ${c.email ? `<div class="contact-detail">${c.email}</div>` : ''}
-          ${c.notes ? `<div class="contact-detail" style="font-style:italic;font-size:0.75rem">${c.notes}</div>` : ''}
-        </div>
-        <button class="btn-icon" onclick="deleteContact('${c.id}')" style="align-self:flex-start;color:#ef4444" title="Delete"><i data-lucide="trash-2"></i></button>
-      </div>`).join('');
-    if (window.lucide) lucide.createIcons();
+    allContactsCache = await fetch('/api/contacts').then(r => r.json());
+    if (!Array.isArray(allContactsCache)) allContactsCache = [];
+    renderContactsList(allContactsCache);
   } catch (err) {
     console.error('Failed to load contacts:', err);
   }
+}
+
+function filterContacts(q) {
+  const lower = q.toLowerCase();
+  const filtered = lower
+    ? allContactsCache.filter(c =>
+        (c.name||'').toLowerCase().includes(lower) ||
+        (c.phone||'').includes(lower) ||
+        (c.email||'').toLowerCase().includes(lower))
+    : allContactsCache;
+  renderContactsList(filtered);
+}
+
+function renderContactsList(contacts) {
+  const grid = document.getElementById('contacts-grid');
+  if (!contacts.length) {
+    grid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📇</div><div class="empty-state-text">No contacts found</div></div>';
+    return;
+  }
+
+  // Sort
+  const sortBy = document.getElementById('contacts-sort')?.value || 'name-asc';
+  const sorted = [...contacts].sort((a, b) => {
+    if (sortBy === 'name-asc') return (a.name||'').localeCompare(b.name||'');
+    if (sortBy === 'name-desc') return (b.name||'').localeCompare(a.name||'');
+    if (sortBy === 'newest') return (b.createdAt||0) - (a.createdAt||0);
+    if (sortBy === 'oldest') return (a.createdAt||0) - (b.createdAt||0);
+    return 0;
+  });
+
+  // Group by first letter for alphabetical sorting
+  let html = '';
+  if (sortBy === 'name-asc' || sortBy === 'name-desc') {
+    let currentLetter = '';
+    sorted.forEach(c => {
+      const letter = (c.name||'?')[0].toUpperCase();
+      if (letter !== currentLetter) {
+        currentLetter = letter;
+        html += `<div class="contact-group-letter">${letter}</div>`;
+      }
+      html += renderContactCard(c);
+    });
+  } else {
+    sorted.forEach(c => { html += renderContactCard(c); });
+  }
+
+  grid.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderContactCard(c) {
+  const avatar = c.photo ? `<img src="${c.photo}">` : (c.name ? c.name[0].toUpperCase() : '?');
+  return `
+    <div class="contact-card" onclick="viewContact('${c.id}')">
+      <div class="contact-avatar">${avatar}</div>
+      <div class="contact-info">
+        <div class="contact-name">${c.name || 'Unknown'}</div>
+        ${c.phone ? `<div class="contact-detail">${c.phone}</div>` : ''}
+      </div>
+      <i data-lucide="chevron-right" style="width:16px;height:16px;opacity:0.3;flex-shrink:0"></i>
+    </div>`;
+}
+
+function viewContact(id) {
+  const c = allContactsCache.find(x => x.id === id);
+  if (!c) return;
+  const avatar = c.photo ? `<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : `<span style="font-size:2.5rem;font-weight:700">${(c.name||'?')[0].toUpperCase()}</span>`;
+  const modal = document.getElementById('contact-detail-modal');
+  if (!modal) return;
+  document.getElementById('contact-detail-content').innerHTML = `
+    <div style="text-align:center;margin-bottom:1.5rem">
+      <div style="width:80px;height:80px;border-radius:50%;background:var(--bg-btn);display:inline-flex;align-items:center;justify-content:center;color:#fff;overflow:hidden;margin-bottom:12px">${avatar}</div>
+      <div style="font-size:1.3rem;font-weight:700">${c.name || 'Unknown'}</div>
+    </div>
+    <div class="contact-detail-rows">
+      ${c.phone ? `<div class="contact-detail-row" onclick="navigator.clipboard.writeText('${c.phone}');showToast('📋 Copied!')">
+        <i data-lucide="phone" style="width:18px;height:18px;color:var(--accent)"></i>
+        <div><div style="font-size:0.72rem;color:var(--text-muted)">Phone</div><div style="font-weight:500">${c.phone}</div></div>
+      </div>` : ''}
+      ${c.email ? `<div class="contact-detail-row" onclick="navigator.clipboard.writeText('${c.email}');showToast('📋 Copied!')">
+        <i data-lucide="mail" style="width:18px;height:18px;color:var(--accent)"></i>
+        <div><div style="font-size:0.72rem;color:var(--text-muted)">Email</div><div style="font-weight:500">${c.email}</div></div>
+      </div>` : ''}
+      ${c.notes ? `<div class="contact-detail-row">
+        <i data-lucide="file-text" style="width:18px;height:18px;color:var(--accent)"></i>
+        <div><div style="font-size:0.72rem;color:var(--text-muted)">Notes</div><div style="font-size:0.85rem">${c.notes}</div></div>
+      </div>` : ''}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:1.5rem">
+      <button class="btn-danger" onclick="deleteContact('${c.id}');closeModal('contact-detail-modal')" style="flex:1;border-radius:10px"><i data-lucide="trash-2"></i> Delete</button>
+      <button class="btn-ghost" onclick="closeModal('contact-detail-modal')" style="flex:1;border-radius:10px">Close</button>
+    </div>`;
+  if (window.lucide) lucide.createIcons();
+  openModal('contact-detail-modal');
+}
+
+function formatPhoneInput(input) {
+  let v = input.value.replace(/\D/g, '');
+  if (v.length > 10) v = v.slice(0, 10);
+  if (v.length >= 7) input.value = `(${v.slice(0,3)}) ${v.slice(3,6)}-${v.slice(6)}`;
+  else if (v.length >= 4) input.value = `(${v.slice(0,3)}) ${v.slice(3)}`;
+  else if (v.length >= 1) input.value = `(${v}`;
+  else input.value = '';
 }
 
 async function saveContact() {
@@ -1711,7 +2724,7 @@ async function loadAnnouncements() {
           <div class="announcement-card-content">${a.content}</div>
           <div class="announcement-card-meta">Posted by ${capitalize(a.createdBy)} · ${formatDate(a.createdAt)}</div>
         </div>
-        ${a.createdBy === currentUser ? `<button class="btn-icon" onclick="deleteAnnouncement('${a.id}')" title="Remove" style="color:#ef4444;flex-shrink:0"><i data-lucide="trash-2"></i></button>` : ''}
+        <button class="btn-icon" onclick="deleteAnnouncement('${a.id}')" title="Dismiss" style="color:#ef4444;flex-shrink:0"><i data-lucide="trash-2"></i></button>
       </div>
     </div>`).join('');
   if (window.lucide) lucide.createIcons();
@@ -1765,8 +2778,8 @@ async function deleteAnnouncement(id) {
 
 // ── Guest Messages ────────────────────────────────────────────────────
 let activeGuestId = null;
-let activeGuestChannel = 'group';
 let guestData = [];
+let guestUnread = {}; // { guestId: count }
 
 async function loadGuestMessages() {
   try {
@@ -1775,6 +2788,79 @@ async function loadGuestMessages() {
     guestData = await res.json();
   } catch { guestData = []; }
   renderGuestList();
+  // Listen for all guest messages globally
+  setupGuestSocketListeners();
+}
+
+function setupGuestSocketListeners() {
+  // Remove old global listeners
+  socket.off('guest-revoked');
+  guestData.forEach(g => {
+    socket.off(`guest-msg-${g.id}-group`);
+    socket.off(`guest-msg-${g.id}-${currentUser}`);
+  });
+
+  // Listen for guest revocations — remove immediately
+  socket.on('guest-revoked', ({ guestId }) => {
+    guestData = guestData.filter(g => g.id !== guestId);
+    if (activeGuestId === guestId) {
+      activeGuestId = null;
+      document.getElementById('guest-chat-header').style.display = 'none';
+      document.getElementById('guest-reply-bar').style.display = 'none';
+      document.getElementById('guest-messages-area').innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="message-square-plus" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">Select a guest to view messages</div><div class="empty-state-sub">Guests can message you through the guest portal</div></div>';
+      if (window.lucide) lucide.createIcons();
+    }
+    renderGuestList();
+    updateGuestNavBadge();
+  });
+
+  // Listen for new messages from every guest
+  guestData.forEach(g => {
+    const handleGuestMsg = (channel) => (msg) => {
+      const guest = guestData.find(x => x.id === g.id);
+      if (guest) {
+        if (!guest.channels[channel]) guest.channels[channel] = [];
+        guest.channels[channel].push(msg);
+      }
+      // If we're viewing this guest, re-render chat
+      if (activeGuestId === g.id) {
+        renderGuestChat();
+      } else {
+        // Track unread
+        guestUnread[g.id] = (guestUnread[g.id] || 0) + 1;
+        renderGuestList();
+      }
+      // Show notification if msg is from guest (not from us)
+      if (msg.sender !== currentUser) {
+        updateGuestNavBadge();
+        if (currentSection !== 'guest-messages' || activeGuestId !== g.id) {
+          sendDesktopNotif(`Guest message from ${msg.sender}`, msg.text?.substring(0, 80) || 'New message');
+          SoundSystem.receive();
+          showMsgNotif(msg.sender + ' (Guest)', msg.text?.substring(0, 80) || 'New message');
+        }
+      }
+    };
+    socket.on(`guest-msg-${g.id}-group`, handleGuestMsg('group'));
+    socket.on(`guest-msg-${g.id}-${currentUser}`, handleGuestMsg(currentUser));
+  });
+}
+
+function updateGuestNavBadge() {
+  const totalUnread = Object.values(guestUnread).reduce((a, b) => a + b, 0);
+  const navItem = document.querySelector('.nav-item[data-section="guest-messages"]');
+  if (!navItem) return;
+  let badge = navItem.querySelector('.nav-badge');
+  if (totalUnread > 0) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'nav-badge';
+      navItem.appendChild(badge);
+    }
+    badge.textContent = totalUnread;
+    badge.style.display = '';
+  } else if (badge) {
+    badge.style.display = 'none';
+  }
 }
 
 function renderGuestList() {
@@ -1788,14 +2874,25 @@ function renderGuestList() {
     return;
   }
   list.innerHTML = guestData.map(g => {
-    const totalMsgs = (g.channels.group?.length || 0) + (g.channels[currentUser]?.length || 0);
-    const lastMsg = [...(g.channels.group || []), ...(g.channels[currentUser] || [])].sort((a,b) => b.timestamp - a.timestamp)[0];
-    const preview = lastMsg ? (lastMsg.text.length > 30 ? lastMsg.text.slice(0,30) + '...' : lastMsg.text) : 'No messages yet';
+    // Merge all channels for preview
+    const allMsgs = [];
+    Object.values(g.channels || {}).forEach(arr => { if (Array.isArray(arr)) allMsgs.push(...arr); });
+    allMsgs.sort((a, b) => a.timestamp - b.timestamp);
+    const lastMsg = allMsgs[allMsgs.length - 1];
+    const preview = lastMsg ? (lastMsg.text.length > 32 ? lastMsg.text.slice(0, 32) + '…' : lastMsg.text) : 'No messages yet';
+    const time = lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    const unread = guestUnread[g.id] || 0;
     return `<div class="guest-list-item ${activeGuestId === g.id ? 'active' : ''}" onclick="selectGuest('${g.id}')">
       <div class="guest-item-avatar">${g.name[0].toUpperCase()}</div>
       <div class="guest-item-info">
-        <div class="guest-item-name">${escapeHtml(g.name)}</div>
-        <div class="guest-item-meta">${escapeHtml(preview)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="guest-item-name">${escapeHtml(g.name)}</div>
+          ${time ? `<span style="font-size:0.65rem;color:var(--text-muted);flex-shrink:0">${time}</span>` : ''}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+          <div class="guest-item-meta">${escapeHtml(preview)}</div>
+          ${unread ? `<span class="guest-unread-badge">${unread}</span>` : ''}
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -1804,62 +2901,66 @@ function renderGuestList() {
 
 function selectGuest(guestId) {
   activeGuestId = guestId;
-  activeGuestChannel = 'group';
+  // Clear unread for this guest
+  delete guestUnread[guestId];
+  updateGuestNavBadge();
   renderGuestList();
   renderGuestChat();
   // Show header and reply bar
   document.getElementById('guest-chat-header').style.display = '';
   document.getElementById('guest-reply-bar').style.display = '';
-  // Reset channel tabs
-  document.querySelectorAll('.guest-tab').forEach(b => b.classList.remove('active'));
-  const groupTab = document.querySelector('.guest-tab[data-ch="group"]');
-  if (groupTab) groupTab.classList.add('active');
-  // Re-init lucide icons in the tabs
   if (window.lucide) lucide.createIcons();
-  // Listen for real-time messages
-  listenGuestSockets(guestId);
-}
-
-function switchGuestChannel(ch, el) {
-  activeGuestChannel = ch === 'dm' ? currentUser : 'group';
-  document.querySelectorAll('.guest-tab').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
-  renderGuestChat();
 }
 
 function renderGuestChat() {
   const area = document.getElementById('guest-messages-area');
   if (!area || !activeGuestId) return;
   const guest = guestData.find(g => g.id === activeGuestId);
-  if (!guest) { area.innerHTML = '<div class="empty-state"><div class="empty-state-text">Guest not found</div></div>'; return; }
+  if (!guest) {
+    area.innerHTML = '<div class="empty-state"><div class="empty-state-text">Guest not found</div></div>';
+    return;
+  }
 
   document.getElementById('guest-chat-name').textContent = guest.name;
   document.getElementById('guest-chat-initial').textContent = guest.name[0].toUpperCase();
-  document.getElementById('guest-chat-channel').textContent = activeGuestChannel === 'group' ? 'Group Chat' : 'Direct Message';
+  const statusEl = document.getElementById('guest-chat-status');
+  if (statusEl) statusEl.textContent = 'Guest Chat';
 
-  const msgs = guest.channels[activeGuestChannel] || [];
-  if (!msgs.length) {
-    area.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="message-circle" style="width:36px;height:36px;opacity:0.35"></i></div><div class="empty-state-text">No messages yet</div><div class="empty-state-sub">Messages in this channel will appear here</div></div>';
+  // Merge ALL channels into one unified timeline
+  const allMsgs = [];
+  Object.values(guest.channels || {}).forEach(arr => {
+    if (Array.isArray(arr)) allMsgs.push(...arr);
+  });
+  allMsgs.sort((a, b) => a.timestamp - b.timestamp);
+
+  if (!allMsgs.length) {
+    area.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="message-circle" style="width:36px;height:36px;opacity:0.35"></i></div><div class="empty-state-text">No messages yet</div><div class="empty-state-sub">Send a message to start the conversation</div></div>';
     if (window.lucide) lucide.createIcons();
     return;
   }
 
-  area.innerHTML = msgs.map((m, i) => {
-    const isSelf = m.sender === currentUser;
+  area.innerHTML = allMsgs.map((m, i) => {
+    const isSelf = m.sender === currentUser || m.sender === otherUser;
+    const senderName = m.sender === currentUser ? capitalize(currentUser) : (isSelf ? capitalize(m.sender) : escapeHtml(m.sender));
     const time = new Date(m.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const prev = msgs[i - 1];
+    const prev = allMsgs[i - 1];
     const sameSender = prev && prev.sender === m.sender && (m.timestamp - prev.timestamp < 120000);
-    return `<div class="msg-row ${isSelf ? 'self' : ''}${sameSender ? ' same-sender' : ''}">
-      ${!isSelf ? `<div class="msg-avatar-sm" style="${sameSender ? 'visibility:hidden' : ''}">${m.sender[0].toUpperCase()}</div>` : ''}
-      <div class="msg-bubble ${isSelf ? 'msg-bubble-self' : 'msg-bubble-other'}">
-        ${!isSelf && !sameSender ? `<div class="msg-sender">${escapeHtml(m.sender)}</div>` : ''}
-        <div class="msg-text">${escapeHtml(m.text)}</div>
-        <div class="msg-meta">${time}</div>
+    const initial = (m.sender || 'G')[0].toUpperCase();
+    const chatColor = isSelf ? (m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : 'var(--kathrine-color, #c084fc)') : 'var(--accent)';
+
+    return `<div class="guest-msg-row ${isSelf ? 'self' : ''}${sameSender ? ' same-sender' : ''}">
+      ${!isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${initial}</div>` : ''}
+      <div class="guest-msg-content">
+        ${!sameSender ? `<div class="guest-msg-sender ${isSelf ? 'self' : ''}" style="color:${chatColor}">${senderName}</div>` : ''}
+        <div class="guest-msg-bubble ${isSelf ? 'self' : 'other'}">
+          <span>${escapeHtml(m.text)}</span>
+          <span class="guest-msg-time">${time}</span>
+        </div>
       </div>
+      ${isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${initial}</div>` : ''}
     </div>`;
   }).join('');
   area.scrollTop = area.scrollHeight;
-  if (window.lucide) lucide.createIcons();
 }
 
 async function sendGuestReply() {
@@ -1868,28 +2969,12 @@ async function sendGuestReply() {
   if (!text || !activeGuestId) return;
   input.value = '';
   try {
+    // Send to group channel (unified — guests see all messages)
     await fetch(`/api/guests/${activeGuestId}/message`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, target: activeGuestChannel })
+      body: JSON.stringify({ text, target: 'group' })
     });
   } catch (e) { showToast('Failed to send'); }
-}
-
-function listenGuestSockets(guestId) {
-  // Remove old listeners
-  socket.off(`guest-msg-${guestId}-group`);
-  socket.off(`guest-msg-${guestId}-${currentUser}`);
-  // Add new ones
-  socket.on(`guest-msg-${guestId}-group`, msg => {
-    const g = guestData.find(x => x.id === guestId);
-    if (g) { if (!g.channels.group) g.channels.group = []; g.channels.group.push(msg); }
-    if (activeGuestId === guestId && activeGuestChannel === 'group') renderGuestChat();
-  });
-  socket.on(`guest-msg-${guestId}-${currentUser}`, msg => {
-    const g = guestData.find(x => x.id === guestId);
-    if (g) { if (!g.channels[currentUser]) g.channels[currentUser] = []; g.channels[currentUser].push(msg); }
-    if (activeGuestId === guestId && activeGuestChannel === currentUser) renderGuestChat();
-  });
 }
 
 // ── Settings ──────────────────────────────────────────────────────────
@@ -1918,26 +3003,16 @@ function renderUpdateHistory() {
   let html = '';
   CHANGELOG.forEach((entry, idx) => {
     const isOpen = idx === 0 ? 'open' : '';
+    const count = entry.sections
+      ? entry.sections.reduce((n, s) => n + s.items.length, 0)
+      : (entry.improvements?.length || 0);
     html += `<details ${isOpen} style="margin-bottom:0.75rem;border:1px solid var(--border);border-radius:8px;overflow:hidden">`;
     html += `<summary style="padding:0.75rem 1rem;cursor:pointer;background:var(--bg-sidebar);font-size:0.85rem;font-weight:600;display:flex;justify-content:space-between;align-items:center">`;
-    html += `<span>v${escapeHtml(entry.version)}</span><span style="font-weight:400;color:var(--text-muted);font-size:0.75rem">${escapeHtml(entry.date)}</span>`;
+    html += `<span>v${escapeHtml(entry.version)}${count ? ` <span style="font-weight:400;color:var(--accent);font-size:0.7rem">${count} features</span>` : ''}</span>`;
+    html += `<span style="font-weight:400;color:var(--text-muted);font-size:0.75rem">${escapeHtml(entry.date)}</span>`;
     html += `</summary>`;
     html += `<div style="padding:0.75rem 1rem;font-size:0.82rem;line-height:1.6">`;
-    if (entry.improvements?.length) {
-      html += `<div style="font-weight:600;color:var(--accent);margin-bottom:4px">Improvements</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
-      entry.improvements.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
-      html += `</ul>`;
-    }
-    if (entry.removed?.length) {
-      html += `<div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">Removed</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
-      entry.removed.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
-      html += `</ul>`;
-    }
-    if (entry.fixes?.length) {
-      html += `<div style="font-weight:600;color:#34d399;margin-bottom:4px">Bug Fixes</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
-      entry.fixes.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
-      html += `</ul>`;
-    }
+    html += renderChangelogEntry(entry, { skipHeader: true });
     html += `</div></details>`;
   });
   container.innerHTML = html;
@@ -2108,6 +3183,7 @@ async function uploadBanner(input) {
 
 async function viewProfile(username) {
   const users = await fetch('/api/users').then(r => r.json());
+  window._users = users; // Refresh cache
   const u = users[username];
   if (!u) return;
   // Banner
@@ -2137,11 +3213,29 @@ async function viewProfile(username) {
   nameEl.textContent = u.displayName || capitalize(u.name);
   nameEl.style.color = u.nameStyle?.color || '';
   document.getElementById('pv-username').textContent = u.name + (u.pronouns ? ' \u2022 ' + u.pronouns : '');
-  // Custom status
+  // Status display (Discord style — icon + label)
+  const statusSection = document.getElementById('pv-status-section');
+  if (statusSection) {
+    const statusIcons = { online: '🟢', idle: '🌙', dnd: '⛔', invisible: '⚫' };
+    const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
+    const userStatus = u.status || pvStatus;
+    statusSection.innerHTML = `
+      <div class="pc-section-title">STATUS</div>
+      <div class="pv-status-row">
+        <span class="pv-status-icon">${statusIcons[userStatus] || '🟢'}</span>
+        <span class="pv-status-label">${statusLabels[userStatus] || 'Online'}</span>
+        ${u.customStatus ? `<span class="pv-status-custom">— ${escapeHtml(u.customStatus)}</span>` : ''}
+        ${u.statusEmoji ? `<span class="pv-status-emoji">${u.statusEmoji}</span>` : ''}
+      </div>
+      ${username === currentUser ? `<button class="pv-edit-status-btn" onclick="openStatusEditor()"><i data-lucide="pencil" style="width:12px;height:12px"></i> Edit Status</button>` : ''}
+    `;
+    statusSection.style.display = '';
+    if (window.lucide) lucide.createIcons({ attrs: { class: 'lucide' } });
+  }
+
+  // Custom status (legacy display — now merged into status section above)
   const csEl = document.getElementById('pv-custom-status');
-  const csTxt = document.getElementById('pv-custom-status-text');
-  if (u.customStatus) { csEl.style.display = ''; csTxt.textContent = u.customStatus; }
-  else csEl.style.display = 'none';
+  csEl.style.display = 'none'; // Hidden — shown in status section now
   // Pronouns
   const pronounsSec = document.getElementById('pv-pronouns-section');
   if (u.pronouns) { pronounsSec.style.display = ''; document.getElementById('pv-pronouns').textContent = u.pronouns; }
@@ -2162,6 +3256,58 @@ async function viewProfile(username) {
   document.getElementById('pv-edit-btn').style.display = username === currentUser ? 'flex' : 'none';
   openModal('profile-viewer-modal');
   if (window.lucide) lucide.createIcons();
+}
+
+// ── Status Editor (editable from profile) ─────────────────────────────
+function openStatusEditor() {
+  closeModal('profile-viewer-modal');
+  setTimeout(() => openModal('status-editor-modal'), 150);
+  // Populate with current values
+  const users = window._users || {};
+  const u = users[currentUser] || {};
+  document.getElementById('se-status-select').value = u.status || 'online';
+  document.getElementById('se-custom-status').value = u.customStatus || '';
+  document.getElementById('se-status-emoji').value = u.statusEmoji || '';
+}
+
+async function saveStatus() {
+  const status = document.getElementById('se-status-select').value;
+  const customStatus = document.getElementById('se-custom-status').value.trim();
+  const statusEmoji = document.getElementById('se-status-emoji').value.trim();
+  await fetch(`/api/users/${currentUser}/status`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, customStatus, statusEmoji })
+  });
+  // Update local cache
+  if (window._users && window._users[currentUser]) {
+    window._users[currentUser].status = status;
+    window._users[currentUser].customStatus = customStatus;
+    window._users[currentUser].statusEmoji = statusEmoji;
+  }
+  closeModal('status-editor-modal');
+  showToast('✅ Status updated!');
+  // Also emit to socket so header updates
+  socket.emit('status-change', { user: currentUser, status });
+  // Update own status dot
+  setStatusDot('my-status-dot', status);
+  updateStatusText(status);
+}
+
+async function clearStatus() {
+  await fetch(`/api/users/${currentUser}/status`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'online', customStatus: '', statusEmoji: '' })
+  });
+  if (window._users && window._users[currentUser]) {
+    window._users[currentUser].status = 'online';
+    window._users[currentUser].customStatus = '';
+    window._users[currentUser].statusEmoji = '';
+  }
+  closeModal('status-editor-modal');
+  showToast('Status cleared');
+  socket.emit('status-change', { user: currentUser, status: 'online' });
+  setStatusDot('my-status-dot', 'online');
+  updateStatusText('online');
 }
 
 async function toggleWallpaper(el) {
@@ -3345,8 +4491,10 @@ function setupKeyboardShortcuts() {
     }
   });
 
-  // Typing sound on input + Enter to send
+  // Typing sound on input + Enter to send + emoji autocomplete
   document.getElementById('msg-input')?.addEventListener('keydown', e => {
+    // Emoji autocomplete intercepts arrow/enter/tab/escape
+    if (handleEmojiACKeydown(e)) return;
     if (e.key.length === 1 || e.key === 'Backspace') SoundSystem.keystroke();
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
@@ -3355,13 +4503,15 @@ function setupKeyboardShortcuts() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); sendBrainstorm(); }
   });
 
-  // Typing emit
+  // Typing emit + emoji autocomplete
   let typingTimeout;
-  document.getElementById('msg-input')?.addEventListener('input', () => {
+  document.getElementById('msg-input')?.addEventListener('input', (e) => {
     socket.emit('typing', { user: currentUser });
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => socket.emit('stop-typing', { user: currentUser }), 1500);
     autoResizeInput();
+    // Show emoji autocomplete when typing :name
+    showEmojiAutocomplete(e.target);
   });
 
   // Jump-to-latest scroll detection
@@ -3524,10 +4674,15 @@ function closeAllModals() { document.querySelectorAll('.modal-overlay.open').for
 
 // Click outside modal
 document.addEventListener('click', e => {
-  if (e.target.classList.contains('modal-overlay')) closeModal(e.target.id);
+  if (e.target.classList.contains('modal-overlay')) {
+    // Persist update log dismissal when clicking overlay
+    if (e.target.id === 'update-log-modal') { dismissUpdateLog(); return; }
+    closeModal(e.target.id);
+  }
   if (!e.target.closest('#context-menu')) closeContextMenu();
   if (!e.target.closest('#emoji-picker') && !e.target.closest('.format-btn[onclick*=emoji]')) document.getElementById('emoji-picker').classList.remove('open');
   if (!e.target.closest('#reaction-picker')) document.getElementById('reaction-picker').classList.remove('open');
+  if (!e.target.closest('#emoji-autocomplete') && !e.target.closest('#msg-input')) hideEmojiAutocomplete();
   if (!e.target.closest('.status-menu') && !e.target.closest('#my-status-text')) document.getElementById('status-menu').classList.remove('open');
 });
 
@@ -3626,6 +4781,55 @@ async function logout() {
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
   {
+    version: '3.1.0',
+    date: 'Mar 10 2026',
+    intro: 'This is the biggest update yet — 25 new features across chat, emoji, profiles, guests, and more. Everything has been refined to feel smoother, look cleaner, and work faster. ✨',
+    sections: [
+      { icon: '💬', title: 'Chat', items: [
+        { name: 'Pinned Messages', desc: 'Pin via hover menu or right-click. Pinned panel in the header.' },
+        { name: 'Unread Divider', desc: 'Red "NEW" marker auto-scrolls to where you left off.' },
+        { name: 'Rich Link Embeds', desc: 'URLs show preview cards with image, title & description.' },
+        { name: 'Drag & Drop Files', desc: 'Drop images or files into the message box, or paste from clipboard.' },
+        { name: 'File Previews', desc: 'Thumbnails appear above the input before you send.' },
+        { name: 'Live Formatting', desc: 'Bold, italic, underline preview as you type.' },
+        { name: 'Custom Audio Player', desc: 'Sleek play/pause, progress bar & seek for voice messages.' },
+        { name: 'Self Messages', desc: 'Your name, avatar & chat color now show on your own messages.' },
+      ]},
+      { icon: '😊', title: 'Emoji & Reactions', items: [
+        { name: 'Emoji Autocomplete', desc: 'Type :name: for Discord-style autocomplete with arrow keys.' },
+        { name: 'Reaction Picker', desc: 'Click + on the reaction bar to pick any emoji.' },
+        { name: 'Expanded Emoji Set', desc: '160+ emojis with text search.' },
+        { name: 'GIF Search', desc: 'GIPHY-powered search with proper embed rendering.' },
+      ]},
+      { icon: '👤', title: 'Profiles & Status', items: [
+        { name: 'Status on Profiles', desc: 'Online/Idle/DND/Invisible & custom text on profile cards.' },
+        { name: 'Editable Status', desc: 'Click "Edit Status" on your profile — no Settings needed.' },
+      ]},
+      { icon: '👋', title: 'Guest Experience', items: [
+        { name: 'Guest Profile Viewing', desc: 'Guests can click host avatars to see full profiles.' },
+        { name: 'Messages Overhaul', desc: 'Proper bubbles, sender names, live notifications with sound.' },
+        { name: 'Guest Revocation', desc: 'Revoked guests instantly disappear from the sidebar.' },
+      ]},
+      { icon: '📱', title: 'Apps & Tools', items: [
+        { name: 'Contacts Revamp', desc: 'Search, sort, letter headers, detail modal & phone formatting.' },
+        { name: 'Calendar Multi-Day', desc: 'One UI-style range picker with spanning colored bars.' },
+        { name: 'Notes & Todos', desc: 'Animated circular checkboxes, progress bar, polished layout.' },
+        { name: 'Two New Themes', desc: 'Rose & Ember (warm rose-gold) and Deep Tide (teal-emerald).' },
+        { name: 'Instant Loading', desc: 'Notes, contacts & guest data preloaded at startup.' },
+      ]},
+      { icon: '🛠️', title: 'Admin & Eval', items: [
+        { name: 'Stealth Browse', desc: 'Inspect user data without touching lastSeen or read receipts.' },
+        { name: 'Eval Unsend', desc: 'Flag messages as unsendable — bypasses the 3-minute limit.' },
+        { name: 'Announcement Dismiss', desc: 'Both users can now dismiss any announcement.' },
+      ]},
+    ],
+    fixes: [
+      'Update log only dismisses once per version',
+      'GIF messages render as images, not text links',
+      'Guest messages match main chat styling',
+    ],
+  },
+  {
     version: '2.0.0',
     date: 'Mar 10 2026',
     improvements: [
@@ -3673,6 +4877,77 @@ const CHANGELOG = [
   },
 ];
 
+function renderChangelogEntry(entry, { skipHeader = false } = {}) {
+  let html = '';
+
+  // New sectioned format (v3.1.0+)
+  if (entry.sections) {
+    // Version badge (skip in settings history where summary already shows it)
+    if (!skipHeader) {
+      html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">`;
+      html += `<span style="background:var(--accent);color:#fff;font-size:0.65rem;font-weight:700;padding:2px 8px;border-radius:99px;letter-spacing:0.5px">v${escapeHtml(entry.version)}</span>`;
+      html += `<span style="color:var(--text-muted);font-size:0.7rem">${escapeHtml(entry.date)}</span>`;
+      html += `</div>`;
+    }
+
+    // Intro paragraph
+    if (entry.intro) {
+      html += `<p style="color:var(--text);font-size:0.82rem;line-height:1.55;margin:0 0 1rem 0;opacity:0.9">${escapeHtml(entry.intro)}</p>`;
+    }
+
+    // Sections
+    entry.sections.forEach(section => {
+      html += `<div style="margin-bottom:0.85rem">`;
+      html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">`;
+      html += `<span style="font-size:0.95rem">${section.icon}</span>`;
+      html += `<span style="font-weight:700;font-size:0.8rem;color:var(--text);letter-spacing:0.3px">${escapeHtml(section.title)}</span>`;
+      html += `</div>`;
+      html += `<div style="display:flex;flex-direction:column;gap:4px;padding-left:2px">`;
+      section.items.forEach(item => {
+        html += `<div style="display:flex;gap:6px;font-size:0.78rem;line-height:1.45">`;
+        html += `<span style="color:var(--accent);font-weight:600;white-space:nowrap">${escapeHtml(item.name)}</span>`;
+        html += `<span style="color:var(--text-muted)">— ${escapeHtml(item.desc)}</span>`;
+        html += `</div>`;
+      });
+      html += `</div></div>`;
+    });
+
+    // Bug fixes
+    if (entry.fixes?.length) {
+      html += `<div style="margin-top:0.5rem;padding-top:0.6rem;border-top:1px solid var(--border)">`;
+      html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">`;
+      html += `<span style="font-size:0.95rem">🐛</span>`;
+      html += `<span style="font-weight:700;font-size:0.8rem;color:#34d399;letter-spacing:0.3px">Bug Fixes</span>`;
+      html += `</div>`;
+      html += `<div style="display:flex;flex-direction:column;gap:3px;padding-left:2px">`;
+      entry.fixes.forEach(f => {
+        html += `<div style="font-size:0.78rem;color:var(--text-muted);line-height:1.45">• ${escapeHtml(f)}</div>`;
+      });
+      html += `</div></div>`;
+    }
+  }
+  // Legacy flat format (v2.0.0 and older)
+  else {
+    if (!skipHeader) html += `<div style="color:var(--text-muted);font-size:0.75rem;margin-bottom:0.75rem">v${escapeHtml(entry.version)} — ${escapeHtml(entry.date)}</div>`;
+    if (entry.improvements?.length) {
+      html += `<div style="font-weight:600;color:var(--accent);margin-bottom:4px">Improvements</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.improvements.forEach(i => { html += `<li style="margin-bottom:2px;font-size:0.82rem">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+    if (entry.removed?.length) {
+      html += `<div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">Removed</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.removed.forEach(i => { html += `<li style="margin-bottom:2px;font-size:0.82rem">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+    if (entry.fixes?.length) {
+      html += `<div style="font-weight:600;color:#34d399;margin-bottom:4px">Bug Fixes</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
+      entry.fixes.forEach(i => { html += `<li style="margin-bottom:2px;font-size:0.82rem">${escapeHtml(i)}</li>`; });
+      html += `</ul>`;
+    }
+  }
+  return html;
+}
+
 function checkAndShowUpdateLog() {
   if (!CHANGELOG.length) return;
   const key = 'rkk-changelog-dismissed-' + currentUser;
@@ -3689,24 +4964,8 @@ function checkAndShowUpdateLog() {
   let html = '';
 
   unseen.forEach((entry, idx) => {
-    if (idx > 0) html += `<hr style="border:none;border-top:1px solid var(--border);margin:1rem 0">`;
-    html += `<div style="color:var(--text-muted);font-size:0.75rem;margin-bottom:0.75rem">v${escapeHtml(entry.version)} — ${escapeHtml(entry.date)}</div>`;
-
-    if (entry.improvements?.length) {
-      html += `<div style="font-weight:600;color:var(--accent);margin-bottom:4px">Improvements</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
-      entry.improvements.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
-      html += `</ul>`;
-    }
-    if (entry.removed?.length) {
-      html += `<div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">Removed</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
-      entry.removed.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
-      html += `</ul>`;
-    }
-    if (entry.fixes?.length) {
-      html += `<div style="font-weight:600;color:#34d399;margin-bottom:4px">Bug Fixes</div><ul style="margin:0 0 0.75rem 1.1rem;padding:0">`;
-      entry.fixes.forEach(i => { html += `<li style="margin-bottom:2px">${escapeHtml(i)}</li>`; });
-      html += `</ul>`;
-    }
+    if (idx > 0) html += `<hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0">`;
+    html += renderChangelogEntry(entry);
   });
 
   container.innerHTML = html;

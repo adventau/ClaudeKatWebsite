@@ -557,6 +557,206 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   THEME: ROSEWOOD  —  "Rose & Ember"
+   Warm rose-gold on charcoal, the guest dark theme brought to main
+═══════════════════════════════════════════════════════════════════ */
+.theme-rosewood {
+  --bg-main:      #0c0912;
+  --bg-sidebar:   #120e1c;
+  --bg-card:      rgba(200,150,120,0.06);
+  --bg-input:     rgba(255,255,255,0.04);
+  --bg-message-self:  linear-gradient(135deg, #7c3aed, #a855a0);
+  --bg-message-other: rgba(255,255,255,0.06);
+  --bg-hover:     rgba(200,150,122,0.1);
+  --bg-active:    rgba(200,150,122,0.16);
+  --bg-modal:     #120e1c;
+  --bg-btn:       linear-gradient(135deg, #c8967a, #a07058);
+  --bg-btn-hover: linear-gradient(135deg, #a07058, #8a5e48);
+  --bg-input-msg: rgba(200,150,122,0.06);
+  --bg-status-bar: #0c0912;
+  --bg-secondary: rgba(18,14,28,0.7);
+
+  --text-primary:   #f0e8e0;
+  --text-secondary: rgba(240,232,224,0.6);
+  --text-muted:     rgba(240,232,224,0.38);
+  --text-btn:       #ffffff;
+  --text-name-self: #e8c9a0;
+  --text-name-other:#c8967a;
+
+  --border:       rgba(200,150,120,0.18);
+  --border-focus: #c8967a;
+  --border-card:  rgba(200,150,120,0.14);
+
+  --accent:       #c8967a;
+  --accent2:      #e8c9a0;
+  --accent3:      #f0dcc8;
+  --glow:         rgba(200,150,122,0.22);
+  --glow2:        rgba(232,201,160,0.15);
+
+  --status-online:   #34d399;
+  --status-idle:     #fbbf24;
+  --status-dnd:      #f87171;
+  --status-invisible:#9ca3af;
+
+  --shadow:       0 4px 30px rgba(0,0,0,0.35);
+  --shadow-card:  0 8px 40px rgba(0,0,0,0.4);
+  --shadow-msg:   0 2px 12px rgba(200,150,122,0.2);
+
+  --radius-card:  14px;
+  --radius-msg:   14px;
+  --radius-btn:   10px;
+  --radius-input: 10px;
+
+  --font-main:    'Inter', sans-serif;
+  --font-heading: 'Cinzel', 'Times New Roman', serif;
+  --font-name:    'Cinzel', serif;
+
+  --scrollbar-bg:    rgba(200,150,122,0.06);
+  --scrollbar-thumb: rgba(200,150,122,0.35);
+  --sidebar-glow:    none;
+  --nav-active-bg:   rgba(200,150,122,0.14);
+  --nav-active-border: #c8967a;
+
+  --msg-gradient: linear-gradient(135deg, #7c3aed, #a855a0);
+}
+
+.theme-rosewood #sidebar {
+  border-right: 1px solid rgba(200,150,120,0.18);
+  background: rgba(18,14,28,0.85);
+  backdrop-filter: blur(12px);
+}
+.theme-rosewood #app-header {
+  background: rgba(18,14,28,0.97);
+  border-bottom: 1px solid rgba(200,150,120,0.18);
+  backdrop-filter: blur(16px);
+}
+.theme-rosewood .btn-primary {
+  background: linear-gradient(135deg, #c8967a, #a07058);
+  box-shadow: 0 2px 12px rgba(200,150,122,0.3);
+}
+.theme-rosewood .btn-primary:hover {
+  box-shadow: 0 4px 20px rgba(200,150,122,0.4);
+}
+.theme-rosewood .send-btn {
+  background: linear-gradient(135deg, #c8967a, #e8c9a0);
+}
+.theme-rosewood .msg-bubble-self {
+  background: linear-gradient(135deg, #7c3aed, #a855a0) !important;
+  box-shadow: 0 2px 12px rgba(124,58,237,0.3) !important;
+}
+.theme-rosewood .msg-bubble-other {
+  background: rgba(255,255,255,0.06) !important;
+  border: 1px solid rgba(200,150,120,0.18);
+}
+.theme-rosewood .section-header {
+  background: rgba(18,14,28,0.7);
+  backdrop-filter: blur(6px);
+}
+.theme-rosewood input:focus, .theme-rosewood textarea:focus {
+  box-shadow: 0 0 0 3px rgba(200,150,122,0.2) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   THEME: OCEAN  —  "Deep Tide"
+   Teal-emerald on near-black, fresh, modern, coastal
+═══════════════════════════════════════════════════════════════════ */
+.theme-ocean {
+  --bg-main:      #060d10;
+  --bg-sidebar:   #0a1418;
+  --bg-card:      rgba(20,184,166,0.06);
+  --bg-input:     rgba(255,255,255,0.04);
+  --bg-message-self:  linear-gradient(135deg, #0d9488, #2dd4bf);
+  --bg-message-other: rgba(20,184,166,0.08);
+  --bg-hover:     rgba(20,184,166,0.1);
+  --bg-active:    rgba(20,184,166,0.16);
+  --bg-modal:     #0a1418;
+  --bg-btn:       linear-gradient(135deg, #0d9488, #14b8a6);
+  --bg-btn-hover: linear-gradient(135deg, #0f766e, #0d9488);
+  --bg-input-msg: rgba(20,184,166,0.06);
+  --bg-status-bar: #060d10;
+  --bg-secondary: rgba(10,20,24,0.7);
+
+  --text-primary:   #e0f2f1;
+  --text-secondary: rgba(224,242,241,0.6);
+  --text-muted:     rgba(224,242,241,0.35);
+  --text-btn:       #ffffff;
+  --text-name-self: #5eead4;
+  --text-name-other:#2dd4bf;
+
+  --border:       rgba(20,184,166,0.2);
+  --border-focus: #14b8a6;
+  --border-card:  rgba(20,184,166,0.12);
+
+  --accent:       #14b8a6;
+  --accent2:      #2dd4bf;
+  --accent3:      #99f6e4;
+  --glow:         rgba(20,184,166,0.25);
+  --glow2:        rgba(45,212,191,0.15);
+
+  --status-online:   #34d399;
+  --status-idle:     #fbbf24;
+  --status-dnd:      #f87171;
+  --status-invisible:#94a3b8;
+
+  --shadow:       0 4px 30px rgba(0,0,0,0.4);
+  --shadow-card:  0 8px 40px rgba(0,0,0,0.45);
+  --shadow-msg:   0 2px 12px rgba(20,184,166,0.2);
+
+  --radius-card:  16px;
+  --radius-msg:   20px;
+  --radius-btn:   12px;
+  --radius-input: 12px;
+
+  --font-main:    'Inter', sans-serif;
+  --font-heading: 'Space Grotesk', 'Inter', sans-serif;
+  --font-name:    'Space Grotesk', sans-serif;
+
+  --scrollbar-bg:    rgba(20,184,166,0.06);
+  --scrollbar-thumb: rgba(20,184,166,0.35);
+  --sidebar-glow:    none;
+  --nav-active-bg:   rgba(20,184,166,0.14);
+  --nav-active-border: #14b8a6;
+
+  --msg-gradient: linear-gradient(135deg, #0d9488, #2dd4bf);
+}
+
+.theme-ocean #sidebar {
+  border-right: 1px solid rgba(20,184,166,0.15);
+  background: rgba(10,20,24,0.9);
+  backdrop-filter: blur(12px);
+}
+.theme-ocean #app-header {
+  background: rgba(10,20,24,0.97);
+  border-bottom: 1px solid rgba(20,184,166,0.15);
+  backdrop-filter: blur(16px);
+}
+.theme-ocean .btn-primary {
+  background: linear-gradient(135deg, #0d9488, #14b8a6);
+  box-shadow: 0 2px 12px rgba(20,184,166,0.3);
+}
+.theme-ocean .btn-primary:hover {
+  box-shadow: 0 4px 20px rgba(20,184,166,0.4);
+}
+.theme-ocean .send-btn {
+  background: linear-gradient(135deg, #0d9488, #2dd4bf);
+}
+.theme-ocean .msg-bubble-self {
+  background: linear-gradient(135deg, #0d9488, #2dd4bf) !important;
+  box-shadow: 0 2px 12px rgba(20,184,166,0.3) !important;
+}
+.theme-ocean .msg-bubble-other {
+  background: rgba(20,184,166,0.08) !important;
+  border: 1px solid rgba(20,184,166,0.12);
+}
+.theme-ocean .section-header {
+  background: rgba(10,20,24,0.7);
+  backdrop-filter: blur(6px);
+}
+.theme-ocean input:focus, .theme-ocean textarea:focus {
+  box-shadow: 0 0 0 3px rgba(20,184,166,0.2) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    SHARED COMPONENT STYLES (use CSS vars)
 ═══════════════════════════════════════════════════════════════════ */
 body {
