@@ -3021,16 +3021,22 @@ function renderGuestChat() {
   }
 
   area.innerHTML = msgs.map((m, i) => {
-    const isSelf = m.sender === currentUser || m.sender === otherUser;
-    const senderName = m.sender === currentUser ? capitalize(currentUser) : (isSelf ? capitalize(m.sender) : escapeHtml(m.sender));
+    // Only current user's messages go on the right — other host + guest on left
+    const isSelf = m.sender === currentUser;
+    const isHost = m.sender === 'kaliph' || m.sender === 'kathrine';
+    const senderName = isHost ? capitalize(m.sender) : escapeHtml(m.sender);
     const time = new Date(m.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     const prev = msgs[i - 1];
     const sameSender = prev && prev.sender === m.sender && (m.timestamp - prev.timestamp < 120000);
-    const initial = (m.sender || 'G')[0].toUpperCase();
-    const chatColor = isSelf ? (m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : 'var(--kathrine-color, #c084fc)') : 'var(--accent)';
+    const chatColor = m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : m.sender === 'kathrine' ? 'var(--kathrine-color, #c084fc)' : 'var(--accent)';
+    // Use profile picture for host users, initial letter for guests
+    const userData = isHost && window._users ? window._users[m.sender] : null;
+    const avatarInner = userData?.avatar
+      ? `<img src="${userData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : (m.sender || 'G')[0].toUpperCase();
 
     return `<div class="guest-msg-row ${isSelf ? 'self' : ''}${sameSender ? ' same-sender' : ''}">
-      ${!isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${initial}</div>` : ''}
+      ${!isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${avatarInner}</div>` : ''}
       <div class="guest-msg-content">
         ${!sameSender ? `<div class="guest-msg-sender ${isSelf ? 'self' : ''}" style="color:${chatColor}">${senderName}</div>` : ''}
         <div class="guest-msg-bubble ${isSelf ? 'self' : 'other'}">
@@ -3038,7 +3044,7 @@ function renderGuestChat() {
           <span class="guest-msg-time">${time}</span>
         </div>
       </div>
-      ${isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${initial}</div>` : ''}
+      ${isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${avatarInner}</div>` : ''}
     </div>`;
   }).join('');
   area.scrollTop = area.scrollHeight;

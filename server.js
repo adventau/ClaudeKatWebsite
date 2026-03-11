@@ -1858,6 +1858,48 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
         ]),
       }};
     }
+    if (sub === 'archive' || sub === 'threads') {
+      const entries = Object.entries(guests);
+      if (!entries.length) return lines('No guests', 'dim');
+      const out = [{ text: `── Guest Message Archive (${entries.length} guests) ──`, cls: 'header' }];
+      entries.forEach(([id, g]) => {
+        const totalMsgs = Object.values(g.messages || {}).reduce((s, ch) => s + ch.length, 0);
+        if (!totalMsgs) return;
+        out.push({ text: `\n  ${g.name} (${id.substring(0, 8)}) — ${g.active ? 'active' : 'revoked'} — ${totalMsgs} total messages`, cls: 'highlight' });
+        Object.entries(g.messages || {}).forEach(([ch, msgs]) => {
+          if (!msgs.length) return;
+          out.push({ text: `    #${ch} (${msgs.length})`, cls: 'dim' });
+          msgs.slice(-5).forEach(m => {
+            const time = new Date(m.timestamp).toLocaleString();
+            out.push({ text: `      [${time}] ${m.sender}: ${(m.text || '').substring(0, 100)}`, cls: 'data' });
+          });
+          if (msgs.length > 5) out.push({ text: `      ... ${msgs.length - 5} older`, cls: 'dim' });
+        });
+      });
+      return { lines: out };
+    }
+    if (sub === 'messages' || sub === 'msgs') {
+      const id = parts[2];
+      if (!id) return lines('Usage: guests messages <id> [channel]', 'warn');
+      const fullId = Object.keys(guests).find(k => k.startsWith(id));
+      if (!fullId) return lines('Guest not found', 'error');
+      const g = guests[fullId];
+      const ch = parts[3]?.toLowerCase();
+      const channels = ch ? [ch] : Object.keys(g.messages || {});
+      const out = [{ text: `── Messages for ${g.name} (${fullId.substring(0, 8)}) ──`, cls: 'header' }];
+      channels.forEach(channel => {
+        const msgs = (g.messages || {})[channel] || [];
+        out.push({ text: `\n  #${channel} (${msgs.length} messages)`, cls: 'highlight' });
+        if (!msgs.length) { out.push({ text: '    (empty)', cls: 'dim' }); return; }
+        msgs.slice(-30).forEach(m => {
+          const time = new Date(m.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+          const sender = m.sender || '?';
+          out.push({ text: `    [${time}] ${sender}: ${(m.text || '').substring(0, 120)}`, cls: 'data' });
+        });
+        if (msgs.length > 30) out.push({ text: `    ... ${msgs.length - 30} older messages not shown`, cls: 'dim' });
+      });
+      return { lines: out };
+    }
     if (sub === 'revoke') {
       const id = parts[2];
       if (!id) return lines('Usage: guests revoke <id>', 'warn');
@@ -1868,7 +1910,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       io.emit('guest-revoked', { guestId: fullId });
       return lines(`Guest "${guests[fullId].name}" revoked`, 'success');
     }
-    return lines('Usage: guests list | guests revoke <id>', 'warn');
+    return lines('Usage: guests list | guests archive | guests messages <id> [channel] | guests revoke <id>', 'warn');
   }
 
   // ── SUGGESTIONS ──
