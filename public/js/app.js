@@ -1124,10 +1124,21 @@ async function togglePinnedPanel() {
   }
   list.innerHTML = pinned.map(m => {
     const sender = capitalize(m.sender);
-    const text = (m.text || '').substring(0, 120) || (m.files?.length ? '📎 File' : '(no text)');
+    const senderData = (window._users || {})[m.sender];
+    const avatarHtml = senderData?.avatar
+      ? `<img src="${senderData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : `<span>${(m.sender || 'U')[0].toUpperCase()}</span>`;
+    const chatColor = m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : 'var(--kathrine-color, #c084fc)';
+    const text = (m.text || '').substring(0, 120) || (m.files?.length ? '📎 File' : m.voiceUrl ? '🎙️ Voice message' : '(no text)');
     const time = new Date(m.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
     return `<div class="pinned-item" onclick="scrollToMessage('${m.id}')">
-      <div class="pinned-item-header"><strong>${escapeHtml(sender)}</strong><span class="pinned-item-time">${time}</span></div>
+      <div class="pinned-item-header">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="msg-avatar-sm" style="width:24px;height:24px;min-width:24px;font-size:0.6rem;background:${chatColor};display:flex;align-items:center;justify-content:center;border-radius:50%;overflow:hidden;color:#fff">${avatarHtml}</div>
+          <strong>${escapeHtml(sender)}</strong>
+        </div>
+        <span class="pinned-item-time">${time}</span>
+      </div>
       <div class="pinned-item-text">${escapeHtml(text)}</div>
       <button class="pinned-unpin-btn" onclick="event.stopPropagation();unpinMessage('${m.id}')" title="Unpin">✕</button>
     </div>`;
@@ -2778,8 +2789,9 @@ async function deleteAnnouncement(id) {
 
 // ── Guest Messages ────────────────────────────────────────────────────
 let activeGuestId = null;
+let activeGuestChannel = null; // 'group', 'kaliph', 'kathrine'
 let guestData = [];
-let guestUnread = {}; // { guestId: count }
+let guestUnread = {}; // { 'guestId:channel': count }
 
 async function loadGuestMessages() {
   try {
@@ -2788,23 +2800,21 @@ async function loadGuestMessages() {
     guestData = await res.json();
   } catch { guestData = []; }
   renderGuestList();
-  // Listen for all guest messages globally
   setupGuestSocketListeners();
 }
 
 function setupGuestSocketListeners() {
-  // Remove old global listeners
   socket.off('guest-revoked');
   guestData.forEach(g => {
     socket.off(`guest-msg-${g.id}-group`);
     socket.off(`guest-msg-${g.id}-${currentUser}`);
   });
 
-  // Listen for guest revocations — remove immediately
   socket.on('guest-revoked', ({ guestId }) => {
     guestData = guestData.filter(g => g.id !== guestId);
     if (activeGuestId === guestId) {
       activeGuestId = null;
+      activeGuestChannel = null;
       document.getElementById('guest-chat-header').style.display = 'none';
       document.getElementById('guest-reply-bar').style.display = 'none';
       document.getElementById('guest-messages-area').innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="message-square-plus" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">Select a guest to view messages</div><div class="empty-state-sub">Guests can message you through the guest portal</div></div>';
@@ -2814,7 +2824,6 @@ function setupGuestSocketListeners() {
     updateGuestNavBadge();
   });
 
-  // Listen for new messages from every guest
   guestData.forEach(g => {
     const handleGuestMsg = (channel) => (msg) => {
       const guest = guestData.find(x => x.id === g.id);
@@ -2822,21 +2831,20 @@ function setupGuestSocketListeners() {
         if (!guest.channels[channel]) guest.channels[channel] = [];
         guest.channels[channel].push(msg);
       }
-      // If we're viewing this guest, re-render chat
-      if (activeGuestId === g.id) {
+      if (activeGuestId === g.id && activeGuestChannel === channel) {
         renderGuestChat();
       } else {
-        // Track unread
-        guestUnread[g.id] = (guestUnread[g.id] || 0) + 1;
+        const key = g.id + ':' + channel;
+        guestUnread[key] = (guestUnread[key] || 0) + 1;
         renderGuestList();
       }
-      // Show notification if msg is from guest (not from us)
       if (msg.sender !== currentUser) {
         updateGuestNavBadge();
-        if (currentSection !== 'guest-messages' || activeGuestId !== g.id) {
-          sendDesktopNotif(`Guest message from ${msg.sender}`, msg.text?.substring(0, 80) || 'New message');
+        if (currentSection !== 'guest-messages' || activeGuestId !== g.id || activeGuestChannel !== channel) {
+          const chLabel = channel === 'group' ? 'Group' : 'DM';
+          sendDesktopNotif(`${msg.sender} (${chLabel})`, msg.text?.substring(0, 80) || 'New message');
           SoundSystem.receive();
-          showMsgNotif(msg.sender + ' (Guest)', msg.text?.substring(0, 80) || 'New message');
+          showMsgNotif(`${msg.sender} · ${chLabel}`, msg.text?.substring(0, 80) || 'New message');
         }
       }
     };
@@ -2873,40 +2881,56 @@ function renderGuestList() {
     if (window.lucide) lucide.createIcons();
     return;
   }
-  list.innerHTML = guestData.map(g => {
-    // Merge all channels for preview
-    const allMsgs = [];
-    Object.values(g.channels || {}).forEach(arr => { if (Array.isArray(arr)) allMsgs.push(...arr); });
-    allMsgs.sort((a, b) => a.timestamp - b.timestamp);
-    const lastMsg = allMsgs[allMsgs.length - 1];
-    const preview = lastMsg ? (lastMsg.text.length > 32 ? lastMsg.text.slice(0, 32) + '…' : lastMsg.text) : 'No messages yet';
-    const time = lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
-    const unread = guestUnread[g.id] || 0;
-    return `<div class="guest-list-item ${activeGuestId === g.id ? 'active' : ''}" onclick="selectGuest('${g.id}')">
-      <div class="guest-item-avatar">${g.name[0].toUpperCase()}</div>
-      <div class="guest-item-info">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div class="guest-item-name">${escapeHtml(g.name)}</div>
-          ${time ? `<span style="font-size:0.65rem;color:var(--text-muted);flex-shrink:0">${time}</span>` : ''}
+
+  // Build separate entries per channel
+  let html = '';
+  guestData.forEach(g => {
+    const channels = g.channels || {};
+    // Determine which channels to show — show any channel that has messages, plus 'group' always
+    const channelIds = ['group', currentUser].filter(ch => {
+      const msgs = channels[ch];
+      return msgs && msgs.length > 0;
+    });
+    // If no channels have messages, show a single entry for the guest
+    if (!channelIds.length) channelIds.push('group');
+
+    channelIds.forEach(ch => {
+      const msgs = channels[ch] || [];
+      const lastMsg = msgs[msgs.length - 1];
+      const preview = lastMsg ? (lastMsg.text.length > 30 ? lastMsg.text.slice(0, 30) + '…' : lastMsg.text) : 'No messages yet';
+      const time = lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+      const unreadKey = g.id + ':' + ch;
+      const unread = guestUnread[unreadKey] || 0;
+      const isActive = activeGuestId === g.id && activeGuestChannel === ch;
+      const chLabel = ch === 'group' ? 'Group' : 'DM';
+      const chIcon = ch === 'group' ? 'users' : 'message-circle';
+      html += `<div class="guest-list-item ${isActive ? 'active' : ''}" onclick="selectGuest('${g.id}','${ch}')">
+        <div class="guest-item-avatar">${g.name[0].toUpperCase()}</div>
+        <div class="guest-item-info">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="guest-item-name">${escapeHtml(g.name)} <span style="font-size:0.65rem;color:var(--text-muted);font-weight:400">· ${chLabel}</span></div>
+            ${time ? `<span style="font-size:0.65rem;color:var(--text-muted);flex-shrink:0">${time}</span>` : ''}
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+            <div class="guest-item-meta">${escapeHtml(preview)}</div>
+            ${unread ? `<span class="guest-unread-badge">${unread}</span>` : ''}
+          </div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
-          <div class="guest-item-meta">${escapeHtml(preview)}</div>
-          ${unread ? `<span class="guest-unread-badge">${unread}</span>` : ''}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
+      </div>`;
+    });
+  });
+  list.innerHTML = html;
   if (window.lucide) lucide.createIcons();
 }
 
-function selectGuest(guestId) {
+function selectGuest(guestId, channel) {
   activeGuestId = guestId;
-  // Clear unread for this guest
-  delete guestUnread[guestId];
+  activeGuestChannel = channel || 'group';
+  // Clear unread for this specific guest+channel
+  delete guestUnread[guestId + ':' + activeGuestChannel];
   updateGuestNavBadge();
   renderGuestList();
   renderGuestChat();
-  // Show header and reply bar
   document.getElementById('guest-chat-header').style.display = '';
   document.getElementById('guest-reply-bar').style.display = '';
   if (window.lucide) lucide.createIcons();
@@ -2914,36 +2938,33 @@ function selectGuest(guestId) {
 
 function renderGuestChat() {
   const area = document.getElementById('guest-messages-area');
-  if (!area || !activeGuestId) return;
+  if (!area || !activeGuestId || !activeGuestChannel) return;
   const guest = guestData.find(g => g.id === activeGuestId);
   if (!guest) {
     area.innerHTML = '<div class="empty-state"><div class="empty-state-text">Guest not found</div></div>';
     return;
   }
 
+  const chLabel = activeGuestChannel === 'group' ? 'Group Chat' : 'Direct Message';
   document.getElementById('guest-chat-name').textContent = guest.name;
   document.getElementById('guest-chat-initial').textContent = guest.name[0].toUpperCase();
   const statusEl = document.getElementById('guest-chat-status');
-  if (statusEl) statusEl.textContent = 'Guest Chat';
+  if (statusEl) statusEl.textContent = chLabel;
 
-  // Merge ALL channels into one unified timeline
-  const allMsgs = [];
-  Object.values(guest.channels || {}).forEach(arr => {
-    if (Array.isArray(arr)) allMsgs.push(...arr);
-  });
-  allMsgs.sort((a, b) => a.timestamp - b.timestamp);
+  // Show only the selected channel's messages
+  const msgs = (guest.channels || {})[activeGuestChannel] || [];
 
-  if (!allMsgs.length) {
+  if (!msgs.length) {
     area.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="message-circle" style="width:36px;height:36px;opacity:0.35"></i></div><div class="empty-state-text">No messages yet</div><div class="empty-state-sub">Send a message to start the conversation</div></div>';
     if (window.lucide) lucide.createIcons();
     return;
   }
 
-  area.innerHTML = allMsgs.map((m, i) => {
+  area.innerHTML = msgs.map((m, i) => {
     const isSelf = m.sender === currentUser || m.sender === otherUser;
     const senderName = m.sender === currentUser ? capitalize(currentUser) : (isSelf ? capitalize(m.sender) : escapeHtml(m.sender));
     const time = new Date(m.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const prev = allMsgs[i - 1];
+    const prev = msgs[i - 1];
     const sameSender = prev && prev.sender === m.sender && (m.timestamp - prev.timestamp < 120000);
     const initial = (m.sender || 'G')[0].toUpperCase();
     const chatColor = isSelf ? (m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : 'var(--kathrine-color, #c084fc)') : 'var(--accent)';
@@ -2966,13 +2987,12 @@ function renderGuestChat() {
 async function sendGuestReply() {
   const input = document.getElementById('guest-reply-input');
   const text = input.value.trim();
-  if (!text || !activeGuestId) return;
+  if (!text || !activeGuestId || !activeGuestChannel) return;
   input.value = '';
   try {
-    // Send to group channel (unified — guests see all messages)
     await fetch(`/api/guests/${activeGuestId}/message`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, target: 'group' })
+      body: JSON.stringify({ text, target: activeGuestChannel })
     });
   } catch (e) { showToast('Failed to send'); }
 }

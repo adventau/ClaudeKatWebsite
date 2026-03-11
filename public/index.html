@@ -387,6 +387,64 @@
     .theme-heaven .card-badge { font-family: 'Cinzel', serif; color: rgba(200,169,110,0.65); border: 1px solid rgba(200,169,110,0.25); }
     .theme-heaven .ripple { background: rgba(200,169,110,0.2); }
 
+    /* ── T7: Rosewood — "Rose & Ember" — Warm rose-gold on charcoal ── */
+    .theme-rosewood {
+      background: linear-gradient(145deg, #0c0912 0%, #1a0f14 50%, #0c0912 100%);
+      border-color: rgba(200,150,120,0.2);
+    }
+    .theme-rosewood:hover {
+      border-color: rgba(200,150,122,0.45);
+      box-shadow: 0 12px 50px rgba(200,150,122,0.25), 0 0 30px rgba(200,150,122,0.1);
+    }
+    .theme-rosewood::before {
+      content: ''; position: absolute; inset: 0; z-index: 3; border-radius: inherit; overflow: hidden;
+      background: linear-gradient(135deg, transparent, rgba(200,150,122,0.2), transparent); opacity: 0;
+    }
+    .theme-rosewood:hover::before { opacity: 1; animation: bloom-pulse 1.8s ease-in-out infinite; }
+    .theme-rosewood::after {
+      content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit;
+      background: radial-gradient(circle at 30% 70%, rgba(200,150,122,0.15) 0%, transparent 60%); opacity: 0;
+    }
+    .theme-rosewood:hover::after { opacity: 1; }
+    .theme-rosewood .card-glow { background: radial-gradient(circle, rgba(200,150,122,0.45) 0%, rgba(232,201,160,0.2) 35%, transparent 70%); }
+    .theme-rosewood .card-avatar { background: linear-gradient(135deg, #a07058, #c8967a); border-color: rgba(200,150,122,0.5); box-shadow: 0 0 20px rgba(200,150,122,0.45); }
+    .theme-rosewood:hover .card-avatar { transform: scale(1.1) rotate(-2deg); box-shadow: 0 0 30px rgba(200,150,122,0.6), 0 0 55px rgba(232,201,160,0.2); }
+    .theme-rosewood .card-name { font-family: 'Cinzel', serif; font-size: 1.8rem; background: linear-gradient(135deg, #e8c9a0, #c8967a, #dbb99a); -webkit-background-clip: text; background-clip: text; }
+    .theme-rosewood:hover .card-name { transform: scale(1.06); }
+    .theme-rosewood .card-theme-label { color: rgba(200,150,122,0.6); font-family: 'Cinzel', serif; }
+    .theme-rosewood .card-enter-hint { font-family: 'Cinzel', serif; }
+    .theme-rosewood .card-badge { font-family: 'Cinzel', serif; color: rgba(200,150,122,0.65); border: 1px solid rgba(200,150,122,0.25); }
+    .theme-rosewood .ripple { background: rgba(200,150,122,0.2); }
+
+    /* ── T8: Ocean — "Deep Tide" — Teal-emerald on near-black ──────── */
+    .theme-ocean {
+      background: linear-gradient(145deg, #060d10 0%, #0a1a1e 50%, #060d10 100%);
+      border-color: rgba(20,184,166,0.2);
+    }
+    .theme-ocean:hover {
+      border-color: rgba(20,184,166,0.45);
+      box-shadow: 0 12px 50px rgba(20,184,166,0.2), 0 0 30px rgba(20,184,166,0.08);
+    }
+    .theme-ocean::before {
+      content: ''; position: absolute; inset: 0; z-index: 3; border-radius: inherit; overflow: hidden;
+      background: linear-gradient(135deg, transparent, rgba(20,184,166,0.15), transparent); opacity: 0;
+    }
+    .theme-ocean:hover::before { opacity: 1; animation: shimmer-sweep 0.8s ease; }
+    .theme-ocean::after {
+      content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit;
+      background: radial-gradient(circle at 60% 80%, rgba(45,212,191,0.12) 0%, transparent 60%); opacity: 0;
+    }
+    .theme-ocean:hover::after { opacity: 1; }
+    .theme-ocean .card-glow { background: radial-gradient(circle, rgba(20,184,166,0.45) 0%, rgba(45,212,191,0.2) 35%, transparent 70%); }
+    .theme-ocean .card-avatar { background: linear-gradient(135deg, #0d9488, #14b8a6); border-color: rgba(20,184,166,0.5); box-shadow: 0 0 20px rgba(20,184,166,0.45); }
+    .theme-ocean:hover .card-avatar { transform: scale(1.1); box-shadow: 0 0 30px rgba(20,184,166,0.6), 0 0 55px rgba(45,212,191,0.2); }
+    .theme-ocean .card-name { font-family: 'Space Grotesk', sans-serif; font-size: 1.8rem; font-weight: 600; background: linear-gradient(135deg, #5eead4, #2dd4bf, #14b8a6); -webkit-background-clip: text; background-clip: text; }
+    .theme-ocean:hover .card-name { transform: scale(1.05); }
+    .theme-ocean .card-theme-label { color: rgba(20,184,166,0.6); font-family: 'Space Grotesk', sans-serif; }
+    .theme-ocean .card-enter-hint { font-family: 'Space Grotesk', sans-serif; }
+    .theme-ocean .card-badge { font-family: 'Space Grotesk', sans-serif; color: rgba(20,184,166,0.6); border: 1px solid rgba(20,184,166,0.2); }
+    .theme-ocean .ripple { background: rgba(20,184,166,0.2); }
+
     /* ── Select header ───────────────────────────────────────────────── */
     .select-header {
       text-align: center; margin-bottom: 1.5rem;
@@ -679,6 +737,8 @@
       light:    '◇ Pristine',
       dark:     '◆ Midnight',
       heaven:   '✦ Celestial',
+      rosewood: '✿ Rose & Ember',
+      ocean:    '≋ Deep Tide',
     };
     // Theme colors — used for passcode overlay styling
     const themeColors = {
@@ -688,6 +748,8 @@
       light:    { bg: '#0f1528', accent: '#6366f1', accent2: '#a5b4fc', glow: 'rgba(99,102,241,0.25)', border: 'rgba(99,102,241,0.3)' },
       dark:     { bg: '#0f172a', accent: '#818cf8', accent2: '#c7d2fe', glow: 'rgba(129,140,248,0.2)', border: 'rgba(99,102,241,0.2)' },
       heaven:   { bg: '#15120a', accent: '#c8a96e', accent2: '#e8d5a3', glow: 'rgba(200,169,110,0.25)', border: 'rgba(200,169,110,0.35)' },
+      rosewood: { bg: '#0c0912', accent: '#c8967a', accent2: '#e8c9a0', glow: 'rgba(200,150,122,0.22)', border: 'rgba(200,150,120,0.18)' },
+      ocean:    { bg: '#060d10', accent: '#14b8a6', accent2: '#2dd4bf', glow: 'rgba(20,184,166,0.25)', border: 'rgba(20,184,166,0.2)' },
     };
 
     async function loadUserPreviews() {

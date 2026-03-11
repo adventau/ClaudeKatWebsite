@@ -921,7 +921,11 @@
     <div class="form-row"><label>Notes</label><textarea id="contact-notes" rows="2" placeholder="Additional notes"></textarea></div>
     <div class="form-row">
       <label>Photo</label>
-      <input type="file" id="contact-photo-input" accept="image/*">
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn-ghost" onclick="document.getElementById('contact-photo-input').click()">Choose Photo</button>
+        <span id="contact-photo-name" style="font-size:0.78rem;color:var(--text-muted)">No file chosen</span>
+      </div>
+      <input type="file" id="contact-photo-input" accept="image/*" style="display:none" onchange="document.getElementById('contact-photo-name').textContent=this.files[0]?.name||'No file chosen'">
     </div>
     <div style="display:flex;gap:8px;margin-top:1rem">
       <button class="btn-primary" onclick="saveContact()">Save Contact</button>
@@ -967,7 +971,11 @@
     </div>
     <div class="form-row" style="margin-top:1rem">
       <label>Upload Wallpaper Image</label>
-      <input type="file" id="wallpaper-upload2" accept="image/*" onchange="uploadWallpaper(this)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn-ghost" onclick="document.getElementById('wallpaper-upload2').click()">Choose Image</button>
+        <span id="wallpaper-upload2-name" style="font-size:0.78rem;color:var(--text-muted)">No file chosen</span>
+      </div>
+      <input type="file" id="wallpaper-upload2" accept="image/*" style="display:none" onchange="this.previousElementSibling?.querySelector('span')&&(document.getElementById('wallpaper-upload2-name').textContent=this.files[0]?.name||'No file chosen');uploadWallpaper(this)">
     </div>
     <button class="btn-ghost" onclick="clearWallpaper()" style="margin-top:0.5rem;width:100%">Remove Wallpaper</button>
   </div>

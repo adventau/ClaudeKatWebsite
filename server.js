@@ -1093,7 +1093,8 @@ app.post('/api/guests/:id/message', (req, res) => {
     const allowed = g.channels || ['kaliph','kathrine','group'];
     if (!allowed.includes(target)) return res.status(403).json({ error: 'No access to this channel' });
   }
-  const msg = { id: uuidv4(), sender: req.session.isGuest ? g.name : req.session.user, text, timestamp: Date.now() };
+  const sender = req.session.user || g.name;  // Main user takes priority over guest session
+  const msg = { id: uuidv4(), sender, text, timestamp: Date.now() };
   if (!g.messages[target]) g.messages[target] = [];
   g.messages[target].push(msg);
   wd(F.guests, guests);
