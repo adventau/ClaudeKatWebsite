@@ -101,6 +101,10 @@
       <div class="nav-item" data-section="guest-messages" onclick="showSection('guest-messages',this)">
         <span class="nav-icon"><i data-lucide="message-square-plus"></i></span><span class="nav-label">Guest Messages</span>
       </div>
+      <div class="nav-item" data-section="reminders" onclick="showSection('reminders',this)">
+        <span class="nav-icon"><i data-lucide="bell-ring"></i></span><span class="nav-label">Reminders</span>
+        <span class="nav-badge" id="reminders-badge" style="display:none">0</span>
+      </div>
 
       <div class="nav-section-label">System</div>
       <div class="nav-item" onclick="openSettingsModal()">
@@ -459,6 +463,28 @@
             <div class="empty-state-icon">📢</div>
             <div class="empty-state-text">No announcements yet</div>
             <div class="empty-state-sub">Post an announcement to notify the other person when they log on.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── REMINDERS ──────────────────────────────────────────── -->
+    <section id="section-reminders" class="section">
+      <div class="section-header">
+        <span class="section-title">Reminders</span>
+        <button class="btn-primary" onclick="openModal('new-reminder-modal')">+ New Reminder</button>
+      </div>
+      <div class="section-tabs">
+        <div class="section-tab active" onclick="switchRemindersTab('upcoming',this)">Upcoming</div>
+        <div class="section-tab" onclick="switchRemindersTab('all',this)">All</div>
+        <div class="section-tab" onclick="switchRemindersTab('completed',this)">Completed</div>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:1rem" id="reminders-list-wrap">
+        <div id="reminders-list">
+          <div class="empty-state">
+            <div class="empty-state-icon"><i data-lucide="bell-ring" style="width:48px;height:48px;opacity:0.4"></i></div>
+            <div class="empty-state-text">No reminders yet</div>
+            <div class="empty-state-sub">Create a reminder to get notified via push, email, or on-site.</div>
           </div>
         </div>
       </div>
@@ -964,6 +990,97 @@
     <div style="display:flex;gap:8px;margin-top:1rem">
       <button class="btn-primary" onclick="saveEvent()">Save Event</button>
       <button class="btn-ghost" onclick="closeModal('new-event-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Reminder -->
+<div class="modal-overlay" id="new-reminder-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <span class="modal-title">New Reminder</span>
+      <button class="btn-icon" onclick="closeModal('new-reminder-modal')">✕</button>
+    </div>
+    <div class="form-row"><label>Title</label><input type="text" id="reminder-title" placeholder="What do you want to be reminded about?"></div>
+    <div class="form-row"><label>Description</label><textarea id="reminder-desc" rows="2" placeholder="Optional details..."></textarea></div>
+    <div class="form-row">
+      <label>Date & Time</label>
+      <input type="datetime-local" id="reminder-datetime">
+    </div>
+    <div class="form-row">
+      <label>Repeat</label>
+      <select id="reminder-repeat" style="width:auto">
+        <option value="">No repeat</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Notify via</label>
+      <div class="reminder-notify-options">
+        <label class="reminder-notify-check"><input type="checkbox" id="reminder-notify-site" checked> <i data-lucide="monitor" style="width:14px;height:14px"></i> Site</label>
+        <label class="reminder-notify-check"><input type="checkbox" id="reminder-notify-push"> <i data-lucide="smartphone" style="width:14px;height:14px"></i> Push</label>
+        <label class="reminder-notify-check"><input type="checkbox" id="reminder-notify-email"> <i data-lucide="mail" style="width:14px;height:14px"></i> Email</label>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Priority</label>
+      <select id="reminder-priority" style="width:auto">
+        <option value="normal">Normal</option>
+        <option value="high">High</option>
+        <option value="low">Low</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:1rem">
+      <button class="btn-primary" onclick="saveReminder()">Save Reminder</button>
+      <button class="btn-ghost" onclick="closeModal('new-reminder-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Reminder -->
+<div class="modal-overlay" id="edit-reminder-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <span class="modal-title">Edit Reminder</span>
+      <button class="btn-icon" onclick="closeModal('edit-reminder-modal')">✕</button>
+    </div>
+    <div class="form-row"><label>Title</label><input type="text" id="edit-reminder-title"></div>
+    <div class="form-row"><label>Description</label><textarea id="edit-reminder-desc" rows="2"></textarea></div>
+    <div class="form-row">
+      <label>Date & Time</label>
+      <input type="datetime-local" id="edit-reminder-datetime">
+    </div>
+    <div class="form-row">
+      <label>Repeat</label>
+      <select id="edit-reminder-repeat" style="width:auto">
+        <option value="">No repeat</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Notify via</label>
+      <div class="reminder-notify-options">
+        <label class="reminder-notify-check"><input type="checkbox" id="edit-reminder-notify-site"> <i data-lucide="monitor" style="width:14px;height:14px"></i> Site</label>
+        <label class="reminder-notify-check"><input type="checkbox" id="edit-reminder-notify-push"> <i data-lucide="smartphone" style="width:14px;height:14px"></i> Push</label>
+        <label class="reminder-notify-check"><input type="checkbox" id="edit-reminder-notify-email"> <i data-lucide="mail" style="width:14px;height:14px"></i> Email</label>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Priority</label>
+      <select id="edit-reminder-priority" style="width:auto">
+        <option value="normal">Normal</option>
+        <option value="high">High</option>
+        <option value="low">Low</option>
+      </select>
+    </div>
+    <input type="hidden" id="edit-reminder-id">
+    <div style="display:flex;gap:8px;margin-top:1rem">
+      <button class="btn-primary" onclick="updateReminder()">Update</button>
+      <button class="btn-ghost" onclick="closeModal('edit-reminder-modal')">Cancel</button>
     </div>
   </div>
 </div>

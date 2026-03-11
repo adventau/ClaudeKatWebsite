@@ -181,6 +181,9 @@ async function init() {
   // Check for today's calendar events and reminders
   checkTodayEvents();
 
+  // Load reminders and start checker
+  loadReminders().then(() => startReminderChecker());
+
   // Set up drag & drop and paste for message input
   setupDragDropPaste();
 
@@ -456,6 +459,7 @@ function showSection(name, el) {
   if (name === 'contacts')  loadContacts();
   if (name === 'vault')     { resetVault(); }
   if (name === 'announcements') loadAnnouncements();
+  if (name === 'reminders') loadReminders();
   if (name === 'guest-messages') {
     loadGuestMessages();
     // Clear unread for active guest
@@ -672,7 +676,9 @@ function buildMsgElement(msg) {
     if (orig) {
       const rp = document.createElement('div');
       rp.className = 'reply-preview';
+      rp.setAttribute('data-reply-id', msg.replyTo);
       rp.textContent = (orig.text || '').substring(0, 80) + (orig.text?.length > 80 ? '…' : '');
+      rp.onclick = (e) => { e.stopPropagation(); jumpToMessage(msg.replyTo); };
       bubble.appendChild(rp);
     }
   }
@@ -1903,6 +1909,15 @@ function setupSocketEvents() {
 
   socket.on('calendar-updated', () => {
     if (currentSection === 'calendar') renderCalendar();
+  });
+
+  socket.on('reminder-updated', () => {
+    loadReminders();
+  });
+
+  socket.on('reminder-due', (data) => {
+    showReminderNotification(data);
+    loadReminders();
   });
 
   socket.on('show-update-log', ({ target }) => {
@@ -5176,8 +5191,300 @@ async function logout() {
   window.location.href = '/';
 }
 
+// ── Jump to Message (Reply click) ─────────────────────────────────────
+function jumpToMessage(msgId) {
+  const area = document.getElementById('messages-area');
+  if (!area) return;
+  const msgEl = area.querySelector(`[data-msg-id="${msgId}"]`);
+  if (msgEl) {
+    msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const bubble = msgEl.querySelector('.msg-bubble');
+    if (bubble) {
+      bubble.classList.remove('highlight-jump');
+      void bubble.offsetWidth;
+      bubble.classList.add('highlight-jump');
+      setTimeout(() => bubble.classList.remove('highlight-jump'), 1600);
+    }
+  }
+}
+
+// ── Reminders ─────────────────────────────────────────────────────────
+let _reminders = [];
+let _remindersTab = 'upcoming';
+let _reminderCheckInterval = null;
+
+async function loadReminders() {
+  try {
+    const resp = await fetch('/api/reminders');
+    _reminders = await resp.json();
+  } catch { _reminders = []; }
+  renderReminders();
+  updateReminderBadge();
+}
+
+function updateReminderBadge() {
+  const now = Date.now();
+  const due = _reminders.filter(r => !r.completed && new Date(r.datetime).getTime() <= now).length;
+  const badge = document.getElementById('reminders-badge');
+  if (badge) {
+    badge.textContent = due;
+    badge.style.display = due > 0 ? '' : 'none';
+  }
+}
+
+function switchRemindersTab(tab, el) {
+  _remindersTab = tab;
+  document.querySelectorAll('#section-reminders .section-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderReminders();
+}
+
+function renderReminders() {
+  const container = document.getElementById('reminders-list');
+  if (!container) return;
+
+  const now = Date.now();
+  let filtered = _reminders;
+
+  if (_remindersTab === 'upcoming') {
+    filtered = _reminders.filter(r => !r.completed).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  } else if (_remindersTab === 'completed') {
+    filtered = _reminders.filter(r => r.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+  } else {
+    filtered = [..._reminders].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  }
+
+  if (!filtered.length) {
+    const msg = _remindersTab === 'upcoming' ? 'No upcoming reminders' :
+                _remindersTab === 'completed' ? 'No completed reminders' : 'No reminders yet';
+    container.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon"><i data-lucide="bell-ring" style="width:48px;height:48px;opacity:0.4"></i></div>
+      <div class="empty-state-text">${msg}</div>
+      <div class="empty-state-sub">Create a reminder to get notified via push, email, or on-site.</div>
+    </div>`;
+    if (window.lucide) lucide.createIcons({ target: container });
+    return;
+  }
+
+  container.innerHTML = filtered.map(r => {
+    const rTime = new Date(r.datetime);
+    const isOverdue = !r.completed && rTime.getTime() <= now;
+    const timeStr = formatReminderTime(r.datetime);
+    const priorityClass = r.priority === 'high' ? ' priority-high' : r.priority === 'low' ? ' priority-low' : '';
+    const completedClass = r.completed ? ' completed' : '';
+
+    const notifyIcons = [];
+    if (r.notify?.site) notifyIcons.push('<i data-lucide="monitor" style="width:12px;height:12px"></i>');
+    if (r.notify?.push) notifyIcons.push('<i data-lucide="smartphone" style="width:12px;height:12px"></i>');
+    if (r.notify?.email) notifyIcons.push('<i data-lucide="mail" style="width:12px;height:12px"></i>');
+
+    return `<div class="reminder-card${priorityClass}${completedClass}" data-id="${r.id}">
+      <div class="reminder-check${r.completed ? ' checked' : ''}" onclick="toggleReminderComplete('${r.id}')" title="${r.completed ? 'Mark incomplete' : 'Mark complete'}">
+        ${r.completed ? '<i data-lucide="check" style="width:14px;height:14px"></i>' : ''}
+      </div>
+      <div class="reminder-body">
+        <div class="reminder-title">${escapeHtml(r.title)}</div>
+        ${r.description ? `<div class="reminder-desc">${escapeHtml(r.description)}</div>` : ''}
+        <div class="reminder-meta">
+          <span class="reminder-meta-item${isOverdue ? ' overdue' : ''}">
+            <i data-lucide="${isOverdue ? 'alert-circle' : 'clock'}" style="width:12px;height:12px"></i>
+            ${isOverdue && !r.completed ? 'Overdue · ' : ''}${timeStr}
+          </span>
+          ${r.repeat ? `<span class="reminder-meta-item"><i data-lucide="repeat" style="width:12px;height:12px"></i> ${capitalize(r.repeat)}</span>` : ''}
+          ${notifyIcons.length ? `<span class="reminder-meta-item">${notifyIcons.join(' ')}</span>` : ''}
+        </div>
+      </div>
+      <div class="reminder-actions">
+        ${!r.completed ? `<button class="reminder-action-btn" onclick="snoozeReminder('${r.id}')" title="Snooze 1 hour"><i data-lucide="alarm-clock" style="width:14px;height:14px"></i></button>` : ''}
+        <button class="reminder-action-btn" onclick="editReminder('${r.id}')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+        <button class="reminder-action-btn" onclick="deleteReminder('${r.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+
+  if (window.lucide) lucide.createIcons({ target: container });
+}
+
+function formatReminderTime(dt) {
+  const d = new Date(dt);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return 'Today ' + time;
+  const tmrw = new Date(now); tmrw.setDate(tmrw.getDate() + 1);
+  if (d.toDateString() === tmrw.toDateString()) return 'Tomorrow ' + time;
+  const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday ' + time;
+  return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()} ${time}`;
+}
+
+async function saveReminder() {
+  const title = document.getElementById('reminder-title').value.trim();
+  const datetime = document.getElementById('reminder-datetime').value;
+  if (!title) return showToast('Reminder title required');
+  if (!datetime) return showToast('Date & time required');
+
+  await fetch('/api/reminders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      description: document.getElementById('reminder-desc').value.trim(),
+      datetime: new Date(datetime).toISOString(),
+      repeat: document.getElementById('reminder-repeat').value,
+      notify: {
+        site: document.getElementById('reminder-notify-site').checked,
+        push: document.getElementById('reminder-notify-push').checked,
+        email: document.getElementById('reminder-notify-email').checked,
+      },
+      priority: document.getElementById('reminder-priority').value,
+    }),
+  });
+
+  // Reset form
+  document.getElementById('reminder-title').value = '';
+  document.getElementById('reminder-desc').value = '';
+  document.getElementById('reminder-datetime').value = '';
+  document.getElementById('reminder-repeat').value = '';
+  document.getElementById('reminder-notify-site').checked = true;
+  document.getElementById('reminder-notify-push').checked = false;
+  document.getElementById('reminder-notify-email').checked = false;
+  document.getElementById('reminder-priority').value = 'normal';
+
+  closeModal('new-reminder-modal');
+  showToast('🔔 Reminder created!');
+  await loadReminders();
+}
+
+function editReminder(id) {
+  const r = _reminders.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('edit-reminder-id').value = r.id;
+  document.getElementById('edit-reminder-title').value = r.title;
+  document.getElementById('edit-reminder-desc').value = r.description || '';
+  // Convert ISO to datetime-local format
+  const dt = new Date(r.datetime);
+  const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  document.getElementById('edit-reminder-datetime').value = local;
+  document.getElementById('edit-reminder-repeat').value = r.repeat || '';
+  document.getElementById('edit-reminder-notify-site').checked = r.notify?.site ?? true;
+  document.getElementById('edit-reminder-notify-push').checked = r.notify?.push ?? false;
+  document.getElementById('edit-reminder-notify-email').checked = r.notify?.email ?? false;
+  document.getElementById('edit-reminder-priority').value = r.priority || 'normal';
+  openModal('edit-reminder-modal');
+}
+
+async function updateReminder() {
+  const id = document.getElementById('edit-reminder-id').value;
+  const title = document.getElementById('edit-reminder-title').value.trim();
+  const datetime = document.getElementById('edit-reminder-datetime').value;
+  if (!title) return showToast('Title required');
+  if (!datetime) return showToast('Date & time required');
+
+  await fetch(`/api/reminders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      description: document.getElementById('edit-reminder-desc').value.trim(),
+      datetime: new Date(datetime).toISOString(),
+      repeat: document.getElementById('edit-reminder-repeat').value,
+      notify: {
+        site: document.getElementById('edit-reminder-notify-site').checked,
+        push: document.getElementById('edit-reminder-notify-push').checked,
+        email: document.getElementById('edit-reminder-notify-email').checked,
+      },
+      priority: document.getElementById('edit-reminder-priority').value,
+    }),
+  });
+
+  closeModal('edit-reminder-modal');
+  showToast('🔔 Reminder updated!');
+  await loadReminders();
+}
+
+async function toggleReminderComplete(id) {
+  const r = _reminders.find(x => x.id === id);
+  if (!r) return;
+  await fetch(`/api/reminders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ completed: !r.completed, completedAt: !r.completed ? Date.now() : null }),
+  });
+  await loadReminders();
+  showToast(r.completed ? '🔔 Reminder reopened' : '✅ Reminder completed!');
+}
+
+async function snoozeReminder(id) {
+  const snoozeUntil = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+  await fetch(`/api/reminders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ snoozedUntil: snoozeUntil, lastNotified: null }),
+  });
+  showToast('⏰ Snoozed for 1 hour');
+  await loadReminders();
+}
+
+async function deleteReminder(id) {
+  await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
+  showToast('🗑️ Reminder deleted');
+  await loadReminders();
+}
+
+function showReminderNotification(data) {
+  if (data.user !== currentUser) return;
+  // Create rich notification toast
+  const c = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'reminder-toast';
+  toast.innerHTML = `
+    <div class="reminder-toast-icon">🔔</div>
+    <div class="reminder-toast-body">
+      <div class="reminder-toast-title">${escapeHtml(data.title)}</div>
+      ${data.description ? `<div class="reminder-toast-desc">${escapeHtml(data.description)}</div>` : ''}
+      <div class="reminder-toast-actions">
+        <button class="reminder-toast-btn" onclick="snoozeReminder('${data.id}');this.closest('.reminder-toast').remove()">Snooze</button>
+        <button class="reminder-toast-btn" onclick="toggleReminderComplete('${data.id}');this.closest('.reminder-toast').remove()">Done</button>
+        <button class="reminder-toast-btn dismiss" onclick="this.closest('.reminder-toast').remove()">Dismiss</button>
+      </div>
+    </div>
+  `;
+  c.appendChild(toast);
+  // Auto-dismiss after 30 seconds
+  setTimeout(() => { if (toast.parentElement) toast.remove(); }, 30000);
+
+  // Also send desktop notification
+  sendDesktopNotif('🔔 Reminder: ' + data.title, data.description || 'Your reminder is due!');
+}
+
+function startReminderChecker() {
+  if (_reminderCheckInterval) clearInterval(_reminderCheckInterval);
+  _reminderCheckInterval = setInterval(() => {
+    updateReminderBadge();
+    // Re-render if on reminders tab to update overdue status
+    if (currentSection === 'reminders') renderReminders();
+  }, 30000);
+}
+
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
+  {
+    version: '3.3.0',
+    date: 'Mar 11 2026',
+    intro: 'Full reminders system with multi-channel notifications, plus click-to-jump on replied messages.',
+    sections: [
+      { icon: '🔔', title: 'Reminders', items: [
+        { name: 'Reminders Tab', desc: 'New dedicated Reminders section in the sidebar — create, edit, and manage reminders with priority levels.' },
+        { name: 'Multi-Channel Notifications', desc: 'Get notified via on-site toast, push notification, and/or email — choose per reminder.' },
+        { name: 'Snooze & Repeat', desc: 'Snooze reminders for 1 hour, or set them to repeat daily, weekly, or monthly.' },
+        { name: 'Smart Badge', desc: 'Sidebar badge shows count of overdue reminders at a glance.' },
+        { name: 'Rich Toast Notifications', desc: 'On-site reminders show as rich toasts with Snooze, Done, and Dismiss actions.' },
+      ]},
+      { icon: '💬', title: 'Chat', items: [
+        { name: 'Click to Jump on Replies', desc: 'Click a replied message preview to jump to and highlight the original message.' },
+      ]},
+    ],
+  },
   {
     version: '3.2.0',
     date: 'Mar 11 2026',
