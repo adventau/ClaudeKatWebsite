@@ -68,6 +68,8 @@ const socket = io({ reconnection: true, reconnectionDelay: 1000, reconnectionAtt
 socket.on('connect', () => {
   if (typeof currentUser === 'string' && currentUser) {
     socket.emit('user-online', { user: currentUser });
+    // Sync any messages we missed during disconnection
+    if (typeof syncMissedMessages === 'function') syncMissedMessages();
   }
 });
 
@@ -292,6 +294,9 @@ function showSection(name, el) {
   if (name === 'vault')     { resetVault(); }
   if (name === 'announcements') loadAnnouncements();
   if (name === 'guest-messages') loadGuestMessages();
+
+  // Close mobile sidebar when navigating on tablet
+  if (window.innerWidth <= 834) closeMobileSidebar();
 }
 
 // ── Unread Badge System ─────────────────────────────────────────────
@@ -319,7 +324,31 @@ function clearUnreadBadge() {
 }
 
 function toggleSidebar() {
+  // On tablet/mobile, toggle the mobile overlay sidebar instead
+  if (window.innerWidth <= 834) {
+    toggleMobileSidebar();
+    return;
+  }
   document.getElementById('app').classList.toggle('sidebar-collapsed');
+}
+
+function toggleMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  const isOpen = sidebar.classList.contains('mobile-open');
+  if (isOpen) {
+    closeMobileSidebar();
+  } else {
+    sidebar.classList.add('mobile-open');
+    if (backdrop) backdrop.classList.add('show');
+  }
+}
+
+function closeMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  sidebar.classList.remove('mobile-open');
+  if (backdrop) backdrop.classList.remove('show');
 }
 
 // ── Messages ──────────────────────────────────────────────────────────
@@ -591,6 +620,15 @@ async function sendMessage() {
     if (!resp.ok) throw new Error('Server returned ' + resp.status);
     const result = await resp.json();
     if (!result.success) throw new Error(result.error || 'Send failed');
+    // If socket didn't deliver our message yet, add it from the HTTP response
+    if (result.message && !allMessages.some(m => m.id === result.message.id)) {
+      allMessages.push(result.message);
+      const area = document.getElementById('messages-area');
+      const empty = document.getElementById('chat-empty');
+      if (empty) empty.remove();
+      area.appendChild(buildMsgElement(result.message));
+      area.scrollTop = area.scrollHeight;
+    }
     if (priority && result.emailStatus) {
       if (result.emailStatus === 'sent') {
         showToast('📧 Priority email sent!');
@@ -866,6 +904,8 @@ async function sendGif(url) {
 // ── Socket Events ─────────────────────────────────────────────────────
 function setupSocketEvents() {
   socket.on('new-message', msg => {
+    // Skip if we already have this message (e.g. added from HTTP response)
+    if (allMessages.some(m => m.id === msg.id)) return;
     allMessages.push(msg);
     const area = document.getElementById('messages-area');
     const empty = document.getElementById('chat-empty');
@@ -1099,6 +1139,18 @@ function setupSocketEvents() {
   socket.on('call-answer', handleCallAnswer);
   socket.on('call-ice-candidate', handleIceCandidate);
   socket.on('call-ended', () => endCall(true));
+  socket.on('call-camera-toggle', ({ user, cameraOn }) => {
+    if (!inCall || user === currentUser) return;
+    const remoteVid = document.getElementById('call-video-remote');
+    const remoteBg = document.getElementById('call-remote-avatar-bg');
+    if (cameraOn) {
+      remoteVid.style.display = 'block';
+      remoteBg.style.display = 'none';
+    } else {
+      remoteVid.style.display = 'none';
+      remoteBg.style.display = 'flex';
+    }
+  });
 }
 
 async function markMessageRead(msgId) {
@@ -1848,6 +1900,8 @@ function openSettingsModal() {
   loadGuests();
   loadSuggestions();
   if (window.lucide) lucide.createIcons();
+  // Close mobile sidebar when opening settings on tablet
+  if (window.innerWidth <= 834) closeMobileSidebar();
 }
 
 function switchSettingsTab(tab, el) {
@@ -2556,8 +2610,17 @@ async function startCall(type) {
     });
   };
   peerConnection.oniceconnectionstatechange = () => {
-    if (peerConnection?.iceConnectionState === 'disconnected' || peerConnection?.iceConnectionState === 'failed') {
+    const state = peerConnection?.iceConnectionState;
+    if (state === 'failed') {
       endCall(true);
+    } else if (state === 'disconnected') {
+      // Give it a few seconds to reconnect (iOS/iPad often briefly disconnects on tab switch)
+      clearTimeout(window._iceDisconnectTimer);
+      window._iceDisconnectTimer = setTimeout(() => {
+        if (peerConnection?.iceConnectionState === 'disconnected') endCall(true);
+      }, 5000);
+    } else if (state === 'connected' || state === 'completed') {
+      clearTimeout(window._iceDisconnectTimer);
     }
   };
 
@@ -2609,8 +2672,16 @@ async function acceptCall() {
     });
   };
   peerConnection.oniceconnectionstatechange = () => {
-    if (peerConnection?.iceConnectionState === 'disconnected' || peerConnection?.iceConnectionState === 'failed') {
+    const state = peerConnection?.iceConnectionState;
+    if (state === 'failed') {
       endCall(true);
+    } else if (state === 'disconnected') {
+      clearTimeout(window._iceDisconnectTimer);
+      window._iceDisconnectTimer = setTimeout(() => {
+        if (peerConnection?.iceConnectionState === 'disconnected') endCall(true);
+      }, 5000);
+    } else if (state === 'connected' || state === 'completed') {
+      clearTimeout(window._iceDisconnectTimer);
     }
   };
 
@@ -2786,6 +2857,8 @@ function toggleCallVideo() {
     } else {
       localAv.style.display = 'none';
     }
+    // Notify the remote peer about camera on/off so they see our profile pic
+    socket.emit('call-camera-toggle', { user: currentUser, cameraOn: track.enabled });
   }
 }
 
@@ -2807,9 +2880,10 @@ async function toggleScreenShare() {
     document.getElementById('btn-screen').classList.remove('active');
     document.getElementById('screen-icon-on').style.display = '';
     document.getElementById('screen-icon-off').style.display = 'none';
-    // Restore local video preview
+    // Restore local video preview (re-mirror camera after screenshare)
     const localVid = document.getElementById('call-video-local');
     if (localStream) { localVid.srcObject = localStream; localVid.style.display = 'block'; }
+    localVid.style.transform = 'scaleX(-1)'; // Restore camera mirror
     return;
   }
   try {

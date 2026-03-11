@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>The Royal Kat & Kai Vault</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -91,12 +91,14 @@
       <span class="avnt-text">⬡ AVNT Systems ⬡</span>
     </div>
   </nav>
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
 
   <!-- ══════════════════════════════════════════════════════════
        HEADER
   ══════════════════════════════════════════════════════════ -->
   <header id="app-header">
     <div class="header-left">
+      <button class="header-hamburger" onclick="toggleMobileSidebar()" title="Menu"><i data-lucide="menu"></i></button>
       <span class="site-title">Royal K&K</span>
     </div>
     <div class="header-center">

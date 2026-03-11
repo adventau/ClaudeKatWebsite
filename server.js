@@ -1986,8 +1986,9 @@ io.on('connection', socket => {
   // WebRTC signaling
   socket.on('call-offer',         d => socket.broadcast.emit('call-offer',         d));
   socket.on('call-answer',        d => socket.broadcast.emit('call-answer',        d));
-  socket.on('call-ice-candidate', d => socket.broadcast.emit('call-ice-candidate', d));
-  socket.on('call-end',           d => socket.broadcast.emit('call-ended',         d));
+  socket.on('call-ice-candidate',  d => socket.broadcast.emit('call-ice-candidate', d));
+  socket.on('call-end',            d => socket.broadcast.emit('call-ended',         d));
+  socket.on('call-camera-toggle',  d => socket.broadcast.emit('call-camera-toggle', d));
   socket.on('heartbeat', ({ user }) => {
     // Update lastSeen on every heartbeat (sent every ~60s while active)
     const users = rd(F.users);
