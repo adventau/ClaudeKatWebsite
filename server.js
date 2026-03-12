@@ -10,6 +10,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 // nodemailer removed — using EmailJS HTTP API instead
+const compression = require('compression');
 const webpush = require('web-push');
 
 const app = express();
@@ -120,9 +121,10 @@ function initData() {
 initData();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+app.use(compression());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h', etag: true }));
 // Serve uploads from persistent volume when UPLOADS_DIR is external
 if (process.env.UPLOADS_DIR) app.use('/uploads', express.static(UPLOADS_DIR));
 app.use(session({
