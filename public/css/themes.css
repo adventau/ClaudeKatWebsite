@@ -2413,3 +2413,5 @@ select option { background: var(--bg-modal, #1e293b); color: var(--text-primary)
   transition-timing-function: cubic-bezier(0.4,0,0.2,1);
 }
 img, canvas, video, audio, .no-transition { transition: none !important; }
+/* Suppress per-element stagger while the theme swap is in progress */
+body.theme-switching * { transition: none !important; }
