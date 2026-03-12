@@ -283,6 +283,198 @@
     .settings-panel { background: var(--panel); border-color: var(--border); }
     .settings-header { border-color: var(--border); }
     .setting-row { border-color: color-mix(in srgb, var(--border), transparent 50%); }
+    /* ── Theme Builder Modal ── */
+    .tb-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      z-index: 300; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .tb-overlay.open { display: flex; }
+    .tb-panel {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      width: 960px; max-width: 95vw; max-height: 90vh; overflow: hidden;
+      display: flex; flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .tb-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+    }
+    .tb-header h2 {
+      font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--accent); margin: 0;
+    }
+    .tb-header-actions { display: flex; align-items: center; gap: 8px; }
+    .tb-user-select {
+      background: var(--bg); border: 1px solid var(--border); color: var(--accent);
+      font-family: inherit; font-size: 11px; padding: 4px 10px; border-radius: 4px;
+      outline: none; cursor: pointer;
+    }
+    .tb-close {
+      background: none; border: none; color: #555; font-size: 18px;
+      cursor: pointer; padding: 0 4px; line-height: 1;
+    }
+    .tb-close:hover { color: #aaa; }
+    .tb-body {
+      display: flex; flex: 1; overflow: hidden; min-height: 0;
+    }
+    .tb-controls {
+      width: 340px; min-width: 300px; overflow-y: auto; padding: 16px;
+      border-right: 1px solid var(--border);
+    }
+    .tb-controls::-webkit-scrollbar { width: 5px; }
+    .tb-controls::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    .tb-preview-wrap {
+      flex: 1; padding: 20px; overflow-y: auto; display: flex;
+      align-items: flex-start; justify-content: center;
+      background: repeating-conic-gradient(rgba(255,255,255,0.02) 0% 25%, transparent 0% 50%) 0 0 / 16px 16px;
+    }
+
+    /* Controls sections */
+    .tb-section {
+      margin-bottom: 16px;
+    }
+    .tb-section-title {
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+      color: #666; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+    }
+    .tb-section-title::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(90deg, var(--border), transparent);
+    }
+    .tb-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 0;
+    }
+    .tb-label {
+      font-size: 10px; color: #888; min-width: 100px; flex-shrink: 0;
+    }
+    .tb-color-wrap {
+      display: flex; align-items: center; gap: 6px; flex: 1;
+    }
+    .tb-color-input {
+      width: 28px; height: 28px; border: 2px solid var(--border); border-radius: 5px;
+      cursor: pointer; background: transparent; padding: 0;
+      -webkit-appearance: none; appearance: none;
+    }
+    .tb-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+    .tb-color-input::-webkit-color-swatch { border: none; border-radius: 3px; }
+    .tb-hex-input {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      font-family: inherit; font-size: 10px; padding: 4px 8px; border-radius: 4px;
+      width: 80px; outline: none; text-transform: uppercase;
+    }
+    .tb-hex-input:focus { border-color: var(--accent); }
+    .tb-opacity {
+      font-size: 9px; color: #555;
+    }
+
+    /* Preview mockup */
+    .tb-mockup {
+      width: 480px; min-width: 400px; border-radius: 10px; overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.06);
+      font-family: 'Inter', sans-serif;
+    }
+    .tb-m-header {
+      height: 40px; display: flex; align-items: center; padding: 0 14px; gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .tb-m-avatar {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--tb-accent, #7c3aed), var(--tb-accent2, #a78bfa));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; color: #fff; font-weight: 600;
+    }
+    .tb-m-name { font-size: 12px; font-weight: 600; }
+    .tb-m-status { font-size: 9px; display: flex; align-items: center; gap: 4px; }
+    .tb-m-status-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .tb-m-layout {
+      display: flex; height: 320px;
+    }
+    .tb-m-sidebar {
+      width: 64px; display: flex; flex-direction: column; align-items: center;
+      padding: 12px 0; gap: 6px;
+      border-right: 1px solid rgba(255,255,255,0.06);
+    }
+    .tb-m-nav {
+      width: 38px; height: 34px; border-radius: 8px; display: flex;
+      align-items: center; justify-content: center; cursor: default;
+      font-size: 14px; transition: all 0.2s;
+    }
+    .tb-m-nav.active {
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+    }
+    .tb-m-chat {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
+    }
+    .tb-m-messages {
+      flex: 1; padding: 12px; display: flex; flex-direction: column;
+      gap: 8px; overflow: hidden; justify-content: flex-end;
+    }
+    .tb-m-msg {
+      max-width: 75%; padding: 8px 12px; border-radius: 14px;
+      font-size: 10px; line-height: 1.5;
+    }
+    .tb-m-msg-self {
+      align-self: flex-end; color: #fff;
+    }
+    .tb-m-msg-other {
+      align-self: flex-start;
+    }
+    .tb-m-msg-name {
+      font-size: 8px; font-weight: 600; margin-bottom: 2px; opacity: 0.8;
+    }
+    .tb-m-input-area {
+      padding: 8px 12px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .tb-m-input {
+      display: flex; align-items: center; border-radius: 8px; padding: 8px 12px;
+      gap: 8px;
+    }
+    .tb-m-input-text {
+      font-size: 10px; opacity: 0.4; flex: 1;
+    }
+    .tb-m-send-btn {
+      width: 26px; height: 26px; border-radius: 6px; display: flex;
+      align-items: center; justify-content: center;
+    }
+    .tb-m-send-btn svg { width: 12px; height: 12px; }
+
+    /* Footer actions */
+    .tb-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px; border-top: 1px solid var(--border);
+      gap: 10px;
+    }
+    .tb-footer-left { display: flex; gap: 8px; }
+    .tb-footer-right { display: flex; gap: 8px; }
+    .tb-btn {
+      font-family: inherit; font-size: 11px; padding: 6px 16px; border-radius: 5px;
+      cursor: pointer; transition: all 0.2s; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text);
+    }
+    .tb-btn:hover { border-color: #444; }
+    .tb-btn-accent {
+      background: var(--accent); color: #000; border-color: var(--accent);
+      font-weight: bold;
+    }
+    .tb-btn-accent:hover { filter: brightness(1.1); }
+    .tb-btn-danger {
+      background: rgba(255,50,50,0.1); color: #ff4444; border-color: #551111;
+    }
+    .tb-btn-danger:hover { background: rgba(255,50,50,0.2); }
+    .tb-preset-btn {
+      font-family: inherit; font-size: 9px; padding: 3px 8px; border-radius: 3px;
+      cursor: pointer; border: 1px solid var(--border); background: var(--bg);
+      color: var(--text); text-transform: uppercase; letter-spacing: 0.05em;
+      transition: all 0.2s;
+    }
+    .tb-preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .tb-presets {
+      display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;
+    }
   </style>
 </head>
 <body>
@@ -381,6 +573,141 @@
           <span class="setting-label">Confirm Destructive</span>
           <div class="toggle on" id="toggle-confirm" onclick="toggleSetting('confirm')"></div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Time Set Popup -->
+<div class="time-set-overlay" id="time-set-overlay" style="display:none">
+  <div class="time-set-popup">
+    <div class="time-set-header">
+      <span class="time-set-title">Set Time Override</span>
+      <button class="time-set-close" onclick="closeTimeSetPopup()">&times;</button>
+    </div>
+    <div class="time-set-body">
+      <div class="time-set-row">
+        <label class="time-set-label">Date</label>
+        <input type="date" id="time-set-date" class="time-set-input">
+      </div>
+      <div class="time-set-row">
+        <label class="time-set-label">Time</label>
+        <input type="time" id="time-set-time" class="time-set-input">
+      </div>
+      <div class="time-set-preview" id="time-set-preview"></div>
+      <div class="time-set-actions">
+        <button class="time-set-btn time-set-apply" onclick="applyTimeSet()">Apply</button>
+        <button class="time-set-btn time-set-reset" onclick="resetTimeSet()">Reset to Now</button>
+        <button class="time-set-btn time-set-cancel" onclick="closeTimeSetPopup()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.time-set-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+.time-set-popup {
+  background: var(--bg, #0c0c0c); border: 1px solid var(--border, #1a3a1a);
+  border-radius: 12px; width: 340px; max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+.time-set-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid var(--border, #1a3a1a);
+}
+.time-set-title { font-weight: 700; font-size: 0.9rem; color: var(--accent, #00ff88); }
+.time-set-close {
+  background: none; border: none; color: var(--dim, #444);
+  font-size: 1.2rem; cursor: pointer; padding: 0 4px;
+  transition: color 0.15s;
+}
+.time-set-close:hover { color: var(--accent, #00ff88); }
+.time-set-body { padding: 16px; }
+.time-set-row { margin-bottom: 12px; }
+.time-set-label {
+  display: block; font-size: 0.72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--dim, #666); margin-bottom: 4px;
+}
+.time-set-input {
+  width: 100%; padding: 8px 12px;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border, #1a3a1a);
+  border-radius: 8px; color: var(--text, #00ff88);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.85rem; outline: none;
+  transition: border-color 0.15s;
+}
+.time-set-input:focus { border-color: var(--accent, #00ff88); }
+/* Style the native date/time picker controls */
+.time-set-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.6) sepia(1) saturate(3) hue-rotate(100deg);
+  cursor: pointer;
+}
+.time-set-preview {
+  font-size: 0.78rem; color: var(--dim, #666);
+  padding: 8px 0; min-height: 20px; text-align: center;
+}
+.time-set-actions {
+  display: flex; gap: 8px; margin-top: 8px;
+}
+.time-set-btn {
+  flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border, #1a3a1a);
+  background: rgba(255,255,255,0.03); color: var(--text, #aaa);
+  font-size: 0.78rem; font-weight: 600; cursor: pointer;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  transition: all 0.15s;
+}
+.time-set-btn:hover { background: rgba(255,255,255,0.08); }
+.time-set-apply {
+  background: rgba(0,255,136,0.1); border-color: rgba(0,255,136,0.3);
+  color: var(--accent, #00ff88);
+}
+.time-set-apply:hover { background: rgba(0,255,136,0.2); }
+.time-set-reset {
+  background: rgba(255,170,0,0.08); border-color: rgba(255,170,0,0.25);
+  color: #ffaa00;
+}
+.time-set-reset:hover { background: rgba(255,170,0,0.15); }
+.time-set-cancel { opacity: 0.7; }
+.time-set-cancel:hover { opacity: 1; }
+</style>
+
+<!-- Theme Builder Modal -->
+<div class="tb-overlay" id="tb-overlay">
+  <div class="tb-panel">
+    <div class="tb-header">
+      <h2>Theme Builder</h2>
+      <div class="tb-header-actions">
+        <select class="tb-user-select" id="tb-user-select" onchange="tbSwitchUser(this.value)">
+          <option value="kaliph">Kaliph</option>
+          <option value="kathrine">Kathrine</option>
+        </select>
+        <button class="tb-close" onclick="tbClose()">&times;</button>
+      </div>
+    </div>
+    <div class="tb-body">
+      <div class="tb-controls" id="tb-controls">
+        <!-- Controls are generated by JS -->
+      </div>
+      <div class="tb-preview-wrap">
+        <div class="tb-mockup" id="tb-mockup">
+          <!-- Preview mockup generated by JS -->
+        </div>
+      </div>
+    </div>
+    <div class="tb-footer">
+      <div class="tb-footer-left">
+        <button class="tb-btn tb-btn-danger" onclick="tbReset()">Reset</button>
+        <button class="tb-btn" onclick="tbLoadPreset()">Presets</button>
+      </div>
+      <div class="tb-footer-right">
+        <button class="tb-btn" onclick="tbClose()">Cancel</button>
+        <button class="tb-btn tb-btn-accent" onclick="tbApply()">Apply &amp; Save</button>
       </div>
     </div>
   </div>
@@ -535,7 +862,7 @@ const BROWSE_COMMANDS = [
   { cmd: 'messages', desc: 'Show recent messages from this user', cat: 'Browse' },
   { cmd: 'messages 50', desc: 'Show last 50 messages from this user', cat: 'Browse' },
   { cmd: 'notes', desc: 'Show user notes', cat: 'Browse' },
-  { cmd: 'vault', desc: 'Show user vault items', cat: 'Browse' },
+  { cmd: 'vault', desc: 'Show user locker items', cat: 'Browse' },
   { cmd: 'contacts', desc: 'Show user contacts', cat: 'Browse' },
   { cmd: 'calendar', desc: 'Show user calendar events', cat: 'Browse' },
   { cmd: 'status', desc: 'Show presence/lastSeen/unread', cat: 'Browse' },
@@ -748,6 +1075,11 @@ async function execCommand(raw) {
     if (mode !== 'command') { setMode('command', 'type help for commands'); previewUser = null; print('Exited to command mode.', 'success'); }
     return;
   }
+  // Intercept "time set" (no args) to show popup picker
+  if (raw.trim() === 'time set') {
+    openTimeSetPopup();
+    return;
+  }
 
   try {
     const r = await fetch('/api/eval/exec', {
@@ -764,6 +1096,7 @@ async function execCommand(raw) {
     if (d.messages) renderEditMessages(d.messages);
     if (d.html) printHTML(d.html);
     if (d.openUrl) window.open(d.openUrl, '_blank');
+    if (d.openThemeBuilder) tbOpen(d.themeData);
   } catch (e) {
     print('Network error: ' + e.message, 'error');
   }
@@ -1039,9 +1372,362 @@ function playBeep() {
   } catch {}
 }
 
+// ── Time Set Popup ──
+function openTimeSetPopup() {
+  const overlay = document.getElementById('time-set-overlay');
+  const dateInput = document.getElementById('time-set-date');
+  const timeInput = document.getElementById('time-set-time');
+  // Default to current date/time
+  const now = new Date();
+  dateInput.value = now.toISOString().split('T')[0];
+  timeInput.value = now.toTimeString().slice(0, 5);
+  updateTimeSetPreview();
+  overlay.style.display = 'flex';
+  dateInput.focus();
+  print('Time set popup opened — pick a date and time.', 'info');
+}
+
+function closeTimeSetPopup() {
+  document.getElementById('time-set-overlay').style.display = 'none';
+}
+
+function updateTimeSetPreview() {
+  const dateVal = document.getElementById('time-set-date').value;
+  const timeVal = document.getElementById('time-set-time').value;
+  const preview = document.getElementById('time-set-preview');
+  if (dateVal && timeVal) {
+    const d = new Date(dateVal + 'T' + timeVal);
+    preview.textContent = d.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } else {
+    preview.textContent = '';
+  }
+}
+
+// Live preview updates
+document.getElementById('time-set-date')?.addEventListener('input', updateTimeSetPreview);
+document.getElementById('time-set-time')?.addEventListener('input', updateTimeSetPreview);
+
+async function applyTimeSet() {
+  const dateVal = document.getElementById('time-set-date').value;
+  const timeVal = document.getElementById('time-set-time').value;
+  if (!dateVal || !timeVal) { print('Please select both date and time.', 'warn'); return; }
+  const isoStr = dateVal + 'T' + timeVal + ':00';
+  closeTimeSetPopup();
+  print(`eval> time set ${isoStr}`, 'cmd');
+  await execCommand('time set ' + isoStr);
+}
+
+async function resetTimeSet() {
+  closeTimeSetPopup();
+  print('eval> time reset', 'cmd');
+  await execCommand('time reset');
+}
+
+// Close popup on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('time-set-overlay').style.display !== 'none') {
+    closeTimeSetPopup();
+  }
+});
+// Close popup on backdrop click
+document.getElementById('time-set-overlay')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('time-set-overlay')) closeTimeSetPopup();
+});
+
 // Apply saved settings on load
 applyTheme();
 applyFontSize();
+
+// ═══════════════════════════════════════════════════════════════════
+// THEME BUILDER
+// ═══════════════════════════════════════════════════════════════════
+const tbOverlay = document.getElementById('tb-overlay');
+const tbControls = document.getElementById('tb-controls');
+const tbMockup = document.getElementById('tb-mockup');
+const tbUserSelect = document.getElementById('tb-user-select');
+
+// Theme variable definitions with groups, labels, and defaults
+const TB_VARS = [
+  { group: 'Background', items: [
+    { key: 'bg-main',      label: 'Main BG',      default: '#0d0820', type: 'color' },
+    { key: 'bg-sidebar',   label: 'Sidebar',       default: '#130d24', type: 'color' },
+    { key: 'bg-modal',     label: 'Modal/Card',    default: '#130d24', type: 'color' },
+    { key: 'bg-input',     label: 'Input BG',      default: '#1a1030', type: 'color' },
+    { key: 'bg-status-bar',label: 'Status Bar',    default: '#0d0820', type: 'color' },
+  ]},
+  { group: 'Accent', items: [
+    { key: 'accent',       label: 'Primary',       default: '#7c3aed', type: 'color' },
+    { key: 'accent2',      label: 'Secondary',     default: '#a78bfa', type: 'color' },
+    { key: 'accent3',      label: 'Tertiary',      default: '#c4b5fd', type: 'color' },
+    { key: 'glow',         label: 'Glow Color',    default: '#7c3aed', type: 'color' },
+  ]},
+  { group: 'Text', items: [
+    { key: 'text-primary', label: 'Primary Text',  default: '#e8e0f0', type: 'color' },
+    { key: 'text-secondary',label:'Secondary Text', default: '#9a8dac', type: 'color' },
+    { key: 'text-muted',   label: 'Muted Text',    default: '#5a4d6e', type: 'color' },
+    { key: 'text-btn',     label: 'Button Text',   default: '#ffffff', type: 'color' },
+    { key: 'text-name-self',label:'Name (Self)',    default: '#a78bfa', type: 'color' },
+    { key: 'text-name-other',label:'Name (Other)', default: '#c4b5fd', type: 'color' },
+  ]},
+  { group: 'Borders', items: [
+    { key: 'border',       label: 'Border',        default: '#2a1f48', type: 'color' },
+    { key: 'border-focus', label: 'Focus Border',  default: '#7c3aed', type: 'color' },
+    { key: 'border-card',  label: 'Card Border',   default: '#221840', type: 'color' },
+  ]},
+  { group: 'Messages', items: [
+    { key: 'bg-message-self', label: 'Self Bubble', default: '#7c3aed', type: 'color' },
+    { key: 'bg-message-other',label:'Other Bubble', default: '#1a0f35', type: 'color' },
+  ]},
+  { group: 'Status', items: [
+    { key: 'status-online',label: 'Online',         default: '#22c55e', type: 'color' },
+    { key: 'status-idle',  label: 'Idle',            default: '#f59e0b', type: 'color' },
+    { key: 'status-dnd',   label: 'Do Not Disturb', default: '#ef4444', type: 'color' },
+  ]},
+];
+
+// Preset themes for quick starting points
+const TB_PRESETS = {
+  'AVNT Purple':  { 'bg-main':'#0d0820','bg-sidebar':'#130d24','bg-modal':'#130d24','accent':'#7c3aed','accent2':'#a78bfa','accent3':'#c4b5fd','text-primary':'#e8e0f0','border':'#2a1f48','bg-message-self':'#7c3aed','bg-message-other':'#1a0f35','glow':'#7c3aed','text-btn':'#ffffff' },
+  'Crimson':      { 'bg-main':'#120808','bg-sidebar':'#1a0c0c','bg-modal':'#1a0c0c','accent':'#dc2626','accent2':'#f87171','accent3':'#fca5a5','text-primary':'#f0e0e0','border':'#3a1515','bg-message-self':'#dc2626','bg-message-other':'#2a1010','glow':'#dc2626','text-btn':'#ffffff' },
+  'Ocean Blue':   { 'bg-main':'#0a1628','bg-sidebar':'#0e1e30','bg-modal':'#0e1e30','accent':'#0ea5e9','accent2':'#38bdf8','accent3':'#7dd3fc','text-primary':'#e0eef8','border':'#1a3050','bg-message-self':'#0ea5e9','bg-message-other':'#0e1e30','glow':'#0ea5e9','text-btn':'#ffffff' },
+  'Rose Gold':    { 'bg-main':'#1a0e14','bg-sidebar':'#221318','bg-modal':'#221318','accent':'#f43f5e','accent2':'#fb7185','accent3':'#fda4af','text-primary':'#f0e0e8','border':'#3a1828','bg-message-self':'#f43f5e','bg-message-other':'#2a1018','glow':'#f43f5e','text-btn':'#ffffff' },
+  'Emerald':      { 'bg-main':'#061210','bg-sidebar':'#0a1a16','bg-modal':'#0a1a16','accent':'#10b981','accent2':'#34d399','accent3':'#6ee7b7','text-primary':'#e0f0ec','border':'#163830','bg-message-self':'#10b981','bg-message-other':'#0a1a16','glow':'#10b981','text-btn':'#ffffff' },
+  'Sunset':       { 'bg-main':'#1a0e06','bg-sidebar':'#221408','bg-modal':'#221408','accent':'#f97316','accent2':'#fb923c','accent3':'#fdba74','text-primary':'#f0e8e0','border':'#3a2810','bg-message-self':'#f97316','bg-message-other':'#2a1808','glow':'#f97316','text-btn':'#ffffff' },
+  'Midnight':     { 'bg-main':'#0a0a10','bg-sidebar':'#0e0e16','bg-modal':'#0e0e16','accent':'#6366f1','accent2':'#818cf8','accent3':'#a5b4fc','text-primary':'#e0e0f0','border':'#1a1a3a','bg-message-self':'#6366f1','bg-message-other':'#14142a','glow':'#6366f1','text-btn':'#ffffff' },
+};
+
+let tbCurrentUser = 'kaliph';
+let tbValues = {};       // current working values
+let tbServerData = {};   // data from server
+
+function tbOpen(themeData) {
+  tbServerData = themeData || {};
+  tbCurrentUser = tbUserSelect.value;
+  tbValues = { ...(tbServerData[tbCurrentUser] || {}) };
+  tbRenderControls();
+  tbRenderPreview();
+  tbOverlay.classList.add('open');
+}
+
+function tbClose() {
+  tbOverlay.classList.remove('open');
+}
+
+function tbSwitchUser(user) {
+  tbCurrentUser = user;
+  tbValues = { ...(tbServerData[tbCurrentUser] || {}) };
+  tbRenderControls();
+  tbRenderPreview();
+}
+
+function tbGetVal(key) {
+  if (tbValues[key]) return tbValues[key];
+  // Find default from TB_VARS
+  for (const g of TB_VARS) {
+    for (const item of g.items) {
+      if (item.key === key) return item.default;
+    }
+  }
+  return '#888888';
+}
+
+function tbSetVal(key, val) {
+  tbValues[key] = val;
+  // Update hex input if it exists
+  const hexInput = document.getElementById('tb-hex-' + key);
+  const colorInput = document.getElementById('tb-color-' + key);
+  if (hexInput && hexInput !== document.activeElement) hexInput.value = val;
+  if (colorInput) colorInput.value = val;
+  tbRenderPreview();
+}
+
+function tbRenderControls() {
+  let html = '';
+  // Presets section
+  html += '<div class="tb-section"><div class="tb-section-title">Quick Presets</div>';
+  html += '<div class="tb-presets">';
+  for (const name of Object.keys(TB_PRESETS)) {
+    const p = TB_PRESETS[name];
+    html += `<button class="tb-preset-btn" onclick="tbApplyPreset('${name}')" style="border-left: 3px solid ${p.accent}">${name}</button>`;
+  }
+  html += '</div></div>';
+
+  // Variable groups
+  for (const group of TB_VARS) {
+    html += `<div class="tb-section"><div class="tb-section-title">${group.group}</div>`;
+    for (const item of group.items) {
+      const val = tbGetVal(item.key);
+      html += `<div class="tb-row">
+        <span class="tb-label">${item.label}</span>
+        <div class="tb-color-wrap">
+          <input type="color" class="tb-color-input" id="tb-color-${item.key}" value="${val}"
+            oninput="tbSetVal('${item.key}', this.value)" />
+          <input type="text" class="tb-hex-input" id="tb-hex-${item.key}" value="${val}"
+            onchange="tbHexChange('${item.key}', this.value)"
+            onkeyup="tbHexChange('${item.key}', this.value)" maxlength="7" />
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  tbControls.innerHTML = html;
+}
+
+function tbHexChange(key, val) {
+  val = val.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+    tbValues[key] = val;
+    const colorInput = document.getElementById('tb-color-' + key);
+    if (colorInput) colorInput.value = val;
+    tbRenderPreview();
+  }
+}
+
+function tbApplyPreset(name) {
+  const preset = TB_PRESETS[name];
+  if (!preset) return;
+  tbValues = { ...preset };
+  tbRenderControls();
+  tbRenderPreview();
+  playBeep();
+}
+
+function tbRenderPreview() {
+  const g = tbGetVal;
+  const mockup = tbMockup;
+
+  // Derive some values
+  const accentDim = g('accent') + '18';
+  const borderAlpha = g('border');
+
+  mockup.innerHTML = `
+    <div class="tb-m-header" style="background:${g('bg-sidebar')};border-color:${borderAlpha}">
+      <div class="tb-m-avatar" style="background:linear-gradient(135deg,${g('accent')},${g('accent2')})">K</div>
+      <div>
+        <div class="tb-m-name" style="color:${g('text-primary')};font-family:var(--font-heading,inherit)">Royal Vault</div>
+        <div class="tb-m-status" style="color:${g('text-secondary')}">
+          <span class="tb-m-status-dot" style="background:${g('status-online')}"></span>
+          2 online
+        </div>
+      </div>
+    </div>
+    <div class="tb-m-layout">
+      <div class="tb-m-sidebar" style="background:${g('bg-sidebar')};border-color:${borderAlpha}">
+        <div class="tb-m-nav active" style="background:${g('accent')}22;color:${g('accent')}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="tb-m-nav" style="color:${g('text-muted')}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </div>
+        <div class="tb-m-nav" style="color:${g('text-muted')}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div class="tb-m-nav" style="color:${g('text-muted')}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </div>
+      </div>
+      <div class="tb-m-chat" style="background:${g('bg-main')}">
+        <div class="tb-m-messages">
+          <div class="tb-m-msg tb-m-msg-other" style="background:${g('bg-message-other')};border:1px solid ${borderAlpha}">
+            <div class="tb-m-msg-name" style="color:${g('text-name-other')}">Kathrine</div>
+            <span style="color:${g('text-primary')}">Hey! How do you like the new theme?</span>
+          </div>
+          <div class="tb-m-msg tb-m-msg-self" style="background:linear-gradient(135deg,${g('bg-message-self')},${darken(g('bg-message-self'), 20)})">
+            <div class="tb-m-msg-name" style="color:rgba(255,255,255,0.8)">Kaliph</div>
+            <span style="color:${g('text-btn')}">It looks amazing! Love these colors.</span>
+          </div>
+          <div class="tb-m-msg tb-m-msg-other" style="background:${g('bg-message-other')};border:1px solid ${borderAlpha}">
+            <div class="tb-m-msg-name" style="color:${g('text-name-other')}">Kathrine</div>
+            <span style="color:${g('text-primary')}">The accent really pops</span>
+          </div>
+          <div class="tb-m-msg tb-m-msg-self" style="background:linear-gradient(135deg,${g('bg-message-self')},${darken(g('bg-message-self'), 20)})">
+            <span style="color:${g('text-btn')}">Right? Custom themes are so cool</span>
+          </div>
+        </div>
+        <div class="tb-m-input-area" style="background:${g('bg-sidebar')};border-color:${borderAlpha}">
+          <div class="tb-m-input" style="background:${g('bg-input')};border:1px solid ${borderAlpha};border-radius:8px">
+            <span class="tb-m-input-text" style="color:${g('text-muted')}">Type a message...</span>
+            <div class="tb-m-send-btn" style="background:linear-gradient(135deg,${g('accent')},${darken(g('accent'), 15)});border-radius:6px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="${g('text-btn')}" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function darken(hex, amount) {
+  hex = hex.replace('#', '');
+  if (hex.length !== 6) return '#000000';
+  let r = parseInt(hex.substr(0, 2), 16);
+  let g = parseInt(hex.substr(2, 2), 16);
+  let b = parseInt(hex.substr(4, 2), 16);
+  r = Math.max(0, r - amount);
+  g = Math.max(0, g - amount);
+  b = Math.max(0, b - amount);
+  return '#' + [r, g, b].map(c => c.toString(16).padStart(2, '0')).join('');
+}
+
+async function tbApply() {
+  // Save each changed property via eval commands
+  const user = tbCurrentUser;
+  let count = 0;
+  for (const [key, val] of Object.entries(tbValues)) {
+    try {
+      await fetch('/api/eval/exec', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: evalToken, command: `theme set ${user} ${key} ${val}` }),
+      });
+      count++;
+    } catch (e) {
+      print(`Error setting ${key}: ${e.message}`, 'error');
+    }
+  }
+  // Update local server data cache
+  tbServerData[user] = { ...tbValues };
+  print(`Applied ${count} theme properties for ${user}`, 'success');
+  tbClose();
+  playBeep();
+}
+
+async function tbReset() {
+  const user = tbCurrentUser;
+  try {
+    const r = await fetch('/api/eval/exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: evalToken, command: `theme reset ${user}` }),
+    });
+    const d = await r.json();
+    if (d.lines) d.lines.forEach(l => print(l.text, l.cls || 'info'));
+  } catch (e) {
+    print('Error: ' + e.message, 'error');
+  }
+  tbValues = {};
+  tbServerData[user] = {};
+  tbRenderControls();
+  tbRenderPreview();
+  playBeep();
+}
+
+function tbLoadPreset() {
+  // Toggle preset visibility (they're already in the controls)
+  const presetsSection = tbControls.querySelector('.tb-presets');
+  if (presetsSection) {
+    presetsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+// Close on escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && tbOverlay.classList.contains('open')) tbClose();
+});
+// Close on overlay click
+tbOverlay.addEventListener('click', e => {
+  if (e.target === tbOverlay) tbClose();
+});
 </script>
 </body>
 </html>
