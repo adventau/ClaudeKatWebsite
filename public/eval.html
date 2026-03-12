@@ -852,8 +852,9 @@ function showHelp() {
     'SETTINGS': [
       ['settings', 'View all settings'],
       ['set password <new>', 'Change site password'],
+      ['reset password', 'Show password hash & reset info'],
       ['set eval-password <new>', 'Change eval password'],
-      ['set vault-code <code>', 'Change vault passcode'],
+      ['set vault-code <code>', 'Change locker passcode'],
       ['set email <user> <e1,e2>', 'Set notification emails'],
     ],
     'DATA': [
@@ -865,14 +866,25 @@ function showHelp() {
       ['delete contact <id>', 'Delete a contact'],
       ['calendar list [user]', 'List events'],
       ['delete event <id>', 'Delete an event'],
-      ['vault list [user]', 'List vault items'],
-      ['delete vault-item <id>', 'Delete vault item'],
+      ['vault list [user]', 'List locker items'],
+      ['delete vault-item <id>', 'Delete locker item'],
       ['guests list', 'List guests'],
       ['guests archive', 'View all guest threads'],
       ['guests messages <id> [ch]', 'View guest messages'],
       ['guests revoke <id>', 'Revoke guest'],
+      ['guests archive', 'List archived/revoked guests'],
       ['suggestions list', 'List suggestions'],
       ['delete suggestion <id>', 'Delete suggestion'],
+    ],
+    'THEME BUILDER': [
+      ['theme builder', 'Show theme builder help'],
+      ['theme set <user> <prop> <val>', 'Set custom theme property'],
+      ['theme preview <user>', 'Preview custom theme'],
+      ['theme reset <user>', 'Reset custom theme'],
+    ],
+    'TIME': [
+      ['time set <offset>', 'Set time offset (ISO date or +2h, -30m)'],
+      ['time reset', 'Reset time to normal'],
     ],
     'SYSTEM': [
       ['republish update-log [user]', 'Re-show update log'],

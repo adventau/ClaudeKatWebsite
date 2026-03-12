@@ -21,7 +21,7 @@
     }
 
     body {
-      min-height: 100vh; background: var(--bg); color: var(--text);
+      min-height: 100dvh; min-height: 100vh; background: var(--bg); color: var(--text);
       font-family: 'Inter', sans-serif; overflow: hidden;
       display: flex; align-items: center; justify-content: center;
     }
@@ -159,7 +159,7 @@
       padding: 2rem 1rem;
     }
     .card-avatar {
-      width: 80px; height: 80px; border-radius: 50%;
+      width: 90px; height: 90px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       font-size: 2rem; margin-bottom: 1.2rem;
       transition: transform 0.4s cubic-bezier(0.34,1.4,0.64,1), box-shadow 0.4s;
@@ -167,6 +167,9 @@
       background: linear-gradient(135deg, #7c3aed, #6366f1);
       border: 2px solid rgba(255,255,255,0.2);
       box-shadow: 0 0 20px rgba(124,58,237,0.4);
+    }
+    .card-avatar img {
+      width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
     }
     .card-name {
       font-size: 2rem; font-weight: 700; letter-spacing: 0.05em;
@@ -278,6 +281,49 @@
     .theme-kathrine .card-enter-hint { font-family: 'Cormorant Garamond', serif; letter-spacing: 0.18em; }
     .theme-kathrine .card-badge { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 0.65rem; color: rgba(244,114,182,0.7); border: none; }
     .theme-kathrine .ripple { background: rgba(244,114,182,0.2); }
+
+    /* Kathrine — Enchanted Forest Floating Flowers */
+    .theme-kathrine .card-bg-particles {
+      overflow: hidden;
+    }
+    .theme-kathrine .card-bg-particles::before {
+      content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background:
+        radial-gradient(3px 3px at 15% 25%, rgba(236,72,153,0.6), transparent),
+        radial-gradient(4px 4px at 75% 15%, rgba(244,114,182,0.5), transparent),
+        radial-gradient(3px 3px at 85% 65%, rgba(232,121,249,0.4), transparent),
+        radial-gradient(4px 4px at 25% 75%, rgba(251,113,133,0.5), transparent),
+        radial-gradient(3px 3px at 55% 85%, rgba(196,181,253,0.4), transparent),
+        radial-gradient(5px 5px at 40% 40%, rgba(244,114,182,0.3), transparent);
+      animation: petal-glow 6s ease-in-out infinite;
+    }
+    /* Individual floating flower elements — injected by JS */
+    .kathrine-flower {
+      position: absolute; pointer-events: none; z-index: 2;
+      font-size: 1rem; opacity: 0;
+      animation: flower-drift var(--dur, 8s) var(--delay, 0s) ease-in-out infinite;
+    }
+    @keyframes flower-drift {
+      0%   { opacity: 0; transform: translate(0, 0) rotate(0deg) scale(0.6); }
+      15%  { opacity: 0.7; }
+      50%  { opacity: 0.8; transform: translate(var(--dx, 15px), var(--dy, -30px)) rotate(var(--rot, 45deg)) scale(1); }
+      85%  { opacity: 0.5; }
+      100% { opacity: 0; transform: translate(var(--dx2, -10px), var(--dy2, -60px)) rotate(var(--rot2, 90deg)) scale(0.5); }
+    }
+    @keyframes petal-glow {
+      0%, 100% { transform: translateY(0) scale(1); opacity: 0.6; }
+      33% { transform: translateY(-3px) scale(1.02); opacity: 0.8; }
+      66% { transform: translateY(2px) scale(0.98); opacity: 0.7; }
+    }
+
+    /* Enchanted vine border effect */
+    .theme-kathrine::before {
+      background:
+        radial-gradient(ellipse at 30% 50%, rgba(236,72,153,0.25), transparent 60%),
+        radial-gradient(ellipse at 70% 30%, rgba(232,121,249,0.15), transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(251,113,133,0.1), transparent 40%);
+      animation: bloom-pulse 1.8s ease-in-out infinite;
+    }
 
     /* ── T3: Crimson Royal — Deep Red / Gold / Regal ───────────────── */
     .theme-royal {
@@ -914,6 +960,7 @@
           profileScreen.classList.remove('hidden');
           loadUserPreviews();
           loadProfileLocks();
+          spawnKathrineFlowers();
         }
       } else {
         pwError.textContent = data.error || 'Incorrect password.';
@@ -926,6 +973,32 @@
 
     pwBtn.addEventListener('click', tryPassword);
     pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryPassword(); });
+
+    // ── Kathrine enchanted forest — floating flowers ───────────────
+    function spawnKathrineFlowers() {
+      const container = document.querySelector('#card-kathrine .card-bg-particles');
+      if (!container || container.querySelector('.kathrine-flower')) return;
+      const flowers = ['🌸', '🌺', '🌷', '🪻', '🌹', '💮', '🌼'];
+      const count = 10;
+      for (let i = 0; i < count; i++) {
+        const el = document.createElement('span');
+        el.className = 'kathrine-flower';
+        el.textContent = flowers[Math.floor(Math.random() * flowers.length)];
+        const x = 10 + Math.random() * 80;   // 10-90% left
+        const y = 10 + Math.random() * 80;   // 10-90% top
+        const dur = 5 + Math.random() * 6;   // 5-11s cycle
+        const delay = Math.random() * -10;    // stagger start
+        const dx = -20 + Math.random() * 40;
+        const dy = -25 + Math.random() * -15;
+        const dx2 = -15 + Math.random() * 30;
+        const dy2 = -50 + Math.random() * -20;
+        const rot = 20 + Math.random() * 120;
+        const rot2 = 60 + Math.random() * 180;
+        const size = 0.7 + Math.random() * 0.6;
+        el.style.cssText = `left:${x}%;top:${y}%;font-size:${size}rem;--dur:${dur}s;--delay:${delay}s;--dx:${dx}px;--dy:${dy}px;--dx2:${dx2}px;--dy2:${dy2}px;--rot:${rot}deg;--rot2:${rot2}deg;`;
+        container.appendChild(el);
+      }
+    }
 
     // ── Load user data for profile cards ───────────────────────────
     // Theme badge labels

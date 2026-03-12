@@ -93,7 +93,7 @@
         <span class="nav-icon"><i data-lucide="calendar"></i></span><span class="nav-label">Calendar</span>
       </div>
       <div class="nav-item" data-section="vault" onclick="showSection('vault',this)">
-        <span class="nav-icon"><i data-lucide="lock"></i></span><span class="nav-label">Document Vault</span>
+        <span class="nav-icon"><i data-lucide="lock"></i></span><span class="nav-label">Document Locker</span>
       </div>
       <div class="nav-item" data-section="contacts" onclick="showSection('contacts',this)">
         <span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Contacts</span>
@@ -166,10 +166,10 @@
           <div class="chat-header-class" id="other-class-label"></div>
         </div>
         <div class="chat-actions">
-          <button class="btn-icon" onclick="togglePinnedPanel()" title="Pinned Messages" id="pinned-btn"><i data-lucide="pin"></i></button>
-          <button class="btn-icon" onclick="startCall('audio')" title="Voice"><i data-lucide="phone"></i></button>
-          <button class="btn-icon" onclick="startCall('video')" title="Video"><i data-lucide="video"></i></button>
-          <button class="btn-icon" onclick="openModal('wallpaper-modal')" title="Wallpaper"><i data-lucide="image"></i></button>
+          <button class="btn-icon chat-action-btn" onclick="togglePinnedPanel()" title="Pinned Messages" id="pinned-btn"><i data-lucide="pin" style="width:18px;height:18px;stroke-width:2"></i></button>
+          <button class="btn-icon chat-action-btn" onclick="startCall('audio')" title="Voice"><i data-lucide="phone" style="width:18px;height:18px;stroke-width:2"></i></button>
+          <button class="btn-icon chat-action-btn" onclick="startCall('video')" title="Video"><i data-lucide="video" style="width:18px;height:18px;stroke-width:2"></i></button>
+          <button class="btn-icon chat-action-btn" onclick="openModal('wallpaper-modal')" title="Wallpaper"><i data-lucide="image" style="width:18px;height:18px;stroke-width:2"></i></button>
         </div>
       </div>
 
@@ -305,13 +305,13 @@
       <div class="two-panel" style="overflow:hidden;flex:1">
         <div class="panel-list" id="notes-list">
           <div class="empty-state" style="height:200px">
-            <div class="empty-state-icon">📝</div>
+            <div class="empty-state-icon"><i data-lucide="file-text" style="width:48px;height:48px;opacity:0.4"></i></div>
             <div class="empty-state-text">No notes yet</div>
           </div>
         </div>
         <div class="panel-content" id="notes-editor">
           <div class="empty-state">
-            <div class="empty-state-icon">✏️</div>
+            <div class="empty-state-icon"><i data-lucide="pen-tool" style="width:48px;height:48px;opacity:0.4"></i></div>
             <div class="empty-state-text">Select a note to view</div>
           </div>
         </div>
@@ -348,7 +348,7 @@
     <section id="section-vault" class="section">
       <div id="vault-lock-screen" class="vault-passcode-screen">
         <div style="font-size:3rem">🔒</div>
-        <h2>Document Vault</h2>
+        <h2>Document Locker</h2>
         <p style="color:var(--text-muted);font-size:0.875rem;text-align:center">Enter your 4-digit passcode</p>
         <div class="passcode-input" id="passcode-dots">
           <input type="tel" class="passcode-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" oninput="handlePasscodeInput(this,0)">
@@ -360,7 +360,7 @@
       </div>
       <div id="vault-content" style="display:none;flex-direction:column;height:100%">
         <div class="section-header">
-          <span class="section-title">Document Vault</span>
+          <span class="section-title">Document Locker</span>
           <div style="display:flex;gap:8px">
             <button class="btn-primary" onclick="openModal('vault-upload-modal')">+ Add Files</button>
             <button class="btn-ghost" onclick="lockVault()">Lock</button>
@@ -372,7 +372,7 @@
         </div>
         <div class="vault-grid" id="vault-grid">
           <div class="empty-state" style="grid-column:1/-1">
-            <div class="empty-state-icon">📁</div>
+            <div class="empty-state-icon"><i data-lucide="folder-lock" style="width:48px;height:48px;opacity:0.4"></i></div>
             <div class="empty-state-text">No files yet</div>
           </div>
         </div>
@@ -402,7 +402,7 @@
       <div style="flex:1;overflow-y:auto;padding:0 1rem 1rem">
         <div id="contacts-grid">
           <div class="empty-state">
-            <div class="empty-state-icon">📇</div>
+            <div class="empty-state-icon"><i data-lucide="contact" style="width:48px;height:48px;opacity:0.4"></i></div>
             <div class="empty-state-text">No contacts yet</div>
           </div>
         </div>
@@ -698,12 +698,6 @@
         <!-- Security tab -->
         <div class="settings-panel" id="tab-security">
           <div class="settings-section">
-            <h3>Change Site Password</h3>
-            <div class="form-row"><label>New Password</label><input type="password" id="new-pw" placeholder="New site password"></div>
-            <div class="form-row"><label>Confirm Password</label><input type="password" id="confirm-pw" placeholder="Confirm new password"></div>
-            <button class="btn-primary" onclick="changeSitePassword()">Update Password</button>
-          </div>
-          <div class="settings-section">
             <h3>Vault Passcode</h3>
             <div class="form-row"><label>New 4-digit Vault Passcode</label><input type="tel" id="new-vault-passcode" placeholder="4 digits" maxlength="4" inputmode="numeric" pattern="[0-9]*"></div>
             <button class="btn-primary" onclick="changeVaultPasscode()">Update Passcode</button>
@@ -940,7 +934,7 @@
 <div class="modal-overlay" id="new-todo-modal">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <span class="modal-title">✅ New Todo List</span>
+      <span class="modal-title"><i data-lucide="list-checks" style="width:16px;height:16px"></i> New Todo List</span>
       <button class="btn-icon" onclick="closeModal('new-todo-modal')">✕</button>
     </div>
     <div class="form-row"><label>List Title</label><input type="text" id="todo-title" placeholder="Todo list title"></div>
@@ -985,6 +979,7 @@
       </div>
     </div>
     <div class="form-row"><label>Description</label><textarea id="event-desc" rows="2" placeholder="Optional description"></textarea></div>
+    <div class="form-row"><label>Emoji</label><input type="text" id="event-emoji" placeholder="e.g. 📚 🏋️ 🎵" maxlength="4" style="width:60px;text-align:center;font-size:1.2rem"></div>
     <div class="form-row"><label>Color</label><input type="color" id="event-color" value="#7c3aed" style="width:60px;height:32px"></div>
     <div class="form-row">
       <label>Reminder</label>
@@ -1311,7 +1306,7 @@
 <div class="modal-overlay" id="new-contact-modal">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <span class="modal-title">📇 New Contact</span>
+      <span class="modal-title"><i data-lucide="user-plus" style="width:16px;height:16px"></i> New Contact</span>
       <button class="btn-icon" onclick="closeModal('new-contact-modal')">✕</button>
     </div>
     <div class="form-row"><label>Name *</label><input type="text" id="contact-name" placeholder="Full name"></div>
@@ -1361,7 +1356,7 @@
 <div class="modal-overlay" id="wallpaper-modal">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <span class="modal-title">🖼️ Chat Wallpaper</span>
+      <span class="modal-title"><i data-lucide="image" style="width:16px;height:16px"></i> Chat Wallpaper</span>
       <button class="btn-icon" onclick="closeModal('wallpaper-modal')">✕</button>
     </div>
     <div class="settings-row">
@@ -1464,10 +1459,20 @@
         <div class="pc-section-title">MEMBER SINCE</div>
         <div class="pc-section-text" id="pv-member-since"></div>
       </div>
+      <button class="pc-schedule-btn" id="pv-schedule-btn" onclick="closeModal('profile-viewer-modal');showSection('calendar',document.querySelector('[data-section=calendar]'))" style="display:none">
+        <i data-lucide="calendar" style="width:14px;height:14px"></i> View Schedule
+      </button>
       <button class="pc-edit-btn" id="pv-edit-btn" onclick="closeModal('profile-viewer-modal');setTimeout(openSettingsModal,150)" style="display:none">
         <i data-lucide="pencil" style="width:14px;height:14px"></i> Edit Profile
       </button>
     </div>
+  </div>
+</div>
+
+<!-- Enlarged Profile Picture -->
+<div class="modal-overlay" id="enlarged-avatar-modal" onclick="closeModal('enlarged-avatar-modal')">
+  <div style="display:flex;align-items:center;justify-content:center;height:100%" onclick="event.stopPropagation()">
+    <img id="enlarged-avatar-img" src="" alt="Profile Picture" style="max-width:90vw;max-height:90vh;border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,0.6);cursor:zoom-out" onclick="closeModal('enlarged-avatar-modal')">
   </div>
 </div>
 

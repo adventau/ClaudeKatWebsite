@@ -1616,6 +1616,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       users[user].theme = theme;
       wd(F.users, users);
       io.emit('user-updated', { user, data: users[user] });
+      io.emit('force-reload');
       return lines(`${user} theme → ${theme}`, 'success');
     }
 
@@ -1665,7 +1666,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       const s = rd(F.settings);
       s.vaultPasscode = code;
       wd(F.settings, s);
-      return lines(`Vault passcode → ${code}`, 'success');
+      return lines(`Locker passcode → ${code}`, 'success');
     }
 
     if (prop === 'email') {
@@ -1708,57 +1709,98 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
 
   // ── PREVIEW MODE ──
   if (cmd === 'preview') {
-    const user = parts[1]?.toLowerCase();
-    if (!user) return lines('Usage: preview <user>', 'warn');
-    const users = rd(F.users);
-    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    return lines('Preview command has been removed', 'warn');
+  }
+
+  // ── RESET PASSWORD ──
+  if (cmd === 'reset' && parts[1] === 'password') {
+    const s = rd(F.settings);
     return {
-      setMode: 'preview', modeInfo: `Acting as ${user} — type "exit" to leave`,
-      previewUser: user,
       lines: [
-        { text: `Preview mode: acting as ${users[user].displayName || user}`, cls: 'highlight' },
-        { text: `Commands: send <text>, react <msgId> <emoji>, read <msgId>`, cls: 'dim' },
-        { text: `Use "exit" to return to command mode`, cls: 'dim' },
+        { text: 'Password Reset', cls: 'header' },
+        { text: `Current hash: ${s.sitePassword.substring(0, 20)}...`, cls: 'dim' },
+        { text: `Use: set password <new password>`, cls: 'info' },
       ],
     };
   }
 
-  // ── PREVIEW MODE COMMANDS ──
-  if (mode === 'preview' && previewUser) {
-    if (cmd === 'send') {
-      const text = parts.slice(1).join(' ');
-      if (!text) return lines('Usage: send <message text>', 'warn');
-      const msgs = rd(F.messages);
-      if (!Array.isArray(msgs.main)) msgs.main = [];
-      const msg = {
-        id: uuidv4(), sender: previewUser, type: 'text', text,
-        files: [], priority: false, replyTo: null,
-        timestamp: Date.now(), edited: false, editedAt: null,
-        reactions: {}, read: false, readAt: null, unsendable: false,
-        formatting: null, aiGenerated: false,
-      };
-      msgs.main.push(msg);
-      wd(F.messages, msgs);
-      io.emit('new-message', msg);
-      return lines(`Sent as ${previewUser}: "${text}"`, 'success');
+  // ── THEME BUILDER ──
+  if (cmd === 'theme' && parts[1] === 'builder') {
+    return {
+      lines: [
+        { text: '═══ THEME BUILDER ═══', cls: 'header' },
+        { text: 'Create custom theme variables for the site', cls: 'info' },
+        { text: '', cls: 'info' },
+        { text: 'Commands:', cls: 'highlight' },
+        { text: '  theme set <user> <property> <value>', cls: 'info' },
+        { text: '  theme preview <user>', cls: 'info' },
+        { text: '  theme reset <user>', cls: 'info' },
+        { text: '', cls: 'info' },
+        { text: 'Properties: bg-main, bg-sidebar, accent, accent2, text-primary,', cls: 'dim' },
+        { text: '  text-secondary, border, glow, font-main, font-heading', cls: 'dim' },
+        { text: '', cls: 'info' },
+        { text: 'Example: theme set kaliph accent #ff6b6b', cls: 'success' },
+        { text: 'Example: theme set kathrine font-heading "Playfair Display"', cls: 'success' },
+      ],
+    };
+  }
+  if (cmd === 'theme' && parts[1] === 'set') {
+    const user = parts[2]?.toLowerCase();
+    const prop = parts[3];
+    const val = parts.slice(4).join(' ');
+    if (!user || !prop || !val) return lines('Usage: theme set <user> <property> <value>', 'warn');
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    if (!users[user].customTheme) users[user].customTheme = {};
+    users[user].customTheme[prop] = val;
+    wd(F.users, users);
+    io.emit('force-reload');
+    return lines(`Set ${prop} = ${val} for ${user}`, 'success');
+  }
+  if (cmd === 'theme' && parts[1] === 'preview') {
+    const user = parts[2]?.toLowerCase();
+    if (!user) return lines('Usage: theme preview <user>', 'warn');
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    const ct = users[user].customTheme || {};
+    if (!Object.keys(ct).length) return lines(`No custom theme set for ${user}`, 'info');
+    return {
+      lines: [
+        { text: `Custom theme for ${user}:`, cls: 'header' },
+        ...Object.entries(ct).map(([k, v]) => ({ text: `  ${k}: ${v}`, cls: 'data' })),
+      ],
+    };
+  }
+  if (cmd === 'theme' && parts[1] === 'reset') {
+    const user = parts[2]?.toLowerCase();
+    if (!user) return lines('Usage: theme reset <user>', 'warn');
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    delete users[user].customTheme;
+    wd(F.users, users);
+    io.emit('force-reload');
+    return lines(`Custom theme reset for ${user}`, 'success');
+  }
+
+  // ── TIME SET/RESET ──
+  if (cmd === 'time') {
+    if (parts[1] === 'set') {
+      const offset = parts.slice(2).join(' ');
+      if (!offset) return lines('Usage: time set <ISO date or offset like +2h, -30m>', 'warn');
+      const s = rd(F.settings);
+      s.timeOffset = offset;
+      wd(F.settings, s);
+      io.emit('time-offset', { offset });
+      return lines(`Time offset set to: ${offset}`, 'success');
     }
-    if (cmd === 'react') {
-      const msgId = parts[1];
-      const emoji = parts[2];
-      if (!msgId || !emoji) return lines('Usage: react <msgId> <emoji>', 'warn');
-      const msgs = rd(F.messages);
-      const msg = (msgs.main || []).find(m => m.id === msgId || m.id.startsWith(msgId));
-      if (!msg) return lines('Message not found', 'error');
-      if (!msg.reactions) msg.reactions = {};
-      if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
-      const idx = msg.reactions[emoji].indexOf(previewUser);
-      if (idx >= 0) msg.reactions[emoji].splice(idx, 1);
-      else msg.reactions[emoji].push(previewUser);
-      wd(F.messages, msgs);
-      io.emit('msg-reaction', { id: msg.id, reactions: msg.reactions });
-      return lines(`Reaction ${emoji} toggled on message`, 'success');
+    if (parts[1] === 'reset') {
+      const s = rd(F.settings);
+      delete s.timeOffset;
+      wd(F.settings, s);
+      io.emit('time-offset', { offset: null });
+      return lines('Time reset to normal', 'success');
     }
-    // Fallback: treat as regular command
+    return lines('Usage: time set <offset> | time reset', 'info');
   }
 
   // ── STEALTH VISUAL MODE (opens app in stealth preview) ──
@@ -1829,7 +1871,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
         { text: `  Status: ${presence} | LastSeen: ${u.lastSeen ? new Date(u.lastSeen).toLocaleString() : 'never'}`, cls: 'data' },
         { text: `  Theme: ${u.theme || 'default'} | Bio: ${u.bio || '(none)'}`, cls: 'data' },
         { text: ``, cls: 'dim' },
-        { text: `Commands: messages [n], notes, vault, contacts, calendar, status, profile`, cls: 'dim' },
+        { text: `Commands: messages [n], notes, locker, contacts, calendar, status, profile`, cls: 'dim' },
         { text: `Read-only — no presence/read changes. Type "exit" to leave.`, cls: 'dim' },
       ],
     };
@@ -1874,8 +1916,8 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     if (cmd === 'vault') {
       const vault = rd(F.vault) || {};
       const userVault = vault[browseUser] || [];
-      if (!userVault.length) return lines(`No vault items for ${browseUser}`, 'dim');
-      const out = [{ text: `── ${browseUser}'s Vault (${userVault.length}) ──`, cls: 'header' }];
+      if (!userVault.length) return lines(`No locker items for ${browseUser}`, 'dim');
+      const out = [{ text: `── ${browseUser}'s Locker (${userVault.length}) ──`, cls: 'header' }];
       userVault.forEach(v => {
         out.push({ text: `  ${v.type || 'file'}: ${v.name || v.filename || '(unnamed)'}`, cls: 'data' });
         out.push({ text: `    id: ${v.id} | ${new Date(v.uploadedAt || v.createdAt).toLocaleString()}`, cls: 'dim' });
@@ -1952,7 +1994,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     return multi(
       ['── Settings ──', 'header'],
       [`  Site password:  (hashed)`, 'data'],
-      [`  Vault passcode: ${s.vaultPasscode || '(not set)'}`, 'data'],
+      [`  Locker passcode: ${s.vaultPasscode || '(not set)'}`, 'data'],
       [`  Eval password:  ${getEvalPassword()}`, 'data'],
       [`  Emails:`, 'data'],
       [`    Kaliph:   ${JSON.stringify(s.emails?.kaliph || '(none)')}`, 'dim'],
@@ -2036,7 +2078,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       if (!Array.isArray(arr)) continue;
       arr.forEach(v => rows.push([u, v.id?.substring(0, 8) || '-', (v.name || '').substring(0, 25), v.type || '-', v.uploadedBy || '-']));
     }
-    if (!rows.length) return lines('No vault items', 'dim');
+    if (!rows.length) return lines('No locker items', 'dim');
     return { table: { headers: ['User', 'ID', 'Name', 'Type', 'Uploaded By'], rows } };
   }
 
@@ -2107,6 +2149,19 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       wd(F.guests, guests);
       io.emit('guest-revoked', { guestId: fullId });
       return lines(`Guest "${guests[fullId].name}" revoked`, 'success');
+    }
+    if (sub === 'archive') {
+      const archived = Object.values(guests).filter(g => !g.active);
+      if (!archived.length) return lines('No archived guests', 'info');
+      return {
+        lines: [
+          { text: `Archived guests: ${archived.length}`, cls: 'header' },
+          ...archived.map(g => {
+            const totalMsgs = Object.values(g.messages || {}).reduce((sum, ch) => sum + (ch?.length || 0), 0);
+            return { text: `  ${g.name} — ${totalMsgs} messages — revoked by ${g.createdBy || 'unknown'}`, cls: 'info' };
+          }),
+        ],
+      };
     }
     return lines('Usage: guests list | guests archive | guests messages <id> [channel] | guests revoke <id>', 'warn');
   }
