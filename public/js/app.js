@@ -4453,7 +4453,7 @@ async function viewProfile(username) {
   const classText = document.getElementById('pv-class-text');
   if (classSec && classText) {
     const cls = getCurrentClass(username);
-    if (cls) { classSec.style.display = ''; classText.textContent = '📚 ' + cls.label + ' (' + cls.start + ' – ' + cls.end + ')'; }
+    if (cls) { classSec.style.display = ''; classText.textContent = '📚 ' + cls.label + ' (' + formatTime12(cls.start) + ' – ' + formatTime12(cls.end) + ')'; }
     else classSec.style.display = 'none';
   }
   // Pronouns
