@@ -37,6 +37,7 @@ const F = {
   settings:      path.join(DATA_DIR, 'settings.json'),
   suggestions:   path.join(DATA_DIR, 'suggestions.json'),
   pushSubs:      path.join(DATA_DIR, 'push-subscriptions.json'),
+  reminders:     path.join(DATA_DIR, 'reminders.json'),
 };
 
 // ── Web Push (VAPID) ─────────────────────────────────────────────────────────
@@ -207,6 +208,10 @@ app.post('/api/auth/password', async (req, res) => {
     if (!g.active) continue;
     if (g.expiresAt && new Date() > new Date(g.expiresAt)) continue;
     if (bcrypt.compareSync(password, g.passwordHash)) {
+      // Clear any stale main-user session data so guest doesn't inherit it
+      delete req.session.authenticated;
+      delete req.session.user;
+      delete req.session.loginTime;
       req.session.isGuest = true;
       req.session.guestId = id;
       return res.json({ success: true, isGuest: true, guestName: g.name });
@@ -270,6 +275,20 @@ app.get('/api/auth/session', (req, res) => {
     user: req.session?.user || null,
     isGuest: !!req.session?.isGuest,
     guestId: req.session?.guestId || null,
+  });
+});
+
+// Stealth preview — view as another user without affecting their presence/lastSeen/unread
+app.get('/api/auth/stealth', (req, res) => {
+  if (!req.session?.authenticated || !req.session?.user) return res.status(401).json({ error: 'Not authenticated' });
+  const target = req.query.target?.toLowerCase();
+  if (!target || !['kaliph', 'kathrine'].includes(target)) return res.status(400).json({ error: 'Invalid target user' });
+  // Return session info with the stealth target — does NOT modify the actual session
+  res.json({
+    authenticated: true,
+    user: target,
+    realUser: req.session.user,
+    stealth: true,
   });
 });
 
@@ -691,10 +710,12 @@ app.post('/api/ai/message', mainAuth, async (req, res) => {
 
 app.get('/api/notes', mainAuth, (req, res) => {
   const notes = rd(F.notes);
-  const other = req.session.user === 'kaliph' ? 'kathrine' : 'kaliph';
+  // Allow stealth mode to view target user's notes
+  const viewAs = req.query.viewAs && ['kaliph', 'kathrine'].includes(req.query.viewAs) ? req.query.viewAs : req.session.user;
+  const other = viewAs === 'kaliph' ? 'kathrine' : 'kaliph';
   res.json({
-    mine:   notes[req.session.user] || [],
-    shared: (notes[other] || []).filter(n => n.sharedWith?.includes(req.session.user)),
+    mine:   notes[viewAs] || [],
+    shared: (notes[other] || []).filter(n => n.sharedWith?.includes(viewAs)),
   });
 });
 
@@ -878,6 +899,7 @@ app.post('/api/calendar', mainAuth, (req, res) => {
     date: startDate, // backward compat
     description: req.body.description || '',
     color: req.body.color || '#7c3aed',
+    reminder: req.body.reminder !== undefined && req.body.reminder !== '' ? parseInt(req.body.reminder) : null,
     createdBy: u,
   };
   if (!Array.isArray(cal.shared)) cal.shared = [];
@@ -885,6 +907,22 @@ app.post('/api/calendar', mainAuth, (req, res) => {
   wd(F.calendar, cal);
   io.emit('calendar-updated');
   res.json({ success: true, event });
+});
+
+app.put('/api/calendar/:id', mainAuth, (req, res) => {
+  const cal = rd(F.calendar);
+  const idx = (cal.shared || []).findIndex(e => e.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  const ev = cal.shared[idx];
+  if (req.body.title !== undefined) ev.title = req.body.title;
+  if (req.body.start !== undefined) { ev.start = req.body.start; ev.date = req.body.start; }
+  if (req.body.end !== undefined) ev.end = req.body.end;
+  if (req.body.description !== undefined) ev.description = req.body.description;
+  if (req.body.color !== undefined) ev.color = req.body.color;
+  ev.reminder = req.body.reminder !== undefined && req.body.reminder !== '' ? parseInt(req.body.reminder) : null;
+  wd(F.calendar, cal);
+  io.emit('calendar-updated');
+  res.json({ success: true, event: ev });
 });
 
 app.delete('/api/calendar/:id', mainAuth, (req, res) => {
@@ -931,7 +969,7 @@ app.delete('/api/announcements/:id', mainAuth, (req, res) => {
 
 app.get('/api/settings', mainAuth, (_, res) => {
   const s = rd(F.settings);
-  res.json({ emails: s.emails, vaultPasscodeSet: !!s.vaultPasscode });
+  res.json({ emails: s.emails, vaultPasscodeSet: !!s.vaultPasscode, bellSchedule: s.bellSchedule || null, preferences: s.preferences || {}, _scheduleSkips: s._scheduleSkips || {} });
 });
 
 app.get('/api/settings/email-status', mainAuth, async (_, res) => {
@@ -975,6 +1013,12 @@ app.put('/api/settings', mainAuth, async (req, res) => {
   if (req.body.newPassword) s.sitePassword = await bcrypt.hash(req.body.newPassword, 10);
   if (req.body.emails) s.emails = { ...s.emails, ...req.body.emails };
   if (req.body.vaultPasscode) s.vaultPasscode = req.body.vaultPasscode;
+  if (req.body.bellSchedule) s.bellSchedule = req.body.bellSchedule;
+  if (typeof req.body.countdownEnabled === 'boolean') {
+    if (!s.preferences) s.preferences = {};
+    if (!s.preferences[req.session.user]) s.preferences[req.session.user] = {};
+    s.preferences[req.session.user].countdownEnabled = req.body.countdownEnabled;
+  }
   wd(F.settings, s);
   res.json({ success: true });
 });
@@ -1014,6 +1058,123 @@ app.post('/api/push/unsubscribe', mainAuth, (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// REMINDERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/reminders', mainAuth, (req, res) => {
+  const all = rd(F.reminders) || [];
+  const user = req.session.user;
+  res.json(all.filter(r => r.createdBy === user || r.forUser === 'both'));
+});
+
+app.post('/api/reminders', mainAuth, (req, res) => {
+  const all = rd(F.reminders) || [];
+  const reminder = {
+    id: uuidv4(),
+    title: req.body.title,
+    description: req.body.description || '',
+    datetime: req.body.datetime,
+    repeat: req.body.repeat || '',
+    notify: req.body.notify || { site: true, push: false, email: false },
+    priority: req.body.priority || 'normal',
+    completed: false,
+    snoozedUntil: null,
+    createdBy: req.session.user,
+    forUser: req.body.forUser || req.session.user,
+    createdAt: Date.now(),
+    lastNotified: null,
+  };
+  all.push(reminder);
+  wd(F.reminders, all);
+  io.emit('reminder-updated');
+  res.json({ success: true, reminder });
+});
+
+app.put('/api/reminders/:id', mainAuth, (req, res) => {
+  const all = rd(F.reminders) || [];
+  const idx = all.findIndex(r => r.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  Object.assign(all[idx], req.body, { id: req.params.id });
+  wd(F.reminders, all);
+  io.emit('reminder-updated');
+  res.json({ success: true, reminder: all[idx] });
+});
+
+app.delete('/api/reminders/:id', mainAuth, (req, res) => {
+  let all = rd(F.reminders) || [];
+  all = all.filter(r => r.id !== req.params.id);
+  wd(F.reminders, all);
+  io.emit('reminder-updated');
+  res.json({ success: true });
+});
+
+// Check and fire due reminders (called by setInterval on server)
+async function checkDueReminders() {
+  const all = rd(F.reminders) || [];
+  const now = Date.now();
+  let changed = false;
+
+  for (const r of all) {
+    if (r.completed) continue;
+    if (r.snoozedUntil && now < new Date(r.snoozedUntil).getTime()) continue;
+    const rTime = new Date(r.datetime).getTime();
+    if (isNaN(rTime) || rTime > now) continue;
+    // Already notified within the last 5 minutes? Skip
+    if (r.lastNotified && now - r.lastNotified < 300000) continue;
+
+    r.lastNotified = now;
+    changed = true;
+
+    const user = r.createdBy;
+
+    // Push notification
+    if (r.notify?.push) {
+      await sendPushToUser(user, {
+        title: '🔔 Reminder: ' + r.title,
+        body: r.description || 'Your reminder is due!',
+        tag: 'reminder-' + r.id,
+        url: '/app',
+      });
+    }
+
+    // Email notification
+    if (r.notify?.email) {
+      const s = rd(F.settings);
+      const emailData = s.emails?.[user];
+      let emails = Array.isArray(emailData) ? emailData.filter(e => e) : (emailData ? [emailData] : []);
+      if (!emails.length && s.emails?.shared) emails = [s.emails.shared];
+      for (const email of emails) {
+        await sendMail(email, '🔔 Reminder: ' + r.title,
+          `<h2 style="color:#7c3aed">🔔 ${r.title}</h2>` +
+          (r.description ? `<p>${r.description}</p>` : '') +
+          `<p style="color:#666;font-size:0.85rem">From Royal Kat &amp; Kai Vault</p>`
+        );
+      }
+    }
+
+    // Site notification via socket
+    if (r.notify?.site) {
+      io.emit('reminder-due', { id: r.id, title: r.title, description: r.description, user });
+    }
+
+    // Handle repeat
+    if (r.repeat) {
+      const d = new Date(r.datetime);
+      if (r.repeat === 'daily') d.setDate(d.getDate() + 1);
+      else if (r.repeat === 'weekly') d.setDate(d.getDate() + 7);
+      else if (r.repeat === 'monthly') d.setMonth(d.getMonth() + 1);
+      r.datetime = d.toISOString();
+      r.lastNotified = null;
+    }
+  }
+
+  if (changed) wd(F.reminders, all);
+}
+
+// Check reminders every 30 seconds
+setInterval(checkDueReminders, 30000);
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SUGGESTIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1038,13 +1199,16 @@ app.get('/api/guests', mainAuth, (_, res) => {
 
 app.post('/api/guests', mainAuth, async (req, res) => {
   const guests = rd(F.guests) || {};
-  const { name, password, expiresIn, channels } = req.body;
+  const { name, password, expiresIn, expiresAt, channels } = req.body;
   const id = uuidv4();
   const allowedChannels = Array.isArray(channels) && channels.length ? channels : ['kaliph', 'kathrine', 'group'];
+  let expiry = null;
+  if (expiresAt) { expiry = expiresAt; }
+  else if (expiresIn) { expiry = new Date(Date.now() + parseInt(expiresIn) * 3600000).toISOString(); }
   guests[id] = {
     id, name, passwordHash: await bcrypt.hash(password, 10),
     createdBy: req.session.user, createdAt: Date.now(),
-    expiresAt: expiresIn ? new Date(Date.now() + parseInt(expiresIn) * 3600000).toISOString() : null,
+    expiresAt: expiry,
     active: true, channels: allowedChannels,
     messages: { kaliph: [], kathrine: [], group: [] },
   };
@@ -1087,13 +1251,15 @@ app.post('/api/guests/:id/message', (req, res) => {
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
-  const { text, target } = req.body;
+  const { text, target, sender: clientSender } = req.body;
   // Validate channel access for guests
   if (req.session.isGuest) {
     const allowed = g.channels || ['kaliph','kathrine','group'];
     if (!allowed.includes(target)) return res.status(403).json({ error: 'No access to this channel' });
   }
-  const sender = req.session.user || g.name;  // Main user takes priority over guest session
+  // Guest sessions use client-sent name (supports renames) or fallback to stored name;
+  // Main users always use their authenticated profile name (can't be spoofed)
+  const sender = req.session.isGuest ? (clientSender || g.name) : req.session.user;
   const msg = { id: uuidv4(), sender, text, timestamp: Date.now() };
   if (!g.messages[target]) g.messages[target] = [];
   g.messages[target].push(msg);
@@ -1443,7 +1609,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       const user = parts[2]?.toLowerCase();
       const theme = parts[3]?.toLowerCase();
       if (!user || !theme) return lines('Usage: set theme <user> <theme>', 'warn');
-      const valid = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'heaven'];
+      const valid = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'heaven', 'rosewood', 'ocean', 'forest'];
       if (!valid.includes(theme)) return lines(`Invalid theme. Options: ${valid.join(', ')}`, 'error');
       const users = rd(F.users);
       if (!users[user]) return lines(`User "${user}" not found`, 'error');
@@ -1635,6 +1801,58 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       return lines('Time reset to normal', 'success');
     }
     return lines('Usage: time set <offset> | time reset', 'info');
+  }
+
+  // ── STEALTH VISUAL MODE (opens app in stealth preview) ──
+  if (cmd === 'stealth') {
+    const user = parts[1]?.toLowerCase();
+    if (!user) return lines('Usage: stealth <user> — opens the app in visual stealth mode', 'warn');
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    return {
+      lines: [
+        { text: `Opening visual stealth preview as ${users[user].displayName || user}...`, cls: 'highlight' },
+        { text: `The app will open in a new tab with the stealth banner.`, cls: 'dim' },
+      ],
+      openUrl: `/app?stealth=${user}`,
+    };
+  }
+
+  // ── SKIP SCHEDULE (abandon bell schedule for today) ──
+  if (cmd === 'skipclass' || cmd === 'skipschedule') {
+    const user = parts[1]?.toLowerCase();
+    if (!user) return lines('Usage: skipclass <user> — skip bell schedule for today', 'warn');
+    const s = rd(F.settings);
+    if (!s.bellSchedule || !s.bellSchedule[user]) return lines(`No bell schedule found for "${user}"`, 'error');
+    if (!s._scheduleSkips) s._scheduleSkips = {};
+    const today = new Date().toISOString().split('T')[0];
+    s._scheduleSkips[user] = today;
+    wd(F.settings, s);
+    io.emit('schedule-skip', { user, date: today });
+    return lines(`Schedule skipped for ${user} today (${today}). Will resume tomorrow.`, 'success');
+  }
+
+  if (cmd === 'unskipclass' || cmd === 'unskipschedule') {
+    const user = parts[1]?.toLowerCase();
+    if (!user) return lines('Usage: unskipclass <user> — restore bell schedule for today', 'warn');
+    const s = rd(F.settings);
+    if (s._scheduleSkips) { delete s._scheduleSkips[user]; wd(F.settings, s); }
+    io.emit('schedule-skip', { user, date: null });
+    return lines(`Schedule restored for ${user}.`, 'success');
+  }
+
+  // ── SET TIME (override site time for testing) ──
+  if (cmd === 'settime') {
+    const timeStr = parts.slice(1).join(' ');
+    if (!timeStr) {
+      // Clear override
+      io.emit('time-override', { time: null });
+      return lines('Time override cleared — using real time.', 'success');
+    }
+    const parsed = new Date(timeStr);
+    if (isNaN(parsed.getTime())) return lines(`Invalid date/time: "${timeStr}". Use format like "2026-03-15 14:30" or "Mar 15, 2026 2:30 PM"`, 'error');
+    io.emit('time-override', { time: parsed.toISOString() });
+    return lines(`Time override set to: ${parsed.toLocaleString()}. Use "settime" with no args to clear.`, 'success');
   }
 
   // ── BROWSE MODE (stealth read-only profile access) ──
@@ -1880,6 +2098,48 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
         ]),
       }};
     }
+    if (sub === 'archive' || sub === 'threads') {
+      const entries = Object.entries(guests);
+      if (!entries.length) return lines('No guests', 'dim');
+      const out = [{ text: `── Guest Message Archive (${entries.length} guests) ──`, cls: 'header' }];
+      entries.forEach(([id, g]) => {
+        const totalMsgs = Object.values(g.messages || {}).reduce((s, ch) => s + ch.length, 0);
+        if (!totalMsgs) return;
+        out.push({ text: `\n  ${g.name} (${id.substring(0, 8)}) — ${g.active ? 'active' : 'revoked'} — ${totalMsgs} total messages`, cls: 'highlight' });
+        Object.entries(g.messages || {}).forEach(([ch, msgs]) => {
+          if (!msgs.length) return;
+          out.push({ text: `    #${ch} (${msgs.length})`, cls: 'dim' });
+          msgs.slice(-5).forEach(m => {
+            const time = new Date(m.timestamp).toLocaleString();
+            out.push({ text: `      [${time}] ${m.sender}: ${(m.text || '').substring(0, 100)}`, cls: 'data' });
+          });
+          if (msgs.length > 5) out.push({ text: `      ... ${msgs.length - 5} older`, cls: 'dim' });
+        });
+      });
+      return { lines: out };
+    }
+    if (sub === 'messages' || sub === 'msgs') {
+      const id = parts[2];
+      if (!id) return lines('Usage: guests messages <id> [channel]', 'warn');
+      const fullId = Object.keys(guests).find(k => k.startsWith(id));
+      if (!fullId) return lines('Guest not found', 'error');
+      const g = guests[fullId];
+      const ch = parts[3]?.toLowerCase();
+      const channels = ch ? [ch] : Object.keys(g.messages || {});
+      const out = [{ text: `── Messages for ${g.name} (${fullId.substring(0, 8)}) ──`, cls: 'header' }];
+      channels.forEach(channel => {
+        const msgs = (g.messages || {})[channel] || [];
+        out.push({ text: `\n  #${channel} (${msgs.length} messages)`, cls: 'highlight' });
+        if (!msgs.length) { out.push({ text: '    (empty)', cls: 'dim' }); return; }
+        msgs.slice(-30).forEach(m => {
+          const time = new Date(m.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+          const sender = m.sender || '?';
+          out.push({ text: `    [${time}] ${sender}: ${(m.text || '').substring(0, 120)}`, cls: 'data' });
+        });
+        if (msgs.length > 30) out.push({ text: `    ... ${msgs.length - 30} older messages not shown`, cls: 'dim' });
+      });
+      return { lines: out };
+    }
     if (sub === 'revoke') {
       const id = parts[2];
       if (!id) return lines('Usage: guests revoke <id>', 'warn');
@@ -1903,7 +2163,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
         ],
       };
     }
-    return lines('Usage: guests list | guests revoke <id> | guests archive', 'warn');
+    return lines('Usage: guests list | guests archive | guests messages <id> [channel] | guests revoke <id>', 'warn');
   }
 
   // ── SUGGESTIONS ──

@@ -11,6 +11,10 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+// ── Stealth preview mode ─────────────────────────────────────────────
+let stealthMode = false;
+let stealthRealUser = null;  // The actual logged-in user when in stealth
+
 // ── Global state ─────────────────────────────────────────────────────
 let currentUser = null;
 let otherUser   = null;
@@ -77,11 +81,12 @@ const THEMES = [
   { id: 'kaliph',   name: 'AVNT Purple',       preview: 'linear-gradient(135deg,#08051a,#7c3aed,#3b82f6)' },
   { id: 'kathrine', name: 'Royal Violet',       preview: 'linear-gradient(135deg,#0d0716,#8b5cf6,#e9d5ff)' },
   { id: 'royal',    name: 'Crimson Throne',     preview: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)' },
-  { id: 'light',    name: 'Pristine Light',     preview: 'linear-gradient(135deg,#f8fafc,#6366f1,#e0e7ff)' },
-  { id: 'dark',     name: 'Midnight Dark',      preview: 'linear-gradient(135deg,#0f172a,#818cf8,#1e293b)' },
+  { id: 'light',    name: 'Pristine Light',     preview: 'linear-gradient(135deg,#f9f9f9,#d4d4d4,#e8e8e8)' },
+  { id: 'dark',     name: 'Midnight Dark',      preview: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)' },
   { id: 'heaven',   name: 'Celestial Heaven',   preview: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)' },
   { id: 'rosewood', name: 'Rose & Ember',       preview: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)' },
   { id: 'ocean',    name: 'Deep Tide',          preview: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)' },
+  { id: 'forest',   name: 'Enchanted Forest',   preview: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)' },
 ];
 
 // ── Socket ────────────────────────────────────────────────────────────
@@ -89,6 +94,7 @@ const socket = io({ reconnection: true, reconnectionDelay: 1000, reconnectionAtt
 
 // Re-join rooms on reconnect so messages keep flowing
 socket.on('connect', () => {
+  if (stealthMode) return; // Don't emit presence in stealth mode
   if (typeof currentUser === 'string' && currentUser) {
     socket.emit('user-online', { user: currentUser });
     // Sync any messages we missed during disconnection
@@ -98,14 +104,28 @@ socket.on('connect', () => {
 
 // ── Init ──────────────────────────────────────────────────────────────
 async function init() {
+  // Check for stealth preview mode (?stealth=username)
+  const urlParams = new URLSearchParams(window.location.search);
+  const stealthTarget = urlParams.get('stealth')?.toLowerCase();
+
   const r = await fetch('/api/auth/session');
   const data = await r.json();
   if (!data.authenticated || !data.user) {
     window.location.href = '/';
     return;
   }
-  currentUser = data.user;
-  otherUser   = currentUser === 'kaliph' ? 'kathrine' : 'kaliph';
+
+  // Stealth mode: view as another user without affecting their presence
+  if (stealthTarget && ['kaliph', 'kathrine'].includes(stealthTarget)) {
+    stealthMode = true;
+    stealthRealUser = data.user;
+    currentUser = stealthTarget;
+    otherUser = stealthTarget === 'kaliph' ? 'kathrine' : 'kaliph';
+    activateStealthBanner(stealthTarget);
+  } else {
+    currentUser = data.user;
+    otherUser   = currentUser === 'kaliph' ? 'kathrine' : 'kaliph';
+  }
 
   const users = await fetch('/api/users').then(r => r.json());
   applyUserData(users[currentUser], users[otherUser]);
@@ -113,14 +133,20 @@ async function init() {
   buildThemeGrid();
   populateEmojiGrid();
   setupKeyboardShortcuts();
-  setupActivityTracking();
+  if (!stealthMode) setupActivityTracking();
   setupSocketEvents();
 
-  socket.emit('user-online', { user: currentUser });
-
-  // When connecting, always show as online (override any stale stored status)
-  setStatusDot('my-status-dot', 'online');
-  updateStatusText('online');
+  // In stealth mode: don't emit presence, don't update anything
+  if (!stealthMode) {
+    socket.emit('user-online', { user: currentUser });
+    setStatusDot('my-status-dot', 'online');
+    updateStatusText('online');
+  } else {
+    // Show the target user's actual status in stealth
+    const presence = users[currentUser]?._presence || 'offline';
+    setStatusDot('my-status-dot', presence);
+    updateStatusText(presence);
+  }
 
   // Load last-read timestamp for unread tracking
   chatLastReadTs = parseInt(localStorage.getItem('chatLastReadTs_' + currentUser) || '0', 10);
@@ -137,21 +163,58 @@ async function init() {
     ).length;
     updateUnreadBadge();
   }
-  // Mark as read since chat is the default section
-  if (currentSection === 'chat') clearUnreadBadge();
+  // Mark as read since chat is the default section (skip in stealth)
+  if (currentSection === 'chat' && !stealthMode) clearUnreadBadge();
 
   checkAndShowAnnouncements();
-  requestNotificationPermission();
+  if (!stealthMode) requestNotificationPermission();
 
   // Reveal chat content now that messages are loaded (prevents flash of empty state)
   document.body.classList.add('app-loaded');
 
   // Show update log if user hasn't dismissed the latest version
-  checkAndShowUpdateLog();
+  if (!stealthMode) checkAndShowUpdateLog();
+
+  // Load bell schedule and start class updater
+  loadBellSchedule().then(() => startClassUpdater());
+
+  // Check for today's calendar events and reminders
+  checkTodayEvents();
+
+  // Load reminders and start checker
+  loadReminders().then(() => startReminderChecker());
 
   // Set up drag & drop and paste for message input
   setupDragDropPaste();
+
+  // In stealth mode, disable the input area
+  if (stealthMode) {
+    const msgInput = document.getElementById('msg-input');
+    if (msgInput) { msgInput.disabled = true; msgInput.placeholder = 'Stealth mode — read only'; }
+    const sendBtn = document.querySelector('.send-btn');
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.style.opacity = '0.3'; sendBtn.style.pointerEvents = 'none'; }
+  }
 }
+
+// ── Stealth Mode Helpers ──────────────────────────────────────────────
+function activateStealthBanner(target) {
+  document.getElementById('app').classList.add('stealth-active');
+  const banner = document.getElementById('stealth-banner');
+  if (banner) banner.style.display = '';
+  const nameEl = document.getElementById('stealth-target-name');
+  if (nameEl) nameEl.textContent = target.charAt(0).toUpperCase() + target.slice(1);
+  const select = document.getElementById('stealth-user-select');
+  if (select) select.value = target;
+}
+
+function exitStealthMode() {
+  window.location.href = '/app';
+}
+
+function switchStealthUser(user) {
+  window.location.href = '/app?stealth=' + user;
+}
+
 
 function setupDragDropPaste() {
   const inputArea = document.querySelector('.input-area');
@@ -223,6 +286,16 @@ function togglePriorityRow() {
   btn?.classList.toggle('active', showing);
 }
 
+function buildStatusText(presenceText, user) {
+  let text = presenceText;
+  const u = window._users?.[user];
+  if (u?.customStatus) {
+    const emoji = u.statusEmoji ? u.statusEmoji + ' ' : '';
+    text += ' · ' + emoji + u.customStatus;
+  }
+  return text;
+}
+
 function applyUserData(me, other) {
   // Cache user data for call overlay & notifications
   window._users = window._users || {};
@@ -260,10 +333,10 @@ function applyUserData(me, other) {
   const presence = other._presence || 'offline';
   if (presence === 'online') {
     setStatusDot('other-status-dot', 'online');
-    document.getElementById('other-status-label').textContent = 'Online';
+    document.getElementById('other-status-label').textContent = buildStatusText('Online', otherUser);
   } else if (presence === 'idle') {
     setStatusDot('other-status-dot', 'idle');
-    document.getElementById('other-status-label').textContent = 'Idle';
+    document.getElementById('other-status-label').textContent = buildStatusText('Idle', otherUser);
   } else if (other.lastSeen) {
     setStatusDot('other-status-dot', 'invisible');
     document.getElementById('other-status-label').textContent = formatLastSeen(other.lastSeen);
@@ -285,8 +358,13 @@ function applyUserData(me, other) {
   document.getElementById('profile-bio').value = me.bio || '';
   if (me.nameStyle?.color) document.getElementById('profile-name-color').value = me.nameStyle.color;
   if (me.banner) {
-    document.getElementById('banner-preview').style.display = '';
-    document.getElementById('banner-preview-img').src = me.banner;
+    const bannerEl = document.getElementById('profile-edit-banner');
+    if (bannerEl) { bannerEl.style.backgroundImage = `url(${me.banner})`; bannerEl.style.backgroundSize = 'cover'; }
+  }
+  const namePreview = document.getElementById('profile-edit-name-preview');
+  if (namePreview) {
+    namePreview.textContent = me.displayName || me.name;
+    if (me.nameStyle?.color) namePreview.style.color = me.nameStyle.color;
   }
   // Store name colors for chat rendering
   if (me.nameStyle?.color) nameColors[currentUser] = me.nameStyle.color;
@@ -325,6 +403,21 @@ function applyTheme(themeId) {
   // AVNT footer
   const footer = document.getElementById('avnt-footer');
   if (footer) footer.style.display = themeId === 'kaliph' ? 'flex' : 'none';
+  // Reposition search bar for dark theme (sidebar becomes top bar, header is hidden)
+  repositionSearchForTheme();
+}
+
+function repositionSearchForTheme() {
+  const wrap = document.getElementById('search-wrap');
+  if (!wrap) return;
+  const isDark = document.body.classList.contains('theme-dark');
+  if (isDark) {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && wrap.parentElement?.id !== 'sidebar') sidebar.appendChild(wrap);
+  } else {
+    const headerCenter = document.querySelector('.header-center');
+    if (headerCenter && !headerCenter.contains(wrap)) headerCenter.appendChild(wrap);
+  }
 }
 
 function buildThemeGrid() {
@@ -351,6 +444,7 @@ async function selectTheme(themeId) {
 // ── Navigation ────────────────────────────────────────────────────────
 let currentSection = 'chat';
 function showSection(name, el) {
+  SoundSystem.navigate();
   currentSection = name;
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -372,6 +466,7 @@ function showSection(name, el) {
   if (name === 'contacts')  loadContacts();
   if (name === 'vault')     { resetVault(); }
   if (name === 'announcements') loadAnnouncements();
+  if (name === 'reminders') loadReminders();
   if (name === 'guest-messages') {
     loadGuestMessages();
     // Clear unread for active guest
@@ -399,7 +494,7 @@ function updateUnreadBadge() {
 function clearUnreadBadge() {
   unreadCount = 0;
   chatLastReadTs = Date.now();
-  localStorage.setItem('chatLastReadTs_' + currentUser, chatLastReadTs);
+  if (!stealthMode) localStorage.setItem('chatLastReadTs_' + currentUser, chatLastReadTs);
   updateUnreadBadge();
   // Remove the NEW marker if present
   const marker = document.querySelector('.new-msg-marker');
@@ -489,24 +584,17 @@ function renderMessages(filter = null) {
     area.appendChild(buildMsgElement(msg));
   });
 
-  // Reliable scroll: use requestAnimationFrame to ensure DOM is laid out
+  // Reliable scroll: instant scroll + retry for images loading
   requestAnimationFrame(() => {
     const marker = area.querySelector('.new-msg-marker');
     if (marker) {
-      // Scroll so the NEW marker is visible near the top
-      marker.scrollIntoView({ block: 'center' });
+      marker.scrollIntoView({ behavior: 'instant', block: 'center' });
+      setTimeout(() => marker.scrollIntoView({ behavior: 'instant', block: 'center' }), 300);
+      setTimeout(() => marker.scrollIntoView({ behavior: 'instant', block: 'center' }), 800);
     } else {
-      // No unread — scroll to very bottom (last message)
       area.scrollTop = area.scrollHeight;
+      setTimeout(() => { area.scrollTop = area.scrollHeight; }, 300);
     }
-    // Double-check after a short delay (images/content may shift layout)
-    setTimeout(() => {
-      if (marker) {
-        marker.scrollIntoView({ block: 'center' });
-      } else {
-        area.scrollTop = area.scrollHeight;
-      }
-    }, 150);
   });
 }
 
@@ -580,7 +668,7 @@ function buildMsgElement(msg) {
   if (msg.priority) {
     const pb = document.createElement('div');
     pb.className = 'msg-priority-badge';
-    pb.innerHTML = '🔴 Priority';
+    pb.innerHTML = '<i data-lucide="alert-triangle" style="width:11px;height:11px"></i> Priority';
     content.appendChild(pb);
   }
 
@@ -594,7 +682,9 @@ function buildMsgElement(msg) {
     if (orig) {
       const rp = document.createElement('div');
       rp.className = 'reply-preview';
+      rp.setAttribute('data-reply-id', msg.replyTo);
       rp.textContent = (orig.text || '').substring(0, 80) + (orig.text?.length > 80 ? '…' : '');
+      rp.onclick = (e) => { e.stopPropagation(); jumpToMessage(msg.replyTo); };
       bubble.appendChild(rp);
     }
   }
@@ -757,7 +847,7 @@ if ('ontouchstart' in window) {
 }
 
 async function sendMessage() {
-  if (isSending) return;
+  if (stealthMode || isSending) return;
   hideEmojiAutocomplete();
   const input = document.getElementById('msg-input');
   // Convert any :emoji_name: shortcodes to actual emoji before sending
@@ -1163,7 +1253,7 @@ async function togglePinnedPanel() {
       ? `<img src="${senderData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
       : `<span>${(m.sender || 'U')[0].toUpperCase()}</span>`;
     const chatColor = m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : 'var(--kathrine-color, #c084fc)';
-    const text = (m.text || '').substring(0, 120) || (m.files?.length ? '📎 File' : m.voiceUrl ? '🎙️ Voice message' : '(no text)');
+    const text = m.text || (m.files?.length ? '📎 File' : m.voiceUrl ? '🎙️ Voice message' : '(no text)');
     const time = new Date(m.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
     return `<div class="pinned-item" onclick="scrollToMessage('${m.id}')">
       <div class="pinned-item-header">
@@ -1739,13 +1829,16 @@ function setupSocketEvents() {
     if (el) el.style.display = v ? 'flex' : 'none';
   });
 
-  socket.on('status-changed', ({ user, status }) => {
+  socket.on('status-changed', ({ user, status, customStatus, statusEmoji }) => {
     if (user === otherUser) {
-      // Only update if user is actually online (don't override last seen)
+      // Update cached user data for buildStatusText
+      if (window._users?.[user]) {
+        if (customStatus !== undefined) window._users[user].customStatus = customStatus;
+        if (statusEmoji !== undefined) window._users[user].statusEmoji = statusEmoji;
+      }
       setStatusDot('other-status-dot', status);
       const sLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
-      document.getElementById('other-status-label').textContent = sLabels[status] || 'Online';
-      // If they set themselves to a real status, they're active — stop last seen
+      document.getElementById('other-status-label').textContent = buildStatusText(sLabels[status] || 'Online', otherUser);
       if (status !== 'invisible') stopLastSeenUpdater();
     }
   });
@@ -1757,11 +1850,11 @@ function setupSocketEvents() {
       if (state === 'online') {
         stopLastSeenUpdater();
         setStatusDot('other-status-dot', 'online');
-        document.getElementById('other-status-label').textContent = 'Online';
+        document.getElementById('other-status-label').textContent = buildStatusText('Online', otherUser);
       } else if (state === 'idle') {
         stopLastSeenUpdater();
         setStatusDot('other-status-dot', 'idle');
-        document.getElementById('other-status-label').textContent = 'Idle';
+        document.getElementById('other-status-label').textContent = buildStatusText('Idle', otherUser);
       } else {
         // offline — show last seen
         setStatusDot('other-status-dot', 'invisible');
@@ -1774,10 +1867,13 @@ function setupSocketEvents() {
 
   // Heartbeat — update lastSeen on server every 60s, only while active
   setInterval(() => {
+    if (stealthMode) return; // Don't send heartbeats in stealth mode
     if (!_isAutoIdle) socket.emit('heartbeat', { user: currentUser });
   }, 60000);
 
   socket.on('user-updated', ({ user, data }) => {
+    // Update cached user data
+    if (window._users?.[user]) Object.assign(window._users[user], data);
     if (user === currentUser) {
       if (data.theme) applyTheme(data.theme);
       if (data.displayName) {
@@ -1792,6 +1888,17 @@ function setupSocketEvents() {
         oAvatarDiv.innerHTML = `<img src="${data.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
         if (!oWrapper.querySelector('.status-indicator')) {
           oWrapper.insertAdjacentHTML('beforeend', `<div class="status-indicator ${data.status||'online'}" id="other-status-dot"></div>`);
+        }
+      }
+      // Refresh status text with custom status
+      if (data.customStatus !== undefined || data.statusEmoji !== undefined) {
+        const label = document.getElementById('other-status-label');
+        const dot = document.getElementById('other-status-dot');
+        if (label && dot) {
+          const isOnline = dot.classList.contains('online');
+          const isIdle = dot.classList.contains('idle');
+          if (isOnline) label.textContent = buildStatusText('Online', otherUser);
+          else if (isIdle) label.textContent = buildStatusText('Idle', otherUser);
         }
       }
     }
@@ -1829,6 +1936,25 @@ function setupSocketEvents() {
 
   socket.on('calendar-updated', () => {
     if (currentSection === 'calendar') renderCalendar();
+  });
+
+  socket.on('reminder-updated', () => {
+    loadReminders();
+  });
+
+  socket.on('reminder-due', (data) => {
+    showReminderNotification(data);
+    loadReminders();
+  });
+
+  socket.on('time-override', ({ time }) => {
+    if (time) {
+      window._timeOverride = new Date(time);
+      showToast('⏰ Time override active: ' + window._timeOverride.toLocaleString());
+    } else {
+      window._timeOverride = null;
+      showToast('⏰ Time override cleared — using real time.');
+    }
   });
 
   socket.on('show-update-log', ({ target }) => {
@@ -1876,6 +2002,7 @@ function setupSocketEvents() {
 }
 
 async function markMessageRead(msgId) {
+  if (stealthMode) return; // Don't mark messages as read in stealth mode
   await fetch(`/api/messages/${msgId}/read`, { method: 'POST' });
 }
 
@@ -1930,7 +2057,8 @@ async function clearBrainstorm() {
 
 // ── Notes ─────────────────────────────────────────────────────────────
 async function loadNotes() {
-  const data = await fetch('/api/notes').then(r => r.json());
+  const url = stealthMode ? `/api/notes?viewAs=${currentUser}` : '/api/notes';
+  const data = await fetch(url).then(r => r.json());
   allNotes = data;
   renderNotesList();
 }
@@ -2007,6 +2135,7 @@ function openNote(id) {
               <span class="todo-check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
             </div>
             <span class="todo-item-text">${item.text}</span>
+            ${isOwn ? `<button class="todo-item-edit" onclick="event.stopPropagation();editTodoItem('${id}',${i})" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px"></i></button>` : ''}
             ${isOwn ? `<button class="todo-item-del" onclick="event.stopPropagation();removeTodoItem('${id}',${i})" title="Remove">✕</button>` : ''}
           </div>`).join('')}
         ${isOwn ? `<div style="margin-top:8px;display:flex;gap:6px">
@@ -2159,6 +2288,37 @@ function setupTodoDragReorder(noteId) {
   });
 }
 
+function editTodoItem(noteId, idx) {
+  const note = (allNotes.mine||[]).find(n => n.id === noteId);
+  if (!note || !note.todos[idx]) return;
+  const items = document.querySelectorAll('#todo-list-editor .todo-item');
+  const item = items[idx];
+  if (!item) return;
+  const textEl = item.querySelector('.todo-item-text');
+  if (!textEl) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = note.todos[idx].text;
+  input.style.cssText = 'flex:1;font-size:inherit;background:var(--bg-card);border:1px solid var(--accent);border-radius:6px;padding:4px 8px;color:var(--text-primary);outline:none';
+  let saved = false;
+  const save = async () => {
+    if (saved) return;
+    saved = true;
+    const newText = input.value.trim();
+    if (newText && newText !== note.todos[idx].text) {
+      note.todos[idx].text = newText;
+      await fetch(`/api/notes/${noteId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ todos: note.todos }) });
+      await loadNotes();
+    }
+    openNote(noteId);
+  };
+  input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') openNote(noteId); };
+  input.onblur = save;
+  textEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
 async function shareNote(id) {
   await fetch(`/api/notes/${id}/share`, { method: 'POST' });
   await loadNotes(); openNote(id);
@@ -2241,12 +2401,21 @@ async function renderCalendar() {
         const titleSpan = document.createElement('span');
         titleSpan.textContent = (ev.emoji || '') + ' ' + ev.title;
         el.appendChild(titleSpan);
+        const btns = document.createElement('span');
+        btns.className = 'cal-event-btns';
+        const editBtn = document.createElement('button');
+        editBtn.className = 'cal-event-edit';
+        editBtn.innerHTML = '✎';
+        editBtn.title = 'Edit event';
+        editBtn.onclick = (e) => { e.stopPropagation(); editCalEvent(ev.id); };
+        btns.appendChild(editBtn);
         const delBtn = document.createElement('button');
         delBtn.className = 'cal-event-del';
         delBtn.textContent = '✕';
         delBtn.title = 'Delete event';
         delBtn.onclick = (e) => { e.stopPropagation(); deleteCalEvent(ev.id); };
-        el.appendChild(delBtn);
+        btns.appendChild(delBtn);
+        el.appendChild(btns);
         cell.appendChild(el);
       }
     } else {
@@ -2296,14 +2465,23 @@ async function renderCalendar() {
             titleSpan.textContent = isEventStart || rowStart.getDate() === 1 ? (ev.emoji || '') + ' ' + ev.title : '';
             bar.appendChild(titleSpan);
 
-            // Delete button only on first segment
+            // Edit & delete buttons only on first segment
             if (isEventStart) {
+              const btns = document.createElement('span');
+              btns.className = 'cal-event-btns';
+              const editBtn = document.createElement('button');
+              editBtn.className = 'cal-event-edit';
+              editBtn.innerHTML = '✎';
+              editBtn.title = 'Edit event';
+              editBtn.onclick = (e) => { e.stopPropagation(); editCalEvent(ev.id); };
+              btns.appendChild(editBtn);
               const delBtn = document.createElement('button');
               delBtn.className = 'cal-event-del';
               delBtn.textContent = '✕';
               delBtn.title = 'Delete event';
               delBtn.onclick = (e) => { e.stopPropagation(); deleteCalEvent(ev.id); };
-              bar.appendChild(delBtn);
+              btns.appendChild(delBtn);
+              bar.appendChild(btns);
             }
 
             startCell.appendChild(bar);
@@ -2449,6 +2627,7 @@ async function saveEvent() {
   const end = document.getElementById('event-end-date').value || start;
   if (!title) return showToast('Event title required');
   if (!start) return showToast('Date required');
+  const reminderVal = document.getElementById('event-reminder')?.value;
   await fetch('/api/calendar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -2458,6 +2637,7 @@ async function saveEvent() {
       description: document.getElementById('event-desc').value,
       color: document.getElementById('event-color').value,
       emoji: document.getElementById('event-emoji')?.value.trim() || '',
+      reminder: reminderVal !== '' ? parseInt(reminderVal) : null,
     })
   });
   // Reset form
@@ -2478,7 +2658,211 @@ async function saveEvent() {
 async function deleteCalEvent(eventId) {
   await fetch(`/api/calendar/${eventId}`, { method: 'DELETE' });
   renderCalendar();
+  SoundSystem.deleteSnd();
   showToast('Event deleted');
+}
+
+// ── Edit Event Date Picker (EEDP) ─────────────────────────────────────
+let eedpYear, eedpMonth, eedpSelectStart = null, eedpSelectEnd = null, eedpPickerOpen = false;
+
+function toggleEditEventDatePicker() {
+  const picker = document.getElementById('edit-event-date-picker');
+  eedpPickerOpen = !eedpPickerOpen;
+  picker.style.display = eedpPickerOpen ? '' : 'none';
+  if (eedpPickerOpen) {
+    const today = new Date();
+    if (!eedpYear) { eedpYear = today.getFullYear(); eedpMonth = today.getMonth(); }
+    renderEedpGrid();
+  }
+}
+
+function eedpPrev() { eedpMonth--; if (eedpMonth < 0) { eedpMonth = 11; eedpYear--; } renderEedpGrid(); }
+function eedpNext() { eedpMonth++; if (eedpMonth > 11) { eedpMonth = 0; eedpYear++; } renderEedpGrid(); }
+
+function renderEedpGrid() {
+  document.getElementById('eedp-month-label').textContent =
+    new Date(eedpYear, eedpMonth).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  const grid = document.getElementById('eedp-grid');
+  Array.from(grid.children).slice(7).forEach(c => c.remove());
+
+  const firstDay = new Date(eedpYear, eedpMonth, 1).getDay();
+  const daysInMonth = new Date(eedpYear, eedpMonth + 1, 0).getDate();
+  const today = new Date();
+
+  for (let i = 0; i < firstDay; i++) {
+    const empty = document.createElement('div');
+    empty.className = 'edp-day edp-day-empty';
+    grid.appendChild(empty);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement('div');
+    cell.className = 'edp-day';
+    const dateStr = `${eedpYear}-${String(eedpMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+    if (d === today.getDate() && eedpMonth === today.getMonth() && eedpYear === today.getFullYear()) {
+      cell.classList.add('edp-today');
+    }
+
+    if (eedpSelectStart && eedpSelectEnd) {
+      const s = eedpSelectStart <= eedpSelectEnd ? eedpSelectStart : eedpSelectEnd;
+      const e = eedpSelectStart <= eedpSelectEnd ? eedpSelectEnd : eedpSelectStart;
+      if (dateStr === s && dateStr === e) cell.classList.add('edp-selected-single');
+      else if (dateStr === s) cell.classList.add('edp-range-start');
+      else if (dateStr === e) cell.classList.add('edp-range-end');
+      else if (dateStr > s && dateStr < e) cell.classList.add('edp-range-mid');
+    } else if (eedpSelectStart && dateStr === eedpSelectStart) {
+      cell.classList.add('edp-selected-single');
+    }
+
+    cell.textContent = d;
+    cell.onclick = () => eedpSelectDate(dateStr);
+    grid.appendChild(cell);
+  }
+}
+
+function eedpSelectDate(dateStr) {
+  if (!eedpSelectStart || eedpSelectEnd) {
+    eedpSelectStart = dateStr;
+    eedpSelectEnd = null;
+  } else {
+    if (dateStr === eedpSelectStart) {
+      eedpSelectEnd = dateStr;
+    } else if (dateStr < eedpSelectStart) {
+      eedpSelectEnd = eedpSelectStart;
+      eedpSelectStart = dateStr;
+    } else {
+      eedpSelectEnd = dateStr;
+    }
+  }
+  document.getElementById('edit-event-start-date').value = eedpSelectStart;
+  document.getElementById('edit-event-end-date').value = eedpSelectEnd || eedpSelectStart;
+  updateEditEventDateDisplay();
+  renderEedpGrid();
+}
+
+function updateEditEventDateDisplay() {
+  const display = document.getElementById('edit-event-date-display');
+  const start = eedpSelectStart;
+  const end = eedpSelectEnd || eedpSelectStart;
+  if (!start) { display.textContent = 'Select date(s)...'; display.classList.remove('has-value'); return; }
+  const fmt = (ds) => {
+    const d = new Date(ds + 'T00:00:00');
+    return d.toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+  display.textContent = (start === end || !end) ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
+  display.classList.add('has-value');
+}
+
+// ── Edit & Update Calendar Events ─────────────────────────────────────
+async function editCalEvent(eventId) {
+  const calData = await fetch('/api/calendar').then(r => r.json()).catch(() => ({}));
+  const events = calData.shared || [];
+  const ev = events.find(e => e.id === eventId);
+  if (!ev) return showToast('Event not found');
+
+  document.getElementById('edit-event-id').value = ev.id;
+  document.getElementById('edit-event-title').value = ev.title || '';
+  document.getElementById('edit-event-desc').value = ev.description || '';
+  document.getElementById('edit-event-color').value = ev.color || '#7c3aed';
+
+  const reminderSelect = document.getElementById('edit-event-reminder');
+  if (ev.reminder != null) {
+    reminderSelect.value = String(ev.reminder);
+  } else {
+    reminderSelect.value = '';
+  }
+
+  // Set up edit date picker state
+  eedpSelectStart = ev.start || ev.date;
+  eedpSelectEnd = ev.end || eedpSelectStart;
+  document.getElementById('edit-event-start-date').value = eedpSelectStart;
+  document.getElementById('edit-event-end-date').value = eedpSelectEnd;
+  updateEditEventDateDisplay();
+
+  const d = new Date(eedpSelectStart + 'T00:00:00');
+  eedpYear = d.getFullYear();
+  eedpMonth = d.getMonth();
+
+  openModal('edit-event-modal');
+  document.getElementById('edit-event-date-picker').style.display = 'none';
+  eedpPickerOpen = false;
+}
+
+async function updateCalEvent() {
+  const id = document.getElementById('edit-event-id').value;
+  const title = document.getElementById('edit-event-title').value.trim();
+  const start = document.getElementById('edit-event-start-date').value;
+  const end = document.getElementById('edit-event-end-date').value || start;
+  if (!title) return showToast('Event title required');
+  if (!start) return showToast('Date required');
+
+  const reminderVal = document.getElementById('edit-event-reminder').value;
+  await fetch(`/api/calendar/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      start,
+      end,
+      description: document.getElementById('edit-event-desc').value,
+      color: document.getElementById('edit-event-color').value,
+      reminder: reminderVal !== '' ? parseInt(reminderVal) : null,
+    })
+  });
+
+  closeModal('edit-event-modal');
+  renderCalendar();
+  showToast('Event updated!');
+}
+
+// ── Calendar Event Banner & Reminders ──────────────────────────────────
+let _eventBannerDismissed = false;
+
+async function checkTodayEvents() {
+  try {
+    const calData = await fetch('/api/calendar').then(r => r.json()).catch(() => ({}));
+    const events = calData.shared || [];
+    if (!events.length) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const todayEvents = events.filter(ev => {
+      const start = ev.start || ev.date;
+      const end = ev.end || start;
+      return start <= today && today <= end;
+    });
+
+    // Show today's events banner
+    const banner = document.getElementById('event-today-banner');
+    const textEl = document.getElementById('event-today-text');
+    if (banner && textEl && todayEvents.length > 0 && !_eventBannerDismissed) {
+      const names = todayEvents.map(e => e.title).join(', ');
+      textEl.textContent = 'Today: ' + names;
+      banner.style.display = '';
+    }
+
+    // Check reminders — show toast for events with reminders matching today (once per session)
+    const todayDate = new Date(today + 'T00:00:00');
+    events.forEach(ev => {
+      if (ev.reminder == null) return;
+      const evStart = new Date((ev.start || ev.date) + 'T00:00:00');
+      const daysUntil = Math.round((evStart - todayDate) / 86400000);
+      if (daysUntil === ev.reminder) {
+        const shownKey = 'rkk-event-reminder-shown-' + ev.id;
+        if (sessionStorage.getItem(shownKey)) return;
+        sessionStorage.setItem(shownKey, '1');
+        const when = daysUntil === 0 ? 'today' : daysUntil === 1 ? 'tomorrow' : `in ${daysUntil} days`;
+        showToast(`📅 Reminder: "${ev.title}" is ${when}!`);
+      }
+    });
+  } catch {}
+}
+
+function dismissEventBanner() {
+  _eventBannerDismissed = true;
+  const banner = document.getElementById('event-today-banner');
+  if (banner) banner.style.display = 'none';
 }
 
 // ── Vault ──────────────────────────────────────────────────────────────
@@ -3067,16 +3451,22 @@ function renderGuestChat() {
   }
 
   area.innerHTML = msgs.map((m, i) => {
-    const isSelf = m.sender === currentUser || m.sender === otherUser;
-    const senderName = m.sender === currentUser ? capitalize(currentUser) : (isSelf ? capitalize(m.sender) : escapeHtml(m.sender));
+    // Only current user's messages go on the right — other host + guest on left
+    const isSelf = m.sender === currentUser;
+    const isHost = m.sender === 'kaliph' || m.sender === 'kathrine';
+    const senderName = isHost ? capitalize(m.sender) : escapeHtml(m.sender);
     const time = new Date(m.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     const prev = msgs[i - 1];
     const sameSender = prev && prev.sender === m.sender && (m.timestamp - prev.timestamp < 120000);
-    const initial = (m.sender || 'G')[0].toUpperCase();
-    const chatColor = isSelf ? (m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : 'var(--kathrine-color, #c084fc)') : 'var(--accent)';
+    const chatColor = m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : m.sender === 'kathrine' ? 'var(--kathrine-color, #c084fc)' : 'var(--accent)';
+    // Use profile picture for host users, initial letter for guests
+    const userData = isHost && window._users ? window._users[m.sender] : null;
+    const avatarInner = userData?.avatar
+      ? `<img src="${userData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : (m.sender || 'G')[0].toUpperCase();
 
     return `<div class="guest-msg-row ${isSelf ? 'self' : ''}${sameSender ? ' same-sender' : ''}">
-      ${!isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${initial}</div>` : ''}
+      ${!isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${avatarInner}</div>` : ''}
       <div class="guest-msg-content">
         ${!sameSender ? `<div class="guest-msg-sender ${isSelf ? 'self' : ''}" style="color:${chatColor}">${senderName}</div>` : ''}
         <div class="guest-msg-bubble ${isSelf ? 'self' : 'other'}">
@@ -3084,7 +3474,7 @@ function renderGuestChat() {
           <span class="guest-msg-time">${time}</span>
         </div>
       </div>
-      ${isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${initial}</div>` : ''}
+      ${isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${avatarInner}</div>` : ''}
     </div>`;
   }).join('');
   area.scrollTop = area.scrollHeight;
@@ -3110,6 +3500,7 @@ function openSettingsModal() {
   loadSettings();
   loadGuests();
   loadSuggestions();
+  loadBellSchedule().then(() => loadBellScheduleUI());
   if (window.lucide) lucide.createIcons();
   // Close mobile sidebar when opening settings on tablet
   if (window.innerWidth <= 834) closeMobileSidebar();
@@ -3229,6 +3620,471 @@ function getEmailValues(person) {
   return Array.from(list.querySelectorAll(`input[data-person="${person}"]`)).map(i => i.value.trim());
 }
 
+// ── BELL SCHEDULE ──────────────────────────────────────────────────────────
+window._bellSchedule = null;
+window._scheduleSkips = {};
+window._countdownEnabled = true;
+let _classInterval = null;
+
+async function loadBellSchedule() {
+  try {
+    const s = await fetch('/api/settings').then(r => r.json());
+    window._bellSchedule = s.bellSchedule || { kaliph: { regular: [], lateStart: [], lateStartDay: '' }, kathrine: { regular: [], lateStart: [], lateStartDay: '' } };
+    window._scheduleSkips = s._scheduleSkips || {};
+    if (s.preferences && s.preferences[currentUser]) {
+      window._countdownEnabled = s.preferences[currentUser].countdownEnabled !== false;
+    }
+    const toggle = document.getElementById('toggle-countdown');
+    if (toggle) toggle.checked = window._countdownEnabled;
+    return window._bellSchedule;
+  } catch { return null; }
+}
+
+function loadBellScheduleUI() {
+  const bs = window._bellSchedule;
+  if (!bs) return;
+  const person = currentUser; // only show current user's schedule
+  const data = bs[person] || { regular: [], lateStart: [], lateStartDay: '' };
+  const label = document.getElementById('my-schedule-label');
+  if (label) label.textContent = (person === 'kaliph' ? "Kaliph's" : "Kathrine's") + ' Schedule';
+  // Set late day via custom select
+  const dayVal = data.lateStartDay || '';
+  setCustomSelectValue('late-day-mine', dayVal, dayVal ? dayVal.charAt(0).toUpperCase() + dayVal.slice(1) : 'None');
+  renderScheduleList('mine', 'regular', data.regular || []);
+  renderScheduleList('mine', 'lateStart', data.lateStart || []);
+}
+
+function renderScheduleList(person, type, periods) {
+  const list = document.getElementById(`schedule-list-${person}-${type}`);
+  if (!list) return;
+  if (!periods.length) { list.innerHTML = '<div style="font-size:0.78rem;color:var(--text-muted);padding:4px 0">No periods added yet.</div>'; return; }
+  list.innerHTML = periods.map((p, i) => `
+    <div class="schedule-row">
+      <input type="text" value="${escapeHtml(p.label || '')}" placeholder="Period name" data-field="label">
+      <div class="custom-time-input" data-field="start" data-value="${p.start || ''}">
+        <button type="button" class="custom-time-btn" onclick="openTimePicker(this)">${p.start ? formatTime12(p.start) : 'Start'}</button>
+      </div>
+      <div class="custom-time-input" data-field="end" data-value="${p.end || ''}">
+        <button type="button" class="custom-time-btn" onclick="openTimePicker(this)">${p.end ? formatTime12(p.end) : 'End'}</button>
+      </div>
+      <button class="email-remove-btn" onclick="removePeriodRow('${person}','${type}',${i})" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+  `).join('');
+}
+
+function switchScheduleType(person, type, btn) {
+  const group = btn.closest('.schedule-person-group');
+  group.querySelectorAll('.schedule-type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  group.querySelectorAll('.schedule-list').forEach(l => l.style.display = 'none');
+  const target = document.getElementById(`schedule-list-${person}-${type}`);
+  if (target) target.style.display = '';
+}
+
+function getActiveScheduleType(person) {
+  const group = document.getElementById(`schedule-list-${person}-regular`)?.closest('.schedule-person-group');
+  if (!group) return 'regular';
+  const activeBtn = group.querySelector('.schedule-type-btn.active');
+  return activeBtn?.textContent.trim() === 'Late Start' ? 'lateStart' : 'regular';
+}
+
+function addPeriodRow(person) {
+  const type = getActiveScheduleType(person);
+  const periods = getScheduleValues(person, type);
+  periods.push({ label: '', start: '', end: '' });
+  renderScheduleList(person, type, periods);
+  const list = document.getElementById(`schedule-list-${person}-${type}`);
+  const inputs = list?.querySelectorAll('input[type="text"]');
+  if (inputs?.length) inputs[inputs.length - 1].focus();
+}
+
+function removePeriodRow(person, type, index) {
+  const periods = getScheduleValues(person, type);
+  periods.splice(index, 1);
+  renderScheduleList(person, type, periods);
+}
+
+function getScheduleValues(person, type) {
+  const list = document.getElementById(`schedule-list-${person}-${type}`);
+  if (!list) return [];
+  return Array.from(list.querySelectorAll('.schedule-row')).map(row => ({
+    label: row.querySelector('[data-field="label"]')?.value.trim() || '',
+    start: row.querySelector('.custom-time-input[data-field="start"]')?.dataset.value || '',
+    end: row.querySelector('.custom-time-input[data-field="end"]')?.dataset.value || '',
+  }));
+}
+
+async function saveBellSchedule() {
+  // Merge with existing schedule so we don't overwrite the other user's data
+  const existing = window._bellSchedule || { kaliph: { regular: [], lateStart: [], lateStartDay: '' }, kathrine: { regular: [], lateStart: [], lateStartDay: '' } };
+  const me = currentUser;
+  const lateDayVal = getCustomSelectValue('late-day-mine');
+  existing[me] = {
+    regular: getScheduleValues('mine', 'regular'),
+    lateStart: getScheduleValues('mine', 'lateStart'),
+    lateStartDay: lateDayVal,
+  };
+  const resp = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bellSchedule: existing }) });
+  if (!resp.ok) { showToast('Failed to save schedule'); return; }
+  window._bellSchedule = existing;
+  updateClassDisplays();
+  showToast('Bell schedule saved!');
+}
+
+function toggleCountdown(el) {
+  window._countdownEnabled = el.checked;
+  fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ countdownEnabled: el.checked }) });
+  updateClassDisplays();
+}
+
+// ── CUSTOM UI COMPONENTS ──────────────────────────────────────────────────
+
+// ── Custom Select Dropdown ────────────────────────────────────────────────
+function toggleCustomSelect(id) {
+  const dropdown = document.getElementById(id + '-dropdown');
+  if (!dropdown) return;
+  const isOpen = dropdown.style.display !== 'none';
+  closeAllCustomSelects();
+  if (!isOpen) dropdown.style.display = '';
+}
+function closeAllCustomSelects() {
+  document.querySelectorAll('.custom-select-dropdown').forEach(d => d.style.display = 'none');
+}
+function selectCustomOption(id, value, label) {
+  const btn = document.getElementById(id + '-btn');
+  if (btn) btn.querySelector('.custom-select-text').textContent = label;
+  const dropdown = document.getElementById(id + '-dropdown');
+  if (dropdown) {
+    dropdown.querySelectorAll('.custom-select-option').forEach(o => o.classList.toggle('selected', o.dataset.value === value));
+    dropdown.style.display = 'none';
+  }
+  // Store value on the wrap
+  const wrap = document.getElementById(id + '-wrap');
+  if (wrap) wrap.dataset.value = value;
+}
+function getCustomSelectValue(id) {
+  const wrap = document.getElementById(id + '-wrap');
+  return wrap?.dataset.value ?? '';
+}
+function setCustomSelectValue(id, value, label) {
+  const wrap = document.getElementById(id + '-wrap');
+  if (wrap) wrap.dataset.value = value;
+  const btn = document.getElementById(id + '-btn');
+  if (btn) btn.querySelector('.custom-select-text').textContent = label;
+  const dropdown = document.getElementById(id + '-dropdown');
+  if (dropdown) dropdown.querySelectorAll('.custom-select-option').forEach(o => o.classList.toggle('selected', o.dataset.value === value));
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.custom-select-wrap')) closeAllCustomSelects();
+  if (!e.target.closest('.custom-time-picker-popup') && !e.target.closest('.custom-time-btn')) closeTimePicker();
+});
+
+// ── Custom Time Picker (for bell schedule) ────────────────────────────────
+let _activeTimePicker = null;
+function formatTime12(time24) {
+  if (!time24) return '';
+  const [h, m] = time24.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+function parseTime12(h, m, ampm) {
+  let hour = parseInt(h) || 0;
+  if (ampm === 'PM' && hour !== 12) hour += 12;
+  if (ampm === 'AM' && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, '0')}:${String(parseInt(m) || 0).padStart(2, '0')}`;
+}
+
+function openTimePicker(btnEl) {
+  closeTimePicker();
+  const wrap = btnEl.closest('.custom-time-input');
+  const currentVal = wrap.dataset.value || '';
+  let h = 12, m = 0, ampm = 'AM';
+  if (currentVal) {
+    const [hh, mm] = currentVal.split(':').map(Number);
+    ampm = hh >= 12 ? 'PM' : 'AM';
+    h = hh % 12 || 12;
+    m = mm;
+  }
+  const popup = document.createElement('div');
+  popup.className = 'custom-time-picker-popup';
+  popup.innerHTML = `
+    <div class="ctp-row">
+      <div class="ctp-spinbox">
+        <button type="button" class="ctp-spin" onclick="ctpSpin(this,'hour',1)">&#9650;</button>
+        <input type="text" class="ctp-input" data-role="hour" value="${h}" maxlength="2" onclick="this.select()">
+        <button type="button" class="ctp-spin" onclick="ctpSpin(this,'hour',-1)">&#9660;</button>
+      </div>
+      <span class="ctp-colon">:</span>
+      <div class="ctp-spinbox">
+        <button type="button" class="ctp-spin" onclick="ctpSpin(this,'minute',1)">&#9650;</button>
+        <input type="text" class="ctp-input" data-role="minute" value="${String(m).padStart(2,'0')}" maxlength="2" onclick="this.select()">
+        <button type="button" class="ctp-spin" onclick="ctpSpin(this,'minute',-1)">&#9660;</button>
+      </div>
+      <button type="button" class="ctp-ampm" onclick="ctpToggleAmPm(this)">${ampm}</button>
+    </div>
+    <button type="button" class="btn-ghost btn-sm ctp-done" onclick="ctpDone(this)">Done</button>
+  `;
+  wrap.appendChild(popup);
+  _activeTimePicker = { popup, wrap, btnEl };
+}
+function closeTimePicker() {
+  if (_activeTimePicker) {
+    _activeTimePicker.popup.remove();
+    _activeTimePicker = null;
+  }
+}
+function ctpSpin(el, role, dir) {
+  const popup = el.closest('.custom-time-picker-popup');
+  const input = popup.querySelector(`[data-role="${role}"]`);
+  let val = parseInt(input.value) || 0;
+  if (role === 'hour') { val += dir; if (val > 12) val = 1; if (val < 1) val = 12; input.value = val; }
+  else { val += dir * 5; if (val >= 60) val = 0; if (val < 0) val = 55; input.value = String(val).padStart(2, '0'); }
+}
+function ctpToggleAmPm(el) { el.textContent = el.textContent === 'AM' ? 'PM' : 'AM'; }
+function ctpDone(el) {
+  if (!_activeTimePicker) return;
+  const popup = el.closest('.custom-time-picker-popup');
+  const h = popup.querySelector('[data-role="hour"]').value;
+  const m = popup.querySelector('[data-role="minute"]').value;
+  const ampm = popup.querySelector('.ctp-ampm').textContent;
+  const time24 = parseTime12(h, m, ampm);
+  _activeTimePicker.wrap.dataset.value = time24;
+  _activeTimePicker.btnEl.textContent = formatTime12(time24);
+  _activeTimePicker.btnEl.classList.add('has-value');
+  closeTimePicker();
+}
+
+// ── Custom DateTime Picker (for reminders) ────────────────────────────────
+const _cdtpState = {};
+function initCdtp(id) {
+  if (!_cdtpState[id]) _cdtpState[id] = { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDate: null };
+}
+function toggleDatetimePicker(id) {
+  initCdtp(id);
+  const picker = document.getElementById(id + '-picker');
+  if (!picker) return;
+  const isOpen = picker.style.display !== 'none';
+  if (isOpen) { picker.style.display = 'none'; return; }
+  picker.style.display = '';
+  renderCdtpCalendar(id);
+}
+function closeDatetimePicker(id) {
+  const picker = document.getElementById(id + '-picker');
+  if (picker) picker.style.display = 'none';
+  // Commit value
+  commitDatetimeValue(id);
+}
+function commitDatetimeValue(id) {
+  initCdtp(id);
+  const st = _cdtpState[id];
+  if (!st.selectedDate) return;
+  const hEl = document.getElementById(id + '-hour');
+  const mEl = document.getElementById(id + '-minute');
+  const apEl = document.getElementById(id + '-ampm');
+  let hour = parseInt(hEl?.value) || 12;
+  const minute = parseInt(mEl?.value) || 0;
+  const ampm = apEl?.textContent || 'AM';
+  if (ampm === 'PM' && hour !== 12) hour += 12;
+  if (ampm === 'AM' && hour === 12) hour = 0;
+  const dt = new Date(st.selectedDate);
+  dt.setHours(hour, minute, 0, 0);
+  // Set the hidden input value in ISO-like format for submission
+  const isoLocal = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0') + 'T' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+  document.getElementById(id).value = isoLocal;
+  // Update button text
+  const btn = document.getElementById(id + '-btn');
+  if (btn) {
+    const h12 = dt.getHours() % 12 || 12;
+    const ap = dt.getHours() >= 12 ? 'PM' : 'AM';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    btn.querySelector('.custom-datetime-text').textContent = `${months[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()} at ${h12}:${String(dt.getMinutes()).padStart(2,'0')} ${ap}`;
+  }
+}
+function renderCdtpCalendar(id) {
+  const st = _cdtpState[id];
+  const grid = document.getElementById(id + '-grid');
+  const label = document.getElementById(id + '-month');
+  if (!grid || !label) return;
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  label.textContent = months[st.month] + ' ' + st.year;
+  // Clear day cells (keep headers)
+  const headers = grid.querySelectorAll('.cdtp-day-header');
+  grid.innerHTML = '';
+  headers.forEach(h => grid.appendChild(h));
+  const firstDay = new Date(st.year, st.month, 1).getDay();
+  const daysInMonth = new Date(st.year, st.month + 1, 0).getDate();
+  const today = new Date(); today.setHours(0,0,0,0);
+  for (let i = 0; i < firstDay; i++) { const empty = document.createElement('div'); empty.className = 'cdtp-day cdtp-day-empty'; grid.appendChild(empty); }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement('div');
+    cell.className = 'cdtp-day';
+    cell.textContent = d;
+    const cellDate = new Date(st.year, st.month, d);
+    if (cellDate.getTime() === today.getTime()) cell.classList.add('cdtp-today');
+    if (st.selectedDate && cellDate.toDateString() === st.selectedDate.toDateString()) cell.classList.add('cdtp-selected');
+    cell.onclick = () => { st.selectedDate = cellDate; renderCdtpCalendar(id); commitDatetimeValue(id); };
+    grid.appendChild(cell);
+  }
+}
+function cdtpPrev(id) { initCdtp(id); const st = _cdtpState[id]; st.month--; if (st.month < 0) { st.month = 11; st.year--; } renderCdtpCalendar(id); }
+function cdtpNext(id) { initCdtp(id); const st = _cdtpState[id]; st.month++; if (st.month > 11) { st.month = 0; st.year++; } renderCdtpCalendar(id); }
+function cdtpSpinHour(id, dir) {
+  const el = document.getElementById(id + '-hour');
+  let v = parseInt(el.value) || 12;
+  v += dir; if (v > 12) v = 1; if (v < 1) v = 12;
+  el.value = v;
+  commitDatetimeValue(id);
+}
+function cdtpSpinMinute(id, dir) {
+  const el = document.getElementById(id + '-minute');
+  let v = parseInt(el.value) || 0;
+  v += dir * 5; if (v >= 60) v = 0; if (v < 0) v = 55;
+  el.value = String(v).padStart(2, '0');
+  commitDatetimeValue(id);
+}
+function cdtpToggleAmPm(id) {
+  const el = document.getElementById(id + '-ampm');
+  el.textContent = el.textContent === 'AM' ? 'PM' : 'AM';
+  commitDatetimeValue(id);
+}
+function cdtpClampHour(id) {
+  const el = document.getElementById(id + '-hour');
+  let v = parseInt(el.value) || 12;
+  if (v < 1) v = 1; if (v > 12) v = 12;
+  el.value = v;
+  commitDatetimeValue(id);
+}
+function cdtpClampMinute(id) {
+  const el = document.getElementById(id + '-minute');
+  let v = parseInt(el.value) || 0;
+  if (v < 0) v = 0; if (v > 59) v = 59;
+  el.value = String(v).padStart(2, '0');
+  commitDatetimeValue(id);
+}
+function setDatetimePickerValue(id, date) {
+  initCdtp(id);
+  const st = _cdtpState[id];
+  st.selectedDate = new Date(date);
+  st.year = st.selectedDate.getFullYear();
+  st.month = st.selectedDate.getMonth();
+  const h = st.selectedDate.getHours();
+  const m = st.selectedDate.getMinutes();
+  const h12 = h % 12 || 12;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hEl = document.getElementById(id + '-hour');
+  const mEl = document.getElementById(id + '-minute');
+  const apEl = document.getElementById(id + '-ampm');
+  if (hEl) hEl.value = h12;
+  if (mEl) mEl.value = String(m).padStart(2, '0');
+  if (apEl) apEl.textContent = ampm;
+  commitDatetimeValue(id);
+}
+function resetDatetimePicker(id) {
+  _cdtpState[id] = { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDate: null };
+  document.getElementById(id).value = '';
+  const btn = document.getElementById(id + '-btn');
+  if (btn) btn.querySelector('.custom-datetime-text').textContent = 'Select date & time...';
+  const hEl = document.getElementById(id + '-hour');
+  const mEl = document.getElementById(id + '-minute');
+  const apEl = document.getElementById(id + '-ampm');
+  if (hEl) hEl.value = '12';
+  if (mEl) mEl.value = '00';
+  if (apEl) apEl.textContent = 'AM';
+}
+
+// ── Custom Priority Selector ──────────────────────────────────────────────
+function selectPriority(id, value) {
+  const wrap = document.getElementById(id + '-wrap');
+  if (wrap) wrap.querySelectorAll('.custom-priority-btn').forEach(b => b.classList.toggle('active', b.dataset.value === value));
+  const hidden = document.getElementById(id);
+  if (hidden) hidden.value = value;
+}
+
+// ── GET CURRENT CLASS ──────────────────────────────────────────────────────
+function getCurrentClass(username) {
+  const bs = window._bellSchedule;
+  if (!bs || !bs[username]) return null;
+  // Check if schedule is skipped today
+  const today = new Date().toISOString().split('T')[0];
+  if (window._scheduleSkips[username] === today) return null;
+  const data = bs[username];
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayName = days[new Date().getDay()];
+  // Weekend — no class
+  if (dayName === 'sunday' || dayName === 'saturday') return null;
+  const schedule = (data.lateStartDay && data.lateStartDay === dayName) ? (data.lateStart || []) : (data.regular || []);
+  if (!schedule.length) return null;
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  for (const period of schedule) {
+    if (!period.start || !period.end) continue;
+    const [sh, sm] = period.start.split(':').map(Number);
+    const [eh, em] = period.end.split(':').map(Number);
+    const startMins = sh * 60 + sm;
+    const endMins = eh * 60 + em;
+    if (nowMins >= startMins && nowMins < endMins) {
+      return { label: period.label, start: period.start, end: period.end, endMins };
+    }
+  }
+  return null;
+}
+
+function formatCountdown(endMins) {
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowSecs = now.getSeconds();
+  const totalSecsLeft = (endMins - nowMins) * 60 - nowSecs;
+  if (totalSecsLeft <= 0) return '0:00';
+  const m = Math.floor(totalSecsLeft / 60);
+  const s = totalSecsLeft % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+function updateClassDisplays() {
+  // Other user — chat header + profile
+  const otherClass = getCurrentClass(otherUser);
+  const otherLabel = document.getElementById('other-class-label');
+  if (otherLabel) otherLabel.textContent = otherClass ? '📚 ' + otherClass.label : '';
+
+  // Current user — sidebar
+  const myClass = getCurrentClass(currentUser);
+  const myLabel = document.getElementById('my-class-label');
+  if (myLabel) myLabel.textContent = myClass ? '📚 ' + myClass.label : '';
+
+  // Countdown bar — only for current user
+  const bar = document.getElementById('class-countdown-bar');
+  const textEl = document.getElementById('class-countdown-text');
+  const timerEl = document.getElementById('class-countdown-timer');
+  if (bar && textEl && timerEl) {
+    if (myClass && window._countdownEnabled) {
+      bar.style.display = '';
+      textEl.textContent = myClass.label + ' ends in';
+      timerEl.textContent = formatCountdown(myClass.endMins);
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+}
+
+function startClassUpdater() {
+  updateClassDisplays();
+  if (_classInterval) clearInterval(_classInterval);
+  // Update every second for smooth countdown
+  _classInterval = setInterval(updateClassDisplays, 1000);
+}
+
+// Listen for schedule skip from eval
+if (typeof socket !== 'undefined') {
+  socket?.on('schedule-skip', data => {
+    if (data.date) window._scheduleSkips[data.user] = data.date;
+    else delete window._scheduleSkips[data.user];
+    updateClassDisplays();
+  });
+}
+
 async function saveProfile() {
   const displayName = document.getElementById('profile-display-name').value.trim();
   const pronouns = document.getElementById('profile-pronouns').value.trim();
@@ -3301,8 +4157,8 @@ async function uploadBanner(input) {
   const r = await fetch(`/api/users/${currentUser}/banner`, { method: 'POST', body: fd });
   const d = await r.json();
   if (d.banner) {
-    document.getElementById('banner-preview').style.display = '';
-    document.getElementById('banner-preview-img').src = d.banner;
+    const bannerEl = document.getElementById('profile-edit-banner');
+    if (bannerEl) { bannerEl.style.backgroundImage = `url(${d.banner})`; bannerEl.style.backgroundSize = 'cover'; }
     showToast('🖼️ Banner updated!');
   }
 }
@@ -3340,7 +4196,9 @@ async function viewProfile(username) {
   const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
   const pvPresence = u._presence || 'offline';
   const pvStatus = pvPresence === 'online' ? 'online' : pvPresence === 'idle' ? 'idle' : 'invisible';
-  document.getElementById('pv-status-dot').style.background = statusColors[pvStatus] || '#22c55e';
+  const pvDot = document.getElementById('pv-status-dot');
+  pvDot.style.background = statusColors[pvStatus] || '#22c55e';
+  pvDot.className = 'pc-status-dot' + (pvStatus === 'online' ? ' online' : '');
   // Names
   const nameEl = document.getElementById('pv-name');
   nameEl.textContent = u.displayName || capitalize(u.name);
@@ -3369,6 +4227,14 @@ async function viewProfile(username) {
   // Custom status (legacy display — now merged into status section above)
   const csEl = document.getElementById('pv-custom-status');
   csEl.style.display = 'none'; // Hidden — shown in status section now
+  // Current class
+  const classSec = document.getElementById('pv-class-section');
+  const classText = document.getElementById('pv-class-text');
+  if (classSec && classText) {
+    const cls = getCurrentClass(username);
+    if (cls) { classSec.style.display = ''; classText.textContent = '📚 ' + cls.label + ' (' + cls.start + ' – ' + cls.end + ')'; }
+    else classSec.style.display = 'none';
+  }
   // Pronouns
   const pronounsSec = document.getElementById('pv-pronouns-section');
   if (u.pronouns) { pronounsSec.style.display = ''; document.getElementById('pv-pronouns').textContent = u.pronouns; }
@@ -3585,16 +4451,18 @@ async function loadGuests() {
     }
     return `
     <div class="guest-pass-card">
+      <div class="guest-pass-avatar"><i data-lucide="user" style="width:20px;height:20px"></i></div>
       <div class="guest-pass-info">
         <div class="guest-pass-name">${escapeHtml(g.name)}</div>
         <div class="guest-pass-meta">${expiryInfo}${g.createdBy ? ' · Created by ' + capitalize(g.createdBy) : ''}</div>
         <div class="guest-pass-channels">${badges}</div>
       </div>
       <div class="guest-pass-actions">
-        <button class="btn-danger" style="padding:6px 14px;font-size:0.78rem;border-radius:8px" onclick="revokeGuest('${g.id}','${escapeHtml(g.name)}')">Revoke</button>
+        <button class="btn-ghost guest-pass-action-btn" onclick="revokeGuest('${g.id}','${escapeHtml(g.name)}')" title="Revoke"><i data-lucide="trash-2" style="width:15px;height:15px;color:#ef4444"></i></button>
       </div>
     </div>`;
   }).join('');
+  if (window.lucide) lucide.createIcons();
   // Start countdown timers
   startGuestCountdowns();
   // Update guest-to-guest channel options in the creation form
@@ -3610,10 +4478,11 @@ function startGuestCountdowns() {
       if (diff <= 0) {
         el.innerHTML = '<span style="color:#ef4444">Expired</span>';
       } else {
-        const hrs = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+        const hrs = Math.floor((diff % 86400000) / 3600000);
         const mins = Math.floor((diff % 3600000) / 60000);
         const secs = Math.floor((diff % 60000) / 1000);
-        el.textContent = `⏱ ${hrs}h ${mins}m ${secs}s`;
+        el.textContent = days > 0 ? `⏱ ${days}d ${hrs}h ${mins}m ${secs}s` : `⏱ ${hrs}h ${mins}m ${secs}s`;
       }
     });
   }, 1000);
@@ -3625,31 +4494,49 @@ function updateGuestChannelOptions(activeGuests) {
   if (!container) return;
   container.innerHTML = '';
   activeGuests.forEach(g => {
-    container.innerHTML += `<label class="channel-perm-check"><input type="checkbox" data-guest-channel="${g.id}"> <span>Chat with ${escapeHtml(g.name)} (guest)</span></label>`;
+    container.innerHTML += `<label class="channel-perm-check"><div class="toggle-switch"><input type="checkbox" data-guest-channel="${g.id}"><span class="toggle-slider"></span></div><i data-lucide="user" style="width:14px;height:14px;color:var(--accent)"></i> <span>Chat with ${escapeHtml(g.name)} (guest)</span></label>`;
   });
+}
+
+function toggleGuestExpiryMode() {
+  const mode = document.getElementById('guest-expires-mode').value;
+  const durEl = document.getElementById('guest-expiry-duration');
+  const dtEl = document.getElementById('guest-expiry-datetime');
+  durEl.style.display = mode === 'duration' ? 'flex' : 'none';
+  dtEl.style.display = mode === 'datetime' ? 'block' : 'none';
 }
 
 async function createGuest() {
   const name = document.getElementById('guest-name').value.trim();
   const pw   = document.getElementById('guest-pw').value;
-  const exp  = document.getElementById('guest-expires').value;
   if (!name || !pw) return showToast('⚠️ Name and password required');
+  // Compute expiration
+  const mode = document.getElementById('guest-expires-mode').value;
+  let expiresAt = null;
+  if (mode === 'duration') {
+    const hrs = parseInt(document.getElementById('guest-expires-hours').value) || 0;
+    const mins = parseInt(document.getElementById('guest-expires-minutes').value) || 0;
+    if (hrs || mins) expiresAt = new Date(Date.now() + hrs * 3600000 + mins * 60000).toISOString();
+  } else if (mode === 'datetime') {
+    const dt = document.getElementById('guest-expires-at').value;
+    if (dt) expiresAt = new Date(dt).toISOString();
+  }
   const channels = [];
   if (document.getElementById('guest-perm-kaliph').checked) channels.push('kaliph');
   if (document.getElementById('guest-perm-kathrine').checked) channels.push('kathrine');
   if (document.getElementById('guest-perm-group').checked) channels.push('group');
-  // Guest-to-guest channels
   document.querySelectorAll('#guest-to-guest-perms input[data-guest-channel]').forEach(cb => {
     if (cb.checked) channels.push('guest-' + cb.dataset.guestChannel);
   });
   if (!channels.length) return showToast('⚠️ Select at least one channel');
   await fetch('/api/guests', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, password: pw, expiresIn: exp || null, channels })
+    body: JSON.stringify({ name, password: pw, expiresAt, channels })
   });
   document.getElementById('guest-name').value = '';
   document.getElementById('guest-pw').value = '';
-  document.getElementById('guest-expires').value = '';
+  document.getElementById('guest-expires-mode').value = 'never';
+  toggleGuestExpiryMode();
   document.getElementById('guest-perm-kaliph').checked = true;
   document.getElementById('guest-perm-kathrine').checked = true;
   document.getElementById('guest-perm-group').checked = true;
@@ -3774,6 +4661,7 @@ function toggleStatusMenu() {
 }
 
 async function setStatus(status) {
+  if (stealthMode) return; // Can't change status in stealth mode
   document.getElementById('status-menu').classList.remove('open');
   setStatusDot('my-status-dot', status);
   updateStatusText(status);
@@ -4542,6 +5430,9 @@ function executeSearch() {
   // Show no-search state
   if (!textQuery && !searchFilters.length) { showSearchFilters(); return; }
 
+  // Sort by newest first
+  hits.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
   const count = hits.length;
   let html = `<div class="search-results-header">
     <span class="search-results-count">${count} result${count !== 1 ? 's' : ''}</span>
@@ -4551,7 +5442,7 @@ function executeSearch() {
     html += '<div class="search-result-item"><div class="search-result-text" style="color:var(--text-muted);text-align:center">No messages found</div></div>';
   } else {
     html += hits.slice(0, 25).map(m => {
-      const time = formatTime(m.timestamp);
+      const time = formatSearchTime(m.timestamp);
       const text = highlight(m.text || '', textQuery);
       return `<div class="search-result-item" onclick="clickSearchResult('${m.id}')">
         <div class="search-result-top">
@@ -4613,7 +5504,8 @@ function setupKeyboardShortcuts() {
     if (mod && e.key === 'n') { e.preventDefault(); openModal('new-note-modal'); }
     if (mod && e.key === 'e' && focused) { e.preventDefault(); openEmojiPicker({clientX:100,clientY:400,stopPropagation:()=>{}}, 'msg'); }
     if (e.key === 'Escape') { closeAllModals(); closeContextMenu(); document.getElementById('emoji-picker').classList.remove('open'); document.getElementById('reaction-picker').classList.remove('open'); }
-    if (noMod && !focused) {
+    const anyInputFocused = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable);
+    if (noMod && !anyInputFocused) {
       if (e.key === '/') { e.preventDefault(); input.focus(); }
     }
   });
@@ -4752,11 +5644,13 @@ function checkActivity() {
 
 // Save lastSeen when user closes tab or navigates away
 window.addEventListener('beforeunload', () => {
+  if (stealthMode) return; // Don't update lastSeen in stealth mode
   navigator.sendBeacon('/api/users/' + currentUser + '/lastseen', '');
 });
 
 // Tab hidden = go idle, tab visible = come back online + sync messages
 document.addEventListener('visibilitychange', () => {
+  if (stealthMode) return; // Don't emit presence in stealth mode
   if (document.hidden) {
     if (!_isAutoIdle) {
       _isAutoIdle = 'idle';
@@ -4795,9 +5689,9 @@ async function syncMissedMessages() {
 }
 
 // ── Modal helpers ─────────────────────────────────────────────────────
-function openModal(id)  { document.getElementById(id)?.classList.add('open'); }
-function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
-function closeAllModals() { document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); }
+function openModal(id)  { document.getElementById(id)?.classList.add('open'); SoundSystem.modalOpen(); }
+function closeModal(id) { document.getElementById(id)?.classList.remove('open'); SoundSystem.modalClose(); }
+function closeAllModals() { document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); SoundSystem.modalClose(); }
 
 // Click outside modal
 document.addEventListener('click', e => {
@@ -4815,12 +5709,25 @@ document.addEventListener('click', e => {
 
 // ── Notifications + Push (Service Worker) ─────────────────────────────
 async function requestNotificationPermission() {
-  if (!('Notification' in window)) return;
+  if (!('Notification' in window)) {
+    showToast('Your browser does not support notifications');
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    showToast('Notifications are blocked. Please enable them in your browser settings.');
+    return;
+  }
   if (Notification.permission === 'default') {
     const result = await Notification.requestPermission();
-    if (result === 'granted') await registerPushSubscription();
+    if (result === 'granted') {
+      await registerPushSubscription();
+      showToast('🔔 Desktop notifications enabled!');
+    } else {
+      showToast('Notification permission was denied.');
+    }
   } else if (Notification.permission === 'granted') {
     await registerPushSubscription();
+    showToast('🔔 Desktop notifications are already enabled!');
   }
 }
 
@@ -4885,6 +5792,15 @@ function showToast(msg, duration = 3000) {
 // ── Utility ───────────────────────────────────────────────────────────
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 function formatTime(ts) { return new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); }
+function formatSearchTime(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return time;
+  const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday ' + time;
+  return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()} ${time}`;
+}
 function formatDate(ts) {
   if (!ts) return '';
   const d = new Date(ts);
@@ -4897,6 +5813,7 @@ function formatDate(ts) {
 function triggerFileUpload() { document.getElementById('file-input').click(); }
 
 async function logout() {
+  if (stealthMode) { window.location.href = '/app'; return; }
   // Immediately broadcast offline + save lastSeen before leaving
   socket.emit('user-invisible', { user: currentUser });
   navigator.sendBeacon('/api/users/' + currentUser + '/lastseen', '');
@@ -4905,10 +5822,296 @@ async function logout() {
   window.location.href = '/';
 }
 
+// ── Jump to Message (Reply click) ─────────────────────────────────────
+function jumpToMessage(msgId) {
+  const area = document.getElementById('messages-area');
+  if (!area) return;
+  const msgEl = area.querySelector(`[data-msg-id="${msgId}"]`);
+  if (msgEl) {
+    msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const bubble = msgEl.querySelector('.msg-bubble');
+    if (bubble) {
+      bubble.classList.remove('highlight-jump');
+      void bubble.offsetWidth;
+      bubble.classList.add('highlight-jump');
+      setTimeout(() => bubble.classList.remove('highlight-jump'), 1600);
+    }
+  }
+}
+
+// ── Reminders ─────────────────────────────────────────────────────────
+let _reminders = [];
+let _remindersTab = 'upcoming';
+let _reminderCheckInterval = null;
+let _remindersLoading = false;
+
+async function loadReminders() {
+  if (_remindersLoading) return;
+  _remindersLoading = true;
+  try {
+    const resp = await fetch('/api/reminders');
+    _reminders = await resp.json();
+  } catch { _reminders = []; }
+  _remindersLoading = false;
+  renderReminders();
+  updateReminderBadge();
+}
+
+function updateReminderBadge() {
+  const now = Date.now();
+  const due = _reminders.filter(r => !r.completed && new Date(r.datetime).getTime() <= now).length;
+  const badge = document.getElementById('reminders-badge');
+  if (badge) {
+    badge.textContent = due;
+    badge.style.display = due > 0 ? '' : 'none';
+  }
+}
+
+function switchRemindersTab(tab, el) {
+  _remindersTab = tab;
+  document.querySelectorAll('#section-reminders .section-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderReminders();
+}
+
+function renderReminders() {
+  const container = document.getElementById('reminders-list');
+  if (!container) return;
+
+  const now = Date.now();
+  let filtered = _reminders;
+
+  if (_remindersTab === 'upcoming') {
+    filtered = _reminders.filter(r => !r.completed).sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  } else if (_remindersTab === 'completed') {
+    filtered = _reminders.filter(r => r.completed).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+  } else {
+    filtered = [..._reminders].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  }
+
+  if (!filtered.length) {
+    const msg = _remindersTab === 'upcoming' ? 'No upcoming reminders' :
+                _remindersTab === 'completed' ? 'No completed reminders' : 'No reminders yet';
+    container.innerHTML = `<div class="empty-state">
+      <div class="empty-state-icon"><i data-lucide="bell-ring" style="width:48px;height:48px;opacity:0.4"></i></div>
+      <div class="empty-state-text">${msg}</div>
+      <div class="empty-state-sub">Create a reminder to get notified via push, email, or on-site.</div>
+    </div>`;
+    if (window.lucide) lucide.createIcons({ target: container });
+    return;
+  }
+
+  container.innerHTML = filtered.map(r => {
+    const rTime = new Date(r.datetime);
+    const isOverdue = !r.completed && rTime.getTime() <= now;
+    const timeStr = formatReminderTime(r.datetime);
+    const priorityClass = r.priority === 'high' ? ' priority-high' : r.priority === 'low' ? ' priority-low' : '';
+    const completedClass = r.completed ? ' completed' : '';
+
+    const notifyIcons = [];
+    if (r.notify?.site) notifyIcons.push('<i data-lucide="monitor" style="width:12px;height:12px"></i>');
+    if (r.notify?.push) notifyIcons.push('<i data-lucide="smartphone" style="width:12px;height:12px"></i>');
+    if (r.notify?.email) notifyIcons.push('<i data-lucide="mail" style="width:12px;height:12px"></i>');
+
+    return `<div class="reminder-card${priorityClass}${completedClass}" data-id="${r.id}">
+      <div class="reminder-check${r.completed ? ' checked' : ''}" onclick="toggleReminderComplete('${r.id}')" title="${r.completed ? 'Mark incomplete' : 'Mark complete'}">
+        ${r.completed ? '<i data-lucide="check" style="width:14px;height:14px"></i>' : ''}
+      </div>
+      <div class="reminder-body">
+        <div class="reminder-title">${escapeHtml(r.title)}</div>
+        ${r.description ? `<div class="reminder-desc">${escapeHtml(r.description)}</div>` : ''}
+        <div class="reminder-meta">
+          <span class="reminder-meta-item${isOverdue ? ' overdue' : ''}">
+            <i data-lucide="${isOverdue ? 'alert-circle' : 'clock'}" style="width:12px;height:12px"></i>
+            ${isOverdue && !r.completed ? 'Overdue · ' : ''}${timeStr}
+          </span>
+          ${r.repeat ? `<span class="reminder-meta-item"><i data-lucide="repeat" style="width:12px;height:12px"></i> ${capitalize(r.repeat)}</span>` : ''}
+          ${notifyIcons.length ? `<span class="reminder-meta-item">${notifyIcons.join(' ')}</span>` : ''}
+        </div>
+      </div>
+      <div class="reminder-actions">
+        ${!r.completed ? `<button class="reminder-action-btn" onclick="snoozeReminder('${r.id}')" title="Snooze 1 hour"><i data-lucide="alarm-clock" style="width:14px;height:14px"></i></button>` : ''}
+        <button class="reminder-action-btn" onclick="editReminder('${r.id}')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+        <button class="reminder-action-btn" onclick="deleteReminder('${r.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+
+  if (window.lucide) lucide.createIcons({ target: container });
+}
+
+function formatReminderTime(dt) {
+  const d = new Date(dt);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return 'Today ' + time;
+  const tmrw = new Date(now); tmrw.setDate(tmrw.getDate() + 1);
+  if (d.toDateString() === tmrw.toDateString()) return 'Tomorrow ' + time;
+  const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday ' + time;
+  return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()} ${time}`;
+}
+
+async function saveReminder() {
+  const title = document.getElementById('reminder-title').value.trim();
+  const datetime = document.getElementById('reminder-datetime').value;
+  if (!title) return showToast('Reminder title required');
+  if (!datetime) return showToast('Date & time required');
+
+  await fetch('/api/reminders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      description: document.getElementById('reminder-desc').value.trim(),
+      datetime: new Date(datetime).toISOString(),
+      repeat: getCustomSelectValue('reminder-repeat'),
+      notify: {
+        site: document.getElementById('reminder-notify-site').checked,
+        push: false,
+        email: document.getElementById('reminder-notify-email').checked,
+      },
+      priority: document.getElementById('reminder-priority').value,
+    }),
+  });
+
+  // Reset form
+  document.getElementById('reminder-title').value = '';
+  document.getElementById('reminder-desc').value = '';
+  document.getElementById('reminder-datetime').value = '';
+  resetDatetimePicker('reminder-datetime');
+  setCustomSelectValue('reminder-repeat', '', 'No repeat');
+  document.getElementById('reminder-notify-site').checked = true;
+  document.getElementById('reminder-notify-email').checked = false;
+  selectPriority('reminder-priority', 'normal');
+
+  closeModal('new-reminder-modal');
+  showToast('🔔 Reminder created!');
+  await loadReminders();
+}
+
+function editReminder(id) {
+  const r = _reminders.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('edit-reminder-id').value = r.id;
+  document.getElementById('edit-reminder-title').value = r.title;
+  document.getElementById('edit-reminder-desc').value = r.description || '';
+  // Set datetime via custom picker
+  const dt = new Date(r.datetime);
+  setDatetimePickerValue('edit-reminder-datetime', dt);
+  // Set repeat via custom select
+  const repeatVal = r.repeat || '';
+  const repeatLabels = { '': 'No repeat', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+  setCustomSelectValue('edit-reminder-repeat', repeatVal, repeatLabels[repeatVal] || 'No repeat');
+  document.getElementById('edit-reminder-notify-site').checked = r.notify?.site ?? true;
+  document.getElementById('edit-reminder-notify-email').checked = r.notify?.email ?? false;
+  // Set priority via custom buttons
+  selectPriority('edit-reminder-priority', r.priority || 'normal');
+  openModal('edit-reminder-modal');
+}
+
+async function updateReminder() {
+  const id = document.getElementById('edit-reminder-id').value;
+  const title = document.getElementById('edit-reminder-title').value.trim();
+  const datetime = document.getElementById('edit-reminder-datetime').value;
+  if (!title) return showToast('Title required');
+  if (!datetime) return showToast('Date & time required');
+
+  await fetch(`/api/reminders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      description: document.getElementById('edit-reminder-desc').value.trim(),
+      datetime: new Date(datetime).toISOString(),
+      repeat: getCustomSelectValue('edit-reminder-repeat'),
+      notify: {
+        site: document.getElementById('edit-reminder-notify-site').checked,
+        push: false,
+        email: document.getElementById('edit-reminder-notify-email').checked,
+      },
+      priority: document.getElementById('edit-reminder-priority').value,
+    }),
+  });
+
+  closeModal('edit-reminder-modal');
+  showToast('🔔 Reminder updated!');
+  await loadReminders();
+}
+
+async function toggleReminderComplete(id) {
+  const r = _reminders.find(x => x.id === id);
+  if (!r) return;
+  await fetch(`/api/reminders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ completed: !r.completed, completedAt: !r.completed ? Date.now() : null }),
+  });
+  await loadReminders();
+  showToast(r.completed ? '🔔 Reminder reopened' : '✅ Reminder completed!');
+}
+
+async function snoozeReminder(id) {
+  const snoozeUntil = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+  await fetch(`/api/reminders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ snoozedUntil: snoozeUntil, lastNotified: null }),
+  });
+  showToast('⏰ Snoozed for 1 hour');
+  await loadReminders();
+}
+
+async function deleteReminder(id) {
+  await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
+  SoundSystem.deleteSnd();
+  showToast('🗑️ Reminder deleted');
+  await loadReminders();
+}
+
+function showReminderNotification(data) {
+  if (data.user !== currentUser) return;
+  // Only show once per session to prevent popup spam on reload
+  const shownKey = 'rkk-reminder-toast-' + data.id;
+  if (sessionStorage.getItem(shownKey)) return;
+  sessionStorage.setItem(shownKey, '1');
+  // Create rich notification toast
+  const c = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'reminder-toast';
+  toast.innerHTML = `
+    <div class="reminder-toast-icon">🔔</div>
+    <div class="reminder-toast-body">
+      <div class="reminder-toast-title">${escapeHtml(data.title)}</div>
+      ${data.description ? `<div class="reminder-toast-desc">${escapeHtml(data.description)}</div>` : ''}
+      <div class="reminder-toast-actions">
+        <button class="reminder-toast-btn" onclick="snoozeReminder('${data.id}');this.closest('.reminder-toast').remove()">Snooze</button>
+        <button class="reminder-toast-btn" onclick="toggleReminderComplete('${data.id}');this.closest('.reminder-toast').remove()">Done</button>
+        <button class="reminder-toast-btn dismiss" onclick="this.closest('.reminder-toast').remove()">Dismiss</button>
+      </div>
+    </div>
+  `;
+  c.appendChild(toast);
+  // Auto-dismiss after 30 seconds
+  setTimeout(() => { if (toast.parentElement) toast.remove(); }, 30000);
+
+  // Also send desktop notification
+  sendDesktopNotif('🔔 Reminder: ' + data.title, data.description || 'Your reminder is due!');
+}
+
+function startReminderChecker() {
+  if (_reminderCheckInterval) clearInterval(_reminderCheckInterval);
+  _reminderCheckInterval = setInterval(() => {
+    updateReminderBadge();
+    // Re-render if on reminders tab to update overdue status
+    if (currentSection === 'reminders') renderReminders();
+  }, 30000);
+}
+
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
   {
-    version: '3.2.0',
+    version: '3.5.0',
     date: 'Mar 12 2026',
     intro: 'A huge polish & power update — Discord-style text formatting, enchanted profile cards, drag-to-reorder todos, theme builder eval commands, editable contacts, and 30+ refinements across the entire app.',
     sections: [
@@ -4954,6 +6157,98 @@ const CHANGELOG = [
       'iPad zoom prevention via touch-action and viewport meta',
       'Guest archive eval command now returns proper data',
       'Dark theme sizing fixed to fill browser with 100dvh',
+    ],
+  },
+  {
+    version: '3.4.0',
+    date: 'Mar 11 2026',
+    intro: 'Massive update — event editing, reminder fixes, modernized UI across the board, theme refinements, guest pass overhaul, and more.',
+    sections: [
+      { icon: '📅', title: 'Calendar & Events', items: [
+        { name: 'Edit Events', desc: 'Click the pencil icon on any calendar event to edit its title, dates, description, color, and reminder.' },
+        { name: 'Eval Time Override', desc: 'Set the site\'s time via eval for testing calendar events and reminders.' },
+      ]},
+      { icon: '🔔', title: 'Reminders', items: [
+        { name: 'No More Popup Spam', desc: 'Reminder and event notifications no longer re-show every time you load the site.' },
+        { name: 'Duplication Fix', desc: 'Fixed a bug where reminders could appear duplicated in the list.' },
+        { name: 'Modern Notify Toggles', desc: 'The "Notify via" checkboxes are now sleek toggle switches matching the site design.' },
+      ]},
+      { icon: '🎨', title: 'UI & Themes', items: [
+        { name: 'Priority Badge Refresh', desc: 'Priority message indicator redesigned with a clean icon-based pill instead of emoji.' },
+        { name: 'Priority Notifications UI', desc: 'Priority notification styling now matches the site\'s native design language.' },
+        { name: 'Dark Theme Chat Fix', desc: 'Main chat area on dark theme optimized for smaller screens — no more needing to zoom out on Chromebook.' },
+        { name: 'Dark Theme Chat Tab Centered', desc: 'Chat tab now properly centered on dark theme.' },
+        { name: 'Text & Font Optimization', desc: 'Optimized all text, fonts, and buttons across every theme so nothing is too bright or too dark to see.' },
+        { name: 'Kaliph\'s Theme Revamp', desc: 'Kaliph\'s AVNT theme has been visually revamped with a fresh modern look.' },
+        { name: 'Celestial Heaven Replaced', desc: 'Celestial Heaven theme has been redone with an improved design.' },
+        { name: 'Enchanted Forest Text Size', desc: 'Increased text size on the Enchanted Forest theme for better readability.' },
+        { name: 'Royal K&K Logo Sizing', desc: 'Royal K&K header logo is now bigger and more prominent on each theme.' },
+      ]},
+      { icon: '💬', title: 'Chat & Messaging', items: [
+        { name: 'Slash Commands Everywhere', desc: 'Slash key now works in all text boxes across the site, not just the main chat input.' },
+        { name: 'More Sound Effects', desc: 'Added more sound effects throughout the site for a richer audio experience.' },
+      ]},
+      { icon: '📝', title: 'Notes & Todos', items: [
+        { name: 'Stealth Mode Notes Fix', desc: 'In stealth mode, notes and todos now correctly use "My Notes" instead of the other user\'s.' },
+        { name: 'Editable Todo Items', desc: 'Todo list items can now be edited after being added — clicking opens edit mode instead of just toggling done.' },
+      ]},
+      { icon: '🔒', title: 'Settings & Security', items: [
+        { name: 'Desktop Notifications Fixed', desc: 'Desktop notifications button in settings now properly requests and enables browser notifications.' },
+        { name: 'Channel Permissions Revamp', desc: 'Revamped the channel permissions tab in guest settings with a cleaner layout.' },
+        { name: 'Guest Pass Expiration Revamp', desc: 'Guest pass expiration now allows more specific countdowns — down to minutes or a set time.' },
+        { name: 'Guest Passes Page Revamp', desc: 'Guest passes page modernized with updated UI and improved workflow.' },
+      ]},
+      { icon: '👤', title: 'Profiles & Login', items: [
+        { name: 'Profile UI Revamp', desc: 'Profile change UI has been slightly revamped for a cleaner look.' },
+        { name: 'Profile Animations', desc: 'Opening profiles now has smooth animations and a modern layout inspired by Discord.' },
+        { name: 'New Login Screen', desc: 'Fresh new login screen design.' },
+      ]},
+    ],
+  },
+  {
+    version: '3.3.0',
+    date: 'Mar 11 2026',
+    intro: 'Full reminders system with multi-channel notifications, plus click-to-jump on replied messages.',
+    sections: [
+      { icon: '🔔', title: 'Reminders', items: [
+        { name: 'Reminders Tab', desc: 'New dedicated Reminders section in the sidebar — create, edit, and manage reminders with priority levels.' },
+        { name: 'Multi-Channel Notifications', desc: 'Get notified via on-site toast, push notification, and/or email — choose per reminder.' },
+        { name: 'Snooze & Repeat', desc: 'Snooze reminders for 1 hour, or set them to repeat daily, weekly, or monthly.' },
+        { name: 'Smart Badge', desc: 'Sidebar badge shows count of overdue reminders at a glance.' },
+        { name: 'Rich Toast Notifications', desc: 'On-site reminders show as rich toasts with Snooze, Done, and Dismiss actions.' },
+      ]},
+      { icon: '💬', title: 'Chat', items: [
+        { name: 'Click to Jump on Replies', desc: 'Click a replied message preview to jump to and highlight the original message.' },
+      ]},
+    ],
+  },
+  {
+    version: '3.2.0',
+    date: 'Mar 11 2026',
+    intro: 'Bell schedules, smarter search, calendar reminders, and a bunch of quality-of-life fixes.',
+    sections: [
+      { icon: '🔔', title: 'Bell Schedule', items: [
+        { name: 'Schedule Builder', desc: 'Add your class schedule in Settings with period names and times.' },
+        { name: 'Late Start Support', desc: 'Configure a separate late-start schedule and pick your late-start day.' },
+        { name: 'Current Class Display', desc: 'Your current class shows automatically in the chat header, sidebar, and profile.' },
+        { name: 'Class Countdown Timer', desc: 'Countdown until your current class ends, shown in a bar above the chat. Toggle it off in Chat settings.' },
+        { name: 'Skip Schedule (Eval)', desc: 'Use "skipclass <user>" in eval to skip the bell schedule for a day.' },
+      ]},
+      { icon: '💬', title: 'Chat & Search', items: [
+        { name: 'Custom Status in Header', desc: 'Custom status text and emoji now show inline with presence in the chat header.' },
+        { name: 'Search: Newest First', desc: 'Search results now show latest messages at the top.' },
+        { name: 'Search: Better Times', desc: 'Search results show "Yesterday 3:30 PM" or "3/10/2026 3:30 PM" for older messages.' },
+        { name: 'Pinned Messages: Full Text', desc: 'Pinned messages panel now shows the complete message instead of truncating.' },
+        { name: 'Chat Layout: Full Width', desc: 'Chat messages now fill the full screen width in light and dark themes.' },
+        { name: 'Scroll to Last Read', desc: 'Fixed unreliable scroll position when opening the site — now reliably jumps to your last read message.' },
+      ]},
+      { icon: '📅', title: 'Calendar', items: [
+        { name: 'Event Reminders', desc: 'Set a reminder when creating events — get notified 0-7 days before.' },
+        { name: 'Today\'s Events Banner', desc: 'A subtle banner shows at the top of chat when you have events today.' },
+      ]},
+      { icon: '🎨', title: 'Dark Theme', items: [
+        { name: 'Search Bar Restored', desc: 'Search bar now appears in the dark theme horizontal top bar.' },
+      ]},
     ],
   },
   {

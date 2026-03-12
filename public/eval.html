@@ -465,6 +465,8 @@ const COMMANDS = [
   { cmd: 'preview kathrine', desc: 'Act as Kathrine', cat: 'Users' },
   { cmd: 'browse kaliph', desc: 'Stealth read-only browse Kaliph', cat: 'Users' },
   { cmd: 'browse kathrine', desc: 'Stealth read-only browse Kathrine', cat: 'Users' },
+  { cmd: 'stealth kaliph', desc: 'Visual stealth preview as Kaliph (opens app)', cat: 'Users' },
+  { cmd: 'stealth kathrine', desc: 'Visual stealth preview as Kathrine (opens app)', cat: 'Users' },
   { cmd: 'reset user kaliph', desc: 'Reset Kaliph to default profile', cat: 'Users' },
   { cmd: 'reset user kathrine', desc: 'Reset Kathrine to default profile', cat: 'Users' },
   { cmd: 'toggle gif kaliph', desc: 'Toggle GIF for Kaliph', cat: 'Users' },
@@ -495,6 +497,8 @@ const COMMANDS = [
   { cmd: 'vault list kaliph', desc: 'List Kaliph vault items', cat: 'Data' },
   { cmd: 'delete vault-item ', desc: 'Delete a vault item by ID', cat: 'Data' },
   { cmd: 'guests list', desc: 'List all guests', cat: 'Data' },
+  { cmd: 'guests archive', desc: 'View all guest message threads', cat: 'Data' },
+  { cmd: 'guests messages ', desc: 'View guest messages (guests messages <id> [channel])', cat: 'Data' },
   { cmd: 'guests revoke ', desc: 'Revoke a guest by ID', cat: 'Data' },
   { cmd: 'suggestions list', desc: 'List all suggestions', cat: 'Data' },
   { cmd: 'delete suggestion ', desc: 'Delete a suggestion by ID', cat: 'Data' },
@@ -759,6 +763,7 @@ async function execCommand(raw) {
     if (d.table) printTable(d.table.headers, d.table.rows);
     if (d.messages) renderEditMessages(d.messages);
     if (d.html) printHTML(d.html);
+    if (d.openUrl) window.open(d.openUrl, '_blank');
   } catch (e) {
     print('Network error: ' + e.message, 'error');
   }
@@ -832,11 +837,14 @@ function showHelp() {
       ['set bio <user> <text>', 'Set bio'],
       ['set status <user> <s>', 'online/idle/dnd/invisible'],
       ['set custom-status <user> <msg>', 'Set custom status message'],
-      ['set theme <user> <t>', 'kaliph/kathrine/royal/dark/light/heaven'],
+      ['set theme <user> <t>', 'kaliph/kathrine/royal/dark/light/heaven/rosewood/ocean/forest'],
       ['set pronouns <user> <t>', 'Set pronouns'],
       ['set avatar <user> clear', 'Clear avatar'],
       ['set banner <user> clear', 'Clear banner'],
       ['force presence <user> <s>', 'Force online/idle/offline'],
+      ['preview <user>', 'Act as user'],
+      ['browse <user>', 'Stealth read-only in terminal'],
+      ['stealth <user>', 'Visual stealth preview (opens app)'],
       ['reset user <user>', 'Reset profile to defaults'],
       ['toggle gif <user>', 'Toggle GIF feature'],
       ['toggle wallpaper <user>', 'Toggle wallpaper'],
@@ -861,6 +869,8 @@ function showHelp() {
       ['vault list [user]', 'List locker items'],
       ['delete vault-item <id>', 'Delete locker item'],
       ['guests list', 'List guests'],
+      ['guests archive', 'View all guest threads'],
+      ['guests messages <id> [ch]', 'View guest messages'],
       ['guests revoke <id>', 'Revoke guest'],
       ['guests archive', 'List archived/revoked guests'],
       ['suggestions list', 'List suggestions'],
