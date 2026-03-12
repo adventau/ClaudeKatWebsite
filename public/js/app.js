@@ -429,19 +429,37 @@ function applyUserData(me, other) {
 
 function applyTheme(themeId) {
   const body = document.body;
-  THEMES.forEach(t => body.classList.remove('theme-' + t.id));
-  body.classList.add('theme-' + (themeId || 'dark'));
-  try { localStorage.setItem('rkk-theme', themeId || 'dark'); } catch {}
-  SoundSystem.setTheme(themeId || 'dark');
-  // Mark active in grid
-  document.querySelectorAll('.theme-card').forEach(c => {
-    c.classList.toggle('active', c.dataset.theme === themeId);
+  const id = themeId || 'dark';
+
+  // Suppress per-element transitions so nothing animates piecemeal
+  body.classList.add('theme-switching');
+  // Instantly hide the page, swap everything while invisible, then fade back in
+  body.style.transition = 'none';
+  body.style.opacity = '0';
+
+  requestAnimationFrame(() => {
+    // All changes happen in one frame while body is invisible
+    THEMES.forEach(t => body.classList.remove('theme-' + t.id));
+    body.classList.add('theme-' + id);
+    try { localStorage.setItem('rkk-theme', id); } catch {}
+    SoundSystem.setTheme(id);
+    document.querySelectorAll('.theme-card').forEach(c => {
+      c.classList.toggle('active', c.dataset.theme === id);
+    });
+    const footer = document.getElementById('avnt-footer');
+    if (footer) footer.style.display = id === 'kaliph' ? 'flex' : 'none';
+    repositionSearchForTheme();
+
+    // Fade back in smoothly
+    requestAnimationFrame(() => {
+      body.style.transition = 'opacity 0.18s ease';
+      body.style.opacity = '1';
+      setTimeout(() => {
+        body.style.transition = '';
+        body.classList.remove('theme-switching');
+      }, 200);
+    });
   });
-  // AVNT footer
-  const footer = document.getElementById('avnt-footer');
-  if (footer) footer.style.display = themeId === 'kaliph' ? 'flex' : 'none';
-  // Reposition search bar for dark theme (sidebar becomes top bar, header is hidden)
-  repositionSearchForTheme();
 }
 
 function repositionSearchForTheme() {
@@ -4453,7 +4471,7 @@ async function viewProfile(username) {
   const classText = document.getElementById('pv-class-text');
   if (classSec && classText) {
     const cls = getCurrentClass(username);
-    if (cls) { classSec.style.display = ''; classText.textContent = '📚 ' + cls.label + ' (' + cls.start + ' – ' + cls.end + ')'; }
+    if (cls) { classSec.style.display = ''; classText.textContent = '📚 ' + cls.label + ' (' + formatTime12(cls.start) + ' – ' + formatTime12(cls.end) + ')'; }
     else classSec.style.display = 'none';
   }
   // Pronouns
