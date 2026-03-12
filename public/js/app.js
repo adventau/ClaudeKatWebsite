@@ -1632,13 +1632,32 @@ function fmtAudioTime(s) {
 }
 
 // ── GIF Search ────────────────────────────────────────────────────────
+let activeGifTab = 'trending';
+let gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+
 function openGifSearch() {
   openModal('gif-modal');
-  const grid = document.getElementById('gif-grid');
   const input = document.getElementById('gif-search-input');
   if (input) input.value = '';
-  // Load trending GIFs on open
-  loadTrendingGifs();
+  switchGifTab(activeGifTab, true);
+}
+
+function switchGifTab(tab, force = false) {
+  if (activeGifTab === tab && !force) return;
+  activeGifTab = tab;
+  document.querySelectorAll('.gif-tab').forEach(b => {
+    b.classList.toggle('gif-tab-active', b.dataset.tab === tab);
+  });
+  // Clear search input when switching tabs
+  const input = document.getElementById('gif-search-input');
+  if (input) input.value = '';
+  if (tab === 'trending') {
+    loadTrendingGifs();
+  } else if (tab === 'favorites') {
+    loadGifFavorites();
+  } else {
+    loadGifCategory(tab);
+  }
 }
 
 let gifTimeout = null;
@@ -1654,9 +1673,37 @@ async function loadTrendingGifs() {
   }
 }
 
+async function loadGifCategory(cat) {
+  const grid = document.getElementById('gif-grid');
+  grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Loading…</p>';
+  try {
+    const r = await fetch(`/api/gif-search?q=${encodeURIComponent(cat)}`);
+    const d = await r.json();
+    renderGifResults(d.results || []);
+  } catch {
+    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
+  }
+}
+
+function loadGifFavorites() {
+  gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+  if (!gifFavorites.length) {
+    document.getElementById('gif-grid').innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">No favorites yet — hover a GIF and click ♥ to save it</p>';
+    return;
+  }
+  renderGifResults(gifFavorites);
+}
+
 function searchGifs(q) {
   clearTimeout(gifTimeout);
-  if (!q.trim()) { loadTrendingGifs(); return; }
+  if (!q.trim()) {
+    // Restore current tab on clear
+    if (activeGifTab === 'trending') loadTrendingGifs();
+    else if (activeGifTab === 'favorites') loadGifFavorites();
+    else loadGifCategory(activeGifTab);
+    return;
+  }
+  // Show search results regardless of active tab (but keep tab highlighted)
   gifTimeout = setTimeout(async () => {
     const grid = document.getElementById('gif-grid');
     grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Searching…</p>';
@@ -1667,7 +1714,7 @@ function searchGifs(q) {
     } catch {
       grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">GIF search failed</p>';
     }
-  }, 400);
+  }, 350);
 }
 
 function renderGifResults(results) {
@@ -1676,9 +1723,35 @@ function renderGifResults(results) {
     grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">No GIFs found</p>';
     return;
   }
-  grid.innerHTML = results.map(g =>
-    `<img src="${g.preview || g.url}" data-full="${g.url}" style="width:100%;border-radius:8px;cursor:pointer;aspect-ratio:${g.width || 200}/${g.height || 200};object-fit:cover" onclick="sendGif('${g.url}')" loading="lazy">`
-  ).join('');
+  gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+  grid.innerHTML = results.map(g => {
+    const isFav = gifFavorites.some(f => f.url === g.url);
+    const safeUrl = g.url.replace(/'/g, '%27');
+    const safePreview = (g.preview || g.url).replace(/'/g, '%27');
+    return `<div class="gif-item" style="position:relative;border-radius:8px;overflow:hidden;cursor:pointer" onclick="sendGif('${safeUrl}')">
+      <img src="${safePreview}" data-full="${safeUrl}" style="width:100%;display:block;aspect-ratio:${g.width || 200}/${g.height || 200};object-fit:cover" loading="lazy">
+      <button class="gif-fav-btn ${isFav ? 'gif-fav-active' : ''}" onclick="toggleGifFavorite(event,'${safeUrl}','${safePreview}',${g.width||200},${g.height||200})" title="${isFav ? 'Remove favorite' : 'Add to favorites'}">♥</button>
+    </div>`;
+  }).join('');
+}
+
+function toggleGifFavorite(e, url, preview, width, height) {
+  e.stopPropagation();
+  gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+  const idx = gifFavorites.findIndex(f => f.url === url);
+  if (idx >= 0) {
+    gifFavorites.splice(idx, 1);
+  } else {
+    gifFavorites.unshift({ url, preview, width, height });
+  }
+  localStorage.setItem('rkk-gif-favorites', JSON.stringify(gifFavorites));
+  // Update just this button
+  const btn = e.currentTarget;
+  const isFav = idx < 0; // was added
+  btn.classList.toggle('gif-fav-active', isFav);
+  btn.title = isFav ? 'Remove favorite' : 'Add to favorites';
+  // If on favorites tab, re-render to reflect removal
+  if (activeGifTab === 'favorites') loadGifFavorites();
 }
 
 async function sendGif(url) {
@@ -5678,23 +5751,26 @@ function setupKeyboardShortcuts() {
 
   // Typing emit + emoji autocomplete
   let typingTimeout;
+  let emojiACTimeout;
   document.getElementById('msg-input')?.addEventListener('input', (e) => {
     socket.emit('typing', { user: currentUser });
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => socket.emit('stop-typing', { user: currentUser }), 1500);
     autoResizeInput();
-    // Show emoji autocomplete when typing :name
-    showEmojiAutocomplete(e.target);
-  });
+    // Debounce emoji autocomplete slightly to avoid searching on every keystroke
+    clearTimeout(emojiACTimeout);
+    const target = e.target;
+    emojiACTimeout = setTimeout(() => showEmojiAutocomplete(target), 80);
+  }, { passive: true });
 
-  // Jump-to-latest scroll detection
+  // Jump-to-latest scroll detection (passive for better performance)
   const msgArea = document.getElementById('messages-area');
   const jumpBtn = document.getElementById('jump-to-latest');
   if (msgArea && jumpBtn) {
     msgArea.addEventListener('scroll', () => {
       const distFromBottom = msgArea.scrollHeight - msgArea.scrollTop - msgArea.clientHeight;
       jumpBtn.classList.toggle('show', distFromBottom > 300);
-    });
+    }, { passive: true });
   }
 
   setupSearch();
@@ -5705,10 +5781,16 @@ function jumpToLatest() {
   if (area) area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
 }
 
+let _autoResizeRAF = null;
 function autoResizeInput() {
-  const t = document.getElementById('msg-input');
-  t.style.height = 'auto';
-  t.style.height = Math.min(t.scrollHeight, 120) + 'px';
+  if (_autoResizeRAF) return;
+  _autoResizeRAF = requestAnimationFrame(() => {
+    _autoResizeRAF = null;
+    const t = document.getElementById('msg-input');
+    if (!t) return;
+    t.style.height = 'auto';
+    t.style.height = Math.min(t.scrollHeight, 120) + 'px';
+  });
 }
 
 function resetInputHeight() {
@@ -6265,6 +6347,26 @@ function startReminderChecker() {
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
   {
+    version: '3.6.0',
+    date: 'Mar 12 2026',
+    intro: 'GIF categories, hover favorites, Chromebook typing speed improvements, and a cleaner update log.',
+    sections: [
+      { icon: '🎬', title: 'GIFs', items: [
+        { name: 'GIF Categories', desc: 'GIF picker now has tabs — Trending, Favorites, Reactions, Anime, Memes, and Gaming.' },
+        { name: 'Hover to Favorite', desc: 'Hover over any GIF and click the ♥ button to save it to your Favorites tab.' },
+        { name: 'Favorites Tab', desc: 'Access all your saved GIFs instantly from the Favorites tab.' },
+      ]},
+      { icon: '⚡', title: 'Performance', items: [
+        { name: 'Faster Typing', desc: 'Input box resize is now deferred with requestAnimationFrame — no more layout jank while typing on Chromebook.' },
+        { name: 'Passive Scroll', desc: 'Scroll listeners are now passive, reducing stutter when scrolling through messages.' },
+        { name: 'Emoji Autocomplete Debounce', desc: 'Emoji autocomplete search is debounced so it no longer runs on every single keystroke.' },
+      ]},
+      { icon: '🗒️', title: 'Update Log', items: [
+        { name: 'Latest Only', desc: 'Update log on login now shows only the most recent update instead of stacking all unseen ones.' },
+      ]},
+    ],
+  },
+  {
     version: '3.5.0',
     date: 'Mar 12 2026',
     intro: 'A huge polish & power update — Discord-style text formatting, enchanted profile cards, drag-to-reorder todos, theme builder eval commands, editable contacts, and 30+ refinements across the entire app.',
@@ -6579,21 +6681,8 @@ function checkAndShowUpdateLog() {
   const dismissed = localStorage.getItem(key);
   if (dismissed === CHANGELOG[0].version) return;
 
-  // Find all unseen versions (everything newer than what was dismissed)
-  const unseen = dismissed
-    ? CHANGELOG.filter((_, i) => i < CHANGELOG.findIndex(c => c.version === dismissed))
-    : CHANGELOG;
-  if (!unseen.length) return;
-
   const container = document.getElementById('update-log-content');
-  let html = '';
-
-  unseen.forEach((entry, idx) => {
-    if (idx > 0) html += `<hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0">`;
-    html += renderChangelogEntry(entry);
-  });
-
-  container.innerHTML = html;
+  container.innerHTML = renderChangelogEntry(CHANGELOG[0]);
   openModal('update-log-modal');
 }
 

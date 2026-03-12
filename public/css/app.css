@@ -1418,6 +1418,29 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
 }
 .modal-title { font-family: var(--font-heading); font-size: 1rem; font-weight: 700; letter-spacing: 0.02em; }
 
+/* ── GIF PICKER ─────────────────────────────────────────────────── */
+.gif-tab {
+  padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-muted); font-size: 0.78rem;
+  cursor: pointer; transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.gif-tab:hover { background: var(--bg-hover); color: var(--text); }
+.gif-tab-active { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; }
+
+.gif-item .gif-fav-btn {
+  position: absolute; top: 4px; right: 4px;
+  width: 26px; height: 26px; border-radius: 50%;
+  border: none; cursor: pointer;
+  background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.5);
+  font-size: 0.95rem; display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.15s, color 0.15s, transform 0.15s;
+  pointer-events: none;
+}
+.gif-item:hover .gif-fav-btn { opacity: 1; pointer-events: auto; }
+.gif-fav-btn:hover { transform: scale(1.15); color: #ff6b81; }
+.gif-fav-btn.gif-fav-active { color: #ff6b81; opacity: 1; pointer-events: auto; }
+
 /* ── PROMPT DIALOG (edit message, etc) ──────────────────────────── */
 .prompt-card {
   background: var(--bg-modal, var(--bg-sidebar));
