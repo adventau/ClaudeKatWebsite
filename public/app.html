@@ -1432,15 +1432,23 @@
 
 <!-- GIF Search Modal -->
 <div class="modal-overlay" id="gif-modal">
-  <div class="modal">
+  <div class="modal" style="width:min(480px,96vw)">
     <div class="modal-header">
-      <span class="modal-title">GIF Search</span>
+      <span class="modal-title">GIFs</span>
       <button class="btn-icon" onclick="closeModal('gif-modal')">✕</button>
     </div>
-    <div class="form-row">
-      <input type="text" id="gif-search-input" placeholder="Search GIFs…" oninput="searchGifs(this.value)">
+    <div class="form-row" style="margin-bottom:0.4rem">
+      <input type="text" id="gif-search-input" placeholder="Search GIFs…" oninput="searchGifs(this.value)" autocomplete="off">
     </div>
-    <div id="gif-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-height:320px;overflow-y:auto;margin-top:0.5rem;padding:2px">
+    <div id="gif-category-tabs" style="display:flex;gap:4px;flex-wrap:wrap;padding:2px 0 6px;border-bottom:1px solid var(--border);margin-bottom:6px">
+      <button class="gif-tab gif-tab-active" data-tab="trending" onclick="switchGifTab('trending')">🔥 Trending</button>
+      <button class="gif-tab" data-tab="favorites" onclick="switchGifTab('favorites')">⭐ Favorites</button>
+      <button class="gif-tab" data-tab="reactions" onclick="switchGifTab('reactions')">😂 Reactions</button>
+      <button class="gif-tab" data-tab="anime" onclick="switchGifTab('anime')">✨ Anime</button>
+      <button class="gif-tab" data-tab="memes" onclick="switchGifTab('memes')">😴 Memes</button>
+      <button class="gif-tab" data-tab="gaming" onclick="switchGifTab('gaming')">🎮 Gaming</button>
+    </div>
+    <div id="gif-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-height:320px;overflow-y:auto;padding:2px">
       <p style="grid-column:1/-1;color:var(--text-muted);font-size:0.85rem;text-align:center">Loading trending GIFs…</p>
     </div>
   </div>
