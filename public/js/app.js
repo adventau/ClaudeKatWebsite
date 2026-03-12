@@ -1651,12 +1651,13 @@ function switchGifTab(tab, force = false) {
   // Clear search input when switching tabs
   const input = document.getElementById('gif-search-input');
   if (input) input.value = '';
+  const categoryQueries = { scandal: 'scandal tv show olivia pope' };
   if (tab === 'trending') {
     loadTrendingGifs();
   } else if (tab === 'favorites') {
     loadGifFavorites();
   } else {
-    loadGifCategory(tab);
+    loadGifCategory(categoryQueries[tab] || tab);
   }
 }
 
