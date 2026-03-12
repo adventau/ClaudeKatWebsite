@@ -625,7 +625,7 @@ function buildMsgElement(msg) {
     row.id = 'msg-' + msg.id;
     const pinnerName = capitalize(msg.pinnedBy || 'someone');
     row.innerHTML = `<div class="pin-notice">
-      <span class="pin-notice-icon"><i data-lucide="pin" style="width:13px;height:13px"></i></span>
+      <span class="pin-notice-icon"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg></span>
       <span class="pin-notice-text"><a href="#" onclick="scrollToMessage('${msg.pinnedMsgId}');return false" class="pin-notice-link">New message pinned</a> by <strong>${escapeHtml(pinnerName)}</strong></span>
     </div>`;
     return row;
@@ -775,7 +775,7 @@ function buildMsgElement(msg) {
   if (msg.pinned) {
     const pin = document.createElement('div');
     pin.className = 'msg-pinned-indicator';
-    pin.innerHTML = '<i data-lucide="pin" style="width:11px;height:11px"></i> Pinned';
+    pin.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg> Pinned';
     bubble.insertBefore(pin, bubble.firstChild);
   }
 
@@ -793,20 +793,28 @@ function buildMsgElement(msg) {
   // Hover action bar (iMessage / Discord style)
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
-  const unsendBtn = (isSelf && msg.unsendable) ? `<button class="msg-action-btn msg-unsend-btn" data-msg-id="${msg.id}" onclick="quickUnsend('${msg.id}')" title="Unsend"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>` : '';
+  // Inline SVGs to avoid per-message lucide.createIcons() (major perf bottleneck)
+  const _s = 'xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+  const svgSmile = `<svg ${_s}><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/><path d="M20 9V7a2 2 0 0 0-2-2h0"/></svg>`;
+  const svgReply = `<svg ${_s}><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>`;
+  const svgPin = `<svg ${_s}><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
+  const svgPinOff = `<svg ${_s}><line x1="2" x2="22" y1="2" y2="22"/><line x1="12" x2="12" y1="17" y2="22"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h12"/><path d="M15 9.34V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0-1.4.58"/></svg>`;
+  const svgCopy = `<svg ${_s}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
+  const svgPencil = `<svg ${_s}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>`;
+  const svgTrash = `<svg ${_s}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
+  const unsendBtn = (isSelf && msg.unsendable) ? `<button class="msg-action-btn msg-unsend-btn" data-msg-id="${msg.id}" onclick="quickUnsend('${msg.id}')" title="Unsend">${svgTrash}</button>` : '';
   const pinBtn = msg.pinned
-    ? `<button class="msg-action-btn" onclick="unpinMessage('${msg.id}')" title="Unpin"><i data-lucide="pin-off" style="width:14px;height:14px"></i></button>`
-    : `<button class="msg-action-btn" onclick="pinMessage('${msg.id}')" title="Pin"><i data-lucide="pin" style="width:14px;height:14px"></i></button>`;
+    ? `<button class="msg-action-btn" onclick="unpinMessage('${msg.id}')" title="Unpin">${svgPinOff}</button>`
+    : `<button class="msg-action-btn" onclick="pinMessage('${msg.id}')" title="Pin">${svgPin}</button>`;
   actions.innerHTML = `
-    <button class="msg-action-btn react-trigger" onclick="showQuickReact('${msg.id}', this)" title="React"><i data-lucide="smile-plus" style="width:14px;height:14px"></i></button>
-    <button class="msg-action-btn" onclick="setReply('${msg.id}')" title="Reply"><i data-lucide="reply" style="width:14px;height:14px"></i></button>
+    <button class="msg-action-btn react-trigger" onclick="showQuickReact('${msg.id}', this)" title="React">${svgSmile}</button>
+    <button class="msg-action-btn" onclick="setReply('${msg.id}')" title="Reply">${svgReply}</button>
     ${pinBtn}
-    <button class="msg-action-btn" onclick="copyMsgText('${msg.id}')" title="Copy"><i data-lucide="copy" style="width:14px;height:14px"></i></button>
-    ${isSelf ? `<button class="msg-action-btn" onclick="ctxMsgId='${msg.id}';ctxEdit()" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>` : ''}
+    <button class="msg-action-btn" onclick="copyMsgText('${msg.id}')" title="Copy">${svgCopy}</button>
+    ${isSelf ? `<button class="msg-action-btn" onclick="ctxMsgId='${msg.id}';ctxEdit()" title="Edit">${svgPencil}</button>` : ''}
     ${unsendBtn}
   `;
   content.appendChild(actions);
-  if (window.lucide) lucide.createIcons({ node: actions });
 
   // Reactions
   if (msg.reactions && Object.keys(msg.reactions).length > 0) {
@@ -1051,8 +1059,10 @@ function showContextMenu(e, msg) {
   unsendBtn.style.display = (msg.sender === currentUser && msg.unsendable) ? '' : 'none';
   // Pin/unpin toggle
   if (pinBtn) {
-    pinBtn.innerHTML = msg.pinned ? '<i data-lucide="pin-off" style="width:13px;height:13px"></i> Unpin Message' : '<i data-lucide="pin" style="width:13px;height:13px"></i> Pin Message';
-    if (window.lucide) lucide.createIcons({ node: pinBtn });
+    const _ps = 'xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    pinBtn.innerHTML = msg.pinned
+      ? `<svg ${_ps}><line x1="2" x2="22" y1="2" y2="22"/><line x1="12" x2="12" y1="17" y2="22"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h12"/><path d="M15 9.34V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0-1.4.58"/></svg> Unpin Message`
+      : `<svg ${_ps}><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg> Pin Message`;
     pinBtn.onclick = () => { msg.pinned ? ctxUnpin() : ctxPin(); };
   }
 
@@ -1788,7 +1798,7 @@ function setupSocketEvents() {
       if (bubble && !bubble.querySelector('.msg-pinned-indicator')) {
         const pin = document.createElement('div');
         pin.className = 'msg-pinned-indicator';
-        pin.innerHTML = '<i data-lucide="pin" style="width:11px;height:11px"></i> Pinned';
+        pin.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg> Pinned';
         bubble.insertBefore(pin, bubble.firstChild);
       }
     }
