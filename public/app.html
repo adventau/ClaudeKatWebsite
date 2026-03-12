@@ -347,7 +347,7 @@
     <!-- ── VAULT ─────────────────────────────────────────────── -->
     <section id="section-vault" class="section">
       <div id="vault-lock-screen" class="vault-passcode-screen">
-        <div style="font-size:3rem">🔒</div>
+        <div style="width:48px;height:48px;margin:0 auto"><i data-lucide="lock" style="width:48px;height:48px;color:var(--accent)"></i></div>
         <h2>Document Locker</h2>
         <p style="color:var(--text-muted);font-size:0.875rem;text-align:center">Enter your 4-digit passcode</p>
         <div class="passcode-input" id="passcode-dots">
@@ -698,8 +698,8 @@
         <!-- Security tab -->
         <div class="settings-panel" id="tab-security">
           <div class="settings-section">
-            <h3>Vault Passcode</h3>
-            <div class="form-row"><label>New 4-digit Vault Passcode</label><input type="tel" id="new-vault-passcode" placeholder="4 digits" maxlength="4" inputmode="numeric" pattern="[0-9]*"></div>
+            <h3>Locker Passcode</h3>
+            <div class="form-row"><label>New 4-digit Locker Passcode</label><input type="tel" id="new-vault-passcode" placeholder="4 digits" maxlength="4" inputmode="numeric" pattern="[0-9]*"></div>
             <button class="btn-primary" onclick="changeVaultPasscode()">Update Passcode</button>
           </div>
           <div class="settings-section">
@@ -1257,11 +1257,11 @@
 <div class="modal-overlay" id="vault-upload-modal">
   <div class="modal">
     <div class="modal-header">
-      <span class="modal-title">🔒 Add to Vault</span>
+      <span class="modal-title"><i data-lucide="lock" style="width:16px;height:16px;display:inline"></i> Add to Locker</span>
       <button class="btn-icon" onclick="closeModal('vault-upload-modal')">✕</button>
     </div>
     <div class="dropzone" id="vault-dropzone" onclick="document.getElementById('vault-file-input').click()">
-      <div class="dropzone-icon">📁</div>
+      <div class="dropzone-icon"><i data-lucide="upload-cloud" style="width:32px;height:32px;color:var(--accent)"></i></div>
       <div class="dropzone-text">Drop files here or click to upload<br><small style="color:var(--text-muted)">Images, videos, PDFs, docs, and more</small></div>
     </div>
     <input type="file" id="vault-file-input" multiple style="display:none" onchange="handleVaultFiles(this)">
@@ -1459,13 +1459,26 @@
         <div class="pc-section-title">MEMBER SINCE</div>
         <div class="pc-section-text" id="pv-member-since"></div>
       </div>
-      <button class="pc-schedule-btn" id="pv-schedule-btn" onclick="closeModal('profile-viewer-modal');showSection('calendar',document.querySelector('[data-section=calendar]'))" style="display:none">
-        <i data-lucide="calendar" style="width:14px;height:14px"></i> View Schedule
-      </button>
-      <button class="pc-edit-btn" id="pv-edit-btn" onclick="closeModal('profile-viewer-modal');setTimeout(openSettingsModal,150)" style="display:none">
-        <i data-lucide="pencil" style="width:14px;height:14px"></i> Edit Profile
-      </button>
+      <div class="pc-btn-group" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+        <button class="pc-schedule-btn" id="pv-schedule-btn" onclick="openScheduleModal()" style="display:none">
+          <i data-lucide="calendar" style="width:14px;height:14px"></i> View Schedule
+        </button>
+        <button class="pc-edit-btn" id="pv-edit-btn" onclick="closeModal('profile-viewer-modal');setTimeout(openSettingsModal,150)" style="display:none">
+          <i data-lucide="pencil" style="width:14px;height:14px"></i> Edit Profile
+        </button>
+      </div>
     </div>
+  </div>
+</div>
+
+<!-- Schedule Viewer Modal -->
+<div class="modal-overlay" id="schedule-viewer-modal" onclick="if(event.target===this)closeModal('schedule-viewer-modal')">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title"><i data-lucide="calendar-clock" style="width:16px;height:16px;display:inline"></i> <span id="schedule-viewer-title">Schedule</span></span>
+      <button class="btn-icon" onclick="closeModal('schedule-viewer-modal')">✕</button>
+    </div>
+    <div id="schedule-viewer-content" style="padding:16px"></div>
   </div>
 </div>
 

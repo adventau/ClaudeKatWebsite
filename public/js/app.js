@@ -108,9 +108,13 @@ async function init() {
   const urlParams = new URLSearchParams(window.location.search);
   const stealthTarget = urlParams.get('stealth')?.toLowerCase();
 
-  const r = await fetch('/api/auth/session');
-  const data = await r.json();
-  if (!data.authenticated || !data.user) {
+  // ── Phase 1: Auth + user data fetched in parallel ──
+  const [sessionRes, usersRes] = await Promise.all([
+    fetch('/api/auth/session').then(r => r.json()),
+    fetch('/api/users').then(r => r.json())
+  ]);
+
+  if (!sessionRes.authenticated || !sessionRes.user) {
     window.location.href = '/';
     return;
   }
@@ -118,18 +122,17 @@ async function init() {
   // Stealth mode: view as another user without affecting their presence
   if (stealthTarget && ['kaliph', 'kathrine'].includes(stealthTarget)) {
     stealthMode = true;
-    stealthRealUser = data.user;
+    stealthRealUser = sessionRes.user;
     currentUser = stealthTarget;
     otherUser = stealthTarget === 'kaliph' ? 'kathrine' : 'kaliph';
     activateStealthBanner(stealthTarget);
   } else {
-    currentUser = data.user;
+    currentUser = sessionRes.user;
     otherUser   = currentUser === 'kaliph' ? 'kathrine' : 'kaliph';
   }
 
-  const users = await fetch('/api/users').then(r => r.json());
-  applyUserData(users[currentUser], users[otherUser]);
-  applyTheme(users[currentUser].theme || 'dark');
+  applyUserData(usersRes[currentUser], usersRes[otherUser]);
+  applyTheme(usersRes[currentUser].theme || 'dark');
   buildThemeGrid();
   populateEmojiGrid();
   setupKeyboardShortcuts();
@@ -143,7 +146,7 @@ async function init() {
     updateStatusText('online');
   } else {
     // Show the target user's actual status in stealth
-    const presence = users[currentUser]?._presence || 'offline';
+    const presence = usersRes[currentUser]?._presence || 'offline';
     setStatusDot('my-status-dot', presence);
     updateStatusText(presence);
   }
@@ -176,7 +179,10 @@ async function init() {
   if (!stealthMode) checkAndShowUpdateLog();
 
   // Load bell schedule and start class updater
-  loadBellSchedule().then(() => startClassUpdater());
+  loadBellSchedule().then(() => {
+    startClassUpdater();
+    if (stealthMode) loadBellScheduleUI();
+  });
 
   // Check for today's calendar events and reminders
   checkTodayEvents();
@@ -464,7 +470,7 @@ function showSection(name, el) {
   if (name === 'notes')     loadNotes();
   if (name === 'calendar')  renderCalendar();
   if (name === 'contacts')  loadContacts();
-  if (name === 'vault')     { resetVault(); }
+  if (name === 'vault')     { if (!vaultPasscode) resetVault(); else refreshVault(); }
   if (name === 'announcements') loadAnnouncements();
   if (name === 'reminders') loadReminders();
   if (name === 'guest-messages') {
@@ -619,7 +625,7 @@ function buildMsgElement(msg) {
     row.id = 'msg-' + msg.id;
     const pinnerName = capitalize(msg.pinnedBy || 'someone');
     row.innerHTML = `<div class="pin-notice">
-      <span class="pin-notice-icon">📌</span>
+      <span class="pin-notice-icon"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg></span>
       <span class="pin-notice-text"><a href="#" onclick="scrollToMessage('${msg.pinnedMsgId}');return false" class="pin-notice-link">New message pinned</a> by <strong>${escapeHtml(pinnerName)}</strong></span>
     </div>`;
     return row;
@@ -769,7 +775,7 @@ function buildMsgElement(msg) {
   if (msg.pinned) {
     const pin = document.createElement('div');
     pin.className = 'msg-pinned-indicator';
-    pin.innerHTML = '📌 Pinned';
+    pin.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg> Pinned';
     bubble.insertBefore(pin, bubble.firstChild);
   }
 
@@ -787,16 +793,25 @@ function buildMsgElement(msg) {
   // Hover action bar (iMessage / Discord style)
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
-  const unsendBtn = (isSelf && msg.unsendable) ? `<button class="msg-action-btn msg-unsend-btn" data-msg-id="${msg.id}" onclick="quickUnsend('${msg.id}')" title="Unsend">🗑️</button>` : '';
+  // Inline SVGs to avoid per-message lucide.createIcons() (major perf bottleneck)
+  const _s = 'xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+  const svgSmile = `<svg ${_s}><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>`;
+  const svgReply = `<svg ${_s}><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>`;
+  const svgPin = `<svg ${_s}><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
+  const svgPinOff = `<svg ${_s}><line x1="2" x2="22" y1="2" y2="22"/><line x1="12" x2="12" y1="17" y2="22"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h12"/><path d="M15 9.34V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0-1.4.58"/></svg>`;
+  const svgCopy = `<svg ${_s}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
+  const svgPencil = `<svg ${_s}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>`;
+  const svgTrash = `<svg ${_s}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
+  const unsendBtn = (isSelf && msg.unsendable) ? `<button class="msg-action-btn msg-unsend-btn" data-msg-id="${msg.id}" onclick="quickUnsend('${msg.id}')" title="Unsend">${svgTrash}</button>` : '';
   const pinBtn = msg.pinned
-    ? `<button class="msg-action-btn" onclick="unpinMessage('${msg.id}')" title="Unpin">📌</button>`
-    : `<button class="msg-action-btn" onclick="pinMessage('${msg.id}')" title="Pin">📌</button>`;
+    ? `<button class="msg-action-btn" onclick="unpinMessage('${msg.id}')" title="Unpin">${svgPinOff}</button>`
+    : `<button class="msg-action-btn" onclick="pinMessage('${msg.id}')" title="Pin">${svgPin}</button>`;
   actions.innerHTML = `
-    <button class="msg-action-btn react-trigger" onclick="showQuickReact('${msg.id}', this)" title="React">😊</button>
-    <button class="msg-action-btn" onclick="setReply('${msg.id}')" title="Reply">↩</button>
+    <button class="msg-action-btn react-trigger" onclick="showQuickReact('${msg.id}', this)" title="React">${svgSmile}</button>
+    <button class="msg-action-btn" onclick="setReply('${msg.id}')" title="Reply">${svgReply}</button>
     ${pinBtn}
-    <button class="msg-action-btn" onclick="copyMsgText('${msg.id}')" title="Copy">📋</button>
-    ${isSelf ? `<button class="msg-action-btn" onclick="ctxMsgId='${msg.id}';ctxEdit()" title="Edit">✏️</button>` : ''}
+    <button class="msg-action-btn" onclick="copyMsgText('${msg.id}')" title="Copy">${svgCopy}</button>
+    ${isSelf ? `<button class="msg-action-btn" onclick="ctxMsgId='${msg.id}';ctxEdit()" title="Edit">${svgPencil}</button>` : ''}
     ${unsendBtn}
   `;
   content.appendChild(actions);
@@ -1045,7 +1060,10 @@ function showContextMenu(e, msg) {
   unsendBtn.style.display = (msg.sender === currentUser && msg.unsendable) ? '' : 'none';
   // Pin/unpin toggle
   if (pinBtn) {
-    pinBtn.textContent = msg.pinned ? '📌 Unpin Message' : '📌 Pin Message';
+    const _ps = 'xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    pinBtn.innerHTML = msg.pinned
+      ? `<svg ${_ps}><line x1="2" x2="22" y1="2" y2="22"/><line x1="12" x2="12" y1="17" y2="22"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h12"/><path d="M15 9.34V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0-1.4.58"/></svg> Unpin Message`
+      : `<svg ${_ps}><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg> Pin Message`;
     pinBtn.onclick = () => { msg.pinned ? ctxUnpin() : ctxPin(); };
   }
 
@@ -1781,7 +1799,7 @@ function setupSocketEvents() {
       if (bubble && !bubble.querySelector('.msg-pinned-indicator')) {
         const pin = document.createElement('div');
         pin.className = 'msg-pinned-indicator';
-        pin.innerHTML = '📌 Pinned';
+        pin.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg> Pinned';
         bubble.insertBefore(pin, bubble.firstChild);
       }
     }
@@ -2906,6 +2924,14 @@ async function checkVaultPasscode() {
 
 function lockVault() { resetVault(); vaultPasscode = null; }
 
+async function refreshVault() {
+  if (!vaultPasscode) return;
+  try {
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+  } catch(e) { console.error('Failed to refresh locker:', e); }
+}
+
 function switchVaultTab(tab, el) {
   vaultTab = tab;
   document.querySelectorAll('#vault-content .section-tab').forEach(t => t.classList.remove('active'));
@@ -3007,6 +3033,41 @@ async function handleVaultFiles(input) {
   renderVault(data);
   showToast('Files added to locker!');
 }
+
+// Vault dropzone drag-and-drop
+function setupVaultDropzone() {
+  const dropzone = document.getElementById('vault-dropzone');
+  if (!dropzone) return;
+  let dragCounter = 0;
+  dropzone.addEventListener('dragenter', e => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter++;
+    dropzone.classList.add('drag-over');
+  });
+  dropzone.addEventListener('dragleave', e => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter--;
+    if (dragCounter <= 0) { dragCounter = 0; dropzone.classList.remove('drag-over'); }
+  });
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+  dropzone.addEventListener('drop', async e => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter = 0;
+    dropzone.classList.remove('drag-over');
+    const files = e.dataTransfer?.files;
+    if (!files || !files.length) return;
+    if (!vaultPasscode) { showToast('Please unlock the locker first.'); return; }
+    const fd = new FormData();
+    fd.append('passcode', vaultPasscode);
+    Array.from(files).forEach(f => fd.append('files', f));
+    await fetch('/api/vault', { method: 'POST', body: fd });
+    closeModal('vault-upload-modal');
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+    showToast('Files added to locker!');
+  });
+}
+document.addEventListener('DOMContentLoaded', setupVaultDropzone);
 
 async function deleteVaultItem(id) {
   const ok = await showConfirmDialog({ icon: '🔒', title: 'Remove from locker?', msg: 'This file will be permanently removed.', okText: 'Remove' });
@@ -4254,8 +4315,64 @@ async function viewProfile(username) {
   // Edit button (only for own profile)
   document.getElementById('pv-edit-btn').style.display = username === currentUser ? 'flex' : 'none';
   document.getElementById('pv-schedule-btn').style.display = 'flex';
+  window._lastViewedProfileUser = username;
   openModal('profile-viewer-modal');
   if (window.lucide) lucide.createIcons();
+}
+
+// ── Schedule Viewer Modal ─────────────────────────────────────────────
+function openScheduleModal() {
+  const user = window._lastViewedProfileUser || currentUser;
+  const bs = window._bellSchedule;
+  if (!bs || !bs[user]) {
+    showToast('No schedule data available.');
+    return;
+  }
+  closeModal('profile-viewer-modal');
+  const data = bs[user];
+  const displayName = user === 'kaliph' ? 'Kaliph' : 'Kathrine';
+  document.getElementById('schedule-viewer-title').textContent = displayName + "'s Schedule";
+  const regular = data.regular || [];
+  const lateStart = data.lateStart || [];
+  const lateDay = data.lateStartDay || '';
+
+  let html = '';
+  html += '<div style="margin-bottom:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);margin-bottom:8px">Regular Schedule</div>';
+  if (regular.length) {
+    html += '<div class="schedule-view-table">';
+    regular.forEach(p => {
+      html += `<div class="schedule-view-row">
+        <span class="schedule-view-label">${escapeHtml(p.label || 'Period')}</span>
+        <span class="schedule-view-time">${p.start ? formatTime12(p.start) : '—'} – ${p.end ? formatTime12(p.end) : '—'}</span>
+      </div>`;
+    });
+    html += '</div>';
+  } else {
+    html += '<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">No regular periods set.</div>';
+  }
+  html += '</div>';
+
+  if (lateStart.length || lateDay) {
+    html += '<div><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);margin-bottom:8px">Late Start Schedule';
+    if (lateDay) html += ` <span style="font-weight:400;text-transform:capitalize;color:var(--text-muted)">— ${lateDay}s</span>`;
+    html += '</div>';
+    if (lateStart.length) {
+      html += '<div class="schedule-view-table">';
+      lateStart.forEach(p => {
+        html += `<div class="schedule-view-row">
+          <span class="schedule-view-label">${escapeHtml(p.label || 'Period')}</span>
+          <span class="schedule-view-time">${p.start ? formatTime12(p.start) : '—'} – ${p.end ? formatTime12(p.end) : '—'}</span>
+        </div>`;
+      });
+      html += '</div>';
+    } else {
+      html += '<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">No late start periods set.</div>';
+    }
+    html += '</div>';
+  }
+
+  document.getElementById('schedule-viewer-content').innerHTML = html;
+  setTimeout(() => { openModal('schedule-viewer-modal'); if (window.lucide) lucide.createIcons(); }, 150);
 }
 
 // ── Status Editor (editable from profile) ─────────────────────────────

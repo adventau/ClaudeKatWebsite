@@ -1018,9 +1018,9 @@
       kaliph:   { bg: '#0d0820', accent: '#7c3aed', accent2: '#a78bfa', glow: 'rgba(124,58,237,0.3)', border: 'rgba(124,58,237,0.25)' },
       kathrine: { bg: '#0d0716', accent: '#8b5cf6', accent2: '#c084fc', glow: 'rgba(139,92,246,0.3)', border: 'rgba(139,92,246,0.25)' },
       royal:    { bg: '#0a0703', accent: '#d97706', accent2: '#f59e0b', glow: 'rgba(217,119,6,0.3)', border: 'rgba(180,120,30,0.4)' },
-      light:    { bg: '#e8e8e8', accent: '#0d0d0d', accent2: '#6b6b6b', glow: 'rgba(0,0,0,0.08)', border: 'rgba(0,0,0,0.12)' },
+      light:    { bg: '#ffffff', accent: '#4f46e5', accent2: '#6366f1', glow: 'rgba(79,70,229,0.1)', border: 'rgba(79,70,229,0.2)', textDark: true },
       dark:     { bg: '#1a1a1a', accent: '#e8e8e8', accent2: '#a0a0a0', glow: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.1)' },
-      heaven:   { bg: '#15120a', accent: '#c8a96e', accent2: '#e8d5a3', glow: 'rgba(200,169,110,0.25)', border: 'rgba(200,169,110,0.35)' },
+      heaven:   { bg: '#faf8f2', accent: '#c8a96e', accent2: '#e8d5a3', glow: 'rgba(200,169,110,0.12)', border: 'rgba(200,169,110,0.25)', textDark: true },
       rosewood: { bg: '#0c0912', accent: '#c8967a', accent2: '#e8c9a0', glow: 'rgba(200,150,122,0.22)', border: 'rgba(200,150,120,0.18)' },
       ocean:    { bg: '#060d10', accent: '#14b8a6', accent2: '#2dd4bf', glow: 'rgba(20,184,166,0.25)', border: 'rgba(20,184,166,0.2)' },
       forest:   { bg: '#0f1a14', accent: '#52b788', accent2: '#c8a84e', glow: 'rgba(92,184,138,0.25)', border: 'rgba(92,184,138,0.2)' },
@@ -1128,22 +1128,36 @@
       const textColor = isLight ? '#1e293b' : '#e8e0f0';
       const subtextColor = isLight ? 'rgba(30,41,59,0.5)' : 'rgba(232,224,240,0.5)';
 
-      card.style.background = isLight
-        ? `linear-gradient(135deg, ${theme.bg}, ${theme.accent}15)`
-        : `linear-gradient(135deg, ${theme.bg}, ${theme.accent}22)`;
+      if (isLight) {
+        card.style.background = theme.bg;
+        card.style.boxShadow = '0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px ' + theme.border;
+      } else {
+        card.style.background = `linear-gradient(135deg, ${theme.bg}, ${theme.accent}22)`;
+        card.style.boxShadow = '0 20px 60px rgba(0,0,0,0.5)';
+      }
       card.style.borderColor = theme.border;
       document.getElementById('passcode-title').style.color = textColor;
       card.querySelector('p').style.color = subtextColor;
       btn.style.background = `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`;
-      btn.style.color = isLight ? '#fff' : '#fff';
+      btn.style.color = '#fff';
+
+      // Cancel button
+      const cancelBtn = card.querySelector('button:last-child');
+      if (cancelBtn) cancelBtn.style.color = subtextColor;
+
+      // Lock icon
+      const svg = card.querySelector('svg');
+      if (svg) svg.setAttribute('stroke', theme.accent);
 
       document.querySelectorAll('.pin-digit').forEach(d => {
-        d.style.background = `${theme.accent}15`;
-        d.style.borderColor = `${theme.accent}4d`;
+        d.style.background = isLight ? `${theme.accent}0d` : `${theme.accent}15`;
+        d.style.borderColor = isLight ? `${theme.accent}33` : `${theme.accent}4d`;
         d.style.color = textColor;
       });
 
-      document.getElementById('passcode-overlay').style.display = 'flex';
+      const overlay = document.getElementById('passcode-overlay');
+      overlay.style.background = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.7)';
+      overlay.style.display = 'flex';
       setTimeout(() => document.getElementById('passcode-digit-1').focus(), 100);
     }
 
