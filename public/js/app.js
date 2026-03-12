@@ -104,13 +104,11 @@ socket.on('connect', () => {
 
 // ── Init ──────────────────────────────────────────────────────────────
 async function init() {
-  const _t0 = performance.now();
-
   // Check for stealth preview mode (?stealth=username)
   const urlParams = new URLSearchParams(window.location.search);
   const stealthTarget = urlParams.get('stealth')?.toLowerCase();
 
-  // ── Phase 1: Auth + user data (required before anything) ──
+  // ── Phase 1: Auth + user data fetched in parallel ──
   const [sessionRes, usersRes] = await Promise.all([
     fetch('/api/auth/session').then(r => r.json()),
     fetch('/api/users').then(r => r.json())
@@ -135,58 +133,66 @@ async function init() {
 
   applyUserData(usersRes[currentUser], usersRes[otherUser]);
   applyTheme(usersRes[currentUser].theme || 'dark');
-
-  // ── Phase 2: Make UI interactive immediately ──
-  if (window.lucide) lucide.createIcons();
+  buildThemeGrid();
+  populateEmojiGrid();
   setupKeyboardShortcuts();
+  if (!stealthMode) setupActivityTracking();
   setupSocketEvents();
-  setupDragDropPaste();
 
+  // In stealth mode: don't emit presence, don't update anything
   if (!stealthMode) {
-    setupActivityTracking();
     socket.emit('user-online', { user: currentUser });
     setStatusDot('my-status-dot', 'online');
     updateStatusText('online');
   } else {
+    // Show the target user's actual status in stealth
     const presence = usersRes[currentUser]?._presence || 'offline';
     setStatusDot('my-status-dot', presence);
     updateStatusText(presence);
   }
 
-  // Show the app now — sidebar, nav, input are all usable
-  document.body.classList.add('app-loaded');
+  // Load last-read timestamp for unread tracking
   chatLastReadTs = parseInt(localStorage.getItem('chatLastReadTs_' + currentUser) || '0', 10);
 
-  console.log(`[perf] UI interactive in ${(performance.now() - _t0).toFixed(0)}ms`);
+  // Init Lucide icons so UI is visible
+  if (window.lucide) lucide.createIcons();
 
-  // ── Phase 3: Load data in background (non-blocking) ──
-  Promise.all([loadMessages(), loadAnnouncements(), loadNotes(), loadContacts(), loadGuestMessages()])
-    .then(() => {
-      // Count initial unread messages (from other user, after last read time)
-      if (chatLastReadTs) {
-        unreadCount = allMessages.filter(m =>
-          m.sender !== currentUser && m.sender !== 'ai' && m.timestamp > chatLastReadTs
-        ).length;
-        updateUnreadBadge();
-      }
-      if (currentSection === 'chat' && !stealthMode) clearUnreadBadge();
-      checkAndShowAnnouncements();
-      console.log(`[perf] Data loaded in ${(performance.now() - _t0).toFixed(0)}ms`);
-    }).catch(console.error);
+  // ── Phase 2: Load all data before revealing UI ──
+  await Promise.all([loadMessages(), loadAnnouncements(), loadNotes(), loadContacts(), loadGuestMessages()]).catch(console.error);
 
-  // These can all fire independently — no need to await
+  // Count initial unread messages (from other user, after last read time)
+  if (chatLastReadTs) {
+    unreadCount = allMessages.filter(m =>
+      m.sender !== currentUser && m.sender !== 'ai' && m.timestamp > chatLastReadTs
+    ).length;
+    updateUnreadBadge();
+  }
+  // Mark as read since chat is the default section (skip in stealth)
+  if (currentSection === 'chat' && !stealthMode) clearUnreadBadge();
+
+  checkAndShowAnnouncements();
   if (!stealthMode) requestNotificationPermission();
-  if (!stealthMode) checkAndShowUpdateLog();
-  buildThemeGrid();
-  populateEmojiGrid();
-  checkTodayEvents();
 
+  // Reveal chat content now that messages are loaded
+  document.body.classList.add('app-loaded');
+
+  // Show update log if user hasn't dismissed the latest version
+  if (!stealthMode) checkAndShowUpdateLog();
+
+  // Load bell schedule and start class updater
   loadBellSchedule().then(() => {
     startClassUpdater();
     if (stealthMode) loadBellScheduleUI();
   });
 
+  // Check for today's calendar events and reminders
+  checkTodayEvents();
+
+  // Load reminders and start checker
   loadReminders().then(() => startReminderChecker());
+
+  // Set up drag & drop and paste for message input
+  setupDragDropPaste();
 
   // In stealth mode, disable the input area
   if (stealthMode) {
