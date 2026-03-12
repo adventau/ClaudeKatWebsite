@@ -3,7 +3,7 @@
 ═══════════════════════════════════════════════════════════════════ */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden; }
+html, body { height: 100dvh; height: 100%; overflow: hidden; }
 
 /* ── Layout ──────────────────────────────────────────────────────── */
 #app {
@@ -11,6 +11,7 @@ html, body { height: 100%; overflow: hidden; }
   grid-template-rows: 60px 1fr;
   grid-template-columns: 252px 1fr;
   grid-template-areas: "sidebar header" "sidebar main";
+  height: 100dvh;
   height: 100vh;
   overflow: hidden;
 }
@@ -1865,6 +1866,20 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .btn-icon:hover { background: var(--bg-hover); color: var(--text-primary); }
 .btn-icon.active { color: var(--accent); background: var(--bg-active); }
 
+.chat-action-btn {
+  padding: 7px;
+  border-radius: 8px;
+}
+.chat-action-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke-width: 2 !important;
+}
+.chat-action-btn:hover {
+  background: var(--bg-active);
+  color: var(--accent);
+}
+
 /* Glass card shared */
 .glass-card {
   background: var(--bg-card);
@@ -1986,11 +2001,16 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   .send-btn:active { transform: scale(0.92); }
   .btn-icon { min-width: 44px; min-height: 44px; }
   .msg-action-btn { min-width: 38px; min-height: 38px; }
-  .msg-row .msg-actions { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  .msg-row .msg-actions { opacity: 0; pointer-events: none; transform: translateY(-4px); }
+  .msg-row.actions-visible .msg-actions { opacity: 1; pointer-events: auto; transform: translateY(0); }
   .input-area { padding: 12px 20px 16px; }
   #msg-input { font-size: 16px; }
-  /* Prevent iOS zoom on input focus */
+  /* Prevent iOS zoom on focus */
   input, textarea, select { font-size: 16px !important; }
+  @supports (-webkit-touch-callout: none) {
+    html { touch-action: manipulation; }
+    body { -webkit-text-size-adjust: 100%; }
+  }
   /* Disable sticky hover on touch */
   .nav-item:hover { background: inherit; color: inherit; }
   .nav-item.active:hover { background: var(--nav-active-bg); color: var(--accent); }
@@ -2125,6 +2145,10 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   .cal-day { min-height: 60px; padding: 4px; }
   .cal-event { font-size: 0.62rem; padding: 2px 4px; }
   .cal-day-num { font-size: 0.7rem; }
+
+  /* Todo editing — expand input on iPad */
+  #new-todo-item, .todo-new-item { font-size: 16px !important; padding: 12px !important; }
+  .todo-item { padding: 12px 14px; }
 
   /* Vault grid — 2 cols */
   .vault-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; padding: 12px; }
@@ -2370,3 +2394,38 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   transition: background 0.1s;
 }
 .rep-emoji-btn:hover { background: var(--bg-hover); transform: scale(1.15); }
+
+/* ── Theme-aware reminder/priority colors ──────────────────────────── */
+.theme-kaliph .priority-row { border-left-color: #a78bfa; }
+.theme-kaliph .priority-row input[type="checkbox"] { accent-color: #7c3aed; }
+.theme-kathrine .priority-row { border-left-color: #e879f9; }
+.theme-kathrine .priority-row input[type="checkbox"] { accent-color: #c084fc; }
+.theme-royal .priority-row { border-left-color: #fbbf24; }
+.theme-royal .priority-row input[type="checkbox"] { accent-color: #d97706; }
+.theme-light .priority-row { border-left-color: #6366f1; background: rgba(99,102,241,0.06); }
+.theme-light .priority-row input[type="checkbox"] { accent-color: #6366f1; }
+.theme-dark .priority-row { border-left-color: #818cf8; }
+.theme-dark .priority-row input[type="checkbox"] { accent-color: #818cf8; }
+.theme-heaven .priority-row { border-left-color: #c8a96e; background: rgba(200,169,110,0.06); }
+.theme-heaven .priority-row input[type="checkbox"] { accent-color: #c8a96e; }
+.theme-rosewood .priority-row { border-left-color: #c8967a; }
+.theme-rosewood .priority-row input[type="checkbox"] { accent-color: #c8967a; }
+.theme-ocean .priority-row { border-left-color: #14b8a6; }
+.theme-ocean .priority-row input[type="checkbox"] { accent-color: #14b8a6; }
+
+/* ── Profile schedule button + enlarged avatar ─────────────────────── */
+.pc-schedule-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; padding: 10px 16px; margin-top: 8px;
+  background: var(--bg-hover); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text-secondary);
+  font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  transition: all 0.15s;
+}
+.pc-schedule-btn:hover { background: var(--bg-active); color: var(--accent); border-color: var(--accent); }
+
+/* ── Todo drag reorder ─────────────────────────────────────────────── */
+.todo-item.dragging { opacity: 0.5; background: var(--bg-active); }
+.todo-item.drag-over { border-top: 2px solid var(--accent); }
+.todo-item { cursor: grab; user-select: none; }
+.todo-item:active { cursor: grabbing; }

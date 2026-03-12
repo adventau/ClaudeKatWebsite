@@ -340,6 +340,7 @@ function buildThemeGrid() {
 
 async function selectTheme(themeId) {
   applyTheme(themeId);
+  SoundSystem.send(); // Preview the new theme sound
   await fetch(`/api/users/${currentUser}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ theme: themeId })
@@ -488,13 +489,25 @@ function renderMessages(filter = null) {
     area.appendChild(buildMsgElement(msg));
   });
 
-  // If there's a NEW marker, scroll to it instead of the bottom
-  const marker = area.querySelector('.new-msg-marker');
-  if (marker) {
-    marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  } else {
-    area.scrollTop = area.scrollHeight;
-  }
+  // Reliable scroll: use requestAnimationFrame to ensure DOM is laid out
+  requestAnimationFrame(() => {
+    const marker = area.querySelector('.new-msg-marker');
+    if (marker) {
+      // Scroll so the NEW marker is visible near the top
+      marker.scrollIntoView({ block: 'center' });
+    } else {
+      // No unread — scroll to very bottom (last message)
+      area.scrollTop = area.scrollHeight;
+    }
+    // Double-check after a short delay (images/content may shift layout)
+    setTimeout(() => {
+      if (marker) {
+        marker.scrollIntoView({ block: 'center' });
+      } else {
+        area.scrollTop = area.scrollHeight;
+      }
+    }, 150);
+  });
 }
 
 function buildMsgElement(msg) {
@@ -607,6 +620,14 @@ function buildMsgElement(msg) {
     const urlMatches = t.match(/(https?:\/\/[^\s<]+)/g) || [];
     // Auto-detect URLs and make them clickable
     t = t.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;word-break:break-all">$1</a>');
+    // Discord-style markdown formatting
+    t = t.replace(/\`([^`]+)\`/g, '<code style="background:rgba(0,0,0,0.2);padding:1px 5px;border-radius:4px;font-family:monospace;font-size:0.9em">$1</code>');
+    t = t.replace(/\|\|([^|]+)\|\|/g, '<span class="spoiler" onclick="this.classList.toggle(\'revealed\')" style="background:var(--text-primary);color:transparent;border-radius:4px;padding:0 4px;cursor:pointer;transition:all 0.2s">$1</span>');
+    t = t.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/__(.+?)__/g, '<u>$1</u>');
+    t = t.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+    t = t.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '<em>$1</em>');
     if (msg.formatting) {
       if (msg.formatting.bold) t = `<strong>${t}</strong>`;
       if (msg.formatting.italic) t = `<em>${t}</em>`;
@@ -720,6 +741,19 @@ function buildMsgElement(msg) {
   else { row.appendChild(avatarEl); row.appendChild(content); }
 
   return row;
+}
+
+// Touch handler for message quick actions on iPad
+if ('ontouchstart' in window) {
+  document.addEventListener('touchstart', (e) => {
+    const msgRow = e.target.closest('.msg-row');
+    document.querySelectorAll('.msg-row.actions-visible').forEach(r => {
+      if (r !== msgRow) r.classList.remove('actions-visible');
+    });
+    if (msgRow && !msgRow.classList.contains('call-event-row') && !msgRow.classList.contains('pin-notice-row')) {
+      msgRow.classList.toggle('actions-visible');
+    }
+  });
 }
 
 async function sendMessage() {
@@ -1916,13 +1950,13 @@ function renderNotesList() {
   else notes = (allNotes.mine || []).filter(n => n.archived);
 
   if (!notes.length) {
-    list.innerHTML = '<div class="empty-state" style="height:200px"><div class="empty-state-icon">📝</div><div class="empty-state-text">No notes here</div></div>';
+    list.innerHTML = '<div class="empty-state" style="height:200px"><div class="empty-state-icon"><i data-lucide="file-text" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">No notes here</div></div>';if(window.lucide)lucide.createIcons();
     return;
   }
   list.innerHTML = notes.map(n => `
     <div class="note-item ${n.id === activeNoteId ? 'active' : ''}" onclick="openNote('${n.id}')">
       <div class="note-item-title">${n.title}</div>
-      <div class="note-item-preview">${n.type === 'todo' ? '☑️ Todo list' : (n.content?.substring(0,60) || '…')}</div>
+      <div class="note-item-preview">${n.type === 'todo' ? 'Todo list' : (n.content?.substring(0,60) || '…')}</div>
       <div class="note-item-meta">
         ${n.pinned ? '<span class="tag tag-pinned">📌</span>' : ''}
         ${n.sharedWith?.length ? '<span class="tag tag-shared">Shared</span>' : ''}
@@ -1982,6 +2016,8 @@ function openNote(id) {
       </div>
       ${isOwn ? '<button class="btn-primary" onclick="saveCurrentNote()" style="margin-top:1rem;width:100%;border-radius:10px">Save Changes</button>' : ''}`;
     if (window.lucide) lucide.createIcons();
+    // Setup drag to reorder for todo items
+    if (isOwn) setupTodoDragReorder(id);
   } else {
     editor.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;gap:8px">
@@ -2084,6 +2120,45 @@ async function addTodoItemToNote(noteId) {
   openNote(noteId);
 }
 
+function setupTodoDragReorder(noteId) {
+  const container = document.getElementById('todo-list-editor');
+  if (!container) return;
+  let dragIdx = null;
+  container.querySelectorAll('.todo-item').forEach((item, i) => {
+    item.draggable = true;
+    item.dataset.idx = i;
+    item.addEventListener('dragstart', (e) => {
+      dragIdx = i;
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      container.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over'));
+    });
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      container.querySelectorAll('.todo-item').forEach(el => el.classList.remove('drag-over'));
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      const dropIdx = parseInt(item.dataset.idx);
+      if (dragIdx === null || dragIdx === dropIdx) return;
+      const note = (allNotes.mine || []).find(n => n.id === noteId);
+      if (!note || !note.todos) return;
+      const moved = note.todos.splice(dragIdx, 1)[0];
+      note.todos.splice(dropIdx, 0, moved);
+      await fetch(`/api/notes/${noteId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ todos: note.todos })
+      });
+      openNote(noteId);
+    });
+  });
+}
+
 async function shareNote(id) {
   await fetch(`/api/notes/${id}/share`, { method: 'POST' });
   await loadNotes(); openNote(id);
@@ -2164,7 +2239,7 @@ async function renderCalendar() {
         el.style.background = ev.color || 'var(--accent)';
         el.title = ev.description || ev.title;
         const titleSpan = document.createElement('span');
-        titleSpan.textContent = ev.title;
+        titleSpan.textContent = (ev.emoji || '') + ' ' + ev.title;
         el.appendChild(titleSpan);
         const delBtn = document.createElement('button');
         delBtn.className = 'cal-event-del';
@@ -2218,7 +2293,7 @@ async function renderCalendar() {
 
             const titleSpan = document.createElement('span');
             titleSpan.className = 'cal-bar-title';
-            titleSpan.textContent = isEventStart || rowStart.getDate() === 1 ? ev.title : '';
+            titleSpan.textContent = isEventStart || rowStart.getDate() === 1 ? (ev.emoji || '') + ' ' + ev.title : '';
             bar.appendChild(titleSpan);
 
             // Delete button only on first segment
@@ -2382,6 +2457,7 @@ async function saveEvent() {
       end,
       description: document.getElementById('event-desc').value,
       color: document.getElementById('event-color').value,
+      emoji: document.getElementById('event-emoji')?.value.trim() || '',
     })
   });
   // Reset form
@@ -2389,6 +2465,7 @@ async function saveEvent() {
   document.getElementById('event-start-date').value = '';
   document.getElementById('event-end-date').value = '';
   document.getElementById('event-desc').value = '';
+  if (document.getElementById('event-emoji')) document.getElementById('event-emoji').value = '';
   document.getElementById('event-date-display').textContent = 'Select date(s)...';
   document.getElementById('event-date-display').classList.remove('has-value');
   edpSelectStart = null; edpSelectEnd = null; edpPickerOpen = false;
@@ -2456,7 +2533,7 @@ function renderVault(data) {
   const items = vaultTab === 'mine' ? (data[currentUser] || []) : (data[otherUser] || []);
   const grid = document.getElementById('vault-grid');
   if (!items.length) {
-    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon">📁</div><div class="empty-state-text">No files yet</div></div>';
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon"><i data-lucide="folder-lock" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">No files yet</div></div>';if(window.lucide)lucide.createIcons();
     return;
   }
   grid.innerHTML = items.map(item => {
@@ -2544,11 +2621,11 @@ async function handleVaultFiles(input) {
   closeModal('vault-upload-modal');
   const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
   renderVault(data);
-  showToast('📁 Files added to vault!');
+  showToast('Files added to locker!');
 }
 
 async function deleteVaultItem(id) {
-  const ok = await showConfirmDialog({ icon: '🔒', title: 'Remove from vault?', msg: 'This file will be permanently removed.', okText: 'Remove' });
+  const ok = await showConfirmDialog({ icon: '🔒', title: 'Remove from locker?', msg: 'This file will be permanently removed.', okText: 'Remove' });
   if (!ok) return;
   await fetch(`/api/vault/${id}`, {
     method: 'DELETE', headers: { 'Content-Type': 'application/json' },
@@ -2594,7 +2671,7 @@ function filterContacts(q) {
 function renderContactsList(contacts) {
   const grid = document.getElementById('contacts-grid');
   if (!contacts.length) {
-    grid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📇</div><div class="empty-state-text">No contacts found</div></div>';
+    grid.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="contact" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">No contacts found</div></div>';if(window.lucide)lucide.createIcons();
     return;
   }
 
@@ -2667,6 +2744,7 @@ function viewContact(id) {
       </div>` : ''}
     </div>
     <div style="display:flex;gap:8px;margin-top:1.5rem">
+      <button class="btn-primary" onclick="editContact('${c.id}')" style="flex:1;border-radius:10px"><i data-lucide="pencil"></i> Edit</button>
       <button class="btn-danger" onclick="deleteContact('${c.id}');closeModal('contact-detail-modal')" style="flex:1;border-radius:10px"><i data-lucide="trash-2"></i> Delete</button>
       <button class="btn-ghost" onclick="closeModal('contact-detail-modal')" style="flex:1;border-radius:10px">Close</button>
     </div>`;
@@ -2693,8 +2771,12 @@ async function saveContact() {
   fd.append('notes', document.getElementById('contact-notes').value.trim());
   const photoFile = document.getElementById('contact-photo-input').files[0];
   if (photoFile) fd.append('photo', photoFile);
+  const modal = document.getElementById('new-contact-modal');
+  const editId = modal.dataset.editId;
   try {
-    const resp = await fetch('/api/contacts', { method: 'POST', body: fd });
+    const url = editId ? `/api/contacts/${editId}` : '/api/contacts';
+    const method = editId ? 'PUT' : 'POST';
+    const resp = await fetch(url, { method, body: fd });
     const result = await resp.json();
     if (!result.success) { showToast('Failed to save contact'); return; }
     // Clear form
@@ -2704,6 +2786,8 @@ async function saveContact() {
     document.getElementById('contact-notes').value = '';
     document.getElementById('contact-photo-input').value = '';
     closeModal('new-contact-modal');
+    delete modal.dataset.editId;
+    modal.querySelector('.modal-title').innerHTML = '<i data-lucide="user-plus" style="width:16px;height:16px"></i> New Contact';
     await loadContacts();
     showToast('Contact saved!');
   } catch (err) {
@@ -2718,13 +2802,32 @@ async function deleteContact(id) {
   await loadContacts();
 }
 
+async function editContact(id) {
+  const c = allContactsCache.find(x => x.id === id);
+  if (!c) return;
+  closeModal('contact-detail-modal');
+  // Populate the new contact modal with existing data for editing
+  setTimeout(() => {
+    document.getElementById('contact-name').value = c.name || '';
+    document.getElementById('contact-phone').value = c.phone || '';
+    document.getElementById('contact-email').value = c.email || '';
+    document.getElementById('contact-notes').value = c.notes || '';
+    // Change modal to edit mode
+    const modal = document.getElementById('new-contact-modal');
+    modal.dataset.editId = id;
+    modal.querySelector('.modal-title').innerHTML = '<i data-lucide="pencil" style="width:16px;height:16px"></i> Edit Contact';
+    if (window.lucide) lucide.createIcons();
+    openModal('new-contact-modal');
+  }, 200);
+}
+
 // ── Announcements ─────────────────────────────────────────────────────
 async function loadAnnouncements() {
   const anns = await fetch('/api/announcements').then(r => r.json());
   const list = document.getElementById('announcements-list');
   if (!list) return;
   if (!anns.length) {
-    list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📢</div><div class="empty-state-text">No announcements</div></div>';
+    list.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="megaphone" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">No announcements</div></div>';if(window.lucide)lucide.createIcons();
     return;
   }
   list.innerHTML = anns.filter(a => a.active).map(a => `
@@ -2745,7 +2848,10 @@ function checkAndShowAnnouncements() {
   fetch('/api/announcements').then(r => r.json()).then(anns => {
     const dismissed = JSON.parse(localStorage.getItem('dismissedAnnouncements') || '[]');
     const relevant = anns.filter(a => a.active && (a.targetUser === 'both' || a.targetUser === currentUser) && !dismissed.includes(a.id));
-    if (relevant.length > 0) showBanner(relevant[0]);
+    if (relevant.length > 0) {
+      showBanner(relevant[0]);
+      SoundSystem.notify();
+    }
   });
 }
 
@@ -3220,8 +3326,15 @@ async function viewProfile(username) {
   const avatarEl = document.getElementById('pv-avatar');
   if (u.avatar) {
     avatarEl.innerHTML = `<img src="${u.avatar}" alt="">`;
+    avatarEl.style.cursor = 'pointer';
+    avatarEl.onclick = () => {
+      document.getElementById('enlarged-avatar-img').src = u.avatar;
+      openModal('enlarged-avatar-modal');
+    };
   } else {
     avatarEl.innerHTML = `<span>${(u.displayName || u.name)[0].toUpperCase()}</span>`;
+    avatarEl.onclick = null;
+    avatarEl.style.cursor = '';
   }
   // Status — use live _presence from server
   const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
@@ -3274,6 +3387,7 @@ async function viewProfile(username) {
   document.getElementById('pv-member-since').textContent = u.createdAt ? new Date(u.createdAt).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }) : 'The beginning';
   // Edit button (only for own profile)
   document.getElementById('pv-edit-btn').style.display = username === currentUser ? 'flex' : 'none';
+  document.getElementById('pv-schedule-btn').style.display = 'flex';
   openModal('profile-viewer-modal');
   if (window.lucide) lucide.createIcons();
 }
@@ -3389,14 +3503,7 @@ function toggleGif(el) {
 function toggleSound(el) { SoundSystem.setEnabled(el.checked); }
 
 async function changeSitePassword() {
-  const np = document.getElementById('new-pw').value;
-  const cp = document.getElementById('confirm-pw').value;
-  if (!np) return showToast('⚠️ Enter a new password');
-  if (np !== cp) return showToast('⚠️ Passwords do not match');
-  await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ newPassword: np }) });
-  document.getElementById('new-pw').value = '';
-  document.getElementById('confirm-pw').value = '';
-  showToast('🔐 Password updated!');
+  showToast('Use the Eval terminal to change the site password');
 }
 
 async function changeVaultPasscode() {
@@ -4800,6 +4907,55 @@ async function logout() {
 
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
+  {
+    version: '3.2.0',
+    date: 'Mar 12 2026',
+    intro: 'A huge polish & power update — Discord-style text formatting, enchanted profile cards, drag-to-reorder todos, theme builder eval commands, editable contacts, and 30+ refinements across the entire app.',
+    sections: [
+      { icon: '💬', title: 'Chat', items: [
+        { name: 'Discord Formatting', desc: 'Use **bold**, __underline__, ~~strikethrough~~, ||spoiler||, `code`, and ```code blocks```.' },
+        { name: 'Reliable Scroll', desc: 'Chat now reliably scrolls to your last read position on open.' },
+        { name: 'Bigger Header Icons', desc: 'Pin, call, video & wallpaper icons are larger and cleaner.' },
+      ]},
+      { icon: '🎨', title: 'Themes & Sounds', items: [
+        { name: 'Theme Sound Preview', desc: 'Changing your theme plays a preview of its sound profile.' },
+        { name: 'Rosewood & Ocean Sounds', desc: 'New acoustic profiles for Rose & Ember and Deep Tide themes.' },
+        { name: 'Reminder Colors', desc: 'Priority popup colors optimized per theme — no more harsh brightness.' },
+        { name: 'Notification Sounds', desc: 'Announcements and reminders now trigger a gentle chime.' },
+      ]},
+      { icon: '👤', title: 'Profiles & Cards', items: [
+        { name: 'Enchanted Forest', desc: 'Kathrine profile card has floating flower animations.' },
+        { name: 'Profile Pic Zoom', desc: 'Click any profile picture to view it enlarged.' },
+        { name: 'View Schedule', desc: 'Button on profile viewer to see someone\'s schedule.' },
+        { name: 'Larger Avatars', desc: 'Profile card avatars bumped to 90px for better visibility.' },
+      ]},
+      { icon: '📱', title: 'Apps & Tools', items: [
+        { name: 'Editable Contacts', desc: 'Edit existing contacts via pencil icon — no need to delete and re-add.' },
+        { name: 'Drag Reorder Todos', desc: 'Drag todo items to rearrange their order.' },
+        { name: 'iPad Todo Editing', desc: 'Larger input box for editing long todo items on tablets.' },
+        { name: 'Calendar Event Emoji', desc: 'Choose a custom emoji per event, or get a random school-themed one.' },
+        { name: 'Document Locker', desc: 'File Vault renamed to Document Locker everywhere.' },
+      ]},
+      { icon: '🛠️', title: 'Admin & Eval', items: [
+        { name: 'Theme Builder', desc: 'Build custom themes via eval: theme builder, set, preview, reset.' },
+        { name: 'Reset Password', desc: 'Reset the site password from eval terminal.' },
+        { name: 'Time Override', desc: 'Set/reset the site clock for testing schedules: time set/reset.' },
+        { name: 'Guests Archive', desc: 'Archive command now works correctly in eval.' },
+      ]},
+      { icon: '🧹', title: 'Cleanup', items: [
+        { name: 'Icons Over Emojis', desc: 'All empty states now use Lucide icons instead of emojis.' },
+        { name: 'No Browser UI', desc: 'Password change removed from settings — eval only.' },
+        { name: 'Preview Cmd Removed', desc: 'Deprecated preview eval command cleaned up.' },
+        { name: 'iPad Quick Actions', desc: 'Message hover actions no longer stick on iPad — tap to toggle.' },
+      ]},
+    ],
+    fixes: [
+      'Chat scroll no longer jumps to random positions on open',
+      'iPad zoom prevention via touch-action and viewport meta',
+      'Guest archive eval command now returns proper data',
+      'Dark theme sizing fixed to fill browser with 100dvh',
+    ],
+  },
   {
     version: '3.1.0',
     date: 'Mar 10 2026',
