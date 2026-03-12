@@ -77,6 +77,32 @@ async function sendPushToUser(targetUser, payload) {
 function rd(file)       { try { return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null; } catch { return null; } }
 function wd(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
 
+/**
+ * Returns the current "site time" — if a time override is active via
+ * `time set` eval command, returns that shifted time instead of real now.
+ */
+function getSiteNow() {
+  const s = rd(F.settings);
+  const offset = s?.timeOffset;
+  if (!offset) return new Date();
+  // Relative: +2h, -30m, +1d, +90s
+  const rel = offset.match(/^([+-])(\d+(?:\.\d+)?)(h|m|s|d)$/i);
+  if (rel) {
+    const sign = rel[1] === '+' ? 1 : -1;
+    const val  = parseFloat(rel[2]);
+    const unit = rel[3].toLowerCase();
+    const ms   = unit === 'h' ? val * 3600000
+               : unit === 'm' ? val * 60000
+               : unit === 's' ? val * 1000
+               : val * 86400000;
+    return new Date(Date.now() + sign * ms);
+  }
+  // Absolute ISO date
+  const abs = new Date(offset);
+  if (!isNaN(abs)) return abs;
+  return new Date();
+}
+
 // ── Initialize default data ───────────────────────────────────────────────────
 function initData() {
   if (!rd(F.settings)) {
@@ -1120,7 +1146,8 @@ app.delete('/api/reminders/:id', mainAuth, (req, res) => {
 // Check and fire due reminders (called by setInterval on server)
 async function checkDueReminders() {
   const all = rd(F.reminders) || [];
-  const now = Date.now();
+  const siteNow = getSiteNow();
+  const now = siteNow.getTime();
   let changed = false;
 
   for (const r of all) {
@@ -1835,7 +1862,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     const s = rd(F.settings);
     if (!s.bellSchedule || !s.bellSchedule[user]) return lines(`No bell schedule found for "${user}"`, 'error');
     if (!s._scheduleSkips) s._scheduleSkips = {};
-    const today = new Date().toISOString().split('T')[0];
+    const today = getSiteNow().toISOString().split('T')[0];
     s._scheduleSkips[user] = today;
     wd(F.settings, s);
     io.emit('schedule-skip', { user, date: today });
