@@ -1110,6 +1110,8 @@
   grid-template-rows: 56px 1fr;
   grid-template-columns: 1fr;
   grid-template-areas: "sidebar" "main";
+  width: 100%;
+  max-width: 100vw;
 }
 .theme-dark #app.sidebar-collapsed {
   grid-template-rows: 56px 1fr;
@@ -1246,6 +1248,8 @@
 .theme-dark .messages-area {
   background: #1a1a1a;
   padding: 20px 28px 12px;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 .theme-dark .msg-row {
   width: 100%;

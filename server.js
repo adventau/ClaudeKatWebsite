@@ -219,6 +219,9 @@ app.post('/api/auth/password', async (req, res) => {
   }
 
   if (bcrypt.compareSync(password, settings.sitePassword)) {
+    // Clear any stale guest session data so host doesn't inherit it
+    delete req.session.isGuest;
+    delete req.session.guestId;
     req.session.authenticated = true;
     return res.json({ success: true });
   }
@@ -235,6 +238,9 @@ app.post('/api/auth/profile', (req, res) => {
     if (!passcode) return res.json({ success: false, needsPasscode: true });
     if (passcode !== user.profilePasscode) return res.json({ success: false, error: 'Incorrect passcode' });
   }
+  // Clear any stale guest session so host messages use the correct sender
+  delete req.session.isGuest;
+  delete req.session.guestId;
   req.session.user = profile;
   req.session.loginTime = Date.now();
   res.json({ success: true });
@@ -348,7 +354,7 @@ app.post('/api/users/:user/status', mainAuth, (req, res) => {
   if (req.body.statusEmoji !== undefined) u.statusEmoji = req.body.statusEmoji;
   wd(F.users, users);
   io.emit('user-updated', { user: req.params.user, data: users[req.params.user] });
-  io.emit('status-changed', { user: req.params.user, status: u.status });
+  io.emit('status-changed', { user: req.params.user, status: u.status, customStatus: u.customStatus || '', statusEmoji: u.statusEmoji || '' });
   res.json({ success: true, user: u });
 });
 
@@ -1726,21 +1732,17 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
 
   // ── THEME BUILDER ──
   if (cmd === 'theme' && parts[1] === 'builder') {
+    // Fetch current custom themes for both users
+    const users = rd(F.users);
+    const themeData = {};
+    for (const u of Object.keys(users)) {
+      themeData[u] = users[u].customTheme || {};
+    }
     return {
+      openThemeBuilder: true,
+      themeData,
       lines: [
-        { text: '═══ THEME BUILDER ═══', cls: 'header' },
-        { text: 'Create custom theme variables for the site', cls: 'info' },
-        { text: '', cls: 'info' },
-        { text: 'Commands:', cls: 'highlight' },
-        { text: '  theme set <user> <property> <value>', cls: 'info' },
-        { text: '  theme preview <user>', cls: 'info' },
-        { text: '  theme reset <user>', cls: 'info' },
-        { text: '', cls: 'info' },
-        { text: 'Properties: bg-main, bg-sidebar, accent, accent2, text-primary,', cls: 'dim' },
-        { text: '  text-secondary, border, glow, font-main, font-heading', cls: 'dim' },
-        { text: '', cls: 'info' },
-        { text: 'Example: theme set kaliph accent #ff6b6b', cls: 'success' },
-        { text: 'Example: theme set kathrine font-heading "Playfair Display"', cls: 'success' },
+        { text: 'Opening Theme Builder UI...', cls: 'success' },
       ],
     };
   }
