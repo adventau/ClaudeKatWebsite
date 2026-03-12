@@ -154,9 +154,10 @@ async function init() {
   // Load last-read timestamp for unread tracking
   chatLastReadTs = parseInt(localStorage.getItem('chatLastReadTs_' + currentUser) || '0', 10);
 
-  // Init Lucide icons early so UI is always visible
+  // Init Lucide icons so UI is visible
   if (window.lucide) lucide.createIcons();
 
+  // ── Phase 2: Load all data before revealing UI ──
   await Promise.all([loadMessages(), loadAnnouncements(), loadNotes(), loadContacts(), loadGuestMessages()]).catch(console.error);
 
   // Count initial unread messages (from other user, after last read time)
@@ -172,7 +173,7 @@ async function init() {
   checkAndShowAnnouncements();
   if (!stealthMode) requestNotificationPermission();
 
-  // Reveal chat content now that messages are loaded (prevents flash of empty state)
+  // Reveal chat content now that messages are loaded
   document.body.classList.add('app-loaded');
 
   // Show update log if user hasn't dismissed the latest version
@@ -209,8 +210,7 @@ function activateStealthBanner(target) {
   if (banner) banner.style.display = '';
   const nameEl = document.getElementById('stealth-target-name');
   if (nameEl) nameEl.textContent = target.charAt(0).toUpperCase() + target.slice(1);
-  const select = document.getElementById('stealth-user-select');
-  if (select) select.value = target;
+  setCustomSelectValue('stealth-user-select', target, target.charAt(0).toUpperCase() + target.slice(1));
 }
 
 function exitStealthMode() {
@@ -894,8 +894,7 @@ async function sendMessage() {
   input.classList.remove('fmt-bold', 'fmt-italic', 'fmt-underline');
   input.style.fontFamily = '';
   document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
-  const fontSel = document.getElementById('font-select');
-  if (fontSel) fontSel.value = 'default';
+  setCustomSelectValue('font-select', 'default', 'Default');
   SoundSystem.send();
   socket.emit('stop-typing', { user: currentUser });
 
@@ -2645,7 +2644,7 @@ async function saveEvent() {
   const end = document.getElementById('event-end-date').value || start;
   if (!title) return showToast('Event title required');
   if (!start) return showToast('Date required');
-  const reminderVal = document.getElementById('event-reminder')?.value;
+  const reminderVal = getCustomSelectValue('event-reminder') || '';
   await fetch('/api/calendar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -2785,12 +2784,9 @@ async function editCalEvent(eventId) {
   document.getElementById('edit-event-desc').value = ev.description || '';
   document.getElementById('edit-event-color').value = ev.color || '#7c3aed';
 
-  const reminderSelect = document.getElementById('edit-event-reminder');
-  if (ev.reminder != null) {
-    reminderSelect.value = String(ev.reminder);
-  } else {
-    reminderSelect.value = '';
-  }
+  const reminderLabels = { '': 'No reminder', '0': 'Day of event', '1': '1 day before', '2': '2 days before', '3': '3 days before', '7': '1 week before' };
+  const rVal = ev.reminder != null ? String(ev.reminder) : '';
+  setCustomSelectValue('edit-event-reminder', rVal, reminderLabels[rVal] || 'No reminder');
 
   // Set up edit date picker state
   eedpSelectStart = ev.start || ev.date;
@@ -2816,7 +2812,7 @@ async function updateCalEvent() {
   if (!title) return showToast('Event title required');
   if (!start) return showToast('Date required');
 
-  const reminderVal = document.getElementById('edit-event-reminder').value;
+  const reminderVal = getCustomSelectValue('edit-event-reminder') || '';
   await fetch(`/api/calendar/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -2947,7 +2943,7 @@ function renderVault(data) {
     return;
   }
   grid.innerHTML = items.map(item => {
-    const icon = item.type === 'link' ? '🔗' : getFileIcon(item.mimeType);
+    const icon = item.type === 'link' ? '<i data-lucide="link" style="width:22px;height:22px;color:var(--accent)"></i>' : getFileIcon(item.mimeType);
     const mime = item.mimeType || '';
     // Show thumbnail preview for images/videos
     let thumbHtml;
@@ -3081,12 +3077,13 @@ async function deleteVaultItem(id) {
 }
 
 function getFileIcon(mime = '') {
-  if (mime.startsWith('image')) return '🖼️';
-  if (mime.startsWith('video')) return '🎬';
-  if (mime.startsWith('audio')) return '🎵';
-  if (mime.includes('pdf')) return '📄';
-  if (mime.includes('word') || mime.includes('document')) return '📝';
-  return '📁';
+  const s = 'width:22px;height:22px;color:var(--accent)';
+  if (mime.startsWith('image')) return `<i data-lucide="image" style="${s}"></i>`;
+  if (mime.startsWith('video')) return `<i data-lucide="film" style="${s}"></i>`;
+  if (mime.startsWith('audio')) return `<i data-lucide="music" style="${s}"></i>`;
+  if (mime.includes('pdf')) return `<i data-lucide="file-text" style="${s}"></i>`;
+  if (mime.includes('word') || mime.includes('document')) return `<i data-lucide="file-pen" style="${s}"></i>`;
+  return `<i data-lucide="file" style="${s}"></i>`;
 }
 
 // ── Contacts ──────────────────────────────────────────────────────────
@@ -3121,7 +3118,7 @@ function renderContactsList(contacts) {
   }
 
   // Sort
-  const sortBy = document.getElementById('contacts-sort')?.value || 'name-asc';
+  const sortBy = getCustomSelectValue('contacts-sort') || 'name-asc';
   const sorted = [...contacts].sort((a, b) => {
     if (sortBy === 'name-asc') return (a.name||'').localeCompare(b.name||'');
     if (sortBy === 'name-desc') return (b.name||'').localeCompare(a.name||'');
@@ -3326,7 +3323,7 @@ async function postAnnouncement() {
   if (!title || !content) return showToast('⚠️ Title and content required');
   await fetch('/api/announcements', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, content, targetUser: document.getElementById('ann-target').value })
+    body: JSON.stringify({ title, content, targetUser: getCustomSelectValue('ann-target') || 'both' })
   });
   closeModal('new-announcement-modal');
   await loadAnnouncements();
@@ -3824,14 +3821,35 @@ function selectCustomOption(id, value, label) {
   if (wrap) wrap.dataset.value = value;
 }
 function getCustomSelectValue(id) {
-  const wrap = document.getElementById(id + '-wrap');
+  // Try id-wrap first, then find wrap as parent of dropdown
+  let wrap = document.getElementById(id + '-wrap');
+  if (!wrap) {
+    const dd = document.getElementById(id + '-dropdown');
+    if (dd) wrap = dd.parentElement;
+  }
   return wrap?.dataset.value ?? '';
 }
 function setCustomSelectValue(id, value, label) {
-  const wrap = document.getElementById(id + '-wrap');
-  if (wrap) wrap.dataset.value = value;
-  const btn = document.getElementById(id + '-btn');
-  if (btn) btn.querySelector('.custom-select-text').textContent = label;
+  // Find wrap
+  let wrap = document.getElementById(id + '-wrap');
+  if (!wrap) {
+    const dd = document.getElementById(id + '-dropdown');
+    if (dd) wrap = dd.parentElement;
+  }
+  if (wrap) {
+    wrap.dataset.value = value;
+    const btn = wrap.querySelector('.custom-select-btn');
+    if (btn) {
+      const txt = btn.querySelector('.custom-select-text');
+      if (txt) txt.textContent = label;
+    }
+  }
+  // Also try explicit btn id
+  const explicitBtn = document.getElementById(id + '-btn');
+  if (explicitBtn) {
+    const txt = explicitBtn.querySelector('.custom-select-text');
+    if (txt) txt.textContent = label;
+  }
   const dropdown = document.getElementById(id + '-dropdown');
   if (dropdown) dropdown.querySelectorAll('.custom-select-option').forEach(o => o.classList.toggle('selected', o.dataset.value === value));
 }
@@ -4268,13 +4286,16 @@ async function viewProfile(username) {
   // Status display (Discord style — icon + label)
   const statusSection = document.getElementById('pv-status-section');
   if (statusSection) {
-    const statusIcons = { online: '🟢', idle: '🌙', dnd: '⛔', invisible: '⚫' };
+    const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
+    const statusLucide = { online: 'circle', idle: 'moon', dnd: 'minus-circle', invisible: 'eye-off' };
     const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
     const userStatus = u.status || pvStatus;
+    const sColor = statusColors[userStatus] || '#22c55e';
+    const sIcon = statusLucide[userStatus] || 'circle';
     statusSection.innerHTML = `
       <div class="pc-section-title">STATUS</div>
       <div class="pv-status-row">
-        <span class="pv-status-icon">${statusIcons[userStatus] || '🟢'}</span>
+        <span class="pv-status-icon" style="color:${sColor};display:inline-flex;align-items:center"><i data-lucide="${sIcon}" style="width:14px;height:14px;fill:${userStatus === 'online' ? sColor : 'none'}"></i></span>
         <span class="pv-status-label">${statusLabels[userStatus] || 'Online'}</span>
         ${u.customStatus ? `<span class="pv-status-custom">— ${escapeHtml(u.customStatus)}</span>` : ''}
         ${u.statusEmoji ? `<span class="pv-status-emoji">${u.statusEmoji}</span>` : ''}
@@ -4337,6 +4358,7 @@ function openScheduleModal() {
   const lateDay = data.lateStartDay || '';
 
   let html = '';
+  // Regular schedule
   html += '<div style="margin-bottom:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);margin-bottom:8px">Regular Schedule</div>';
   if (regular.length) {
     html += '<div class="schedule-view-table">';
@@ -4352,6 +4374,7 @@ function openScheduleModal() {
   }
   html += '</div>';
 
+  // Late start schedule
   if (lateStart.length || lateDay) {
     html += '<div><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);margin-bottom:8px">Late Start Schedule';
     if (lateDay) html += ` <span style="font-weight:400;text-transform:capitalize;color:var(--text-muted)">— ${lateDay}s</span>`;
@@ -4382,15 +4405,29 @@ function openStatusEditor() {
   // Populate with current values
   const users = window._users || {};
   const u = users[currentUser] || {};
-  document.getElementById('se-status-select').value = u.status || 'online';
+  const statusVal = u.status || 'online';
+  const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
+  const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
+  setCustomSelectValue('se-status-select', statusVal, statusLabels[statusVal] || 'Online');
+  // Update the dot color in the button
+  const dot = document.querySelector('#se-status-select-wrap .se-status-dot');
+  if (dot) dot.style.background = statusColors[statusVal] || '#22c55e';
   document.getElementById('se-custom-status').value = u.customStatus || '';
   document.getElementById('se-status-emoji').value = u.statusEmoji || '';
+  if (window.lucide) lucide.createIcons({ node: document.getElementById('se-status-select-wrap') });
+}
+
+function selectStatus(value, label, color) {
+  setCustomSelectValue('se-status-select', value, label);
+  const dot = document.querySelector('#se-status-select-wrap .se-status-dot');
+  if (dot) dot.style.background = color;
+  closeAllCustomSelects();
 }
 
 async function saveStatus() {
-  const status = document.getElementById('se-status-select').value;
+  const status = getCustomSelectValue('se-status-select');
   const customStatus = document.getElementById('se-custom-status').value.trim();
-  const statusEmoji = document.getElementById('se-status-emoji').value.trim();
+  const statusEmoji = document.getElementById('se-status-emoji').value.trim() || '';
   await fetch(`/api/users/${currentUser}/status`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status, customStatus, statusEmoji })
@@ -4402,9 +4439,9 @@ async function saveStatus() {
     window._users[currentUser].statusEmoji = statusEmoji;
   }
   closeModal('status-editor-modal');
-  showToast('✅ Status updated!');
+  showToast('Status updated!');
   // Also emit to socket so header updates
-  socket.emit('status-change', { user: currentUser, status });
+  socket.emit('status-change', { user: currentUser, status, customStatus, statusEmoji });
   // Update own status dot
   setStatusDot('my-status-dot', status);
   updateStatusText(status);
@@ -4493,7 +4530,7 @@ async function changeVaultPasscode() {
   const p = document.getElementById('new-vault-passcode').value;
   if (p.length !== 4) return showToast('⚠️ Must be 4 digits');
   await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vaultPasscode: p }) });
-  showToast('🔐 Vault passcode updated!');
+  showToast('Locker passcode updated!');
 }
 
 // ── Profile Passcode ──────────────────────────────────────────────────
@@ -4616,7 +4653,7 @@ function updateGuestChannelOptions(activeGuests) {
 }
 
 function toggleGuestExpiryMode() {
-  const mode = document.getElementById('guest-expires-mode').value;
+  const mode = getCustomSelectValue('guest-expires-mode');
   const durEl = document.getElementById('guest-expiry-duration');
   const dtEl = document.getElementById('guest-expiry-datetime');
   durEl.style.display = mode === 'duration' ? 'flex' : 'none';
@@ -4628,7 +4665,7 @@ async function createGuest() {
   const pw   = document.getElementById('guest-pw').value;
   if (!name || !pw) return showToast('⚠️ Name and password required');
   // Compute expiration
-  const mode = document.getElementById('guest-expires-mode').value;
+  const mode = getCustomSelectValue('guest-expires-mode');
   let expiresAt = null;
   if (mode === 'duration') {
     const hrs = parseInt(document.getElementById('guest-expires-hours').value) || 0;
@@ -4652,7 +4689,7 @@ async function createGuest() {
   });
   document.getElementById('guest-name').value = '';
   document.getElementById('guest-pw').value = '';
-  document.getElementById('guest-expires-mode').value = 'never';
+  setCustomSelectValue('guest-expires-mode', 'never', 'Never expires');
   toggleGuestExpiryMode();
   document.getElementById('guest-perm-kaliph').checked = true;
   document.getElementById('guest-perm-kathrine').checked = true;
@@ -4750,7 +4787,7 @@ async function submitSuggestion() {
   if (!msg) return showToast('⚠️ Write something first');
   await fetch('/api/suggestions', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: document.getElementById('suggestion-type').value, message: msg })
+    body: JSON.stringify({ type: getCustomSelectValue('suggestion-type') || 'suggestion', message: msg })
   });
   document.getElementById('suggestion-msg').value = '';
   await loadSuggestions();

@@ -37,11 +37,16 @@
       <span class="stealth-label">You are viewing this app as <strong id="stealth-target-name">User</strong>.</span>
       <div class="stealth-right">
         <div class="stealth-select-wrap">
-          <select id="stealth-user-select" onchange="switchStealthUser(this.value)">
-            <option value="kaliph">Kaliph</option>
-            <option value="kathrine">Kathrine</option>
-          </select>
-          <i data-lucide="chevron-down" style="width:14px;height:14px;position:absolute;right:8px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:0.7"></i>
+          <div class="custom-select-wrap" id="stealth-user-select-wrap" data-value="kaliph" style="width:100%">
+            <button type="button" class="input custom-select-btn" onclick="toggleCustomSelect('stealth-user-select')" style="width:100%;display:flex;align-items:center;gap:8px;cursor:pointer;text-align:left">
+              <span class="custom-select-text" style="flex:1">Kaliph</span>
+              <i data-lucide="chevron-down" style="width:14px;height:14px;opacity:0.5"></i>
+            </button>
+            <div class="custom-select-dropdown" id="stealth-user-select-dropdown" style="display:none">
+              <div class="custom-select-option selected" data-value="kaliph" onclick="setCustomSelectValue('stealth-user-select','kaliph','Kaliph');closeAllCustomSelects();switchStealthUser('kaliph')">Kaliph</div>
+              <div class="custom-select-option" data-value="kathrine" onclick="setCustomSelectValue('stealth-user-select','kathrine','Kathrine');closeAllCustomSelects();switchStealthUser('kathrine')">Kathrine</div>
+            </div>
+          </div>
         </div>
         <button class="stealth-btn stealth-disable" onclick="exitStealthMode()">Disable</button>
       </div>
@@ -259,14 +264,20 @@
           <button class="format-btn" onclick="applyFormat('italic')" title="Italic (Ctrl+I)"><i>I</i></button>
           <button class="format-btn" onclick="applyFormat('underline')" title="Underline (Ctrl+U)"><u>U</u></button>
           <div class="format-sep"></div>
-          <select id="font-select" onchange="setFont(this.value)">
-            <option value="default">Default</option>
-            <option value="'Orbitron'">Orbitron</option>
-            <option value="'Cormorant Garamond'">Garamond</option>
-            <option value="'Cinzel'">Cinzel</option>
-            <option value="'Josefin Sans'">Josefin</option>
-            <option value="'Space Grotesk'">Space Grotesk</option>
-          </select>
+          <div class="custom-select-wrap" id="font-select-wrap" data-value="default" style="min-width:100px">
+            <button type="button" class="input custom-select-btn" onclick="toggleCustomSelect('font-select')" style="display:flex;align-items:center;gap:6px;cursor:pointer;text-align:left;padding:4px 8px;font-size:0.8rem">
+              <span class="custom-select-text">Default</span>
+              <i data-lucide="chevron-down" style="width:12px;height:12px;opacity:0.5"></i>
+            </button>
+            <div class="custom-select-dropdown" id="font-select-dropdown" style="display:none">
+              <div class="custom-select-option selected" data-value="default" onclick="setCustomSelectValue('font-select','default','Default');closeAllCustomSelects();setFont('default')">Default</div>
+              <div class="custom-select-option" data-value="'Orbitron'" onclick="setCustomSelectValue('font-select',&quot;'Orbitron'&quot;,'Orbitron');closeAllCustomSelects();setFont(&quot;'Orbitron'&quot;)">Orbitron</div>
+              <div class="custom-select-option" data-value="'Cormorant Garamond'" onclick="setCustomSelectValue('font-select',&quot;'Cormorant Garamond'&quot;,'Garamond');closeAllCustomSelects();setFont(&quot;'Cormorant Garamond'&quot;)">Garamond</div>
+              <div class="custom-select-option" data-value="'Cinzel'" onclick="setCustomSelectValue('font-select',&quot;'Cinzel'&quot;,'Cinzel');closeAllCustomSelects();setFont(&quot;'Cinzel'&quot;)">Cinzel</div>
+              <div class="custom-select-option" data-value="'Josefin Sans'" onclick="setCustomSelectValue('font-select',&quot;'Josefin Sans'&quot;,'Josefin');closeAllCustomSelects();setFont(&quot;'Josefin Sans'&quot;)">Josefin</div>
+              <div class="custom-select-option" data-value="'Space Grotesk'" onclick="setCustomSelectValue('font-select',&quot;'Space Grotesk'&quot;,'Space Grotesk');closeAllCustomSelects();setFont(&quot;'Space Grotesk'&quot;)">Space Grotesk</div>
+            </div>
+          </div>
         </div>
 
         <div id="emoji-autocomplete" class="emoji-autocomplete" style="display:none"></div>
@@ -391,12 +402,18 @@
             <i data-lucide="search" style="width:15px;height:15px;opacity:0.4"></i>
             <input type="text" id="contacts-search" placeholder="Search contacts…" oninput="filterContacts(this.value)">
           </div>
-          <select id="contacts-sort" onchange="loadContacts()" class="contacts-sort-select">
-            <option value="name-asc">Name A–Z</option>
-            <option value="name-desc">Name Z–A</option>
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-          </select>
+          <div class="custom-select-wrap contacts-sort-select" id="contacts-sort-wrap" data-value="name-asc">
+            <button type="button" class="input custom-select-btn" onclick="toggleCustomSelect('contacts-sort')" style="display:flex;align-items:center;gap:6px;cursor:pointer;text-align:left;font-size:0.8rem;padding:6px 10px">
+              <span class="custom-select-text">Name A–Z</span>
+              <i data-lucide="chevron-down" style="width:12px;height:12px;opacity:0.5"></i>
+            </button>
+            <div class="custom-select-dropdown" id="contacts-sort-dropdown" style="display:none">
+              <div class="custom-select-option selected" data-value="name-asc" onclick="setCustomSelectValue('contacts-sort','name-asc','Name A–Z');closeAllCustomSelects();loadContacts()">Name A–Z</div>
+              <div class="custom-select-option" data-value="name-desc" onclick="setCustomSelectValue('contacts-sort','name-desc','Name Z–A');closeAllCustomSelects();loadContacts()">Name Z–A</div>
+              <div class="custom-select-option" data-value="newest" onclick="setCustomSelectValue('contacts-sort','newest','Newest first');closeAllCustomSelects();loadContacts()">Newest first</div>
+              <div class="custom-select-option" data-value="oldest" onclick="setCustomSelectValue('contacts-sort','oldest','Oldest first');closeAllCustomSelects();loadContacts()">Oldest first</div>
+            </div>
+          </div>
         </div>
       </div>
       <div style="flex:1;overflow-y:auto;padding:0 1rem 1rem">
@@ -649,11 +666,17 @@
               <div class="form-row"><label>Guest Name</label><input type="text" id="guest-name" placeholder="Guest name"></div>
               <div class="form-row"><label>Password</label><input type="text" id="guest-pw" placeholder="Create password"></div>
               <div class="form-row"><label>Expiration</label>
-                <select id="guest-expires-mode" class="input" onchange="toggleGuestExpiryMode()" style="margin-bottom:8px;width:100%">
-                  <option value="never">Never expires</option>
-                  <option value="duration">Duration (hours & minutes)</option>
-                  <option value="datetime">Specific date & time</option>
-                </select>
+                <div class="custom-select-wrap" id="guest-expires-mode-wrap" data-value="never" style="margin-bottom:8px;width:100%">
+                  <button type="button" class="input custom-select-btn" onclick="toggleCustomSelect('guest-expires-mode')" style="width:100%;display:flex;align-items:center;gap:8px;cursor:pointer;text-align:left">
+                    <span class="custom-select-text" style="flex:1">Never expires</span>
+                    <i data-lucide="chevron-down" style="width:14px;height:14px;opacity:0.5"></i>
+                  </button>
+                  <div class="custom-select-dropdown" id="guest-expires-mode-dropdown" style="display:none">
+                    <div class="custom-select-option selected" data-value="never" onclick="setCustomSelectValue('guest-expires-mode','never','Never expires');closeAllCustomSelects();toggleGuestExpiryMode()">Never expires</div>
+                    <div class="custom-select-option" data-value="duration" onclick="setCustomSelectValue('guest-expires-mode','duration','Duration (hours & minutes)');closeAllCustomSelects();toggleGuestExpiryMode()">Duration (hours & minutes)</div>
+                    <div class="custom-select-option" data-value="datetime" onclick="setCustomSelectValue('guest-expires-mode','datetime','Specific date & time');closeAllCustomSelects();toggleGuestExpiryMode()">Specific date & time</div>
+                  </div>
+                </div>
                 <div id="guest-expiry-duration" style="display:none;gap:8px">
                   <input type="number" id="guest-expires-hours" placeholder="Hours" min="0" style="flex:1">
                   <input type="number" id="guest-expires-minutes" placeholder="Minutes" min="0" max="59" style="flex:1">
@@ -786,10 +809,16 @@
             <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem">Report bugs or suggest features. These are saved for review.</p>
             <div class="form-row">
               <label>Type</label>
-              <select id="suggestion-type" style="width:auto">
-                <option value="suggestion">Feature Suggestion</option>
-                <option value="bug">Bug Report</option>
-              </select>
+              <div class="custom-select-wrap" id="suggestion-type-wrap" data-value="suggestion" style="width:auto;min-width:160px">
+                <button type="button" class="input custom-select-btn" onclick="toggleCustomSelect('suggestion-type')" style="display:flex;align-items:center;gap:8px;cursor:pointer;text-align:left">
+                  <span class="custom-select-text" style="flex:1">Feature Suggestion</span>
+                  <i data-lucide="chevron-down" style="width:14px;height:14px;opacity:0.5"></i>
+                </button>
+                <div class="custom-select-dropdown" id="suggestion-type-dropdown" style="display:none">
+                  <div class="custom-select-option selected" data-value="suggestion" onclick="setCustomSelectValue('suggestion-type','suggestion','Feature Suggestion');closeAllCustomSelects()">Feature Suggestion</div>
+                  <div class="custom-select-option" data-value="bug" onclick="setCustomSelectValue('suggestion-type','bug','Bug Report');closeAllCustomSelects()">Bug Report</div>
+                </div>
+              </div>
             </div>
             <div class="form-row">
               <label>Message</label>
@@ -983,14 +1012,20 @@
     <div class="form-row"><label>Color</label><input type="color" id="event-color" value="#7c3aed" style="width:60px;height:32px"></div>
     <div class="form-row">
       <label>Reminder</label>
-      <select id="event-reminder" style="width:auto">
-        <option value="">No reminder</option>
-        <option value="0">Day of event</option>
-        <option value="1">1 day before</option>
-        <option value="2">2 days before</option>
-        <option value="3">3 days before</option>
-        <option value="7">1 week before</option>
-      </select>
+      <div class="custom-select-wrap" id="event-reminder-wrap" data-value="" style="width:auto;min-width:140px">
+        <button type="button" class="input custom-select-btn" onclick="toggleCustomSelect('event-reminder')" style="display:flex;align-items:center;gap:8px;cursor:pointer;text-align:left">
+          <span class="custom-select-text" style="flex:1">No reminder</span>
+          <i data-lucide="chevron-down" style="width:14px;height:14px;opacity:0.5"></i>
+        </button>
+        <div class="custom-select-dropdown" id="event-reminder-dropdown" style="display:none">
+          <div class="custom-select-option selected" data-value="" onclick="setCustomSelectValue('event-reminder','','No reminder');closeAllCustomSelects()">No reminder</div>
+          <div class="custom-select-option" data-value="0" onclick="setCustomSelectValue('event-reminder','0','Day of event');closeAllCustomSelects()">Day of event</div>
+          <div class="custom-select-option" data-value="1" onclick="setCustomSelectValue('event-reminder','1','1 day before');closeAllCustomSelects()">1 day before</div>
+          <div class="custom-select-option" data-value="2" onclick="setCustomSelectValue('event-reminder','2','2 days before');closeAllCustomSelects()">2 days before</div>
+          <div class="custom-select-option" data-value="3" onclick="setCustomSelectValue('event-reminder','3','3 days before');closeAllCustomSelects()">3 days before</div>
+          <div class="custom-select-option" data-value="7" onclick="setCustomSelectValue('event-reminder','7','1 week before');closeAllCustomSelects()">1 week before</div>
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:1rem">
       <button class="btn-primary" onclick="saveEvent()">Save Event</button>
@@ -1030,14 +1065,20 @@
     <div class="form-row"><label>Color</label><input type="color" id="edit-event-color" value="#7c3aed" style="width:60px;height:32px"></div>
     <div class="form-row">
       <label>Reminder</label>
-      <select id="edit-event-reminder" style="width:auto">
-        <option value="">No reminder</option>
-        <option value="0">Day of event</option>
-        <option value="1">1 day before</option>
-        <option value="2">2 days before</option>
-        <option value="3">3 days before</option>
-        <option value="7">1 week before</option>
-      </select>
+      <div class="custom-select-wrap" id="edit-event-reminder-wrap" data-value="" style="width:auto;min-width:140px">
+        <button type="button" class="input custom-select-btn" onclick="toggleCustomSelect('edit-event-reminder')" style="display:flex;align-items:center;gap:8px;cursor:pointer;text-align:left">
+          <span class="custom-select-text" style="flex:1">No reminder</span>
+          <i data-lucide="chevron-down" style="width:14px;height:14px;opacity:0.5"></i>
+        </button>
+        <div class="custom-select-dropdown" id="edit-event-reminder-dropdown" style="display:none">
+          <div class="custom-select-option selected" data-value="" onclick="setCustomSelectValue('edit-event-reminder','','No reminder');closeAllCustomSelects()">No reminder</div>
+          <div class="custom-select-option" data-value="0" onclick="setCustomSelectValue('edit-event-reminder','0','Day of event');closeAllCustomSelects()">Day of event</div>
+          <div class="custom-select-option" data-value="1" onclick="setCustomSelectValue('edit-event-reminder','1','1 day before');closeAllCustomSelects()">1 day before</div>
+          <div class="custom-select-option" data-value="2" onclick="setCustomSelectValue('edit-event-reminder','2','2 days before');closeAllCustomSelects()">2 days before</div>
+          <div class="custom-select-option" data-value="3" onclick="setCustomSelectValue('edit-event-reminder','3','3 days before');closeAllCustomSelects()">3 days before</div>
+          <div class="custom-select-option" data-value="7" onclick="setCustomSelectValue('edit-event-reminder','7','1 week before');closeAllCustomSelects()">1 week before</div>
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:1rem">
       <button class="btn-primary" onclick="updateCalEvent()">Update Event</button>
@@ -1339,11 +1380,17 @@
     <div class="form-row"><label>Message</label><textarea id="ann-content" rows="4" placeholder="Write your announcement…"></textarea></div>
     <div class="form-row">
       <label>Show to</label>
-      <select id="ann-target" style="width:auto">
-        <option value="both">Both</option>
-        <option value="kaliph">Kaliph only</option>
-        <option value="kathrine">Kathrine only</option>
-      </select>
+      <div class="custom-select-wrap" id="ann-target-wrap" data-value="both" style="width:auto;min-width:130px">
+        <button type="button" class="input custom-select-btn" onclick="toggleCustomSelect('ann-target')" style="display:flex;align-items:center;gap:8px;cursor:pointer;text-align:left">
+          <span class="custom-select-text" style="flex:1">Both</span>
+          <i data-lucide="chevron-down" style="width:14px;height:14px;opacity:0.5"></i>
+        </button>
+        <div class="custom-select-dropdown" id="ann-target-dropdown" style="display:none">
+          <div class="custom-select-option selected" data-value="both" onclick="setCustomSelectValue('ann-target','both','Both');closeAllCustomSelects()">Both</div>
+          <div class="custom-select-option" data-value="kaliph" onclick="setCustomSelectValue('ann-target','kaliph','Kaliph only');closeAllCustomSelects()">Kaliph only</div>
+          <div class="custom-select-option" data-value="kathrine" onclick="setCustomSelectValue('ann-target','kathrine','Kathrine only');closeAllCustomSelects()">Kathrine only</div>
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:1rem">
       <button class="btn-primary" onclick="postAnnouncement()">Post</button>
@@ -1499,12 +1546,27 @@
     <div style="padding:1rem;display:flex;flex-direction:column;gap:12px">
       <div>
         <label style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;display:block">Status</label>
-        <select id="se-status-select" class="input" style="width:100%">
-          <option value="online">🟢 Online</option>
-          <option value="idle">🌙 Idle</option>
-          <option value="dnd">⛔ Do Not Disturb</option>
-          <option value="invisible">⚫ Invisible</option>
-        </select>
+        <div class="custom-select-wrap" id="se-status-select-wrap" data-value="online" style="width:100%">
+          <button type="button" class="input custom-select-btn" onclick="toggleCustomSelect('se-status-select')" style="width:100%;display:flex;align-items:center;gap:8px;cursor:pointer;text-align:left">
+            <span class="se-status-dot" style="width:10px;height:10px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>
+            <span class="custom-select-text" style="flex:1">Online</span>
+            <i data-lucide="chevron-down" style="width:14px;height:14px;opacity:0.5"></i>
+          </button>
+          <div class="custom-select-dropdown" id="se-status-select-dropdown" style="display:none">
+            <div class="custom-select-option selected" data-value="online" onclick="selectStatus('online','Online','#22c55e')">
+              <span style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block"></span> Online
+            </div>
+            <div class="custom-select-option" data-value="idle" onclick="selectStatus('idle','Idle','#eab308')">
+              <span style="width:10px;height:10px;border-radius:50%;background:#eab308;display:inline-block"></span> Idle
+            </div>
+            <div class="custom-select-option" data-value="dnd" onclick="selectStatus('dnd','Do Not Disturb','#ef4444')">
+              <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span> Do Not Disturb
+            </div>
+            <div class="custom-select-option" data-value="invisible" onclick="selectStatus('invisible','Invisible','#6b7280')">
+              <span style="width:10px;height:10px;border-radius:50%;background:#6b7280;display:inline-block"></span> Invisible
+            </div>
+          </div>
+        </div>
       </div>
       <div>
         <label style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;display:block">Custom Status</label>
@@ -1575,10 +1637,6 @@
 </div>
 
 <!-- Scripts -->
-<script>
-  // Init Lucide icons immediately so UI is always interactive
-  document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });
-</script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js"></script>
 <script src="/js/app.js"></script>

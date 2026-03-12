@@ -10,6 +10,8 @@ const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 // nodemailer removed — using EmailJS HTTP API instead
+let compression;
+try { compression = require('compression'); } catch(e) { /* optional */ }
 const webpush = require('web-push');
 
 const app = express();
@@ -120,6 +122,7 @@ function initData() {
 initData();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+if (compression) app.use(compression());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(express.static(path.join(__dirname, 'public')));

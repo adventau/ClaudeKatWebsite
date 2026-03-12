@@ -3,7 +3,7 @@
 ═══════════════════════════════════════════════════════════════════ */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100dvh; height: 100%; overflow: hidden; }
+html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
 
 /* ── Layout ──────────────────────────────────────────────────────── */
 #app {
@@ -11,8 +11,9 @@ html, body { height: 100dvh; height: 100%; overflow: hidden; }
   grid-template-rows: 60px 1fr;
   grid-template-columns: 252px 1fr;
   grid-template-areas: "sidebar header" "sidebar main";
-  height: 100dvh;
   height: 100vh;
+  height: 100dvh;
+  width: 100%;
   overflow: hidden;
 }
 #app.sidebar-collapsed { grid-template-columns: 72px 1fr; }
@@ -199,8 +200,10 @@ html, body { height: 100dvh; height: 100%; overflow: hidden; }
   border: 2px solid var(--bg-primary);
   box-shadow: 0 0 0 1px var(--accent);
 }
-#app.sidebar-collapsed .nav-item { justify-content: center; padding: 10px; }
-#app.sidebar-collapsed .sidebar-user { justify-content: center; padding: 16px 0; }
+#app.sidebar-collapsed .nav-item { justify-content: center; padding: 10px; margin: 0 auto; }
+#app.sidebar-collapsed .sidebar-user { justify-content: center; padding: 12px 0; flex-direction: column; align-items: center; gap: 4px; }
+#app.sidebar-collapsed .sidebar-nav { align-items: center; }
+#app.sidebar-collapsed #sidebar { align-items: center; }
 
 /* AVNT footer (Kaliph theme only) */
 #avnt-footer {
@@ -768,7 +771,7 @@ html, body { height: 100dvh; height: 100%; overflow: hidden; }
   background: var(--bg-hover); border-radius: 8px;
   border-left: 3px solid #ef4444; animation: fadeUp 0.15s ease;
 }
-.priority-row input[type=checkbox] { accent-color: #ef4444; width: 13px; height: 13px; flex-shrink: 0; }
+.priority-row input[type=checkbox] { accent-color: var(--accent, #7c3aed); width: 13px; height: 13px; flex-shrink: 0; }
 
 /* Voice recorder */
 #voice-recording-bar {
@@ -2531,33 +2534,148 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .rep-emoji-btn:hover { background: var(--bg-hover); transform: scale(1.15); }
 
 /* ── Theme-aware reminder/priority colors ──────────────────────────── */
-.theme-kaliph .priority-row { border-left-color: #a78bfa; }
+/* Kaliph — soft purple tones */
+.theme-kaliph .priority-row { border-left-color: rgba(167,139,250,0.6); }
 .theme-kaliph .priority-row input[type="checkbox"] { accent-color: #7c3aed; }
-.theme-kathrine .priority-row { border-left-color: #e879f9; }
+.theme-kaliph .reminder-card.priority-high { border-left-color: rgba(239,68,68,0.5); }
+.theme-kaliph .reminder-meta-item.overdue { color: #f87171; }
+.theme-kaliph .reminder-check:hover { border-color: #a78bfa; background: rgba(124,58,237,0.1); }
+.theme-kaliph .reminder-check.checked { background: #7c3aed; border-color: #7c3aed; }
+.theme-kaliph .reminder-action-btn:hover { background: rgba(124,58,237,0.12); color: #a78bfa; }
+.theme-kaliph .priority-high { background: #f87171; }
+.theme-kaliph .priority-normal { background: #818cf8; }
+.theme-kaliph .priority-low { background: #6ee7b7; }
+.theme-kaliph .custom-priority-btn.active { border-color: #7c3aed; background: rgba(124,58,237,0.14); }
+
+/* Kathrine — soft violet/pink tones */
+.theme-kathrine .priority-row { border-left-color: rgba(232,121,249,0.5); }
 .theme-kathrine .priority-row input[type="checkbox"] { accent-color: #c084fc; }
-.theme-royal .priority-row { border-left-color: #fbbf24; }
+.theme-kathrine .reminder-card.priority-high { border-left-color: rgba(244,114,182,0.5); }
+.theme-kathrine .reminder-meta-item.overdue { color: #f472b6; }
+.theme-kathrine .reminder-check:hover { border-color: #e879f9; background: rgba(192,132,252,0.1); }
+.theme-kathrine .reminder-check.checked { background: #8b5cf6; border-color: #8b5cf6; }
+.theme-kathrine .reminder-action-btn:hover { background: rgba(139,92,246,0.12); color: #c084fc; }
+.theme-kathrine .priority-high { background: #f472b6; }
+.theme-kathrine .priority-normal { background: #c084fc; }
+.theme-kathrine .priority-low { background: #6ee7b7; }
+.theme-kathrine .custom-priority-btn.active { border-color: #8b5cf6; background: rgba(139,92,246,0.14); }
+
+/* Royal — muted gold/ember tones */
+.theme-royal .priority-row { border-left-color: rgba(251,191,36,0.5); }
 .theme-royal .priority-row input[type="checkbox"] { accent-color: #d97706; }
-.theme-light .priority-row { border-left-color: #6366f1; background: rgba(99,102,241,0.06); }
+.theme-royal .reminder-card.priority-high { border-left-color: rgba(185,28,28,0.5); }
+.theme-royal .reminder-meta-item.overdue { color: #ef4444; }
+.theme-royal .reminder-check:hover { border-color: #fbbf24; background: rgba(217,119,6,0.1); }
+.theme-royal .reminder-check.checked { background: #d97706; border-color: #d97706; }
+.theme-royal .reminder-action-btn:hover { background: rgba(217,119,6,0.12); color: #fbbf24; }
+.theme-royal .priority-high { background: #dc2626; }
+.theme-royal .priority-normal { background: #d97706; }
+.theme-royal .priority-low { background: #65a30d; }
+.theme-royal .custom-priority-btn.active { border-color: #d97706; background: rgba(217,119,6,0.12); }
+
+/* Light — muted, professional tones */
+.theme-light .priority-row { border-left-color: rgba(99,102,241,0.4); background: rgba(99,102,241,0.04); }
 .theme-light .priority-row input[type="checkbox"] { accent-color: #6366f1; }
-.theme-dark .priority-row { border-left-color: #818cf8; }
+.theme-light .reminder-card { background: #ffffff; border-color: #e5e5e5; }
+.theme-light .reminder-card:hover { border-color: #d0d0d0; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.theme-light .reminder-card.priority-high { border-left-color: rgba(220,38,38,0.45); }
+.theme-light .reminder-meta-item.overdue { color: #dc2626; }
+.theme-light .reminder-check:hover { border-color: #6366f1; background: rgba(99,102,241,0.08); }
+.theme-light .reminder-check.checked { background: #4f46e5; border-color: #4f46e5; }
+.theme-light .reminder-action-btn:hover { background: rgba(99,102,241,0.08); color: #4f46e5; }
+.theme-light .priority-high { background: #dc2626; }
+.theme-light .priority-normal { background: #4f46e5; }
+.theme-light .priority-low { background: #16a34a; }
+.theme-light .custom-priority-btn.active { border-color: #4f46e5; background: rgba(79,70,229,0.08); }
+.theme-light .reminder-toast { background: #ffffff; border-color: #e5e5e5; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+
+/* Dark — muted neutral tones */
+.theme-dark .priority-row { border-left-color: rgba(129,140,248,0.45); }
 .theme-dark .priority-row input[type="checkbox"] { accent-color: #818cf8; }
-.theme-heaven .priority-row { border-left-color: #c8a96e; background: rgba(200,169,110,0.06); }
+.theme-dark .reminder-card.priority-high { border-left-color: rgba(248,113,113,0.45); }
+.theme-dark .reminder-meta-item.overdue { color: #f87171; }
+.theme-dark .reminder-check:hover { border-color: #818cf8; background: rgba(129,140,248,0.1); }
+.theme-dark .reminder-check.checked { background: #6366f1; border-color: #6366f1; }
+.theme-dark .reminder-action-btn:hover { background: rgba(129,140,248,0.1); color: #a5b4fc; }
+.theme-dark .priority-high { background: #f87171; }
+.theme-dark .priority-normal { background: #818cf8; }
+.theme-dark .priority-low { background: #4ade80; }
+.theme-dark .custom-priority-btn.active { border-color: #818cf8; background: rgba(129,140,248,0.1); }
+
+/* Heaven — soft gold/warm tones */
+.theme-heaven .priority-row { border-left-color: rgba(200,169,110,0.5); background: rgba(200,169,110,0.05); }
 .theme-heaven .priority-row input[type="checkbox"] { accent-color: #c8a96e; }
-.theme-rosewood .priority-row { border-left-color: #c8967a; }
+.theme-heaven .reminder-card { background: rgba(255,255,255,0.85); }
+.theme-heaven .reminder-card:hover { border-color: rgba(200,169,110,0.4); box-shadow: 0 2px 8px rgba(200,169,110,0.1); }
+.theme-heaven .reminder-card.priority-high { border-left-color: rgba(194,65,65,0.45); }
+.theme-heaven .reminder-meta-item.overdue { color: #c94040; }
+.theme-heaven .reminder-check:hover { border-color: #c8a96e; background: rgba(200,169,110,0.12); }
+.theme-heaven .reminder-check.checked { background: #b5956b; border-color: #b5956b; }
+.theme-heaven .reminder-action-btn:hover { background: rgba(200,169,110,0.12); color: #c8a96e; }
+.theme-heaven .priority-high { background: #c94040; }
+.theme-heaven .priority-normal { background: #c8a96e; }
+.theme-heaven .priority-low { background: #65a765; }
+.theme-heaven .custom-priority-btn.active { border-color: #c8a96e; background: rgba(200,169,110,0.1); }
+.theme-heaven .reminder-toast { background: #fafaf8; border-color: rgba(200,169,110,0.3); box-shadow: 0 8px 24px rgba(200,169,110,0.15); }
+
+/* Rosewood — warm rose/ember tones */
+.theme-rosewood .priority-row { border-left-color: rgba(200,150,122,0.5); }
 .theme-rosewood .priority-row input[type="checkbox"] { accent-color: #c8967a; }
-.theme-ocean .priority-row { border-left-color: #14b8a6; }
+.theme-rosewood .reminder-card.priority-high { border-left-color: rgba(248,113,113,0.4); }
+.theme-rosewood .reminder-meta-item.overdue { color: #f87171; }
+.theme-rosewood .reminder-check:hover { border-color: #c8967a; background: rgba(200,150,122,0.12); }
+.theme-rosewood .reminder-check.checked { background: #a07058; border-color: #a07058; }
+.theme-rosewood .reminder-action-btn:hover { background: rgba(200,150,122,0.12); color: #e8c9a0; }
+.theme-rosewood .priority-high { background: #f87171; }
+.theme-rosewood .priority-normal { background: #c8967a; }
+.theme-rosewood .priority-low { background: #6ee7b7; }
+.theme-rosewood .custom-priority-btn.active { border-color: #c8967a; background: rgba(200,150,122,0.12); }
+
+/* Ocean — cool teal tones */
+.theme-ocean .priority-row { border-left-color: rgba(20,184,166,0.45); }
 .theme-ocean .priority-row input[type="checkbox"] { accent-color: #14b8a6; }
+.theme-ocean .reminder-card.priority-high { border-left-color: rgba(248,113,113,0.4); }
+.theme-ocean .reminder-meta-item.overdue { color: #f87171; }
+.theme-ocean .reminder-check:hover { border-color: #2dd4bf; background: rgba(20,184,166,0.1); }
+.theme-ocean .reminder-check.checked { background: #0d9488; border-color: #0d9488; }
+.theme-ocean .reminder-action-btn:hover { background: rgba(20,184,166,0.1); color: #2dd4bf; }
+.theme-ocean .priority-high { background: #f87171; }
+.theme-ocean .priority-normal { background: #2dd4bf; }
+.theme-ocean .priority-low { background: #86efac; }
+.theme-ocean .custom-priority-btn.active { border-color: #14b8a6; background: rgba(20,184,166,0.1); }
 
 /* ── Profile schedule button + enlarged avatar ─────────────────────── */
 .pc-schedule-btn {
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  width: 100%; padding: 10px 16px; margin-top: 8px;
+  width: 100%; padding: 9px 16px;
   background: var(--bg-hover); border: 1px solid var(--border);
   border-radius: 10px; color: var(--text-secondary);
   font-size: 0.82rem; font-weight: 600; cursor: pointer;
   transition: all 0.15s;
 }
 .pc-schedule-btn:hover { background: var(--bg-active); color: var(--accent); border-color: var(--accent); }
+
+/* Schedule viewer table */
+.schedule-view-table {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--bg-input, rgba(0,0,0,0.04));
+  border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.schedule-view-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px;
+  background: var(--bg-card, rgba(0,0,0,0.02));
+  transition: background 0.15s;
+}
+.schedule-view-row:hover { background: var(--bg-hover); }
+.schedule-view-label {
+  font-size: 0.85rem; font-weight: 500; color: var(--text-primary);
+}
+.schedule-view-time {
+  font-size: 0.8rem; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── Todo drag reorder ─────────────────────────────────────────────── */
 .todo-item.dragging { opacity: 0.5; background: var(--bg-active); }
@@ -2675,7 +2793,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   box-shadow: 0 2px 8px rgba(124, 58, 237, 0.08);
 }
 .reminder-card.priority-high {
-  border-left: 3px solid #ef4444;
+  border-left: 3px solid rgba(239,68,68,0.5);
 }
 .reminder-card.priority-low {
   opacity: 0.75;
@@ -2740,7 +2858,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   gap: 4px;
 }
 .reminder-meta-item.overdue {
-  color: #ef4444;
+  color: var(--status-dnd, #ef4444);
   font-weight: 600;
 }
 .reminder-actions {
@@ -2948,6 +3066,9 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   cursor: pointer;
   color: var(--text-primary);
   transition: background 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .custom-select-option:hover { background: var(--bg-hover); }
 .custom-select-option.selected { background: rgba(124, 58, 237, 0.15); color: var(--accent, #7c3aed); font-weight: 600; }
@@ -3179,6 +3300,6 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   border-radius: 50%;
   display: inline-block;
 }
-.priority-low { background: #22c55e; }
-.priority-normal { background: #3b82f6; }
-.priority-high { background: #ef4444; }
+.priority-low { background: var(--status-online, #22c55e); }
+.priority-normal { background: var(--accent, #3b82f6); }
+.priority-high { background: var(--status-dnd, #ef4444); }
