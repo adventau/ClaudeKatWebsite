@@ -1256,19 +1256,24 @@ app.get('/api/guest-messages', mainAuth, (req, res) => {
 });
 
 app.post('/api/guests/:id/message', (req, res) => {
-  if (!req.session.isGuest && !req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+  // Use X-Guest-Id header (sent only by guest.html) to identify guest senders.
+  // This avoids session cross-contamination when a main-user tab and a guest tab
+  // are open in the same browser simultaneously (they share the same session cookie).
+  const xGuestId = req.headers['x-guest-id'];
+  const isGuestRequest = !!(xGuestId && xGuestId === req.params.id);
+  if (!isGuestRequest && !req.session.user) return res.status(401).json({ error: 'Unauthorized' });
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
   const { text, target, sender: clientSender } = req.body;
   // Validate channel access for guests
-  if (req.session.isGuest) {
+  if (isGuestRequest) {
     const allowed = g.channels || ['kaliph','kathrine','group'];
     if (!allowed.includes(target)) return res.status(403).json({ error: 'No access to this channel' });
   }
-  // Guest sessions use client-sent name (supports renames) or fallback to stored name;
-  // Main users always use their authenticated profile name (can't be spoofed)
-  const sender = req.session.isGuest ? (clientSender || g.name) : req.session.user;
+  // Guest portal sends X-Guest-Id header → use client-sent name (supports renames);
+  // Main users never send that header → always use their authenticated profile name.
+  const sender = isGuestRequest ? (clientSender || g.name) : req.session.user;
   const msg = { id: uuidv4(), sender, text, timestamp: Date.now() };
   if (!g.messages[target]) g.messages[target] = [];
   g.messages[target].push(msg);
