@@ -11,6 +11,37 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+// ── Site Time Override ────────────────────────────────────────────────
+// When an eval "time set" command is active, _timeOffsetMs shifts all
+// time-sensitive features (bell schedule, reminders, etc.) as if it
+// were actually that time.
+window._timeOffsetMs = 0;
+
+function parseTimeOffset(offset) {
+  if (!offset) return 0;
+  // Relative: +2h, -30m, +1d, +90s
+  const rel = offset.match(/^([+-])(\d+(?:\.\d+)?)(h|m|s|d)$/i);
+  if (rel) {
+    const sign = rel[1] === '+' ? 1 : -1;
+    const val  = parseFloat(rel[2]);
+    const unit = rel[3].toLowerCase();
+    const ms   = unit === 'h' ? val * 3600000
+               : unit === 'm' ? val * 60000
+               : unit === 's' ? val * 1000
+               : val * 86400000; // d
+    return sign * ms;
+  }
+  // Absolute ISO date → compute delta from real now
+  const abs = new Date(offset);
+  if (!isNaN(abs)) return abs.getTime() - Date.now();
+  return 0;
+}
+
+/** Returns the current site time, respecting any active time override. */
+function getNow() {
+  return new Date(Date.now() + window._timeOffsetMs);
+}
+
 // ── Stealth preview mode ─────────────────────────────────────────────
 let stealthMode = false;
 let stealthRealUser = null;  // The actual logged-in user when in stealth
@@ -2064,14 +2095,18 @@ function setupSocketEvents() {
     loadReminders();
   });
 
-  socket.on('time-override', ({ time }) => {
-    if (time) {
-      window._timeOverride = new Date(time);
-      showToast('⏰ Time override active: ' + window._timeOverride.toLocaleString());
+  socket.on('time-offset', ({ offset }) => {
+    if (offset) {
+      window._timeOffsetMs = parseTimeOffset(offset);
+      const fakeTime = getNow();
+      showToast(`⏰ Time override: ${fakeTime.toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}`);
     } else {
-      window._timeOverride = null;
-      showToast('⏰ Time override cleared — using real time.');
+      window._timeOffsetMs = 0;
+      showToast('⏰ Time reset — using real time.');
     }
+    // Refresh anything that depends on the current time
+    updateClassDisplays();
+    if (currentSection === 'reminders') renderReminders();
   });
 
   socket.on('show-update-log', ({ target }) => {
@@ -3794,6 +3829,10 @@ async function loadBellSchedule() {
     }
     const toggle = document.getElementById('toggle-countdown');
     if (toggle) toggle.checked = window._countdownEnabled;
+    // Apply any active time override
+    if (s.timeOffset) {
+      window._timeOffsetMs = parseTimeOffset(s.timeOffset);
+    }
     return window._bellSchedule;
   } catch { return null; }
 }
@@ -4186,18 +4225,18 @@ function selectPriority(id, value) {
 function getCurrentClass(username) {
   const bs = window._bellSchedule;
   if (!bs || !bs[username]) return null;
-  // Check if schedule is skipped today
-  const today = new Date().toISOString().split('T')[0];
+  // Check if schedule is skipped today (use site time)
+  const siteNow = getNow();
+  const today = siteNow.toISOString().split('T')[0];
   if (window._scheduleSkips[username] === today) return null;
   const data = bs[username];
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const dayName = days[new Date().getDay()];
+  const dayName = days[siteNow.getDay()];
   // Weekend — no class
   if (dayName === 'sunday' || dayName === 'saturday') return null;
   const schedule = (data.lateStartDay && data.lateStartDay === dayName) ? (data.lateStart || []) : (data.regular || []);
   if (!schedule.length) return null;
-  const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowMins = siteNow.getHours() * 60 + siteNow.getMinutes();
   for (const period of schedule) {
     if (!period.start || !period.end) continue;
     const [sh, sm] = period.start.split(':').map(Number);
@@ -4212,9 +4251,9 @@ function getCurrentClass(username) {
 }
 
 function formatCountdown(endMins) {
-  const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-  const nowSecs = now.getSeconds();
+  const siteNow = getNow();
+  const nowMins = siteNow.getHours() * 60 + siteNow.getMinutes();
+  const nowSecs = siteNow.getSeconds();
   const totalSecsLeft = (endMins - nowMins) * 60 - nowSecs;
   if (totalSecsLeft <= 0) return '0:00';
   const m = Math.floor(totalSecsLeft / 60);
@@ -6412,12 +6451,17 @@ const CHANGELOG = [
   {
     version: '3.6.0',
     date: 'Mar 12 2026',
-    intro: 'GIF categories, hover favorites, Chromebook typing speed improvements, and a cleaner update log.',
+    intro: 'GIF categories, hover favorites, Chromebook typing speed improvements, real time override, and a cleaner update log.',
     sections: [
       { icon: '🎬', title: 'GIFs', items: [
-        { name: 'GIF Categories', desc: 'GIF picker now has tabs — Trending, Favorites, Reactions, Anime, Memes, and Gaming.' },
+        { name: 'GIF Categories', desc: 'GIF picker now has tabs — Trending, Favorites, Reactions, Scandal, Memes, and Gaming.' },
         { name: 'Hover to Favorite', desc: 'Hover over any GIF and click the ♥ button to save it to your Favorites tab.' },
         { name: 'Favorites Tab', desc: 'Access all your saved GIFs instantly from the Favorites tab.' },
+        { name: 'Search Results Show Media', desc: 'has:file and has:image in search now show actual image thumbnails and GIF previews.' },
+        { name: 'Pinned Messages Show Media', desc: 'Pinned messages panel now shows images and GIFs inline instead of a placeholder.' },
+      ]},
+      { icon: '⏰', title: 'Time Override', items: [
+        { name: 'Real Time Simulation', desc: 'Eval "time set" now fully simulates the site at that time — bell schedule, reminders, and countdowns all respond as if it were actually that time.' },
       ]},
       { icon: '⚡', title: 'Performance', items: [
         { name: 'Faster Typing', desc: 'Input box resize is now deferred with requestAnimationFrame — no more layout jank while typing on Chromebook.' },
