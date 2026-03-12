@@ -1605,6 +1605,10 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
   color: var(--text-primary); font-size: 0.82rem; line-height: 1.5;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.search-result-media {
+  margin-top: 4px; line-height: 0;
+  pointer-events: none; /* clicks still go to the result item */
+}
 
 /* Value suggestions in dropdown */
 .search-suggestion-item {
