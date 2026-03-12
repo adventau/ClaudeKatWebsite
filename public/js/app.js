@@ -1251,6 +1251,32 @@ function scrollToMessage(msgId) {
   closePinnedPanel();
 }
 
+function buildPinnedPreviewHtml(m) {
+  if (m.type === 'gif' && m.text) {
+    return `<div class="pinned-item-text">
+      <img src="${escapeHtml(m.text)}" style="max-height:120px;max-width:100%;border-radius:8px;object-fit:cover;display:block;margin-top:4px" loading="lazy">
+    </div>`;
+  }
+  if (m.files?.length) {
+    const images = m.files.filter(f => f.type?.startsWith('image'));
+    const others = m.files.filter(f => !f.type?.startsWith('image'));
+    let html = '<div class="pinned-item-text">';
+    if (m.text) html += `<div style="margin-bottom:4px">${escapeHtml(m.text)}</div>`;
+    if (images.length) {
+      html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">` +
+        images.map(f => `<img src="${escapeHtml(f.url)}" style="height:90px;max-width:130px;border-radius:6px;object-fit:cover" loading="lazy">`).join('') +
+        `</div>`;
+    }
+    if (others.length) {
+      html += others.map(f => `<div style="display:flex;align-items:center;gap:5px;color:var(--text-muted);font-size:0.8rem;margin-top:4px">📄 ${escapeHtml(f.name)}</div>`).join('');
+    }
+    html += '</div>';
+    return html;
+  }
+  if (m.voiceUrl) return `<div class="pinned-item-text" style="color:var(--text-muted)">🎙️ Voice message</div>`;
+  return `<div class="pinned-item-text">${escapeHtml(m.text || '(no content)')}</div>`;
+}
+
 async function togglePinnedPanel() {
   const panel = document.getElementById('pinned-panel');
   if (pinnedPanelOpen) { closePinnedPanel(); return; }
@@ -1270,8 +1296,8 @@ async function togglePinnedPanel() {
       ? `<img src="${senderData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
       : `<span>${(m.sender || 'U')[0].toUpperCase()}</span>`;
     const chatColor = m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : 'var(--kathrine-color, #c084fc)';
-    const text = m.text || (m.files?.length ? '📎 File' : m.voiceUrl ? '🎙️ Voice message' : '(no text)');
     const time = new Date(m.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const pinnedPreview = buildPinnedPreviewHtml(m);
     return `<div class="pinned-item" onclick="scrollToMessage('${m.id}')">
       <div class="pinned-item-header">
         <div style="display:flex;align-items:center;gap:8px">
@@ -1280,7 +1306,7 @@ async function togglePinnedPanel() {
         </div>
         <span class="pinned-item-time">${time}</span>
       </div>
-      <div class="pinned-item-text">${escapeHtml(text)}</div>
+      ${pinnedPreview}
       <button class="pinned-unpin-btn" onclick="event.stopPropagation();unpinMessage('${m.id}')" title="Unpin">✕</button>
     </div>`;
   }).join('');
@@ -5627,6 +5653,41 @@ function updateSearchPlaceholder() {
   bar.placeholder = hints[searchPendingFilter] || 'Enter value…';
 }
 
+function buildMsgPreviewHtml(m, textQuery) {
+  // GIF message
+  if (m.type === 'gif' && m.text) {
+    return `<div class="search-result-media">
+      <img src="${escapeHtml(m.text)}" style="max-height:100px;max-width:160px;border-radius:6px;object-fit:cover;display:block" loading="lazy">
+    </div>`;
+  }
+  // File attachments
+  if (m.files?.length) {
+    const images = m.files.filter(f => f.type?.startsWith('image'));
+    const others = m.files.filter(f => !f.type?.startsWith('image'));
+    let html = '';
+    if (images.length) {
+      html += `<div class="search-result-media" style="display:flex;flex-wrap:wrap;gap:4px">` +
+        images.map(f => `<img src="${escapeHtml(f.url)}" style="height:80px;max-width:120px;border-radius:6px;object-fit:cover" loading="lazy">`).join('') +
+        `</div>`;
+    }
+    if (others.length) {
+      html += others.map(f =>
+        `<div class="search-result-text" style="display:flex;align-items:center;gap:6px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>${escapeHtml(f.name)}</span>
+        </div>`
+      ).join('');
+    }
+    if (m.text) html += `<div class="search-result-text">${highlight(m.text, textQuery)}</div>`;
+    return html;
+  }
+  // Plain text
+  if (m.text) return `<div class="search-result-text">${highlight(m.text, textQuery)}</div>`;
+  // Voice message
+  if (m.voiceUrl) return `<div class="search-result-text" style="color:var(--text-muted)">🎙️ Voice message</div>`;
+  return `<div class="search-result-text" style="color:var(--text-muted)">(no content)</div>`;
+}
+
 function executeSearch() {
   const dropdown = document.getElementById('search-results');
   const bar = document.getElementById('search-bar');
@@ -5641,8 +5702,9 @@ function executeSearch() {
       hits = hits.filter(m => m.sender?.toLowerCase().includes(v));
     } else if (ft === 'has') {
       if (v === 'link') hits = hits.filter(m => m.text && /https?:\/\//.test(m.text));
-      else if (v === 'image' || v === 'img') hits = hits.filter(m => m.files?.some(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f)));
-      else if (v === 'file') hits = hits.filter(m => m.files?.length > 0);
+      else if (v === 'image' || v === 'img') hits = hits.filter(m => m.type === 'gif' || m.files?.some(f => f.type?.startsWith('image')));
+      else if (v === 'gif') hits = hits.filter(m => m.type === 'gif');
+      else if (v === 'file') hits = hits.filter(m => m.files?.length > 0 || m.type === 'gif');
     } else if (ft === 'before') {
       const d = new Date(v); if (!isNaN(d)) hits = hits.filter(m => new Date(m.timestamp) < d);
     } else if (ft === 'after') {
@@ -5671,13 +5733,13 @@ function executeSearch() {
   } else {
     html += hits.slice(0, 25).map(m => {
       const time = formatSearchTime(m.timestamp);
-      const text = highlight(m.text || '', textQuery);
+      const preview = buildMsgPreviewHtml(m, textQuery);
       return `<div class="search-result-item" onclick="clickSearchResult('${m.id}')">
         <div class="search-result-top">
           <span class="search-result-sender">${capitalize(m.sender)}</span>
           <span class="search-result-time">${time}</span>
         </div>
-        <div class="search-result-text">${text}</div>
+        ${preview}
       </div>`;
     }).join('');
   }
