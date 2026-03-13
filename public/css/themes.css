@@ -1148,11 +1148,16 @@
 }
 .theme-dark .sidebar-user-info { display: none; }
 .theme-dark .sidebar-user .btn-icon { display: none; }
-.theme-dark .avatar-wrapper,
+/* Only shrink the TOP BAR avatar, not chat-header or other avatars */
+.theme-dark .sidebar-user .avatar-wrapper,
 .theme-dark .sidebar-user .avatar {
-  width: 32px !important;
-  height: 32px !important;
-  font-size: 0.8rem;
+  width: 30px !important;
+  height: 30px !important;
+  font-size: 0.75rem;
+}
+/* Chat header: keep avatar natural size, add a subtle dark ring */
+.theme-dark .chat-header .avatar {
+  border: 1.5px solid #2e2e2e;
 }
 
 /* Nav items — horizontal tabs, left-anchored to avoid overflow hiding first tab */
@@ -1207,6 +1212,12 @@
 /* Reminders + Settings are icon-only in the top bar (bell/gear are universally recognized) */
 .theme-dark .nav-item[data-section="reminders"] .nav-label,
 .theme-dark .nav-item:not([data-section]) .nav-label { display: none; }
+/* Thin separator before the icon-only utility group */
+.theme-dark .nav-item[data-section="reminders"] {
+  margin-left: 6px;
+  padding-left: 14px;
+  border-left: 1px solid #2a2a2a;
+}
 
 /* Search bar — repositioned into sidebar top bar */
 .theme-dark #sidebar .search-wrap {
@@ -1567,7 +1578,7 @@
 @media (max-height: 720px) {
   .theme-dark #sidebar { height: 48px; }
   .theme-dark .nav-item { padding: 6px 12px; font-size: 0.78rem; }
-  .theme-dark .avatar-wrapper, .theme-dark .sidebar-user .avatar { width: 28px !important; height: 28px !important; }
+  .theme-dark .sidebar-user .avatar-wrapper, .theme-dark .sidebar-user .avatar { width: 28px !important; height: 28px !important; }
   .theme-dark .input-area { padding: 4px 20px 12px; }
   .theme-dark .messages-area { padding: 12px 20px 8px; }
   .theme-dark .msg-content { max-width: 90%; }
@@ -1619,7 +1630,7 @@
 @media (max-width: 600px) {
   .theme-dark #app { grid-template-rows: 48px 1fr; }
   .theme-dark #sidebar { height: 48px !important; padding: 0 8px; }
-  .theme-dark .avatar-wrapper,
+  .theme-dark .sidebar-user .avatar-wrapper,
   .theme-dark .sidebar-user .avatar { width: 26px !important; height: 26px !important; }
   .theme-dark .nav-item { padding: 6px 8px; font-size: 0.72rem; gap: 4px; }
   .theme-dark .nav-item .nav-icon svg { width: 13px; height: 13px; }
