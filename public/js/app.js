@@ -3706,6 +3706,7 @@ async function sendGuestReply() {
 
 // ── Settings ──────────────────────────────────────────────────────────
 function openSettingsModal() {
+  SoundSystem.modalOpen();
   const modal = document.getElementById('settings-modal');
   modal.classList.add('open');
   loadSettings();
@@ -3718,6 +3719,7 @@ function openSettingsModal() {
 }
 
 function switchSettingsTab(tab, el) {
+  SoundSystem.navigate();
   document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
@@ -3940,13 +3942,15 @@ async function saveBellSchedule() {
     lateStartDay: lateDayVal,
   };
   const resp = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bellSchedule: existing }) });
-  if (!resp.ok) { showToast('Failed to save schedule'); return; }
+  if (!resp.ok) { SoundSystem.error(); showToast('Failed to save schedule'); return; }
   window._bellSchedule = existing;
   updateClassDisplays();
+  SoundSystem.success();
   showToast('Bell schedule saved!');
 }
 
 function toggleCountdown(el) {
+  SoundSystem.toggle();
   window._countdownEnabled = el.checked;
   fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ countdownEnabled: el.checked }) });
   updateClassDisplays();
@@ -4331,6 +4335,7 @@ async function saveProfile() {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ displayName, pronouns, customStatus, bio, nameStyle: { color, gradient: true } })
   });
+  SoundSystem.success();
   document.getElementById('my-name').textContent = displayName;
   nameColors[currentUser] = color;
   renderMessages();
@@ -4341,6 +4346,7 @@ async function saveEmails() {
   const email = document.getElementById('my-email-input').value;
   const body = { emails: { [currentUser]: email } };
   await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  SoundSystem.success();
   showToast('📧 Email saved!');
 }
 
@@ -4369,6 +4375,7 @@ async function saveAllEmails() {
       kathrine: kathrineEmails,
     }})
   });
+  SoundSystem.success();
   showToast('📧 Emails saved!');
 }
 
@@ -4383,6 +4390,7 @@ async function uploadAvatar(input) {
     const avatarDiv = wrapper.querySelector('.avatar');
     if (avatarDiv) avatarDiv.innerHTML = `<img src="${d.avatar}" alt="">`;
     else wrapper.innerHTML = `<div class="avatar"><img src="${d.avatar}" alt=""></div><div class="status-indicator online" id="my-status-dot"></div>`;
+    SoundSystem.success();
     showToast('🖼️ Avatar updated!');
   }
 }
@@ -4395,6 +4403,7 @@ async function uploadBanner(input) {
   if (d.banner) {
     const bannerEl = document.getElementById('profile-edit-banner');
     if (bannerEl) { bannerEl.style.backgroundImage = `url(${d.banner})`; bannerEl.style.backgroundSize = 'cover'; }
+    SoundSystem.success();
     showToast('🖼️ Banner updated!');
   }
 }
@@ -4677,7 +4686,7 @@ function toggleGif(el) {
   document.getElementById('gif-btn').style.display = el.checked ? '' : 'none';
 }
 
-function toggleSound(el) { SoundSystem.setEnabled(el.checked); }
+function toggleSound(el) { SoundSystem.setEnabled(el.checked); if (el.checked) SoundSystem.toggle(); }
 
 async function changeSitePassword() {
   showToast('Use the Eval terminal to change the site password');
@@ -4716,10 +4725,12 @@ async function saveProfilePasscode() {
   });
   const d = await r.json();
   if (d.success) {
+    SoundSystem.success();
     showToast('Profile passcode saved');
     document.getElementById('profile-passcode-input').value = '';
     document.getElementById('profile-passcode-confirm').value = '';
   } else {
+    SoundSystem.error();
     showToast(d.error || 'Failed to save passcode');
   }
 }
@@ -4973,6 +4984,7 @@ function toggleStatusMenu() {
 
 async function setStatus(status) {
   if (stealthMode) return; // Can't change status in stealth mode
+  SoundSystem.toggle();
   document.getElementById('status-menu').classList.remove('open');
   setStatusDot('my-status-dot', status);
   updateStatusText(status);
