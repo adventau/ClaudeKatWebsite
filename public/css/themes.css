@@ -509,6 +509,23 @@
   background: rgba(0,0,0,0.04);
 }
 .theme-light .sidebar-user-name { font-weight: 600; font-size: 0.88rem; }
+/* Search bar inside light theme sidebar */
+.theme-light #sidebar .search-wrap {
+  padding: 4px 12px 8px;
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 100%;
+  position: relative;
+}
+.theme-light #sidebar .search-inner {
+  background: #ffffff;
+  border-color: #e0e0e0;
+  border-radius: 10px;
+  min-height: 34px;
+}
+.theme-light #sidebar .search-dropdown {
+  z-index: 200;
+}
 .theme-light .sidebar-nav { padding: 4px 8px; }
 .theme-light .nav-section-label {
   font-size: 0.6rem;
@@ -1132,7 +1149,7 @@
   background: #141414;
   border-right: none;
   border-bottom: 1px solid #222222;
-  overflow: hidden;
+  overflow: visible;
   height: 56px;
   padding: 0 16px;
   width: 100%;

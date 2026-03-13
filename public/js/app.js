@@ -465,11 +465,23 @@ function applyTheme(themeId) {
 function repositionSearchForTheme() {
   const wrap = document.getElementById('search-wrap');
   if (!wrap) return;
-  const isDark = document.body.classList.contains('theme-dark');
+  const body = document.body;
+  const isDark  = body.classList.contains('theme-dark');
+  const isLight = body.classList.contains('theme-light');
+
   if (isDark) {
+    // Dark: search lives in the horizontal top-bar sidebar
     const sidebar = document.getElementById('sidebar');
     if (sidebar && wrap.parentElement?.id !== 'sidebar') sidebar.appendChild(wrap);
+  } else if (isLight) {
+    // Light: app-header is hidden; insert search above the nav in the sidebar
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+      const nav = sidebar.querySelector('.sidebar-nav');
+      if (nav && !sidebar.contains(wrap)) sidebar.insertBefore(wrap, nav);
+    }
   } else {
+    // All other themes: search lives in the header-center
     const headerCenter = document.querySelector('.header-center');
     if (headerCenter && !headerCenter.contains(wrap)) headerCenter.appendChild(wrap);
   }
