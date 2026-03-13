@@ -875,6 +875,20 @@ app.post('/api/vault', mainAuth, upload.array('files', 20), (req, res) => {
   res.json({ success: true });
 });
 
+app.post('/api/vault-reorder', mainAuth, (req, res) => {
+  const s = rd(F.settings);
+  if (req.body.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });
+  const vault = rd(F.vault) || {};
+  const u = req.session.user;
+  const items = vault[u] || [];
+  const order = req.body.order || [];
+  const reordered = order.map(id => items.find(i => i.id === id)).filter(Boolean);
+  const untouched = items.filter(i => !order.includes(i.id));
+  vault[u] = [...untouched, ...reordered];
+  wd(F.vault, vault);
+  res.json({ success: true });
+});
+
 app.put('/api/vault/:id', mainAuth, (req, res) => {
   const s = rd(F.settings);
   if (req.body.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });

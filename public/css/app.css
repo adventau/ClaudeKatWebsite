@@ -1077,6 +1077,23 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
 .vault-action-btn:hover { background: var(--bg-hover); color: var(--accent); }
 .vault-action-del:hover { color: #ef4444; }
 
+/* Vault drag-and-drop */
+.vault-item[draggable="true"] { cursor: grab; }
+.vault-item.vault-dragging { opacity: 0.35; }
+.vault-item.vault-drop-target { box-shadow: 0 0 0 2px var(--accent); background: var(--bg-hover); }
+.vault-item.vault-drop-before { box-shadow: -3px 0 0 var(--accent); }
+.vault-item.vault-drop-after  { box-shadow:  3px 0 0 var(--accent); }
+
+/* Move-to-folder picker button */
+.vault-move-folder-btn {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 10px 12px; border-radius: 8px;
+  background: var(--bg-card); border: 1px solid var(--border-card);
+  color: var(--text-primary); font-size: 0.875rem; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s; text-align: left;
+}
+.vault-move-folder-btn:hover { background: var(--bg-hover); border-color: var(--accent); color: var(--accent); }
+
 /* Vault item thumbnail preview */
 .vault-item-thumb {
   width: 100%; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
