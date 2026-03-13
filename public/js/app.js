@@ -3330,9 +3330,19 @@ function showVaultNameModal(title, defaultValue, onConfirm) {
   modal._keyHandler = keyHandler;
 }
 
+function vaultNameConflict(newName, excludeId) {
+  if (!lastVaultData) return false;
+  const items = (lastVaultData[currentUser] || []).filter(i => (i.folder || null) === currentVaultFolder);
+  return items.some(i => i.id !== excludeId && i.name.toLowerCase() === newName.toLowerCase());
+}
+
 async function renameVaultItem(id, currentName) {
   showVaultNameModal('Rename', currentName, async (newName) => {
     if (newName === currentName) return;
+    if (vaultNameConflict(newName, id)) {
+      showToast('A file with that name already exists in this folder');
+      return;
+    }
     await fetch(`/api/vault/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ passcode: vaultPasscode, name: newName })
@@ -3345,6 +3355,10 @@ async function renameVaultItem(id, currentName) {
 
 async function createVaultFolder() {
   showVaultNameModal('New Folder', '', async (name) => {
+    if (vaultNameConflict(name, null)) {
+      showToast('A folder with that name already exists here');
+      return;
+    }
     const fd = new FormData();
     fd.append('passcode', vaultPasscode);
     fd.append('folderName', name);
