@@ -1845,11 +1845,8 @@
   border: 1px solid rgba(0,240,255,0.2);
   box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 30px rgba(255,45,123,0.1), 0 0 60px rgba(0,240,255,0.05);
 }
-.theme-neon .pc-banner {
-  background: linear-gradient(135deg, #ff2d7b, #e6006e, #0a0a12) !important;
-}
 .theme-neon .pc-banner::after {
-  background: linear-gradient(transparent, #0c0c18);
+  background: linear-gradient(transparent 50%, #0c0c18);
 }
 .theme-neon .pc-avatar-ring {
   box-shadow: 0 0 16px rgba(255,45,123,0.3), 0 0 4px rgba(0,240,255,0.2);
@@ -2044,11 +2041,8 @@
   background-origin: border-box;
   background-clip: padding-box, border-box;
 }
-.theme-noir .pc-banner {
-  background: linear-gradient(135deg, #d4af37, #b8962e, #5c2a3e) !important;
-}
 .theme-noir .pc-banner::after {
-  background: linear-gradient(transparent, #1e1e34);
+  background: linear-gradient(transparent 50%, #1e1e34);
 }
 .theme-noir .pc-avatar-ring {
   box-shadow: 0 0 12px rgba(212,175,55,0.2);
