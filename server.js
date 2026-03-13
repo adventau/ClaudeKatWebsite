@@ -910,9 +910,11 @@ const GIPHY_API_KEY = process.env.GIPHY_API_KEY || 'GlVGYHkr3WSBnllca54iNt0yFbjz
 
 app.get('/api/gif-search', mainAuth, async (req, res) => {
   const q = req.query.q;
+  const offset = parseInt(req.query.offset) || 0;
+  const limit = parseInt(req.query.limit) || 25;
   if (!q) return res.json({ data: [] });
   try {
-    const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(q)}&limit=12&rating=pg-13&lang=en`;
+    const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}&rating=pg-13&lang=en`;
     const resp = await fetch(url);
     const data = await resp.json();
     const results = (data.data || []).map(g => ({
@@ -922,7 +924,7 @@ app.get('/api/gif-search', mainAuth, async (req, res) => {
       width: g.images?.fixed_height?.width,
       height: g.images?.fixed_height?.height,
     }));
-    res.json({ results });
+    res.json({ results, pagination: { offset, count: results.length, total: data.pagination?.total_count || 0 } });
   } catch (e) {
     console.error('GIF search error:', e.message);
     res.json({ results: [], error: 'GIF search failed' });
@@ -930,8 +932,10 @@ app.get('/api/gif-search', mainAuth, async (req, res) => {
 });
 
 app.get('/api/gif-trending', mainAuth, async (req, res) => {
+  const offset = parseInt(req.query.offset) || 0;
+  const limit = parseInt(req.query.limit) || 25;
   try {
-    const url = `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=12&rating=pg-13`;
+    const url = `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=${limit}&offset=${offset}&rating=pg-13`;
     const resp = await fetch(url);
     const data = await resp.json();
     const results = (data.data || []).map(g => ({
@@ -941,7 +945,7 @@ app.get('/api/gif-trending', mainAuth, async (req, res) => {
       width: g.images?.fixed_height?.width,
       height: g.images?.fixed_height?.height,
     }));
-    res.json({ results });
+    res.json({ results, pagination: { offset, count: results.length, total: data.pagination?.total_count || 0 } });
   } catch (e) {
     res.json({ results: [] });
   }

@@ -656,17 +656,31 @@ function renderMessages(filter = null) {
     area.appendChild(buildMsgElement(msg));
   });
 
-  // Reliable scroll: instant scroll + retry for images loading
+  // Reliable scroll: instant scroll + retry for images loading + MutationObserver
   requestAnimationFrame(() => {
     const marker = area.querySelector('.new-msg-marker');
-    if (marker) {
-      marker.scrollIntoView({ behavior: 'instant', block: 'center' });
-      setTimeout(() => marker.scrollIntoView({ behavior: 'instant', block: 'center' }), 300);
-      setTimeout(() => marker.scrollIntoView({ behavior: 'instant', block: 'center' }), 800);
-    } else {
-      area.scrollTop = area.scrollHeight;
-      setTimeout(() => { area.scrollTop = area.scrollHeight; }, 300);
-    }
+    const scrollTarget = () => {
+      if (marker) marker.scrollIntoView({ behavior: 'instant', block: 'center' });
+      else area.scrollTop = area.scrollHeight;
+    };
+    scrollTarget();
+    setTimeout(scrollTarget, 200);
+    setTimeout(scrollTarget, 600);
+    setTimeout(scrollTarget, 1500);
+
+    // Watch for images loading (GIFs, avatars) that shift scroll position
+    const imgs = area.querySelectorAll('img');
+    let pending = 0;
+    imgs.forEach(img => {
+      if (!img.complete) {
+        pending++;
+        img.addEventListener('load', () => { pending--; scrollTarget(); }, { once: true });
+        img.addEventListener('error', () => { pending--; }, { once: true });
+      }
+    });
+
+    // Also update jump-to-latest button state after scroll
+    updateJumpBtnState();
   });
 }
 
@@ -790,6 +804,8 @@ function buildMsgElement(msg) {
     t = t.replace(/__(.+?)__/g, '<u>$1</u>');
     t = t.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
     t = t.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '<em>$1</em>');
+    // Preserve newlines (Shift+Enter)
+    t = t.replace(/\n/g, '<br>');
     if (msg.formatting) {
       if (msg.formatting.bold) t = `<strong>${t}</strong>`;
       if (msg.formatting.italic) t = `<em>${t}</em>`;
@@ -1743,7 +1759,7 @@ function switchGifTab(tab, force = false) {
   // Clear search input when switching tabs
   const input = document.getElementById('gif-search-input');
   if (input) input.value = '';
-  const categoryQueries = { scandal: 'scandal tv show olivia pope' };
+  const categoryQueries = { scandal: ['scandal olivia pope', 'eli pope scandal', 'scandal abc', 'scandal tv show'] };
   if (tab === 'trending') {
     loadTrendingGifs();
   } else if (tab === 'favorites') {
@@ -1754,28 +1770,71 @@ function switchGifTab(tab, force = false) {
 }
 
 let gifTimeout = null;
-async function loadTrendingGifs() {
+let gifOffset = 0;
+let gifLoading = false;
+let gifHasMore = true;
+let gifCurrentQuery = '';
+let gifCurrentMode = ''; // 'trending', 'category', 'search'
+
+async function loadTrendingGifs(append) {
   const grid = document.getElementById('gif-grid');
-  grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Loading…</p>';
+  if (!append) { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Loading…</p>'; gifOffset = 0; gifHasMore = true; }
+  gifCurrentMode = 'trending';
+  gifCurrentQuery = '';
+  gifLoading = true;
   try {
-    const r = await fetch('/api/gif-trending');
+    const r = await fetch(`/api/gif-trending?offset=${gifOffset}&limit=25`);
     const d = await r.json();
-    renderGifResults(d.results || []);
+    const results = d.results || [];
+    gifOffset += results.length;
+    gifHasMore = results.length >= 25;
+    renderGifResults(results, append);
   } catch {
-    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
+    if (!append) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
   }
+  gifLoading = false;
 }
 
-async function loadGifCategory(cat) {
+async function loadGifCategory(cat, append) {
   const grid = document.getElementById('gif-grid');
-  grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Loading…</p>';
-  try {
-    const r = await fetch(`/api/gif-search?q=${encodeURIComponent(cat)}`);
-    const d = await r.json();
-    renderGifResults(d.results || []);
-  } catch {
-    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
+  if (!append) { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Loading…</p>'; gifOffset = 0; gifHasMore = true; }
+  gifCurrentMode = 'category';
+  // Multi-query support: if array, combine results from all queries
+  if (Array.isArray(cat)) {
+    gifLoading = true;
+    const perQuery = Math.ceil(25 / cat.length);
+    const perOffset = Math.floor(gifOffset / cat.length);
+    try {
+      const fetches = cat.map(q => fetch(`/api/gif-search?q=${encodeURIComponent(q)}&offset=${perOffset}&limit=${perQuery}`).then(r => r.json()));
+      const allData = await Promise.all(fetches);
+      let combined = [];
+      allData.forEach(d => combined.push(...(d.results || [])));
+      // Deduplicate by id
+      const seen = new Set();
+      combined = combined.filter(g => { if (seen.has(g.id)) return false; seen.add(g.id); return true; });
+      gifOffset += combined.length;
+      gifHasMore = combined.length >= 10;
+      gifCurrentQuery = cat;
+      renderGifResults(combined, append);
+    } catch {
+      if (!append) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
+    }
+    gifLoading = false;
+    return;
   }
+  gifCurrentQuery = cat;
+  gifLoading = true;
+  try {
+    const r = await fetch(`/api/gif-search?q=${encodeURIComponent(cat)}&offset=${gifOffset}&limit=25`);
+    const d = await r.json();
+    const results = d.results || [];
+    gifOffset += results.length;
+    gifHasMore = results.length >= 25;
+    renderGifResults(results, append);
+  } catch {
+    if (!append) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
+  }
+  gifLoading = false;
 }
 
 function loadGifFavorites() {
@@ -1793,31 +1852,36 @@ function searchGifs(q) {
     // Restore current tab on clear
     if (activeGifTab === 'trending') loadTrendingGifs();
     else if (activeGifTab === 'favorites') loadGifFavorites();
-    else loadGifCategory(activeGifTab);
+    else { const cq = { scandal: ['scandal olivia pope', 'eli pope scandal', 'scandal abc', 'scandal tv show'] }; loadGifCategory(cq[activeGifTab] || activeGifTab); }
     return;
   }
-  // Show search results regardless of active tab (but keep tab highlighted)
   gifTimeout = setTimeout(async () => {
     const grid = document.getElementById('gif-grid');
     grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Searching…</p>';
+    gifOffset = 0; gifHasMore = true; gifCurrentMode = 'search'; gifCurrentQuery = q;
+    gifLoading = true;
     try {
-      const r = await fetch(`/api/gif-search?q=${encodeURIComponent(q)}`);
+      const r = await fetch(`/api/gif-search?q=${encodeURIComponent(q)}&offset=0&limit=25`);
       const d = await r.json();
-      renderGifResults(d.results || []);
+      const results = d.results || [];
+      gifOffset = results.length;
+      gifHasMore = results.length >= 25;
+      renderGifResults(results);
     } catch {
       grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">GIF search failed</p>';
     }
+    gifLoading = false;
   }, 350);
 }
 
-function renderGifResults(results) {
+function renderGifResults(results, append) {
   const grid = document.getElementById('gif-grid');
-  if (!results.length) {
+  if (!results.length && !append) {
     grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">No GIFs found</p>';
     return;
   }
   gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
-  grid.innerHTML = results.map(g => {
+  const html = results.map(g => {
     const isFav = gifFavorites.some(f => f.url === g.url);
     const safeUrl = g.url.replace(/'/g, '%27');
     const safePreview = (g.preview || g.url).replace(/'/g, '%27');
@@ -1826,6 +1890,38 @@ function renderGifResults(results) {
       <button class="gif-fav-btn ${isFav ? 'gif-fav-active' : ''}" onclick="toggleGifFavorite(event,'${safeUrl}','${safePreview}',${g.width||200},${g.height||200})" title="${isFav ? 'Remove favorite' : 'Add to favorites'}">♥</button>
     </div>`;
   }).join('');
+  if (append) grid.insertAdjacentHTML('beforeend', html);
+  else grid.innerHTML = html;
+}
+
+// Infinite scroll for GIF grid (the grid itself is scrollable with overflow-y:auto)
+(function initGifScroll() {
+  // Use event delegation since the grid exists in the DOM
+  document.addEventListener('scroll', function(e) {
+    const grid = document.getElementById('gif-grid');
+    if (!grid || e.target !== grid) return;
+    if (gifLoading || !gifHasMore) return;
+    if (grid.scrollTop + grid.clientHeight >= grid.scrollHeight - 200) {
+      loadMoreGifs();
+    }
+  }, true);
+})();
+
+function loadMoreGifs() {
+  if (gifLoading || !gifHasMore) return;
+  const cq = { scandal: ['scandal olivia pope', 'eli pope scandal', 'scandal abc', 'scandal tv show'] };
+  if (gifCurrentMode === 'trending') loadTrendingGifs(true);
+  else if (gifCurrentMode === 'category') loadGifCategory(gifCurrentQuery || cq[activeGifTab] || activeGifTab, true);
+  else if (gifCurrentMode === 'search') {
+    gifLoading = true;
+    fetch(`/api/gif-search?q=${encodeURIComponent(gifCurrentQuery)}&offset=${gifOffset}&limit=25`)
+      .then(r => r.json()).then(d => {
+        const results = d.results || [];
+        gifOffset += results.length;
+        gifHasMore = results.length >= 25;
+        renderGifResults(results, true);
+      }).catch(() => {}).finally(() => { gifLoading = false; });
+  }
 }
 
 function toggleGifFavorite(e, url, preview, width, height) {
@@ -6013,13 +6109,21 @@ function setupKeyboardShortcuts() {
   const msgArea = document.getElementById('messages-area');
   const jumpBtn = document.getElementById('jump-to-latest');
   if (msgArea && jumpBtn) {
-    msgArea.addEventListener('scroll', () => {
-      const distFromBottom = msgArea.scrollHeight - msgArea.scrollTop - msgArea.clientHeight;
-      jumpBtn.classList.toggle('show', distFromBottom > 300);
-    }, { passive: true });
+    msgArea.addEventListener('scroll', () => updateJumpBtnState(), { passive: true });
+    // Check state on load too (in case we loaded at a non-bottom position)
+    setTimeout(() => updateJumpBtnState(), 1000);
+    setTimeout(() => updateJumpBtnState(), 2500);
   }
 
   setupSearch();
+}
+
+function updateJumpBtnState() {
+  const msgArea = document.getElementById('messages-area');
+  const jumpBtn = document.getElementById('jump-to-latest');
+  if (!msgArea || !jumpBtn) return;
+  const distFromBottom = msgArea.scrollHeight - msgArea.scrollTop - msgArea.clientHeight;
+  jumpBtn.classList.toggle('show', distFromBottom > 300);
 }
 
 function jumpToLatest() {
