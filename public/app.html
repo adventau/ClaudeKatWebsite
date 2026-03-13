@@ -1315,6 +1315,23 @@
   </div>
 </div>
 
+<!-- Vault Rename / New Folder -->
+<div class="modal-overlay" id="vault-name-modal" onclick="if(event.target===this)closeModal('vault-name-modal')">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <span class="modal-title" id="vault-name-modal-title">Rename</span>
+      <button class="btn-icon" onclick="closeModal('vault-name-modal')">✕</button>
+    </div>
+    <div class="form-row" style="margin-top:8px">
+      <input type="text" id="vault-name-input" placeholder="Enter name…" style="font-size:0.95rem">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+      <button class="btn-secondary" onclick="closeModal('vault-name-modal')">Cancel</button>
+      <button class="btn-primary" id="vault-name-confirm">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Vault File Preview -->
 <div class="modal-overlay" id="vault-preview-modal" onclick="if(event.target===this)closeModal('vault-preview-modal')">
   <div class="vault-preview-container">
