@@ -1332,12 +1332,26 @@
   </div>
 </div>
 
+<!-- Vault Move to Folder -->
+<div class="modal-overlay" id="vault-move-modal" onclick="if(event.target===this)closeModal('vault-move-modal')">
+  <div class="modal" style="max-width:320px">
+    <div class="modal-header">
+      <span class="modal-title"><i data-lucide="folder-input" style="width:15px;height:15px;display:inline;margin-right:6px"></i>Move to Folder</span>
+      <button class="btn-icon" onclick="closeModal('vault-move-modal')">✕</button>
+    </div>
+    <div id="vault-move-folder-list" style="display:flex;flex-direction:column;gap:6px;margin-top:10px;max-height:300px;overflow-y:auto"></div>
+  </div>
+</div>
+
 <!-- Vault File Preview -->
 <div class="modal-overlay" id="vault-preview-modal" onclick="if(event.target===this)closeModal('vault-preview-modal')">
   <div class="vault-preview-container">
     <div class="vault-preview-header">
       <span class="vault-preview-title" id="vault-preview-name">File</span>
       <div class="vault-preview-actions">
+        <button class="vault-preview-btn" id="vault-preview-rename" title="Rename">
+          <i data-lucide="pencil" style="width:16px;height:16px"></i>
+        </button>
         <button class="vault-preview-btn" id="vault-preview-open" title="Open in new tab">
           <i data-lucide="external-link" style="width:16px;height:16px"></i>
         </button>

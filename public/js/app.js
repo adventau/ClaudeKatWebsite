@@ -3147,6 +3147,9 @@ function dismissEventBanner() {
 
 // ── Vault ──────────────────────────────────────────────────────────────
 let vaultTab = 'mine';
+let vaultDragId = null;
+let vaultDragOccurred = false;
+let currentPreviewItemId = null;
 let currentVaultFolder = null;
 let vaultFolderPath = [];  // [{id, name}, ...]
 let lastVaultData = null;
@@ -3232,7 +3235,13 @@ function renderVault(data) {
   folders.forEach(item => {
     const escapedName = (item.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
     html += `
-      <div class="vault-item vault-folder" onclick="navigateVaultFolder('${item.id}','${escapedName}')">
+      <div class="vault-item vault-folder" data-id="${item.id}" draggable="true"
+        onclick="if(!vaultDragOccurred)navigateVaultFolder('${item.id}','${escapedName}')"
+        ondragstart="vaultDragStart(event,'${item.id}')"
+        ondragend="vaultDragEnd(event)"
+        ondragover="vaultDragOver(event,'${item.id}','folder')"
+        ondragleave="vaultDragLeave(event)"
+        ondrop="vaultDrop(event,'${item.id}','folder')">
         <div class="vault-item-icon"><i data-lucide="folder" style="width:32px;height:32px;color:var(--accent)"></i></div>
         <div class="vault-item-name">${item.name}</div>
         <div class="vault-item-meta">${formatDate(item.uploadedAt)}</div>
@@ -3259,14 +3268,21 @@ function renderVault(data) {
     const escapedUrl = (item.url || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
     const clickAction = item.type === 'link'
       ? `window.open('${escapedUrl}','_blank')`
-      : `openVaultPreview('${escapedUrl}','${escapedName}','${mime}')`;
+      : `openVaultPreview('${escapedUrl}','${escapedName}','${mime}','${item.id}')`;
     html += `
-      <div class="vault-item" onclick="${clickAction}">
+      <div class="vault-item" data-id="${item.id}" draggable="true"
+        onclick="if(!vaultDragOccurred)${clickAction}"
+        ondragstart="vaultDragStart(event,'${item.id}')"
+        ondragend="vaultDragEnd(event)"
+        ondragover="vaultDragOver(event,'${item.id}','file')"
+        ondragleave="vaultDragLeave(event)"
+        ondrop="vaultDrop(event,'${item.id}','file')">
         ${thumbHtml}
         <div class="vault-item-name">${item.name}</div>
         <div class="vault-item-meta">${formatDate(item.uploadedAt)}</div>
         ${isMine ? `<div class="vault-item-actions">
           <button class="vault-action-btn" onclick="event.stopPropagation();renameVaultItem('${item.id}','${escapedName}')" title="Rename"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+          <button class="vault-action-btn" onclick="event.stopPropagation();moveVaultItem('${item.id}')" title="Move to folder"><i data-lucide="folder-input" style="width:14px;height:14px"></i></button>
           <button class="vault-action-btn vault-action-del" onclick="event.stopPropagation();deleteVaultItem('${item.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
         </div>` : ''}
       </div>`;
@@ -3370,17 +3386,148 @@ async function createVaultFolder() {
   });
 }
 
-function openVaultPreview(url, name, mime) {
+// ── Vault drag-and-drop ──────────────────────────────────────────────
+function vaultDragStart(e, id) {
+  vaultDragId = id;
+  vaultDragOccurred = false;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', id);
+  setTimeout(() => {
+    const el = document.querySelector(`.vault-item[data-id="${id}"]`);
+    if (el) el.classList.add('vault-dragging');
+  }, 0);
+}
+
+function vaultDragEnd(e) {
+  vaultDragOccurred = vaultDragId !== null;
+  vaultDragId = null;
+  document.querySelectorAll('.vault-item').forEach(el => {
+    el.classList.remove('vault-dragging', 'vault-drop-target', 'vault-drop-before', 'vault-drop-after');
+  });
+  setTimeout(() => { vaultDragOccurred = false; }, 100);
+}
+
+function vaultDragOver(e, targetId, targetType) {
+  if (!vaultDragId || vaultDragId === targetId) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const el = e.currentTarget;
+  el.classList.remove('vault-drop-before', 'vault-drop-after', 'vault-drop-target');
+  if (targetType === 'folder') {
+    el.classList.add('vault-drop-target');
+  } else {
+    const rect = el.getBoundingClientRect();
+    if (e.clientX < rect.left + rect.width / 2) el.classList.add('vault-drop-before');
+    else el.classList.add('vault-drop-after');
+  }
+}
+
+function vaultDragLeave(e) {
+  e.currentTarget.classList.remove('vault-drop-target', 'vault-drop-before', 'vault-drop-after');
+}
+
+async function vaultDrop(e, targetId, targetType) {
+  e.preventDefault();
+  const draggedId = vaultDragId;
+  if (!draggedId || draggedId === targetId) return;
+  document.querySelectorAll('.vault-item').forEach(el =>
+    el.classList.remove('vault-dragging', 'vault-drop-target', 'vault-drop-before', 'vault-drop-after'));
+  vaultDragId = null;
+
+  if (targetType === 'folder') {
+    await fetch(`/api/vault/${draggedId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: vaultPasscode, folder: targetId })
+    });
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+    showToast('Moved into folder!');
+  } else {
+    const grid = document.getElementById('vault-grid');
+    const els = [...grid.querySelectorAll('.vault-item[data-id]')];
+    const ids = els.map(el => el.dataset.id);
+    const fromIdx = ids.indexOf(draggedId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const el = grid.querySelector(`.vault-item[data-id="${targetId}"]`);
+    const rect = el.getBoundingClientRect();
+    const insertAfter = e.clientX >= rect.left + rect.width / 2;
+    ids.splice(fromIdx, 1);
+    const newTo = ids.indexOf(targetId);
+    ids.splice(insertAfter ? newTo + 1 : newTo, 0, draggedId);
+    await fetch('/api/vault-reorder', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: vaultPasscode, order: ids })
+    });
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+  }
+}
+
+// ── Move to folder picker ────────────────────────────────────────────
+async function moveVaultItem(id) {
+  if (!lastVaultData) return;
+  const allItems = lastVaultData[currentUser] || [];
+  const folders = allItems.filter(i => i.type === 'folder' && i.id !== id);
+  const list = document.getElementById('vault-move-folder-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const doMove = async (folderId, label) => {
+    closeModal('vault-move-modal');
+    await fetch(`/api/vault/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: vaultPasscode, folder: folderId })
+    });
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+    showToast('Moved to ' + label + '!');
+  };
+
+  if (currentVaultFolder) {
+    const btn = document.createElement('button');
+    btn.className = 'vault-move-folder-btn';
+    btn.innerHTML = '<i data-lucide="home" style="width:15px;height:15px"></i><span>Root folder</span>';
+    btn.onclick = () => doMove(null, 'root');
+    list.appendChild(btn);
+  }
+
+  if (!folders.length && !currentVaultFolder) {
+    list.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;padding:4px 0">No folders yet — create one first.</div>';
+  } else {
+    folders.forEach(f => {
+      const btn = document.createElement('button');
+      btn.className = 'vault-move-folder-btn';
+      btn.innerHTML = `<i data-lucide="folder" style="width:15px;height:15px;color:var(--accent)"></i><span>${f.name}</span>`;
+      btn.onclick = () => doMove(f.id, f.name);
+      list.appendChild(btn);
+    });
+  }
+
+  openModal('vault-move-modal');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function openVaultPreview(url, name, mime, itemId) {
   const body = document.getElementById('vault-preview-body');
   const titleEl = document.getElementById('vault-preview-name');
   const openBtn = document.getElementById('vault-preview-open');
   const dlBtn = document.getElementById('vault-preview-download');
+  const renameBtn = document.getElementById('vault-preview-rename');
+  currentPreviewItemId = itemId || null;
   titleEl.textContent = name || 'File';
   openBtn.onclick = () => window.open(url, '_blank');
   dlBtn.onclick = () => {
     const a = document.createElement('a');
     a.href = url; a.download = name || 'file'; a.click();
   };
+  if (renameBtn) {
+    renameBtn.style.display = itemId ? '' : 'none';
+    renameBtn.onclick = () => {
+      closeModal('vault-preview-modal');
+      renameVaultItem(itemId, name);
+    };
+  }
 
   let content = '';
   if (mime.startsWith('image')) {
