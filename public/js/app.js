@@ -3312,7 +3312,7 @@ function showVaultNameModal(title, defaultValue, onConfirm) {
   const confirmBtn = document.getElementById('vault-name-confirm');
   document.getElementById('vault-name-modal-title').textContent = title;
   input.value = defaultValue || '';
-  modal.classList.add('active');
+  openModal('vault-name-modal');
   setTimeout(() => { input.focus(); input.select(); }, 50);
   const handler = async () => {
     const val = input.value.trim();
