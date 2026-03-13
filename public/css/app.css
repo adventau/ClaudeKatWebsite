@@ -1534,7 +1534,7 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
 
 /* ── SEARCH DROPDOWN ─────────────────────────────────────────────── */
 .search-dropdown {
-  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 60;
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 200;
   background: var(--bg-modal); border: 1px solid var(--border);
   border-radius: 12px; max-height: 440px; overflow-y: auto; display: none;
   box-shadow: 0 16px 48px rgba(0,0,0,0.45); backdrop-filter: blur(12px);
