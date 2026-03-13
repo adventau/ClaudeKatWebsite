@@ -1204,6 +1204,9 @@
 }
 /* Icons in nav — slightly smaller for horizontal */
 .theme-dark .nav-item .nav-icon svg { width: 14px; height: 14px; }
+/* Reminders + Settings are icon-only in the top bar (bell/gear are universally recognized) */
+.theme-dark .nav-item[data-section="reminders"] .nav-label,
+.theme-dark .nav-item:not([data-section]) .nav-label { display: none; }
 
 /* Search bar — repositioned into sidebar top bar */
 .theme-dark #sidebar .search-wrap {
