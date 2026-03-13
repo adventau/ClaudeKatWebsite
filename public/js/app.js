@@ -470,15 +470,17 @@ function repositionSearchForTheme() {
   const isLight = body.classList.contains('theme-light');
 
   if (isDark) {
-    // Dark: search lives in the horizontal top-bar sidebar
+    // Dark: search appended to END of horizontal top-bar sidebar (after nav)
+    // Always call appendChild — it moves the element even if already inside sidebar
     const sidebar = document.getElementById('sidebar');
-    if (sidebar && wrap.parentElement?.id !== 'sidebar') sidebar.appendChild(wrap);
+    if (sidebar) sidebar.appendChild(wrap);
   } else if (isLight) {
-    // Light: app-header is hidden; insert search above the nav in the sidebar
+    // Light: app-header hidden; insert search BEFORE the nav in the sidebar
+    // Always reposition unconditionally so switching from dark works correctly
     const sidebar = document.getElementById('sidebar');
     if (sidebar) {
       const nav = sidebar.querySelector('.sidebar-nav');
-      if (nav && !sidebar.contains(wrap)) sidebar.insertBefore(wrap, nav);
+      if (nav) sidebar.insertBefore(wrap, nav);
     }
   } else {
     // All other themes: search lives in the header-center

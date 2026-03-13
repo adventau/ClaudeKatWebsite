@@ -509,23 +509,21 @@
   background: rgba(0,0,0,0.04);
 }
 .theme-light .sidebar-user-name { font-weight: 600; font-size: 0.88rem; }
-/* Search bar inside light theme sidebar */
+/* Search bar inside light theme sidebar — must NOT grow */
 .theme-light #sidebar .search-wrap {
+  flex: 0 0 auto;   /* override the base flex:1 that causes the giant gap */
   padding: 4px 12px 8px;
-  flex-shrink: 0;
   width: 100%;
   max-width: 100%;
   position: relative;
 }
 .theme-light #sidebar .search-inner {
   background: #ffffff;
-  border-color: #e0e0e0;
+  border: 1px solid #e0e0e0;
   border-radius: 10px;
   min-height: 34px;
 }
-.theme-light #sidebar .search-dropdown {
-  z-index: 200;
-}
+.theme-light #sidebar .search-dropdown { z-index: 200; }
 .theme-light .sidebar-nav { padding: 4px 8px; }
 .theme-light .nav-section-label {
   font-size: 0.6rem;
