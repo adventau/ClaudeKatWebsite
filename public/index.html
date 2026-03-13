@@ -1553,6 +1553,22 @@
       el.style.animation = 'shake 0.4s ease';
       el.addEventListener('animationend', () => el.style.animation = '', { once: true });
     }
+
+    // ── Live theme / reload via socket ───────────────────────────────
+    (function () {
+      const s = document.createElement('script');
+      s.src = '/socket.io/socket.io.js';
+      s.onload = function () {
+        const sock = io();
+        // Reload when eval triggers force-reload (e.g. set theme)
+        sock.on('force-reload', () => window.location.reload());
+        // Also reload if the user object is updated with a new theme
+        sock.on('user-updated', ({ user, data }) => {
+          window.location.reload();
+        });
+      };
+      document.head.appendChild(s);
+    })();
   </script>
   <style>
     @keyframes shake {
