@@ -11,6 +11,37 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+// ── Site Time Override ────────────────────────────────────────────────
+// When an eval "time set" command is active, _timeOffsetMs shifts all
+// time-sensitive features (bell schedule, reminders, etc.) as if it
+// were actually that time.
+window._timeOffsetMs = 0;
+
+function parseTimeOffset(offset) {
+  if (!offset) return 0;
+  // Relative: +2h, -30m, +1d, +90s
+  const rel = offset.match(/^([+-])(\d+(?:\.\d+)?)(h|m|s|d)$/i);
+  if (rel) {
+    const sign = rel[1] === '+' ? 1 : -1;
+    const val  = parseFloat(rel[2]);
+    const unit = rel[3].toLowerCase();
+    const ms   = unit === 'h' ? val * 3600000
+               : unit === 'm' ? val * 60000
+               : unit === 's' ? val * 1000
+               : val * 86400000; // d
+    return sign * ms;
+  }
+  // Absolute ISO date → compute delta from real now
+  const abs = new Date(offset);
+  if (!isNaN(abs)) return abs.getTime() - Date.now();
+  return 0;
+}
+
+/** Returns the current site time, respecting any active time override. */
+function getNow() {
+  return new Date(Date.now() + window._timeOffsetMs);
+}
+
 // ── Stealth preview mode ─────────────────────────────────────────────
 let stealthMode = false;
 let stealthRealUser = null;  // The actual logged-in user when in stealth
@@ -109,9 +140,13 @@ async function init() {
   const urlParams = new URLSearchParams(window.location.search);
   const stealthTarget = urlParams.get('stealth')?.toLowerCase();
 
-  const r = await fetch('/api/auth/session');
-  const data = await r.json();
-  if (!data.authenticated || !data.user) {
+  // ── Phase 1: Auth + user data fetched in parallel ──
+  const [sessionRes, usersRes] = await Promise.all([
+    fetch('/api/auth/session').then(r => r.json()),
+    fetch('/api/users').then(r => r.json())
+  ]);
+
+  if (!sessionRes.authenticated || !sessionRes.user) {
     window.location.href = '/';
     return;
   }
@@ -119,18 +154,17 @@ async function init() {
   // Stealth mode: view as another user without affecting their presence
   if (stealthTarget && ['kaliph', 'kathrine'].includes(stealthTarget)) {
     stealthMode = true;
-    stealthRealUser = data.user;
+    stealthRealUser = sessionRes.user;
     currentUser = stealthTarget;
     otherUser = stealthTarget === 'kaliph' ? 'kathrine' : 'kaliph';
     activateStealthBanner(stealthTarget);
   } else {
-    currentUser = data.user;
+    currentUser = sessionRes.user;
     otherUser   = currentUser === 'kaliph' ? 'kathrine' : 'kaliph';
   }
 
-  const users = await fetch('/api/users').then(r => r.json());
-  applyUserData(users[currentUser], users[otherUser]);
-  applyTheme(users[currentUser].theme || 'dark');
+  applyUserData(usersRes[currentUser], usersRes[otherUser]);
+  applyTheme(usersRes[currentUser].theme || 'dark');
   buildThemeGrid();
   populateEmojiGrid();
   setupKeyboardShortcuts();
@@ -144,7 +178,7 @@ async function init() {
     updateStatusText('online');
   } else {
     // Show the target user's actual status in stealth
-    const presence = users[currentUser]?._presence || 'offline';
+    const presence = usersRes[currentUser]?._presence || 'offline';
     setStatusDot('my-status-dot', presence);
     updateStatusText(presence);
   }
@@ -152,9 +186,10 @@ async function init() {
   // Load last-read timestamp for unread tracking
   chatLastReadTs = parseInt(localStorage.getItem('chatLastReadTs_' + currentUser) || '0', 10);
 
-  // Init Lucide icons early so UI is always visible
+  // Init Lucide icons so UI is visible
   if (window.lucide) lucide.createIcons();
 
+  // ── Phase 2: Load all data before revealing UI ──
   await Promise.all([loadMessages(), loadAnnouncements(), loadNotes(), loadContacts(), loadGuestMessages()]).catch(console.error);
 
   // Count initial unread messages (from other user, after last read time)
@@ -170,14 +205,17 @@ async function init() {
   checkAndShowAnnouncements();
   if (!stealthMode) requestNotificationPermission();
 
-  // Reveal chat content now that messages are loaded (prevents flash of empty state)
+  // Reveal chat content now that messages are loaded
   document.body.classList.add('app-loaded');
 
   // Show update log if user hasn't dismissed the latest version
   if (!stealthMode) checkAndShowUpdateLog();
 
   // Load bell schedule and start class updater
-  loadBellSchedule().then(() => startClassUpdater());
+  loadBellSchedule().then(() => {
+    startClassUpdater();
+    if (stealthMode) loadBellScheduleUI();
+  });
 
   // Check for today's calendar events and reminders
   checkTodayEvents();
@@ -204,8 +242,7 @@ function activateStealthBanner(target) {
   if (banner) banner.style.display = '';
   const nameEl = document.getElementById('stealth-target-name');
   if (nameEl) nameEl.textContent = target.charAt(0).toUpperCase() + target.slice(1);
-  const select = document.getElementById('stealth-user-select');
-  if (select) select.value = target;
+  setCustomSelectValue('stealth-user-select', target, target.charAt(0).toUpperCase() + target.slice(1));
 }
 
 function exitStealthMode() {
@@ -395,32 +432,61 @@ function applyTheme(themeId) {
   const body = document.body;
   // Fallback if saved theme no longer exists
   if (themeId && !THEMES.find(t => t.id === themeId)) themeId = 'dark';
-  THEMES.forEach(t => body.classList.remove('theme-' + t.id));
-  body.classList.add('theme-' + (themeId || 'dark'));
-  try { localStorage.setItem('rkk-theme', themeId || 'dark'); } catch {}
-  SoundSystem.setTheme(themeId || 'dark');
-  // Mark active in grid
-  document.querySelectorAll('.theme-card').forEach(c => {
-    c.classList.toggle('active', c.dataset.theme === themeId);
+  const id = themeId || 'dark';
+
+  // Suppress per-element transitions so nothing animates piecemeal
+  body.classList.add('theme-switching');
+  // Instantly hide the page, swap everything while invisible, then fade back in
+  body.style.transition = 'none';
+  body.style.opacity = '0';
+
+  requestAnimationFrame(() => {
+    // All changes happen in one frame while body is invisible
+    THEMES.forEach(t => body.classList.remove('theme-' + t.id));
+    body.classList.add('theme-' + id);
+    try { localStorage.setItem('rkk-theme', id); } catch {}
+    SoundSystem.setTheme(id);
+    document.querySelectorAll('.theme-card').forEach(c => {
+      c.classList.toggle('active', c.dataset.theme === id);
+    });
+    const footer = document.getElementById('avnt-footer');
+    if (footer) footer.style.display = id === 'kaliph' ? 'flex' : 'none';
+    repositionSearchForTheme();
+
+    // Fade back in smoothly
+    requestAnimationFrame(() => {
+      body.style.transition = 'opacity 0.18s ease';
+      body.style.opacity = '1';
+      setTimeout(() => {
+        body.style.transition = '';
+        body.classList.remove('theme-switching');
+      }, 200);
+    });
   });
-  // AVNT footer
-  const footer = document.getElementById('avnt-footer');
-  if (footer) footer.style.display = themeId === 'kaliph' ? 'flex' : 'none';
-  // Reposition search bar for dark theme (sidebar becomes top bar, header is hidden)
-  repositionSearchForTheme();
 }
 
 function repositionSearchForTheme() {
   const wrap = document.getElementById('search-wrap');
   if (!wrap) return;
-  const isDark = document.body.classList.contains('theme-dark');
+  const body = document.body;
+  const isDark  = body.classList.contains('theme-dark');
+  const isLight = body.classList.contains('theme-light');
+
   if (isDark) {
     // Move search bar into chat header (between header-info and chat-actions)
     const chatActions = document.querySelector('.chat-header .chat-actions');
     if (chatActions && !chatActions.parentElement.contains(wrap)) {
       chatActions.parentElement.insertBefore(wrap, chatActions);
     }
+  } else if (isLight) {
+    // Light: app-header hidden; insert search BEFORE the nav in the sidebar
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+      const nav = sidebar.querySelector('.sidebar-nav');
+      if (nav) sidebar.insertBefore(wrap, nav);
+    }
   } else {
+    // All other themes: search lives in the header-center
     const headerCenter = document.querySelector('.header-center');
     if (headerCenter && !headerCenter.contains(wrap)) headerCenter.appendChild(wrap);
   }
@@ -470,7 +536,7 @@ function showSection(name, el) {
   if (name === 'notes')     loadNotes();
   if (name === 'calendar')  renderCalendar();
   if (name === 'contacts')  loadContacts();
-  if (name === 'vault')     { resetVault(); }
+  if (name === 'vault')     { if (!vaultPasscode) resetVault(); else refreshVault(); }
   if (name === 'announcements') loadAnnouncements();
   if (name === 'reminders') loadReminders();
   if (name === 'guest-messages') {
@@ -625,7 +691,7 @@ function buildMsgElement(msg) {
     row.id = 'msg-' + msg.id;
     const pinnerName = capitalize(msg.pinnedBy || 'someone');
     row.innerHTML = `<div class="pin-notice">
-      <span class="pin-notice-icon">📌</span>
+      <span class="pin-notice-icon"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg></span>
       <span class="pin-notice-text"><a href="#" onclick="scrollToMessage('${msg.pinnedMsgId}');return false" class="pin-notice-link">New message pinned</a> by <strong>${escapeHtml(pinnerName)}</strong></span>
     </div>`;
     return row;
@@ -775,7 +841,7 @@ function buildMsgElement(msg) {
   if (msg.pinned) {
     const pin = document.createElement('div');
     pin.className = 'msg-pinned-indicator';
-    pin.innerHTML = '📌 Pinned';
+    pin.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg> Pinned';
     bubble.insertBefore(pin, bubble.firstChild);
   }
 
@@ -793,16 +859,25 @@ function buildMsgElement(msg) {
   // Hover action bar (iMessage / Discord style)
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
-  const unsendBtn = (isSelf && msg.unsendable) ? `<button class="msg-action-btn msg-unsend-btn" data-msg-id="${msg.id}" onclick="quickUnsend('${msg.id}')" title="Unsend">🗑️</button>` : '';
+  // Inline SVGs to avoid per-message lucide.createIcons() (major perf bottleneck)
+  const _s = 'xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+  const svgSmile = `<svg ${_s}><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>`;
+  const svgReply = `<svg ${_s}><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>`;
+  const svgPin = `<svg ${_s}><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
+  const svgPinOff = `<svg ${_s}><line x1="2" x2="22" y1="2" y2="22"/><line x1="12" x2="12" y1="17" y2="22"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h12"/><path d="M15 9.34V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0-1.4.58"/></svg>`;
+  const svgCopy = `<svg ${_s}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
+  const svgPencil = `<svg ${_s}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>`;
+  const svgTrash = `<svg ${_s}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
+  const unsendBtn = (isSelf && msg.unsendable) ? `<button class="msg-action-btn msg-unsend-btn" data-msg-id="${msg.id}" onclick="quickUnsend('${msg.id}')" title="Unsend">${svgTrash}</button>` : '';
   const pinBtn = msg.pinned
-    ? `<button class="msg-action-btn" onclick="unpinMessage('${msg.id}')" title="Unpin">📌</button>`
-    : `<button class="msg-action-btn" onclick="pinMessage('${msg.id}')" title="Pin">📌</button>`;
+    ? `<button class="msg-action-btn" onclick="unpinMessage('${msg.id}')" title="Unpin">${svgPinOff}</button>`
+    : `<button class="msg-action-btn" onclick="pinMessage('${msg.id}')" title="Pin">${svgPin}</button>`;
   actions.innerHTML = `
-    <button class="msg-action-btn react-trigger" onclick="showQuickReact('${msg.id}', this)" title="React">😊</button>
-    <button class="msg-action-btn" onclick="setReply('${msg.id}')" title="Reply">↩</button>
+    <button class="msg-action-btn react-trigger" onclick="showQuickReact('${msg.id}', this)" title="React">${svgSmile}</button>
+    <button class="msg-action-btn" onclick="setReply('${msg.id}')" title="Reply">${svgReply}</button>
     ${pinBtn}
-    <button class="msg-action-btn" onclick="copyMsgText('${msg.id}')" title="Copy">📋</button>
-    ${isSelf ? `<button class="msg-action-btn" onclick="ctxMsgId='${msg.id}';ctxEdit()" title="Edit">✏️</button>` : ''}
+    <button class="msg-action-btn" onclick="copyMsgText('${msg.id}')" title="Copy">${svgCopy}</button>
+    ${isSelf ? `<button class="msg-action-btn" onclick="ctxMsgId='${msg.id}';ctxEdit()" title="Edit">${svgPencil}</button>` : ''}
     ${unsendBtn}
   `;
   content.appendChild(actions);
@@ -885,8 +960,7 @@ async function sendMessage() {
   input.classList.remove('fmt-bold', 'fmt-italic', 'fmt-underline');
   input.style.fontFamily = '';
   document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
-  const fontSel = document.getElementById('font-select');
-  if (fontSel) fontSel.value = 'default';
+  setCustomSelectValue('font-select', 'default', 'Default');
   SoundSystem.send();
   socket.emit('stop-typing', { user: currentUser });
 
@@ -1051,7 +1125,10 @@ function showContextMenu(e, msg) {
   unsendBtn.style.display = (msg.sender === currentUser && msg.unsendable) ? '' : 'none';
   // Pin/unpin toggle
   if (pinBtn) {
-    pinBtn.textContent = msg.pinned ? '📌 Unpin Message' : '📌 Pin Message';
+    const _ps = 'xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    pinBtn.innerHTML = msg.pinned
+      ? `<svg ${_ps}><line x1="2" x2="22" y1="2" y2="22"/><line x1="12" x2="12" y1="17" y2="22"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h12"/><path d="M15 9.34V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0-1.4.58"/></svg> Unpin Message`
+      : `<svg ${_ps}><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg> Pin Message`;
     pinBtn.onclick = () => { msg.pinned ? ctxUnpin() : ctxPin(); };
   }
 
@@ -1240,6 +1317,32 @@ function scrollToMessage(msgId) {
   closePinnedPanel();
 }
 
+function buildPinnedPreviewHtml(m) {
+  if (m.type === 'gif' && m.text) {
+    return `<div class="pinned-item-text">
+      <img src="${escapeHtml(m.text)}" style="max-height:120px;max-width:100%;border-radius:8px;object-fit:cover;display:block;margin-top:4px" loading="lazy">
+    </div>`;
+  }
+  if (m.files?.length) {
+    const images = m.files.filter(f => f.type?.startsWith('image'));
+    const others = m.files.filter(f => !f.type?.startsWith('image'));
+    let html = '<div class="pinned-item-text">';
+    if (m.text) html += `<div style="margin-bottom:4px">${escapeHtml(m.text)}</div>`;
+    if (images.length) {
+      html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">` +
+        images.map(f => `<img src="${escapeHtml(f.url)}" style="height:90px;max-width:130px;border-radius:6px;object-fit:cover" loading="lazy">`).join('') +
+        `</div>`;
+    }
+    if (others.length) {
+      html += others.map(f => `<div style="display:flex;align-items:center;gap:5px;color:var(--text-muted);font-size:0.8rem;margin-top:4px">📄 ${escapeHtml(f.name)}</div>`).join('');
+    }
+    html += '</div>';
+    return html;
+  }
+  if (m.voiceUrl) return `<div class="pinned-item-text" style="color:var(--text-muted)">🎙️ Voice message</div>`;
+  return `<div class="pinned-item-text">${escapeHtml(m.text || '(no content)')}</div>`;
+}
+
 async function togglePinnedPanel() {
   const panel = document.getElementById('pinned-panel');
   if (pinnedPanelOpen) { closePinnedPanel(); return; }
@@ -1259,8 +1362,8 @@ async function togglePinnedPanel() {
       ? `<img src="${senderData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
       : `<span>${(m.sender || 'U')[0].toUpperCase()}</span>`;
     const chatColor = m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : 'var(--kathrine-color, #c084fc)';
-    const text = m.text || (m.files?.length ? '📎 File' : m.voiceUrl ? '🎙️ Voice message' : '(no text)');
     const time = new Date(m.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const pinnedPreview = buildPinnedPreviewHtml(m);
     return `<div class="pinned-item" onclick="scrollToMessage('${m.id}')">
       <div class="pinned-item-header">
         <div style="display:flex;align-items:center;gap:8px">
@@ -1269,7 +1372,7 @@ async function togglePinnedPanel() {
         </div>
         <span class="pinned-item-time">${time}</span>
       </div>
-      <div class="pinned-item-text">${escapeHtml(text)}</div>
+      ${pinnedPreview}
       <button class="pinned-unpin-btn" onclick="event.stopPropagation();unpinMessage('${m.id}')" title="Unpin">✕</button>
     </div>`;
   }).join('');
@@ -1621,13 +1724,33 @@ function fmtAudioTime(s) {
 }
 
 // ── GIF Search ────────────────────────────────────────────────────────
+let activeGifTab = 'trending';
+let gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+
 function openGifSearch() {
   openModal('gif-modal');
-  const grid = document.getElementById('gif-grid');
   const input = document.getElementById('gif-search-input');
   if (input) input.value = '';
-  // Load trending GIFs on open
-  loadTrendingGifs();
+  switchGifTab(activeGifTab, true);
+}
+
+function switchGifTab(tab, force = false) {
+  if (activeGifTab === tab && !force) return;
+  activeGifTab = tab;
+  document.querySelectorAll('.gif-tab').forEach(b => {
+    b.classList.toggle('gif-tab-active', b.dataset.tab === tab);
+  });
+  // Clear search input when switching tabs
+  const input = document.getElementById('gif-search-input');
+  if (input) input.value = '';
+  const categoryQueries = { scandal: 'scandal tv show olivia pope' };
+  if (tab === 'trending') {
+    loadTrendingGifs();
+  } else if (tab === 'favorites') {
+    loadGifFavorites();
+  } else {
+    loadGifCategory(categoryQueries[tab] || tab);
+  }
 }
 
 let gifTimeout = null;
@@ -1643,9 +1766,37 @@ async function loadTrendingGifs() {
   }
 }
 
+async function loadGifCategory(cat) {
+  const grid = document.getElementById('gif-grid');
+  grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Loading…</p>';
+  try {
+    const r = await fetch(`/api/gif-search?q=${encodeURIComponent(cat)}`);
+    const d = await r.json();
+    renderGifResults(d.results || []);
+  } catch {
+    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
+  }
+}
+
+function loadGifFavorites() {
+  gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+  if (!gifFavorites.length) {
+    document.getElementById('gif-grid').innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">No favorites yet — hover a GIF and click ♥ to save it</p>';
+    return;
+  }
+  renderGifResults(gifFavorites);
+}
+
 function searchGifs(q) {
   clearTimeout(gifTimeout);
-  if (!q.trim()) { loadTrendingGifs(); return; }
+  if (!q.trim()) {
+    // Restore current tab on clear
+    if (activeGifTab === 'trending') loadTrendingGifs();
+    else if (activeGifTab === 'favorites') loadGifFavorites();
+    else loadGifCategory(activeGifTab);
+    return;
+  }
+  // Show search results regardless of active tab (but keep tab highlighted)
   gifTimeout = setTimeout(async () => {
     const grid = document.getElementById('gif-grid');
     grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Searching…</p>';
@@ -1656,7 +1807,7 @@ function searchGifs(q) {
     } catch {
       grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">GIF search failed</p>';
     }
-  }, 400);
+  }, 350);
 }
 
 function renderGifResults(results) {
@@ -1665,9 +1816,35 @@ function renderGifResults(results) {
     grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">No GIFs found</p>';
     return;
   }
-  grid.innerHTML = results.map(g =>
-    `<img src="${g.preview || g.url}" data-full="${g.url}" style="width:100%;border-radius:8px;cursor:pointer;aspect-ratio:${g.width || 200}/${g.height || 200};object-fit:cover" onclick="sendGif('${g.url}')" loading="lazy">`
-  ).join('');
+  gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+  grid.innerHTML = results.map(g => {
+    const isFav = gifFavorites.some(f => f.url === g.url);
+    const safeUrl = g.url.replace(/'/g, '%27');
+    const safePreview = (g.preview || g.url).replace(/'/g, '%27');
+    return `<div class="gif-item" style="position:relative;border-radius:8px;overflow:hidden;cursor:pointer" onclick="sendGif('${safeUrl}')">
+      <img src="${safePreview}" data-full="${safeUrl}" style="width:100%;display:block;aspect-ratio:${g.width || 200}/${g.height || 200};object-fit:cover" loading="lazy">
+      <button class="gif-fav-btn ${isFav ? 'gif-fav-active' : ''}" onclick="toggleGifFavorite(event,'${safeUrl}','${safePreview}',${g.width||200},${g.height||200})" title="${isFav ? 'Remove favorite' : 'Add to favorites'}">♥</button>
+    </div>`;
+  }).join('');
+}
+
+function toggleGifFavorite(e, url, preview, width, height) {
+  e.stopPropagation();
+  gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+  const idx = gifFavorites.findIndex(f => f.url === url);
+  if (idx >= 0) {
+    gifFavorites.splice(idx, 1);
+  } else {
+    gifFavorites.unshift({ url, preview, width, height });
+  }
+  localStorage.setItem('rkk-gif-favorites', JSON.stringify(gifFavorites));
+  // Update just this button
+  const btn = e.currentTarget;
+  const isFav = idx < 0; // was added
+  btn.classList.toggle('gif-fav-active', isFav);
+  btn.title = isFav ? 'Remove favorite' : 'Add to favorites';
+  // If on favorites tab, re-render to reflect removal
+  if (activeGifTab === 'favorites') loadGifFavorites();
 }
 
 async function sendGif(url) {
@@ -1787,7 +1964,7 @@ function setupSocketEvents() {
       if (bubble && !bubble.querySelector('.msg-pinned-indicator')) {
         const pin = document.createElement('div');
         pin.className = 'msg-pinned-indicator';
-        pin.innerHTML = '📌 Pinned';
+        pin.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg> Pinned';
         bubble.insertBefore(pin, bubble.firstChild);
       }
     }
@@ -1953,14 +2130,18 @@ function setupSocketEvents() {
     loadReminders();
   });
 
-  socket.on('time-override', ({ time }) => {
-    if (time) {
-      window._timeOverride = new Date(time);
-      showToast('⏰ Time override active: ' + window._timeOverride.toLocaleString());
+  socket.on('time-offset', ({ offset }) => {
+    if (offset) {
+      window._timeOffsetMs = parseTimeOffset(offset);
+      const fakeTime = getNow();
+      showToast(`⏰ Time override: ${fakeTime.toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}`);
     } else {
-      window._timeOverride = null;
-      showToast('⏰ Time override cleared — using real time.');
+      window._timeOffsetMs = 0;
+      showToast('⏰ Time reset — using real time.');
     }
+    // Refresh anything that depends on the current time
+    updateClassDisplays();
+    if (currentSection === 'reminders') renderReminders();
   });
 
   socket.on('show-update-log', ({ target }) => {
@@ -2633,7 +2814,7 @@ async function saveEvent() {
   const end = document.getElementById('event-end-date').value || start;
   if (!title) return showToast('Event title required');
   if (!start) return showToast('Date required');
-  const reminderVal = document.getElementById('event-reminder')?.value;
+  const reminderVal = getCustomSelectValue('event-reminder') || '';
   await fetch('/api/calendar', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -2773,12 +2954,9 @@ async function editCalEvent(eventId) {
   document.getElementById('edit-event-desc').value = ev.description || '';
   document.getElementById('edit-event-color').value = ev.color || '#7c3aed';
 
-  const reminderSelect = document.getElementById('edit-event-reminder');
-  if (ev.reminder != null) {
-    reminderSelect.value = String(ev.reminder);
-  } else {
-    reminderSelect.value = '';
-  }
+  const reminderLabels = { '': 'No reminder', '0': 'Day of event', '1': '1 day before', '2': '2 days before', '3': '3 days before', '7': '1 week before' };
+  const rVal = ev.reminder != null ? String(ev.reminder) : '';
+  setCustomSelectValue('edit-event-reminder', rVal, reminderLabels[rVal] || 'No reminder');
 
   // Set up edit date picker state
   eedpSelectStart = ev.start || ev.date;
@@ -2804,7 +2982,7 @@ async function updateCalEvent() {
   if (!title) return showToast('Event title required');
   if (!start) return showToast('Date required');
 
-  const reminderVal = document.getElementById('edit-event-reminder').value;
+  const reminderVal = getCustomSelectValue('edit-event-reminder') || '';
   await fetch(`/api/calendar/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -2915,6 +3093,14 @@ async function checkVaultPasscode() {
 
 function lockVault() { resetVault(); vaultPasscode = null; currentVaultFolder = null; vaultFolderPath = []; lastVaultData = null; }
 
+async function refreshVault() {
+  if (!vaultPasscode) return;
+  try {
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+  } catch(e) { console.error('Failed to refresh locker:', e); }
+}
+
 function switchVaultTab(tab, el) {
   vaultTab = tab;
   currentVaultFolder = null;
@@ -2963,7 +3149,7 @@ function renderVault(data) {
 
   // Render files/links
   files.forEach(item => {
-    const icon = item.type === 'link' ? '🔗' : getFileIcon(item.mimeType);
+    const icon = item.type === 'link' ? '<i data-lucide="link" style="width:22px;height:22px;color:var(--accent)"></i>' : getFileIcon(item.mimeType);
     const mime = item.mimeType || '';
     let thumbHtml;
     if (mime.startsWith('image')) {
@@ -3111,6 +3297,41 @@ async function handleVaultFiles(input) {
   showToast('Files added to locker!');
 }
 
+// Vault dropzone drag-and-drop
+function setupVaultDropzone() {
+  const dropzone = document.getElementById('vault-dropzone');
+  if (!dropzone) return;
+  let dragCounter = 0;
+  dropzone.addEventListener('dragenter', e => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter++;
+    dropzone.classList.add('drag-over');
+  });
+  dropzone.addEventListener('dragleave', e => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter--;
+    if (dragCounter <= 0) { dragCounter = 0; dropzone.classList.remove('drag-over'); }
+  });
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+  dropzone.addEventListener('drop', async e => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter = 0;
+    dropzone.classList.remove('drag-over');
+    const files = e.dataTransfer?.files;
+    if (!files || !files.length) return;
+    if (!vaultPasscode) { showToast('Please unlock the locker first.'); return; }
+    const fd = new FormData();
+    fd.append('passcode', vaultPasscode);
+    Array.from(files).forEach(f => fd.append('files', f));
+    await fetch('/api/vault', { method: 'POST', body: fd });
+    closeModal('vault-upload-modal');
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+    showToast('Files added to locker!');
+  });
+}
+document.addEventListener('DOMContentLoaded', setupVaultDropzone);
+
 async function deleteVaultItem(id) {
   const ok = await showConfirmDialog({ icon: '🔒', title: 'Remove from locker?', msg: 'This file will be permanently removed.', okText: 'Remove' });
   if (!ok) return;
@@ -3123,12 +3344,13 @@ async function deleteVaultItem(id) {
 }
 
 function getFileIcon(mime = '') {
-  if (mime.startsWith('image')) return '🖼️';
-  if (mime.startsWith('video')) return '🎬';
-  if (mime.startsWith('audio')) return '🎵';
-  if (mime.includes('pdf')) return '📄';
-  if (mime.includes('word') || mime.includes('document')) return '📝';
-  return '📁';
+  const s = 'width:22px;height:22px;color:var(--accent)';
+  if (mime.startsWith('image')) return `<i data-lucide="image" style="${s}"></i>`;
+  if (mime.startsWith('video')) return `<i data-lucide="film" style="${s}"></i>`;
+  if (mime.startsWith('audio')) return `<i data-lucide="music" style="${s}"></i>`;
+  if (mime.includes('pdf')) return `<i data-lucide="file-text" style="${s}"></i>`;
+  if (mime.includes('word') || mime.includes('document')) return `<i data-lucide="file-pen" style="${s}"></i>`;
+  return `<i data-lucide="file" style="${s}"></i>`;
 }
 
 // ── Contacts ──────────────────────────────────────────────────────────
@@ -3163,7 +3385,7 @@ function renderContactsList(contacts) {
   }
 
   // Sort
-  const sortBy = document.getElementById('contacts-sort')?.value || 'name-asc';
+  const sortBy = getCustomSelectValue('contacts-sort') || 'name-asc';
   const sorted = [...contacts].sort((a, b) => {
     if (sortBy === 'name-asc') return (a.name||'').localeCompare(b.name||'');
     if (sortBy === 'name-desc') return (b.name||'').localeCompare(a.name||'');
@@ -3368,7 +3590,7 @@ async function postAnnouncement() {
   if (!title || !content) return showToast('⚠️ Title and content required');
   await fetch('/api/announcements', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, content, targetUser: document.getElementById('ann-target').value })
+    body: JSON.stringify({ title, content, targetUser: getCustomSelectValue('ann-target') || 'both' })
   });
   closeModal('new-announcement-modal');
   await loadAnnouncements();
@@ -3598,6 +3820,7 @@ async function sendGuestReply() {
 
 // ── Settings ──────────────────────────────────────────────────────────
 function openSettingsModal() {
+  SoundSystem.modalOpen();
   const modal = document.getElementById('settings-modal');
   modal.classList.add('open');
   loadSettings();
@@ -3610,6 +3833,7 @@ function openSettingsModal() {
 }
 
 function switchSettingsTab(tab, el) {
+  SoundSystem.navigate();
   document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
@@ -3739,6 +3963,10 @@ async function loadBellSchedule() {
     }
     const toggle = document.getElementById('toggle-countdown');
     if (toggle) toggle.checked = window._countdownEnabled;
+    // Apply any active time override
+    if (s.timeOffset) {
+      window._timeOffsetMs = parseTimeOffset(s.timeOffset);
+    }
     return window._bellSchedule;
   } catch { return null; }
 }
@@ -3828,13 +4056,15 @@ async function saveBellSchedule() {
     lateStartDay: lateDayVal,
   };
   const resp = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bellSchedule: existing }) });
-  if (!resp.ok) { showToast('Failed to save schedule'); return; }
+  if (!resp.ok) { SoundSystem.error(); showToast('Failed to save schedule'); return; }
   window._bellSchedule = existing;
   updateClassDisplays();
+  SoundSystem.success();
   showToast('Bell schedule saved!');
 }
 
 function toggleCountdown(el) {
+  SoundSystem.toggle();
   window._countdownEnabled = el.checked;
   fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ countdownEnabled: el.checked }) });
   updateClassDisplays();
@@ -3866,14 +4096,35 @@ function selectCustomOption(id, value, label) {
   if (wrap) wrap.dataset.value = value;
 }
 function getCustomSelectValue(id) {
-  const wrap = document.getElementById(id + '-wrap');
+  // Try id-wrap first, then find wrap as parent of dropdown
+  let wrap = document.getElementById(id + '-wrap');
+  if (!wrap) {
+    const dd = document.getElementById(id + '-dropdown');
+    if (dd) wrap = dd.parentElement;
+  }
   return wrap?.dataset.value ?? '';
 }
 function setCustomSelectValue(id, value, label) {
-  const wrap = document.getElementById(id + '-wrap');
-  if (wrap) wrap.dataset.value = value;
-  const btn = document.getElementById(id + '-btn');
-  if (btn) btn.querySelector('.custom-select-text').textContent = label;
+  // Find wrap
+  let wrap = document.getElementById(id + '-wrap');
+  if (!wrap) {
+    const dd = document.getElementById(id + '-dropdown');
+    if (dd) wrap = dd.parentElement;
+  }
+  if (wrap) {
+    wrap.dataset.value = value;
+    const btn = wrap.querySelector('.custom-select-btn');
+    if (btn) {
+      const txt = btn.querySelector('.custom-select-text');
+      if (txt) txt.textContent = label;
+    }
+  }
+  // Also try explicit btn id
+  const explicitBtn = document.getElementById(id + '-btn');
+  if (explicitBtn) {
+    const txt = explicitBtn.querySelector('.custom-select-text');
+    if (txt) txt.textContent = label;
+  }
   const dropdown = document.getElementById(id + '-dropdown');
   if (dropdown) dropdown.querySelectorAll('.custom-select-option').forEach(o => o.classList.toggle('selected', o.dataset.value === value));
 }
@@ -4110,18 +4361,18 @@ function selectPriority(id, value) {
 function getCurrentClass(username) {
   const bs = window._bellSchedule;
   if (!bs || !bs[username]) return null;
-  // Check if schedule is skipped today
-  const today = new Date().toISOString().split('T')[0];
+  // Check if schedule is skipped today (use site time)
+  const siteNow = getNow();
+  const today = siteNow.toISOString().split('T')[0];
   if (window._scheduleSkips[username] === today) return null;
   const data = bs[username];
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const dayName = days[new Date().getDay()];
+  const dayName = days[siteNow.getDay()];
   // Weekend — no class
   if (dayName === 'sunday' || dayName === 'saturday') return null;
   const schedule = (data.lateStartDay && data.lateStartDay === dayName) ? (data.lateStart || []) : (data.regular || []);
   if (!schedule.length) return null;
-  const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowMins = siteNow.getHours() * 60 + siteNow.getMinutes();
   for (const period of schedule) {
     if (!period.start || !period.end) continue;
     const [sh, sm] = period.start.split(':').map(Number);
@@ -4136,9 +4387,9 @@ function getCurrentClass(username) {
 }
 
 function formatCountdown(endMins) {
-  const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-  const nowSecs = now.getSeconds();
+  const siteNow = getNow();
+  const nowMins = siteNow.getHours() * 60 + siteNow.getMinutes();
+  const nowSecs = siteNow.getSeconds();
   const totalSecsLeft = (endMins - nowMins) * 60 - nowSecs;
   if (totalSecsLeft <= 0) return '0:00';
   const m = Math.floor(totalSecsLeft / 60);
@@ -4198,6 +4449,7 @@ async function saveProfile() {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ displayName, pronouns, customStatus, bio, nameStyle: { color, gradient: true } })
   });
+  SoundSystem.success();
   document.getElementById('my-name').textContent = displayName;
   nameColors[currentUser] = color;
   renderMessages();
@@ -4208,6 +4460,7 @@ async function saveEmails() {
   const email = document.getElementById('my-email-input').value;
   const body = { emails: { [currentUser]: email } };
   await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  SoundSystem.success();
   showToast('📧 Email saved!');
 }
 
@@ -4236,6 +4489,7 @@ async function saveAllEmails() {
       kathrine: kathrineEmails,
     }})
   });
+  SoundSystem.success();
   showToast('📧 Emails saved!');
 }
 
@@ -4250,6 +4504,7 @@ async function uploadAvatar(input) {
     const avatarDiv = wrapper.querySelector('.avatar');
     if (avatarDiv) avatarDiv.innerHTML = `<img src="${d.avatar}" alt="">`;
     else wrapper.innerHTML = `<div class="avatar"><img src="${d.avatar}" alt=""></div><div class="status-indicator online" id="my-status-dot"></div>`;
+    SoundSystem.success();
     showToast('🖼️ Avatar updated!');
   }
 }
@@ -4262,6 +4517,7 @@ async function uploadBanner(input) {
   if (d.banner) {
     const bannerEl = document.getElementById('profile-edit-banner');
     if (bannerEl) { bannerEl.style.backgroundImage = `url(${d.banner})`; bannerEl.style.backgroundSize = 'cover'; }
+    SoundSystem.success();
     showToast('🖼️ Banner updated!');
   }
 }
@@ -4310,13 +4566,16 @@ async function viewProfile(username) {
   // Status display (Discord style — icon + label)
   const statusSection = document.getElementById('pv-status-section');
   if (statusSection) {
-    const statusIcons = { online: '🟢', idle: '🌙', dnd: '⛔', invisible: '⚫' };
+    const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
+    const statusLucide = { online: 'circle', idle: 'moon', dnd: 'minus-circle', invisible: 'eye-off' };
     const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
     const userStatus = u.status || pvStatus;
+    const sColor = statusColors[userStatus] || '#22c55e';
+    const sIcon = statusLucide[userStatus] || 'circle';
     statusSection.innerHTML = `
       <div class="pc-section-title">STATUS</div>
       <div class="pv-status-row">
-        <span class="pv-status-icon">${statusIcons[userStatus] || '🟢'}</span>
+        <span class="pv-status-icon" style="color:${sColor};display:inline-flex;align-items:center"><i data-lucide="${sIcon}" style="width:14px;height:14px;fill:${userStatus === 'online' ? sColor : 'none'}"></i></span>
         <span class="pv-status-label">${statusLabels[userStatus] || 'Online'}</span>
         ${u.customStatus ? `<span class="pv-status-custom">— ${escapeHtml(u.customStatus)}</span>` : ''}
         ${u.statusEmoji ? `<span class="pv-status-emoji">${u.statusEmoji}</span>` : ''}
@@ -4335,7 +4594,7 @@ async function viewProfile(username) {
   const classText = document.getElementById('pv-class-text');
   if (classSec && classText) {
     const cls = getCurrentClass(username);
-    if (cls) { classSec.style.display = ''; classText.textContent = '📚 ' + cls.label + ' (' + cls.start + ' – ' + cls.end + ')'; }
+    if (cls) { classSec.style.display = ''; classText.textContent = '📚 ' + cls.label + ' (' + formatTime12(cls.start) + ' – ' + formatTime12(cls.end) + ')'; }
     else classSec.style.display = 'none';
   }
   // Pronouns
@@ -4357,8 +4616,66 @@ async function viewProfile(username) {
   // Edit button (only for own profile)
   document.getElementById('pv-edit-btn').style.display = username === currentUser ? 'flex' : 'none';
   document.getElementById('pv-schedule-btn').style.display = 'flex';
+  window._lastViewedProfileUser = username;
   openModal('profile-viewer-modal');
   if (window.lucide) lucide.createIcons();
+}
+
+// ── Schedule Viewer Modal ─────────────────────────────────────────────
+function openScheduleModal() {
+  const user = window._lastViewedProfileUser || currentUser;
+  const bs = window._bellSchedule;
+  if (!bs || !bs[user]) {
+    showToast('No schedule data available.');
+    return;
+  }
+  closeModal('profile-viewer-modal');
+  const data = bs[user];
+  const displayName = user === 'kaliph' ? 'Kaliph' : 'Kathrine';
+  document.getElementById('schedule-viewer-title').textContent = displayName + "'s Schedule";
+  const regular = data.regular || [];
+  const lateStart = data.lateStart || [];
+  const lateDay = data.lateStartDay || '';
+
+  let html = '';
+  // Regular schedule
+  html += '<div style="margin-bottom:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);margin-bottom:8px">Regular Schedule</div>';
+  if (regular.length) {
+    html += '<div class="schedule-view-table">';
+    regular.forEach(p => {
+      html += `<div class="schedule-view-row">
+        <span class="schedule-view-label">${escapeHtml(p.label || 'Period')}</span>
+        <span class="schedule-view-time">${p.start ? formatTime12(p.start) : '—'} – ${p.end ? formatTime12(p.end) : '—'}</span>
+      </div>`;
+    });
+    html += '</div>';
+  } else {
+    html += '<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">No regular periods set.</div>';
+  }
+  html += '</div>';
+
+  // Late start schedule
+  if (lateStart.length || lateDay) {
+    html += '<div><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-secondary);margin-bottom:8px">Late Start Schedule';
+    if (lateDay) html += ` <span style="font-weight:400;text-transform:capitalize;color:var(--text-muted)">— ${lateDay}s</span>`;
+    html += '</div>';
+    if (lateStart.length) {
+      html += '<div class="schedule-view-table">';
+      lateStart.forEach(p => {
+        html += `<div class="schedule-view-row">
+          <span class="schedule-view-label">${escapeHtml(p.label || 'Period')}</span>
+          <span class="schedule-view-time">${p.start ? formatTime12(p.start) : '—'} – ${p.end ? formatTime12(p.end) : '—'}</span>
+        </div>`;
+      });
+      html += '</div>';
+    } else {
+      html += '<div style="font-size:0.82rem;color:var(--text-muted);padding:8px 0">No late start periods set.</div>';
+    }
+    html += '</div>';
+  }
+
+  document.getElementById('schedule-viewer-content').innerHTML = html;
+  setTimeout(() => { openModal('schedule-viewer-modal'); if (window.lucide) lucide.createIcons(); }, 150);
 }
 
 // ── Status Editor (editable from profile) ─────────────────────────────
@@ -4368,15 +4685,29 @@ function openStatusEditor() {
   // Populate with current values
   const users = window._users || {};
   const u = users[currentUser] || {};
-  document.getElementById('se-status-select').value = u.status || 'online';
+  const statusVal = u.status || 'online';
+  const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
+  const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
+  setCustomSelectValue('se-status-select', statusVal, statusLabels[statusVal] || 'Online');
+  // Update the dot color in the button
+  const dot = document.querySelector('#se-status-select-wrap .se-status-dot');
+  if (dot) dot.style.background = statusColors[statusVal] || '#22c55e';
   document.getElementById('se-custom-status').value = u.customStatus || '';
   document.getElementById('se-status-emoji').value = u.statusEmoji || '';
+  if (window.lucide) lucide.createIcons({ node: document.getElementById('se-status-select-wrap') });
+}
+
+function selectStatus(value, label, color) {
+  setCustomSelectValue('se-status-select', value, label);
+  const dot = document.querySelector('#se-status-select-wrap .se-status-dot');
+  if (dot) dot.style.background = color;
+  closeAllCustomSelects();
 }
 
 async function saveStatus() {
-  const status = document.getElementById('se-status-select').value;
+  const status = getCustomSelectValue('se-status-select');
   const customStatus = document.getElementById('se-custom-status').value.trim();
-  const statusEmoji = document.getElementById('se-status-emoji').value.trim();
+  const statusEmoji = document.getElementById('se-status-emoji').value.trim() || '';
   await fetch(`/api/users/${currentUser}/status`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status, customStatus, statusEmoji })
@@ -4388,9 +4719,9 @@ async function saveStatus() {
     window._users[currentUser].statusEmoji = statusEmoji;
   }
   closeModal('status-editor-modal');
-  showToast('✅ Status updated!');
+  showToast('Status updated!');
   // Also emit to socket so header updates
-  socket.emit('status-change', { user: currentUser, status });
+  socket.emit('status-change', { user: currentUser, status, customStatus, statusEmoji });
   // Update own status dot
   setStatusDot('my-status-dot', status);
   updateStatusText(status);
@@ -4469,7 +4800,7 @@ function toggleGif(el) {
   document.getElementById('gif-btn').style.display = el.checked ? '' : 'none';
 }
 
-function toggleSound(el) { SoundSystem.setEnabled(el.checked); }
+function toggleSound(el) { SoundSystem.setEnabled(el.checked); if (el.checked) SoundSystem.toggle(); }
 
 async function changeSitePassword() {
   showToast('Use the Eval terminal to change the site password');
@@ -4479,7 +4810,7 @@ async function changeVaultPasscode() {
   const p = document.getElementById('new-vault-passcode').value;
   if (p.length !== 4) return showToast('⚠️ Must be 4 digits');
   await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vaultPasscode: p }) });
-  showToast('🔐 Vault passcode updated!');
+  showToast('Locker passcode updated!');
 }
 
 // ── Profile Passcode ──────────────────────────────────────────────────
@@ -4508,10 +4839,12 @@ async function saveProfilePasscode() {
   });
   const d = await r.json();
   if (d.success) {
+    SoundSystem.success();
     showToast('Profile passcode saved');
     document.getElementById('profile-passcode-input').value = '';
     document.getElementById('profile-passcode-confirm').value = '';
   } else {
+    SoundSystem.error();
     showToast(d.error || 'Failed to save passcode');
   }
 }
@@ -4602,7 +4935,7 @@ function updateGuestChannelOptions(activeGuests) {
 }
 
 function toggleGuestExpiryMode() {
-  const mode = document.getElementById('guest-expires-mode').value;
+  const mode = getCustomSelectValue('guest-expires-mode');
   const durEl = document.getElementById('guest-expiry-duration');
   const dtEl = document.getElementById('guest-expiry-datetime');
   durEl.style.display = mode === 'duration' ? 'flex' : 'none';
@@ -4614,7 +4947,7 @@ async function createGuest() {
   const pw   = document.getElementById('guest-pw').value;
   if (!name || !pw) return showToast('⚠️ Name and password required');
   // Compute expiration
-  const mode = document.getElementById('guest-expires-mode').value;
+  const mode = getCustomSelectValue('guest-expires-mode');
   let expiresAt = null;
   if (mode === 'duration') {
     const hrs = parseInt(document.getElementById('guest-expires-hours').value) || 0;
@@ -4638,7 +4971,7 @@ async function createGuest() {
   });
   document.getElementById('guest-name').value = '';
   document.getElementById('guest-pw').value = '';
-  document.getElementById('guest-expires-mode').value = 'never';
+  setCustomSelectValue('guest-expires-mode', 'never', 'Never expires');
   toggleGuestExpiryMode();
   document.getElementById('guest-perm-kaliph').checked = true;
   document.getElementById('guest-perm-kathrine').checked = true;
@@ -4736,7 +5069,7 @@ async function submitSuggestion() {
   if (!msg) return showToast('⚠️ Write something first');
   await fetch('/api/suggestions', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: document.getElementById('suggestion-type').value, message: msg })
+    body: JSON.stringify({ type: getCustomSelectValue('suggestion-type') || 'suggestion', message: msg })
   });
   document.getElementById('suggestion-msg').value = '';
   await loadSuggestions();
@@ -4765,6 +5098,7 @@ function toggleStatusMenu() {
 
 async function setStatus(status) {
   if (stealthMode) return; // Can't change status in stealth mode
+  SoundSystem.toggle();
   document.getElementById('status-menu').classList.remove('open');
   setStatusDot('my-status-dot', status);
   updateStatusText(status);
@@ -5502,6 +5836,41 @@ function updateSearchPlaceholder() {
   bar.placeholder = hints[searchPendingFilter] || 'Enter value…';
 }
 
+function buildMsgPreviewHtml(m, textQuery) {
+  // GIF message
+  if (m.type === 'gif' && m.text) {
+    return `<div class="search-result-media">
+      <img src="${escapeHtml(m.text)}" style="max-height:100px;max-width:160px;border-radius:6px;object-fit:cover;display:block" loading="lazy">
+    </div>`;
+  }
+  // File attachments
+  if (m.files?.length) {
+    const images = m.files.filter(f => f.type?.startsWith('image'));
+    const others = m.files.filter(f => !f.type?.startsWith('image'));
+    let html = '';
+    if (images.length) {
+      html += `<div class="search-result-media" style="display:flex;flex-wrap:wrap;gap:4px">` +
+        images.map(f => `<img src="${escapeHtml(f.url)}" style="height:80px;max-width:120px;border-radius:6px;object-fit:cover" loading="lazy">`).join('') +
+        `</div>`;
+    }
+    if (others.length) {
+      html += others.map(f =>
+        `<div class="search-result-text" style="display:flex;align-items:center;gap:6px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>${escapeHtml(f.name)}</span>
+        </div>`
+      ).join('');
+    }
+    if (m.text) html += `<div class="search-result-text">${highlight(m.text, textQuery)}</div>`;
+    return html;
+  }
+  // Plain text
+  if (m.text) return `<div class="search-result-text">${highlight(m.text, textQuery)}</div>`;
+  // Voice message
+  if (m.voiceUrl) return `<div class="search-result-text" style="color:var(--text-muted)">🎙️ Voice message</div>`;
+  return `<div class="search-result-text" style="color:var(--text-muted)">(no content)</div>`;
+}
+
 function executeSearch() {
   const dropdown = document.getElementById('search-results');
   const bar = document.getElementById('search-bar');
@@ -5516,8 +5885,9 @@ function executeSearch() {
       hits = hits.filter(m => m.sender?.toLowerCase().includes(v));
     } else if (ft === 'has') {
       if (v === 'link') hits = hits.filter(m => m.text && /https?:\/\//.test(m.text));
-      else if (v === 'image' || v === 'img') hits = hits.filter(m => m.files?.some(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f)));
-      else if (v === 'file') hits = hits.filter(m => m.files?.length > 0);
+      else if (v === 'image' || v === 'img') hits = hits.filter(m => m.type === 'gif' || m.files?.some(f => f.type?.startsWith('image')));
+      else if (v === 'gif') hits = hits.filter(m => m.type === 'gif');
+      else if (v === 'file') hits = hits.filter(m => m.files?.length > 0 || m.type === 'gif');
     } else if (ft === 'before') {
       const d = new Date(v); if (!isNaN(d)) hits = hits.filter(m => new Date(m.timestamp) < d);
     } else if (ft === 'after') {
@@ -5546,13 +5916,13 @@ function executeSearch() {
   } else {
     html += hits.slice(0, 25).map(m => {
       const time = formatSearchTime(m.timestamp);
-      const text = highlight(m.text || '', textQuery);
+      const preview = buildMsgPreviewHtml(m, textQuery);
       return `<div class="search-result-item" onclick="clickSearchResult('${m.id}')">
         <div class="search-result-top">
           <span class="search-result-sender">${capitalize(m.sender)}</span>
           <span class="search-result-time">${time}</span>
         </div>
-        <div class="search-result-text">${text}</div>
+        ${preview}
       </div>`;
     }).join('');
   }
@@ -5627,23 +5997,26 @@ function setupKeyboardShortcuts() {
 
   // Typing emit + emoji autocomplete
   let typingTimeout;
+  let emojiACTimeout;
   document.getElementById('msg-input')?.addEventListener('input', (e) => {
     socket.emit('typing', { user: currentUser });
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => socket.emit('stop-typing', { user: currentUser }), 1500);
     autoResizeInput();
-    // Show emoji autocomplete when typing :name
-    showEmojiAutocomplete(e.target);
-  });
+    // Debounce emoji autocomplete slightly to avoid searching on every keystroke
+    clearTimeout(emojiACTimeout);
+    const target = e.target;
+    emojiACTimeout = setTimeout(() => showEmojiAutocomplete(target), 80);
+  }, { passive: true });
 
-  // Jump-to-latest scroll detection
+  // Jump-to-latest scroll detection (passive for better performance)
   const msgArea = document.getElementById('messages-area');
   const jumpBtn = document.getElementById('jump-to-latest');
   if (msgArea && jumpBtn) {
     msgArea.addEventListener('scroll', () => {
       const distFromBottom = msgArea.scrollHeight - msgArea.scrollTop - msgArea.clientHeight;
       jumpBtn.classList.toggle('show', distFromBottom > 300);
-    });
+    }, { passive: true });
   }
 
   setupSearch();
@@ -5654,10 +6027,16 @@ function jumpToLatest() {
   if (area) area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
 }
 
+let _autoResizeRAF = null;
 function autoResizeInput() {
-  const t = document.getElementById('msg-input');
-  t.style.height = 'auto';
-  t.style.height = Math.min(t.scrollHeight, 120) + 'px';
+  if (_autoResizeRAF) return;
+  _autoResizeRAF = requestAnimationFrame(() => {
+    _autoResizeRAF = null;
+    const t = document.getElementById('msg-input');
+    if (!t) return;
+    t.style.height = 'auto';
+    t.style.height = Math.min(t.scrollHeight, 120) + 'px';
+  });
 }
 
 function resetInputHeight() {
@@ -6214,6 +6593,31 @@ function startReminderChecker() {
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
   {
+    version: '3.6.0',
+    date: 'Mar 12 2026',
+    intro: 'GIF categories, hover favorites, Chromebook typing speed improvements, real time override, and a cleaner update log.',
+    sections: [
+      { icon: '🎬', title: 'GIFs', items: [
+        { name: 'GIF Categories', desc: 'GIF picker now has tabs — Trending, Favorites, Reactions, Scandal, Memes, and Gaming.' },
+        { name: 'Hover to Favorite', desc: 'Hover over any GIF and click the ♥ button to save it to your Favorites tab.' },
+        { name: 'Favorites Tab', desc: 'Access all your saved GIFs instantly from the Favorites tab.' },
+        { name: 'Search Results Show Media', desc: 'has:file and has:image in search now show actual image thumbnails and GIF previews.' },
+        { name: 'Pinned Messages Show Media', desc: 'Pinned messages panel now shows images and GIFs inline instead of a placeholder.' },
+      ]},
+      { icon: '⏰', title: 'Time Override', items: [
+        { name: 'Real Time Simulation', desc: 'Eval "time set" now fully simulates the site at that time — bell schedule, reminders, and countdowns all respond as if it were actually that time.' },
+      ]},
+      { icon: '⚡', title: 'Performance', items: [
+        { name: 'Faster Typing', desc: 'Input box resize is now deferred with requestAnimationFrame — no more layout jank while typing on Chromebook.' },
+        { name: 'Passive Scroll', desc: 'Scroll listeners are now passive, reducing stutter when scrolling through messages.' },
+        { name: 'Emoji Autocomplete Debounce', desc: 'Emoji autocomplete search is debounced so it no longer runs on every single keystroke.' },
+      ]},
+      { icon: '🗒️', title: 'Update Log', items: [
+        { name: 'Latest Only', desc: 'Update log on login now shows only the most recent update instead of stacking all unseen ones.' },
+      ]},
+    ],
+  },
+  {
     version: '3.5.0',
     date: 'Mar 12 2026',
     intro: 'A huge polish & power update — Discord-style text formatting, enchanted profile cards, drag-to-reorder todos, theme builder eval commands, editable contacts, and 30+ refinements across the entire app.',
@@ -6528,21 +6932,8 @@ function checkAndShowUpdateLog() {
   const dismissed = localStorage.getItem(key);
   if (dismissed === CHANGELOG[0].version) return;
 
-  // Find all unseen versions (everything newer than what was dismissed)
-  const unseen = dismissed
-    ? CHANGELOG.filter((_, i) => i < CHANGELOG.findIndex(c => c.version === dismissed))
-    : CHANGELOG;
-  if (!unseen.length) return;
-
   const container = document.getElementById('update-log-content');
-  let html = '';
-
-  unseen.forEach((entry, idx) => {
-    if (idx > 0) html += `<hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0">`;
-    html += renderChangelogEntry(entry);
-  });
-
-  container.innerHTML = html;
+  container.innerHTML = renderChangelogEntry(CHANGELOG[0]);
   openModal('update-log-modal');
 }
 

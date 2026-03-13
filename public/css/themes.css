@@ -509,6 +509,21 @@
   background: rgba(0,0,0,0.04);
 }
 .theme-light .sidebar-user-name { font-weight: 600; font-size: 0.88rem; }
+/* Search bar inside light theme sidebar — must NOT grow */
+.theme-light #sidebar .search-wrap {
+  flex: 0 0 auto;   /* override the base flex:1 that causes the giant gap */
+  padding: 4px 12px 8px;
+  width: 100%;
+  max-width: 100%;
+  position: relative;
+}
+.theme-light #sidebar .search-inner {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  min-height: 34px;
+}
+.theme-light #sidebar .search-dropdown { z-index: 200; }
 .theme-light .sidebar-nav { padding: 4px 8px; }
 .theme-light .nav-section-label {
   font-size: 0.6rem;
@@ -1110,6 +1125,8 @@
   grid-template-rows: 56px 1fr;
   grid-template-columns: 1fr;
   grid-template-areas: "sidebar" "main";
+  width: 100%;
+  overflow: hidden;
 }
 .theme-dark #app.sidebar-collapsed {
   grid-template-rows: 56px 1fr;
@@ -1123,6 +1140,8 @@
 /* ── SIDEBAR → HORIZONTAL TOP BAR ─────────────────────────────── */
 .theme-dark #sidebar {
   grid-area: sidebar;
+  position: relative !important;
+  transform: none !important;
   flex-direction: row;
   align-items: center;
   background: #141414;
@@ -1132,6 +1151,7 @@
   height: 56px;
   padding: 0 16px;
   width: 100%;
+  box-shadow: none !important;
 }
 /* User avatar — compact, far left */
 .theme-dark .sidebar-user {
@@ -1143,15 +1163,20 @@
 }
 .theme-dark .sidebar-user-info { display: none; }
 .theme-dark .sidebar-user .btn-icon { display: none; }
+/* Only shrink the TOP BAR avatar, not chat-header or other avatars */
 .theme-dark .sidebar-user .avatar-wrapper {
   width: 32px !important;
   height: 32px !important;
   position: relative;
 }
 .theme-dark .sidebar-user .avatar {
-  width: 32px !important;
-  height: 32px !important;
-  font-size: 0.8rem;
+  width: 30px !important;
+  height: 30px !important;
+  font-size: 0.75rem;
+}
+/* Chat header: keep avatar natural size, add a subtle dark ring */
+.theme-dark .chat-header .avatar {
+  border: 1.5px solid #2e2e2e;
 }
 .theme-dark .sidebar-user .status-indicator {
   width: 10px;
@@ -1168,23 +1193,26 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: center;
-  padding: 0;
-  overflow: visible;
+  justify-content: flex-start;
+  padding: 0 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
   gap: 2px;
   margin: 0;
   min-width: 0;
 }
+.theme-dark .sidebar-nav::-webkit-scrollbar { display: none; }
 /* Hide section labels in top bar */
 .theme-dark .nav-section-label { display: none; }
 /* Nav items become horizontal tabs */
 .theme-dark .nav-item {
   flex-direction: row;
-  gap: 7px;
-  padding: 8px 16px;
+  gap: 5px;
+  padding: 6px 10px;
   margin: 0;
   border-radius: 10px;
-  font-size: 0.82rem;
+  font-size: 0.80rem;
   font-weight: 500;
   color: #777777;
   white-space: nowrap;
@@ -1210,6 +1238,15 @@
 }
 /* Icons in nav — slightly smaller for horizontal */
 .theme-dark .nav-item .nav-icon svg { width: 14px; height: 14px; }
+/* Reminders + Settings are icon-only in the top bar (bell/gear are universally recognized) */
+.theme-dark .nav-item[data-section="reminders"] .nav-label,
+.theme-dark .nav-item:not([data-section]) .nav-label { display: none; }
+/* Thin separator before the icon-only utility group */
+.theme-dark .nav-item[data-section="reminders"] {
+  margin-left: 6px;
+  padding-left: 14px;
+  border-left: 1px solid #2a2a2a;
+}
 
 /* Search bar — hide from sidebar, show in chat header instead */
 .theme-dark #sidebar .search-wrap {
@@ -1273,6 +1310,8 @@
 .theme-dark .messages-area {
   background: #1a1a1a;
   padding: 20px 28px 12px;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 .theme-dark .msg-row {
   width: 100%;
@@ -1587,6 +1626,59 @@
   .theme-dark .msg-content { max-width: 90%; }
   .theme-dark .chat-header { padding: 6px 20px; }
   .theme-dark #app { grid-template-rows: 48px 1fr; }
+}
+
+/* Dark: Medium screens — tighten tabs */
+@media (max-width: 1080px) {
+  .theme-dark .nav-item { padding: 7px 12px; font-size: 0.8rem; }
+  .theme-dark #sidebar .search-wrap { max-width: 200px; }
+}
+
+/* Dark: Tablet / mobile — override app.css mobile sidebar rules,
+   keep horizontal top bar always visible */
+@media (max-width: 834px) {
+  /* Force horizontal top bar layout (override app.css fixed/slide-out) */
+  .theme-dark #app {
+    grid-template-rows: 52px 1fr;
+    grid-template-columns: 1fr;
+    grid-template-areas: "sidebar" "main";
+  }
+  .theme-dark #sidebar {
+    position: relative !important;
+    transform: none !important;
+    top: auto !important; left: auto !important; bottom: auto !important;
+    width: 100% !important;
+    height: 52px !important;
+    flex-direction: row !important;
+    box-shadow: none !important;
+  }
+  /* Hide search bar on smaller screens to give tabs room */
+  .theme-dark #sidebar .search-wrap { display: none; }
+  /* Hamburger not needed — top bar always visible */
+  .theme-dark .header-hamburger { display: none !important; }
+  /* Keep app-header hidden */
+  .theme-dark #app-header { display: none !important; }
+  /* No backdrop — sidebar is always in-flow */
+  .theme-dark .sidebar-backdrop { display: none !important; }
+  /* Tighter tab labels */
+  .theme-dark .nav-item { padding: 7px 10px; font-size: 0.76rem; gap: 5px; }
+  /* Messages layout adjustments */
+  .theme-dark .messages-area { padding: 14px 16px 10px; }
+  .theme-dark .input-area { padding: 4px 16px 16px; }
+  .theme-dark .chat-header { padding: 8px 16px; }
+}
+
+/* Dark: Small mobile */
+@media (max-width: 600px) {
+  .theme-dark #app { grid-template-rows: 48px 1fr; }
+  .theme-dark #sidebar { height: 48px !important; padding: 0 8px; }
+  .theme-dark .sidebar-user .avatar-wrapper,
+  .theme-dark .sidebar-user .avatar { width: 26px !important; height: 26px !important; }
+  .theme-dark .nav-item { padding: 6px 8px; font-size: 0.72rem; gap: 4px; }
+  .theme-dark .nav-item .nav-icon svg { width: 13px; height: 13px; }
+  .theme-dark .messages-area { padding: 10px 12px 8px; }
+  .theme-dark .input-area { padding: 4px 12px 14px; }
+  .theme-dark .msg-content { max-width: 88%; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -2654,3 +2746,5 @@ select option { background: var(--bg-modal, #1e293b); color: var(--text-primary)
   transition-timing-function: cubic-bezier(0.4,0,0.2,1);
 }
 img, canvas, video, audio, .no-transition { transition: none !important; }
+/* Suppress per-element stagger while the theme swap is in progress */
+body.theme-switching * { transition: none !important; }

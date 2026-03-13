@@ -737,7 +737,7 @@
     const msg = { text, target: channel, sender: guestName };
     try {
       await fetch(`/api/guests/${guestId}/message`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guest-Id': guestId },
         body: JSON.stringify(msg)
       });
     } finally {

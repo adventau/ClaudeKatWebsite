@@ -10,6 +10,8 @@ const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 // nodemailer removed — using EmailJS HTTP API instead
+let compression;
+try { compression = require('compression'); } catch(e) { /* optional */ }
 const webpush = require('web-push');
 
 const app = express();
@@ -75,6 +77,32 @@ async function sendPushToUser(targetUser, payload) {
 function rd(file)       { try { return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null; } catch { return null; } }
 function wd(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
 
+/**
+ * Returns the current "site time" — if a time override is active via
+ * `time set` eval command, returns that shifted time instead of real now.
+ */
+function getSiteNow() {
+  const s = rd(F.settings);
+  const offset = s?.timeOffset;
+  if (!offset) return new Date();
+  // Relative: +2h, -30m, +1d, +90s
+  const rel = offset.match(/^([+-])(\d+(?:\.\d+)?)(h|m|s|d)$/i);
+  if (rel) {
+    const sign = rel[1] === '+' ? 1 : -1;
+    const val  = parseFloat(rel[2]);
+    const unit = rel[3].toLowerCase();
+    const ms   = unit === 'h' ? val * 3600000
+               : unit === 'm' ? val * 60000
+               : unit === 's' ? val * 1000
+               : val * 86400000;
+    return new Date(Date.now() + sign * ms);
+  }
+  // Absolute ISO date
+  const abs = new Date(offset);
+  if (!isNaN(abs)) return abs;
+  return new Date();
+}
+
 // ── Initialize default data ───────────────────────────────────────────────────
 function initData() {
   if (!rd(F.settings)) {
@@ -120,6 +148,7 @@ function initData() {
 initData();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+if (compression) app.use(compression());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -219,6 +248,9 @@ app.post('/api/auth/password', async (req, res) => {
   }
 
   if (bcrypt.compareSync(password, settings.sitePassword)) {
+    // Clear any stale guest session data so host doesn't inherit it
+    delete req.session.isGuest;
+    delete req.session.guestId;
     req.session.authenticated = true;
     return res.json({ success: true });
   }
@@ -235,6 +267,9 @@ app.post('/api/auth/profile', (req, res) => {
     if (!passcode) return res.json({ success: false, needsPasscode: true });
     if (passcode !== user.profilePasscode) return res.json({ success: false, error: 'Incorrect passcode' });
   }
+  // Clear any stale guest session so host messages use the correct sender
+  delete req.session.isGuest;
+  delete req.session.guestId;
   req.session.user = profile;
   req.session.loginTime = Date.now();
   res.json({ success: true });
@@ -348,7 +383,7 @@ app.post('/api/users/:user/status', mainAuth, (req, res) => {
   if (req.body.statusEmoji !== undefined) u.statusEmoji = req.body.statusEmoji;
   wd(F.users, users);
   io.emit('user-updated', { user: req.params.user, data: users[req.params.user] });
-  io.emit('status-changed', { user: req.params.user, status: u.status });
+  io.emit('status-changed', { user: req.params.user, status: u.status, customStatus: u.customStatus || '', statusEmoji: u.statusEmoji || '' });
   res.json({ success: true, user: u });
 });
 
@@ -1141,7 +1176,8 @@ app.delete('/api/reminders/:id', mainAuth, (req, res) => {
 // Check and fire due reminders (called by setInterval on server)
 async function checkDueReminders() {
   const all = rd(F.reminders) || [];
-  const now = Date.now();
+  const siteNow = getSiteNow();
+  const now = siteNow.getTime();
   let changed = false;
 
   for (const r of all) {
@@ -1277,19 +1313,24 @@ app.get('/api/guest-messages', mainAuth, (req, res) => {
 });
 
 app.post('/api/guests/:id/message', (req, res) => {
-  if (!req.session.isGuest && !req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+  // Use X-Guest-Id header (sent only by guest.html) to identify guest senders.
+  // This avoids session cross-contamination when a main-user tab and a guest tab
+  // are open in the same browser simultaneously (they share the same session cookie).
+  const xGuestId = req.headers['x-guest-id'];
+  const isGuestRequest = !!(xGuestId && xGuestId === req.params.id);
+  if (!isGuestRequest && !req.session.user) return res.status(401).json({ error: 'Unauthorized' });
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
   const { text, target, sender: clientSender } = req.body;
   // Validate channel access for guests
-  if (req.session.isGuest) {
+  if (isGuestRequest) {
     const allowed = g.channels || ['kaliph','kathrine','group'];
     if (!allowed.includes(target)) return res.status(403).json({ error: 'No access to this channel' });
   }
-  // Guest sessions use client-sent name (supports renames) or fallback to stored name;
-  // Main users always use their authenticated profile name (can't be spoofed)
-  const sender = req.session.isGuest ? (clientSender || g.name) : req.session.user;
+  // Guest portal sends X-Guest-Id header → use client-sent name (supports renames);
+  // Main users never send that header → always use their authenticated profile name.
+  const sender = isGuestRequest ? (clientSender || g.name) : req.session.user;
   const msg = { id: uuidv4(), sender, text, timestamp: Date.now() };
   if (!g.messages[target]) g.messages[target] = [];
   g.messages[target].push(msg);
@@ -1756,21 +1797,17 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
 
   // ── THEME BUILDER ──
   if (cmd === 'theme' && parts[1] === 'builder') {
+    // Fetch current custom themes for both users
+    const users = rd(F.users);
+    const themeData = {};
+    for (const u of Object.keys(users)) {
+      themeData[u] = users[u].customTheme || {};
+    }
     return {
+      openThemeBuilder: true,
+      themeData,
       lines: [
-        { text: '═══ THEME BUILDER ═══', cls: 'header' },
-        { text: 'Create custom theme variables for the site', cls: 'info' },
-        { text: '', cls: 'info' },
-        { text: 'Commands:', cls: 'highlight' },
-        { text: '  theme set <user> <property> <value>', cls: 'info' },
-        { text: '  theme preview <user>', cls: 'info' },
-        { text: '  theme reset <user>', cls: 'info' },
-        { text: '', cls: 'info' },
-        { text: 'Properties: bg-main, bg-sidebar, accent, accent2, text-primary,', cls: 'dim' },
-        { text: '  text-secondary, border, glow, font-main, font-heading', cls: 'dim' },
-        { text: '', cls: 'info' },
-        { text: 'Example: theme set kaliph accent #ff6b6b', cls: 'success' },
-        { text: 'Example: theme set kathrine font-heading "Playfair Display"', cls: 'success' },
+        { text: 'Opening Theme Builder UI...', cls: 'success' },
       ],
     };
   }
@@ -1855,7 +1892,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     const s = rd(F.settings);
     if (!s.bellSchedule || !s.bellSchedule[user]) return lines(`No bell schedule found for "${user}"`, 'error');
     if (!s._scheduleSkips) s._scheduleSkips = {};
-    const today = new Date().toISOString().split('T')[0];
+    const today = getSiteNow().toISOString().split('T')[0];
     s._scheduleSkips[user] = today;
     wd(F.settings, s);
     io.emit('schedule-skip', { user, date: today });

@@ -212,20 +212,6 @@ const SoundSystem = (() => {
       share_on:   { type: 'sine', freqs: [523, 659, 784], dur: 0.13, gain: 0.07 },
       share_off:  { type: 'sine', freqs: [659, 523], dur: 0.1, gain: 0.06 },
     },
-    rosewood: {
-      keystroke: { type: 'sine', freq: [700, 750, 680], dur: 0.05, gain: 0.04, detune: 0 },
-      send:  { type: 'sine', freqs: [440, 554, 659], dur: 0.3, gain: 0.09 },
-      recv:  { type: 'sine', freqs: [659, 880], dur: 0.35, gain: 0.08 },
-      error: { type: 'triangle', freqs: [300, 250], dur: 0.2, gain: 0.08 },
-      notif: { type: 'sine', freqs: [880, 1047, 1319], dur: 0.5, gain: 0.1 },
-    },
-    ocean: {
-      keystroke: { type: 'sine', freq: [500, 550, 480], dur: 0.05, gain: 0.04, detune: 10 },
-      send:  { type: 'sine', freqs: [330, 440, 554], dur: 0.35, gain: 0.1 },
-      recv:  { type: 'sine', freqs: [554, 740], dur: 0.4, gain: 0.08 },
-      error: { type: 'triangle', freqs: [220, 180], dur: 0.22, gain: 0.09 },
-      notif: { type: 'sine', freqs: [740, 880, 1047], dur: 0.5, gain: 0.1 },
-    },
   };
 
   // ═════════════════════════════════════════════════════════════════
