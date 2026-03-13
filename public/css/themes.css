@@ -1174,11 +1174,11 @@
 /* Nav items become horizontal tabs */
 .theme-dark .nav-item {
   flex-direction: row;
-  gap: 7px;
-  padding: 8px 16px;
+  gap: 5px;
+  padding: 6px 10px;
   margin: 0;
   border-radius: 10px;
-  font-size: 0.82rem;
+  font-size: 0.80rem;
   font-weight: 500;
   color: #777777;
   white-space: nowrap;
@@ -1207,8 +1207,9 @@
 
 /* Search bar — repositioned into sidebar top bar */
 .theme-dark #sidebar .search-wrap {
-  flex: 0 0 auto;
-  max-width: 260px;
+  flex: 0 0 150px;
+  width: 150px;
+  max-width: 150px;
   margin-left: auto;
   margin-right: 8px;
 }
