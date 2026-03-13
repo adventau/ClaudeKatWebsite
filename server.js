@@ -279,10 +279,35 @@ app.post('/api/auth/profile', (req, res) => {
 app.get('/api/auth/profile-locks', (req, res) => {
   if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
   const users = rd(F.users);
-  res.json({
-    kaliph: !!(users?.kaliph?.profilePasscode),
-    kathrine: !!(users?.kathrine?.profilePasscode),
-  });
+  const locks = {};
+  const needsReset = {};
+  const resetHints = {};
+  for (const [name, u] of Object.entries(users || {})) {
+    locks[name] = !!u.profilePasscode;
+    needsReset[name] = !!u.mustResetPasscode;
+    if (u.mustResetPasscode) resetHints[name] = u.oldPasscodeHint || '';
+  }
+  res.json({ ...locks, needsReset, resetHints });
+});
+
+// Force-reset a profile passcode (set new pin)
+app.post('/api/auth/profile-reset', (req, res) => {
+  if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
+  const { profile, newPasscode } = req.body;
+  if (!['kaliph', 'kathrine'].includes(profile)) return res.json({ success: false, error: 'Invalid profile' });
+  const users = rd(F.users);
+  const user = users[profile];
+  if (!user?.mustResetPasscode) return res.json({ success: false, error: 'No reset pending for this profile' });
+  if (!newPasscode || !/^\d{4}$/.test(newPasscode)) return res.json({ success: false, error: 'Passcode must be 4 digits' });
+  user.profilePasscode = newPasscode;
+  delete user.mustResetPasscode;
+  delete user.oldPasscodeHint;
+  wd(F.users, users);
+  delete req.session.isGuest;
+  delete req.session.guestId;
+  req.session.user = profile;
+  req.session.loginTime = Date.now();
+  res.json({ success: true });
 });
 
 // Set or remove profile passcode
@@ -1801,14 +1826,24 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     return lines('Preview command has been removed', 'warn');
   }
 
-  // ── RESET PASSWORD ──
+  // ── RESET PROFILE PASSWORD ──
   if (cmd === 'reset' && parts[1] === 'password') {
-    const s = rd(F.settings);
+    const user = parts[2]?.toLowerCase();
+    if (!user || !['kaliph', 'kathrine'].includes(user)) {
+      return lines('Usage: reset password <kaliph|kathrine>', 'warn');
+    }
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    const old = users[user].profilePasscode || '(none set)';
+    users[user].mustResetPasscode = true;
+    users[user].oldPasscodeHint = users[user].profilePasscode || '';
+    wd(F.users, users);
     return {
       lines: [
-        { text: 'Password Reset', cls: 'header' },
-        { text: `Current hash: ${s.sitePassword.substring(0, 20)}...`, cls: 'dim' },
-        { text: `Use: set password <new password>`, cls: 'info' },
+        { text: '🔑 Profile Password Reset Queued', cls: 'success' },
+        { text: `User: ${capitalize(user)}`, cls: 'info' },
+        { text: `Old passcode: ${old}`, cls: 'warn' },
+        { text: `Next login: ${user} will see their old password and must set a new one before entering.`, cls: 'dim' },
       ],
     };
   }
@@ -2654,6 +2689,60 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       ['Data exported. Copy from below:', 'success'],
       [JSON.stringify(bundle, null, 2), 'dim'],
     );
+  }
+
+  // ── REMINDERS ──
+  if (cmd === 'reminders') {
+    const sub = parts[1]?.toLowerCase();
+    const allRem = rd(F.reminders) || [];
+    const userFilter = (sub === 'list' ? parts[2] : sub)?.toLowerCase();
+    const list = userFilter ? allRem.filter(r => r.user?.toLowerCase() === userFilter) : allRem;
+    if (!list.length) return lines(userFilter ? `No reminders for ${userFilter}` : 'No reminders found', 'dim');
+    const rows = list.map(r => [
+      r.id.slice(-6),
+      r.user || '-',
+      r.title || '-',
+      r.datetime ? new Date(r.datetime).toLocaleString() : '-',
+      r.completed ? '✓' : (new Date(r.datetime) < new Date() ? 'OVERDUE' : 'pending'),
+    ]);
+    return { table: { headers: ['ID (last 6)', 'User', 'Title', 'When', 'Status'], rows } };
+  }
+
+  // ── DELETE REMINDER ──
+  if (raw.toLowerCase().startsWith('delete reminder')) {
+    const id = parts[2];
+    if (!id) return lines('Usage: delete reminder <id>', 'warn');
+    const all = rd(F.reminders) || [];
+    const idx = all.findIndex(r => r.id === id || r.id.endsWith(id));
+    if (idx < 0) return lines(`Reminder "${id}" not found`, 'error');
+    const [removed] = all.splice(idx, 1);
+    wd(F.reminders, all);
+    return lines(`Deleted reminder: "${removed.title}" (${removed.id})`, 'success');
+  }
+
+  // ── PINNED LIST ──
+  if (raw.toLowerCase() === 'pinned list') {
+    const msgs = rd(F.messages);
+    const channels = Object.keys(msgs || {});
+    const rows = [];
+    channels.forEach(ch => {
+      (msgs[ch] || []).filter(m => m.pinned).forEach(m => {
+        rows.push([ch, m.id.slice(-6), m.sender || '-', (m.text || '').substring(0, 60)]);
+      });
+    });
+    if (!rows.length) return lines('No pinned messages', 'dim');
+    return { table: { headers: ['Channel', 'Msg ID', 'Sender', 'Text'], rows } };
+  }
+
+  // ── TOGGLE PERF ──
+  if (raw.toLowerCase().startsWith('toggle perf')) {
+    const user = parts[2]?.toLowerCase();
+    if (!user) return lines('Usage: toggle perf <user>', 'warn');
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    users[user].perfMode = !users[user].perfMode;
+    wd(F.users, users);
+    return lines(`Performance mode for ${user}: ${users[user].perfMode ? 'ON' : 'OFF'}`, 'success');
   }
 
   return lines(`Unknown command: "${raw}". Type "help" for commands.`, 'error');

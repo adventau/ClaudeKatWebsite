@@ -370,8 +370,10 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
 .call-event-text { font-weight: 500; }
 .call-event-time { font-size: 0.7rem; opacity: 0.6; }
 
-/* Group consecutive same-sender messages — tighter spacing */
-.msg-row + .msg-row.same-sender { padding-top: 0; }
+/* Group consecutive same-sender messages — tighter spacing, no avatar/name repeat */
+.msg-row.grouped { padding-top: 0; margin-top: 0; }
+.msg-row.grouped .msg-avatar-sm { visibility: hidden; }
+.msg-row.grouped .msg-priority-badge { margin-top: 0; }
 .msg-row + .msg-row.same-sender .msg-avatar-sm { visibility: hidden; }
 .msg-row + .msg-row.same-sender .msg-sender-label { display: none; }
 
@@ -3401,3 +3403,21 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .priority-low { background: var(--status-online, #22c55e); }
 .priority-normal { background: var(--accent, #3b82f6); }
 .priority-high { background: var(--status-dnd, #ef4444); }
+
+/* ── Performance Mode ───────────────────────────────────────────── */
+body.perf-mode *,
+body.perf-mode *::before,
+body.perf-mode *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+body.perf-mode .wallpaper-overlay { display: none !important; }
+body.perf-mode .msg-bubble,
+body.perf-mode .msg-bubble-self,
+body.perf-mode .msg-bubble-other { box-shadow: none !important; }
+body.perf-mode .vault-item { box-shadow: none !important; }
+body.perf-mode .sidebar { box-shadow: none !important; }
+body.perf-mode .modal { box-shadow: none !important; }

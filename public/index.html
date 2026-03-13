@@ -906,48 +906,83 @@
   " onclick="if(event.target===this)closePasscodeOverlay()">
     <div id="passcode-card" style="
       background:rgba(15,10,30,0.95); border:1px solid rgba(124,58,237,0.3);
-      border-radius:20px; padding:2.5rem 2rem; width:320px; text-align:center;
-      box-shadow:0 20px 60px rgba(0,0,0,0.5);
+      border-radius:20px; padding:2.5rem 2rem; width:330px; text-align:center;
+      box-shadow:0 20px 60px rgba(0,0,0,0.5); transition: all 0.3s;
     ">
-      <div style="font-size:2rem;margin-bottom:0.5rem"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
-      <h3 style="color:#e8e0f0;margin-bottom:0.3rem;font-family:'Space Grotesk',sans-serif" id="passcode-title">Enter Passcode</h3>
-      <p style="color:rgba(232,224,240,0.5);font-size:0.8rem;margin-bottom:1.5rem">This profile is locked with a PIN</p>
-      <div style="display:flex;gap:10px;justify-content:center;margin-bottom:1.2rem" id="passcode-dots">
-        <input type="password" id="passcode-digit-1" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="
-          width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;
-          background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);
-          border-radius:12px;color:#e8e0f0;outline:none;letter-spacing:0;
-          font-family:'Space Grotesk',sans-serif;
-        " oninput="passcodeDigitInput(this,1)" onkeydown="passcodeDigitKeydown(event,1)">
-        <input type="password" id="passcode-digit-2" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="
-          width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;
-          background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);
-          border-radius:12px;color:#e8e0f0;outline:none;letter-spacing:0;
-          font-family:'Space Grotesk',sans-serif;
-        " oninput="passcodeDigitInput(this,2)" onkeydown="passcodeDigitKeydown(event,2)">
-        <input type="password" id="passcode-digit-3" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="
-          width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;
-          background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);
-          border-radius:12px;color:#e8e0f0;outline:none;letter-spacing:0;
-          font-family:'Space Grotesk',sans-serif;
-        " oninput="passcodeDigitInput(this,3)" onkeydown="passcodeDigitKeydown(event,3)">
-        <input type="password" id="passcode-digit-4" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="
-          width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;
-          background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);
-          border-radius:12px;color:#e8e0f0;outline:none;letter-spacing:0;
-          font-family:'Space Grotesk',sans-serif;
-        " oninput="passcodeDigitInput(this,4)" onkeydown="passcodeDigitKeydown(event,4)">
+
+      <!-- ── Normal PIN panel ── -->
+      <div id="passcode-normal-panel">
+        <div style="font-size:2rem;margin-bottom:0.5rem"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
+        <h3 style="color:#e8e0f0;margin-bottom:0.3rem;font-family:'Space Grotesk',sans-serif" id="passcode-title">Enter Passcode</h3>
+        <p style="color:rgba(232,224,240,0.5);font-size:0.8rem;margin-bottom:1.5rem">This profile is locked with a PIN</p>
+        <div style="display:flex;gap:10px;justify-content:center;margin-bottom:1.2rem" id="passcode-dots">
+          <input type="password" id="passcode-digit-1" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:12px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="passcodeDigitInput(this,1)" onkeydown="passcodeDigitKeydown(event,1)">
+          <input type="password" id="passcode-digit-2" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:12px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="passcodeDigitInput(this,2)" onkeydown="passcodeDigitKeydown(event,2)">
+          <input type="password" id="passcode-digit-3" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:12px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="passcodeDigitInput(this,3)" onkeydown="passcodeDigitKeydown(event,3)">
+          <input type="password" id="passcode-digit-4" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:12px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="passcodeDigitInput(this,4)" onkeydown="passcodeDigitKeydown(event,4)">
+        </div>
+        <div id="passcode-error" style="color:#ef4444;font-size:0.8rem;margin-bottom:1rem;min-height:1.2em"></div>
+        <button id="passcode-unlock-btn" style="width:100%;padding:10px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;font-family:'Space Grotesk',sans-serif;font-size:0.9rem;font-weight:600;" onclick="submitPasscode()">Unlock</button>
+        <button style="width:100%;padding:8px;border:none;background:transparent;cursor:pointer;color:rgba(232,224,240,0.4);font-size:0.8rem;margin-top:0.5rem;" onclick="closePasscodeOverlay()">Cancel</button>
       </div>
-      <div id="passcode-error" style="color:#ef4444;font-size:0.8rem;margin-bottom:1rem;min-height:1.2em"></div>
-      <button id="passcode-unlock-btn" style="
-        width:100%;padding:10px;border:none;border-radius:12px;cursor:pointer;
-        background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;
-        font-family:'Space Grotesk',sans-serif;font-size:0.9rem;font-weight:600;
-      " onclick="submitPasscode()">Unlock</button>
-      <button style="
-        width:100%;padding:8px;border:none;background:transparent;cursor:pointer;
-        color:rgba(232,224,240,0.4);font-size:0.8rem;margin-top:0.5rem;
-      " onclick="closePasscodeOverlay()">Cancel</button>
+
+      <!-- ── Password Reset panel ── -->
+      <div id="passcode-reset-panel" style="display:none">
+        <!-- Icon -->
+        <div style="margin-bottom:0.75rem;display:flex;align-items:center;justify-content:center">
+          <div id="reset-icon-wrap" style="width:52px;height:52px;border-radius:50%;background:rgba(124,58,237,0.15);border:1.5px solid rgba(124,58,237,0.3);display:flex;align-items:center;justify-content:center">
+            <svg id="reset-icon-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M21 13a9 9 0 1 1-3-7.7L21 8"/></svg>
+          </div>
+        </div>
+        <h3 id="reset-title" style="color:#e8e0f0;margin-bottom:0.2rem;font-family:'Space Grotesk',sans-serif;font-size:1.1rem">Password Reset Required</h3>
+        <p id="reset-subtitle" style="color:rgba(232,224,240,0.45);font-size:0.78rem;margin-bottom:1.25rem;line-height:1.4">Your profile PIN was reset by an admin.<br>See your old password below, then set a new one.</p>
+
+        <!-- Old password reveal -->
+        <div id="reset-old-section" style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.22);border-radius:12px;padding:0.75rem 0.5rem;margin-bottom:1.1rem">
+          <div style="font-size:0.7rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(251,191,36,0.7);margin-bottom:0.5rem">Your old password was</div>
+          <div style="display:flex;gap:8px;justify-content:center">
+            <div id="reset-old-1" style="width:44px;height:52px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:700;font-family:'Space Grotesk',sans-serif;background:rgba(251,191,36,0.12);border:1.5px solid rgba(251,191,36,0.3);border-radius:10px;color:#fbbf24">-</div>
+            <div id="reset-old-2" style="width:44px;height:52px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:700;font-family:'Space Grotesk',sans-serif;background:rgba(251,191,36,0.12);border:1.5px solid rgba(251,191,36,0.3);border-radius:10px;color:#fbbf24">-</div>
+            <div id="reset-old-3" style="width:44px;height:52px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:700;font-family:'Space Grotesk',sans-serif;background:rgba(251,191,36,0.12);border:1.5px solid rgba(251,191,36,0.3);border-radius:10px;color:#fbbf24">-</div>
+            <div id="reset-old-4" style="width:44px;height:52px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:700;font-family:'Space Grotesk',sans-serif;background:rgba(251,191,36,0.12);border:1.5px solid rgba(251,191,36,0.3);border-radius:10px;color:#fbbf24">-</div>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:0.75rem">
+          <div style="flex:1;height:1px;background:rgba(255,255,255,0.08)"></div>
+          <span id="reset-new-label" style="font-size:0.7rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(232,224,240,0.35)">New Password</span>
+          <div style="flex:1;height:1px;background:rgba(255,255,255,0.08)"></div>
+        </div>
+
+        <!-- New PIN inputs -->
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:0.75rem" id="reset-new-dots">
+          <input type="password" id="reset-new-1" class="pin-digit reset-pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" placeholder="·" style="width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:10px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="resetNewDigitInput(this,1)" onkeydown="resetNewDigitKeydown(event,1)">
+          <input type="password" id="reset-new-2" class="pin-digit reset-pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" placeholder="·" style="width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:10px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="resetNewDigitInput(this,2)" onkeydown="resetNewDigitKeydown(event,2)">
+          <input type="password" id="reset-new-3" class="pin-digit reset-pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" placeholder="·" style="width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:10px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="resetNewDigitInput(this,3)" onkeydown="resetNewDigitKeydown(event,3)">
+          <input type="password" id="reset-new-4" class="pin-digit reset-pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" placeholder="·" style="width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:10px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="resetNewDigitInput(this,4)" onkeydown="resetNewDigitKeydown(event,4)">
+        </div>
+
+        <!-- Confirm divider -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:0.75rem">
+          <div style="flex:1;height:1px;background:rgba(255,255,255,0.08)"></div>
+          <span id="reset-confirm-label" style="font-size:0.7rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(232,224,240,0.35)">Confirm Password</span>
+          <div style="flex:1;height:1px;background:rgba(255,255,255,0.08)"></div>
+        </div>
+
+        <!-- Confirm PIN inputs -->
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:1rem" id="reset-confirm-dots">
+          <input type="password" id="reset-confirm-1" class="pin-digit reset-pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" placeholder="·" style="width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:10px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="resetConfirmDigitInput(this,1)" onkeydown="resetConfirmDigitKeydown(event,1)">
+          <input type="password" id="reset-confirm-2" class="pin-digit reset-pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" placeholder="·" style="width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:10px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="resetConfirmDigitInput(this,2)" onkeydown="resetConfirmDigitKeydown(event,2)">
+          <input type="password" id="reset-confirm-3" class="pin-digit reset-pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" placeholder="·" style="width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:10px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="resetConfirmDigitInput(this,3)" onkeydown="resetConfirmDigitKeydown(event,3)">
+          <input type="password" id="reset-confirm-4" class="pin-digit reset-pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" placeholder="·" style="width:44px;height:52px;text-align:center;font-size:1.4rem;font-weight:700;background:rgba(124,58,237,0.1);border:1.5px solid rgba(124,58,237,0.3);border-radius:10px;color:#e8e0f0;outline:none;font-family:'Space Grotesk',sans-serif;" oninput="resetConfirmDigitInput(this,4)" onkeydown="resetConfirmDigitKeydown(event,4)">
+        </div>
+
+        <div id="reset-error" style="color:#ef4444;font-size:0.8rem;margin-bottom:0.75rem;min-height:1.2em"></div>
+        <button id="reset-submit-btn" style="width:100%;padding:10px;border:none;border-radius:12px;cursor:pointer;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;font-family:'Space Grotesk',sans-serif;font-size:0.9rem;font-weight:600;" onclick="submitNewPasscode()">Set New Password</button>
+        <button style="width:100%;padding:8px;border:none;background:transparent;cursor:pointer;color:rgba(232,224,240,0.4);font-size:0.8rem;margin-top:0.5rem;" onclick="closePasscodeOverlay()">Cancel</button>
+      </div>
+
     </div>
   </div>
 
@@ -1209,14 +1244,23 @@
 
     // ── Profile passcode state ──────────────────────────────────────
     let profileLocks = {};
+    let profileNeedsReset = {};
+    let profileResetHints = {};
     let pendingProfile = null;
 
     async function loadProfileLocks() {
       try {
-        profileLocks = await fetch('/api/auth/profile-locks').then(r => r.json());
-        // Show lock icons on locked profiles
-        if (profileLocks.kaliph) document.getElementById('card-kaliph').querySelector('.card-enter-hint').textContent = '🔒 Locked';
-        if (profileLocks.kathrine) document.getElementById('card-kathrine').querySelector('.card-enter-hint').textContent = '🔒 Locked';
+        const data = await fetch('/api/auth/profile-locks').then(r => r.json());
+        profileLocks = data;
+        profileNeedsReset = data.needsReset || {};
+        profileResetHints = data.resetHints || {};
+        // Show lock or reset icons on profile cards
+        ['kaliph', 'kathrine'].forEach(p => {
+          const hint = document.getElementById('card-' + p)?.querySelector('.card-enter-hint');
+          if (!hint) return;
+          if (profileNeedsReset[p]) hint.textContent = '🔑 Reset Required';
+          else if (profileLocks[p]) hint.textContent = '🔒 Locked';
+        });
       } catch {}
     }
     function openPasscodeOverlay(profile) {
@@ -1271,7 +1315,139 @@
 
     function closePasscodeOverlay() {
       document.getElementById('passcode-overlay').style.display = 'none';
+      // Reset both panels back to normal mode
+      document.getElementById('passcode-normal-panel').style.display = '';
+      document.getElementById('passcode-reset-panel').style.display = 'none';
       pendingProfile = null;
+    }
+
+    function openResetOverlay(profile) {
+      pendingProfile = profile;
+      const users = window._cachedUsers || {};
+      const userThemeId = users[profile]?.theme || 'dark';
+      const theme = themeColors[userThemeId] || themeColors.dark;
+      const isLight = theme.textDark;
+      const textColor = isLight ? '#1e293b' : '#e8e0f0';
+      const subtextColor = isLight ? 'rgba(30,41,59,0.5)' : 'rgba(232,224,240,0.45)';
+
+      // Switch to reset panel
+      document.getElementById('passcode-normal-panel').style.display = 'none';
+      document.getElementById('passcode-reset-panel').style.display = '';
+
+      // Clear all inputs + errors
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById('reset-new-' + i).value = '';
+        document.getElementById('reset-confirm-' + i).value = '';
+      }
+      document.getElementById('reset-error').textContent = '';
+
+      // Show old password hint digits
+      const hint = profileResetHints[profile] || '';
+      for (let i = 0; i < 4; i++) {
+        const el = document.getElementById('reset-old-' + (i + 1));
+        el.textContent = hint[i] || '–';
+      }
+
+      // Theme the card
+      const card = document.getElementById('passcode-card');
+      if (isLight) {
+        card.style.background = theme.bg;
+        card.style.boxShadow = '0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px ' + theme.border;
+      } else {
+        card.style.background = `linear-gradient(135deg, ${theme.bg}, ${theme.accent}22)`;
+        card.style.boxShadow = `0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px ${theme.border}`;
+      }
+      card.style.borderColor = theme.border;
+
+      // Title + subtitle
+      document.getElementById('reset-title').style.color = textColor;
+      document.getElementById('reset-subtitle').style.color = subtextColor;
+
+      // Icon circle
+      const iconWrap = document.getElementById('reset-icon-wrap');
+      iconWrap.style.background = theme.accent + '22';
+      iconWrap.style.borderColor = theme.accent + '55';
+      document.getElementById('reset-icon-svg').setAttribute('stroke', theme.accent);
+
+      // Section labels
+      document.getElementById('reset-new-label').style.color = theme.accent + 'aa';
+      document.getElementById('reset-confirm-label').style.color = theme.accent + 'aa';
+
+      // New/confirm PIN digit styling
+      document.querySelectorAll('.reset-pin-digit').forEach(d => {
+        d.style.background = isLight ? `${theme.accent}0d` : `${theme.accent}15`;
+        d.style.borderColor = isLight ? `${theme.accent}33` : `${theme.accent}4d`;
+        d.style.color = textColor;
+      });
+
+      // Submit button
+      const submitBtn = document.getElementById('reset-submit-btn');
+      submitBtn.style.background = `linear-gradient(135deg, ${theme.accent}, ${theme.accent}cc)`;
+
+      // Cancel button
+      const cancelBtn = document.getElementById('passcode-reset-panel').querySelector('button:last-child');
+      if (cancelBtn) cancelBtn.style.color = subtextColor;
+
+      // Overlay bg
+      const overlay = document.getElementById('passcode-overlay');
+      overlay.style.background = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.75)';
+      overlay.style.display = 'flex';
+      setTimeout(() => document.getElementById('reset-new-1').focus(), 100);
+    }
+
+    function resetNewDigitInput(el, idx) {
+      el.value = el.value.replace(/\D/g, '').slice(0, 1);
+      if (el.value && idx < 4) document.getElementById('reset-new-' + (idx + 1)).focus();
+      // Auto-jump to confirm when new is complete
+      if (idx === 4 && el.value) {
+        const code = [1,2,3,4].map(i => document.getElementById('reset-new-' + i).value).join('');
+        if (code.length === 4) setTimeout(() => document.getElementById('reset-confirm-1').focus(), 80);
+      }
+    }
+    function resetNewDigitKeydown(e, idx) {
+      if (e.key === 'Backspace' && !e.target.value && idx > 1) document.getElementById('reset-new-' + (idx - 1)).focus();
+    }
+    function resetConfirmDigitInput(el, idx) {
+      el.value = el.value.replace(/\D/g, '').slice(0, 1);
+      if (el.value && idx < 4) document.getElementById('reset-confirm-' + (idx + 1)).focus();
+      if (idx === 4 && el.value) {
+        const code = [1,2,3,4].map(i => document.getElementById('reset-confirm-' + i).value).join('');
+        if (code.length === 4) submitNewPasscode();
+      }
+    }
+    function resetConfirmDigitKeydown(e, idx) {
+      if (e.key === 'Backspace' && !e.target.value && idx > 1) document.getElementById('reset-confirm-' + (idx - 1)).focus();
+    }
+
+    async function submitNewPasscode() {
+      const newCode    = [1,2,3,4].map(i => document.getElementById('reset-new-' + i).value).join('');
+      const confirmCode = [1,2,3,4].map(i => document.getElementById('reset-confirm-' + i).value).join('');
+      const errEl = document.getElementById('reset-error');
+      if (newCode.length !== 4) { errEl.textContent = 'Enter all 4 digits for new password'; return; }
+      if (confirmCode.length !== 4) { errEl.textContent = 'Confirm all 4 digits'; return; }
+      if (newCode !== confirmCode) {
+        errEl.textContent = 'Passwords don\'t match — try again';
+        shake(document.getElementById('reset-confirm-dots'));
+        for (let i = 1; i <= 4; i++) document.getElementById('reset-confirm-' + i).value = '';
+        document.getElementById('reset-confirm-1').focus();
+        return;
+      }
+      const r = await fetch('/api/auth/profile-reset', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile: pendingProfile, newPasscode: newCode })
+      });
+      const data = await r.json();
+      if (data.success) {
+        closePasscodeOverlay();
+        const overlay = document.getElementById('transition-overlay');
+        overlay.style.background = pendingProfile === 'kaliph'
+          ? 'radial-gradient(circle, #7c3aed 0%, #0a0612 100%)'
+          : 'radial-gradient(circle, #8b5cf6 0%, #0a0612 100%)';
+        doTransition(() => window.location.href = '/app');
+      } else {
+        errEl.textContent = data.error || 'Something went wrong';
+        shake(document.getElementById('reset-new-dots'));
+      }
     }
 
     function passcodeDigitInput(el, idx) {
@@ -1326,6 +1502,12 @@
       card.addEventListener('click', async function(e) {
         addRipple(this, e);
         const profile = this.dataset.profile;
+
+        // Password reset takes precedence — show reset overlay
+        if (profileNeedsReset[profile]) {
+          openResetOverlay(profile);
+          return;
+        }
 
         // Check if profile has a passcode
         if (profileLocks[profile]) {
