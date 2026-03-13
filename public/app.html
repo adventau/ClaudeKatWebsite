@@ -373,10 +373,12 @@
         <div class="section-header">
           <span class="section-title">Document Locker</span>
           <div style="display:flex;gap:8px">
+            <button class="btn-ghost" onclick="createVaultFolder()" style="display:flex;align-items:center;gap:4px"><i data-lucide="folder-plus" style="width:15px;height:15px"></i> New Folder</button>
             <button class="btn-primary" onclick="openModal('vault-upload-modal')">+ Add Files</button>
             <button class="btn-ghost" onclick="lockVault()">Lock</button>
           </div>
         </div>
+        <div id="vault-breadcrumb" class="vault-breadcrumb" style="display:none"></div>
         <div class="section-tabs">
           <div class="section-tab active" onclick="switchVaultTab('mine',this)">My Files</div>
           <div class="section-tab" onclick="switchVaultTab('other',this)" id="vault-other-tab">Kathrine's Files</div>

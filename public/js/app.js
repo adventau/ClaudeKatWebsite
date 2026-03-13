@@ -114,7 +114,8 @@ const THEMES = [
   { id: 'royal',    name: 'Crimson Throne',     preview: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)' },
   { id: 'light',    name: 'Pristine Light',     preview: 'linear-gradient(135deg,#f9f9f9,#d4d4d4,#e8e8e8)' },
   { id: 'dark',     name: 'Midnight Dark',      preview: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)' },
-  { id: 'heaven',   name: 'Celestial Heaven',   preview: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)' },
+  { id: 'neon',     name: 'Neon Tokyo',           preview: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)' },
+  { id: 'noir',     name: 'Velvet Noir',          preview: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)' },
   { id: 'rosewood', name: 'Rose & Ember',       preview: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)' },
   { id: 'ocean',    name: 'Deep Tide',          preview: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)' },
   { id: 'forest',   name: 'Enchanted Forest',   preview: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)' },
@@ -429,6 +430,8 @@ function applyUserData(me, other) {
 
 function applyTheme(themeId) {
   const body = document.body;
+  // Fallback if saved theme no longer exists
+  if (themeId && !THEMES.find(t => t.id === themeId)) themeId = 'dark';
   const id = themeId || 'dark';
 
   // Suppress per-element transitions so nothing animates piecemeal
@@ -470,13 +473,13 @@ function repositionSearchForTheme() {
   const isLight = body.classList.contains('theme-light');
 
   if (isDark) {
-    // Dark: search appended to END of horizontal top-bar sidebar (after nav)
-    // Always call appendChild — it moves the element even if already inside sidebar
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) sidebar.appendChild(wrap);
+    // Move search bar into chat header (between header-info and chat-actions)
+    const chatActions = document.querySelector('.chat-header .chat-actions');
+    if (chatActions && !chatActions.parentElement.contains(wrap)) {
+      chatActions.parentElement.insertBefore(wrap, chatActions);
+    }
   } else if (isLight) {
     // Light: app-header hidden; insert search BEFORE the nav in the sidebar
-    // Always reposition unconditionally so switching from dark works correctly
     const sidebar = document.getElementById('sidebar');
     if (sidebar) {
       const nav = sidebar.querySelector('.sidebar-nav');
@@ -3048,6 +3051,9 @@ function dismissEventBanner() {
 
 // ── Vault ──────────────────────────────────────────────────────────────
 let vaultTab = 'mine';
+let currentVaultFolder = null;
+let vaultFolderPath = [];  // [{id, name}, ...]
+let lastVaultData = null;
 
 function resetVault() {
   document.getElementById('vault-lock-screen').style.display = '';
@@ -3085,7 +3091,7 @@ async function checkVaultPasscode() {
   renderVault(data);
 }
 
-function lockVault() { resetVault(); vaultPasscode = null; }
+function lockVault() { resetVault(); vaultPasscode = null; currentVaultFolder = null; vaultFolderPath = []; lastVaultData = null; }
 
 async function refreshVault() {
   if (!vaultPasscode) return;
@@ -3097,22 +3103,54 @@ async function refreshVault() {
 
 function switchVaultTab(tab, el) {
   vaultTab = tab;
+  currentVaultFolder = null;
+  vaultFolderPath = [];
   document.querySelectorAll('#vault-content .section-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json()).then(renderVault);
 }
 
 function renderVault(data) {
-  const items = vaultTab === 'mine' ? (data[currentUser] || []) : (data[otherUser] || []);
+  lastVaultData = data;
+  const allItems = vaultTab === 'mine' ? (data[currentUser] || []) : (data[otherUser] || []);
+  // Filter to current folder
+  const items = allItems.filter(i => (i.folder || null) === currentVaultFolder);
   const grid = document.getElementById('vault-grid');
+  const isMine = vaultTab === 'mine';
+
+  // Render breadcrumb
+  renderVaultBreadcrumb();
+
   if (!items.length) {
-    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon"><i data-lucide="folder-lock" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">No files yet</div></div>';if(window.lucide)lucide.createIcons();
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon"><i data-lucide="folder-lock" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">' + (currentVaultFolder ? 'This folder is empty' : 'No files yet') + '</div></div>';if(window.lucide)lucide.createIcons();
     return;
   }
-  grid.innerHTML = items.map(item => {
+
+  // Folders first, then files/links
+  const folders = items.filter(i => i.type === 'folder');
+  const files = items.filter(i => i.type !== 'folder');
+
+  let html = '';
+
+  // Render folders
+  folders.forEach(item => {
+    const escapedName = (item.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    html += `
+      <div class="vault-item vault-folder" onclick="navigateVaultFolder('${item.id}','${escapedName}')">
+        <div class="vault-item-icon"><i data-lucide="folder" style="width:32px;height:32px;color:var(--accent)"></i></div>
+        <div class="vault-item-name">${item.name}</div>
+        <div class="vault-item-meta">${formatDate(item.uploadedAt)}</div>
+        ${isMine ? `<div class="vault-item-actions">
+          <button class="vault-action-btn" onclick="event.stopPropagation();renameVaultItem('${item.id}','${escapedName}')" title="Rename"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+          <button class="vault-action-btn vault-action-del" onclick="event.stopPropagation();deleteVaultItem('${item.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+        </div>` : ''}
+      </div>`;
+  });
+
+  // Render files/links
+  files.forEach(item => {
     const icon = item.type === 'link' ? '<i data-lucide="link" style="width:22px;height:22px;color:var(--accent)"></i>' : getFileIcon(item.mimeType);
     const mime = item.mimeType || '';
-    // Show thumbnail preview for images/videos
     let thumbHtml;
     if (mime.startsWith('image')) {
       thumbHtml = `<div class="vault-item-thumb"><img src="${item.url}" alt="" loading="lazy"></div>`;
@@ -3126,15 +3164,75 @@ function renderVault(data) {
     const clickAction = item.type === 'link'
       ? `window.open('${escapedUrl}','_blank')`
       : `openVaultPreview('${escapedUrl}','${escapedName}','${mime}')`;
-    return `
+    html += `
       <div class="vault-item" onclick="${clickAction}">
         ${thumbHtml}
         <div class="vault-item-name">${item.name}</div>
         <div class="vault-item-meta">${formatDate(item.uploadedAt)}</div>
-        ${vaultTab === 'mine' ? `<button class="vault-del-btn" onclick="event.stopPropagation();deleteVaultItem('${item.id}')">✕</button>` : ''}
+        ${isMine ? `<div class="vault-item-actions">
+          <button class="vault-action-btn" onclick="event.stopPropagation();renameVaultItem('${item.id}','${escapedName}')" title="Rename"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+          <button class="vault-action-btn vault-action-del" onclick="event.stopPropagation();deleteVaultItem('${item.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+        </div>` : ''}
       </div>`;
-  }).join('');
+  });
+
+  grid.innerHTML = html;
   if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function renderVaultBreadcrumb() {
+  const bc = document.getElementById('vault-breadcrumb');
+  if (!bc) return;
+  if (!currentVaultFolder) { bc.style.display = 'none'; return; }
+  bc.style.display = 'flex';
+  let html = `<span class="vault-bc-item" onclick="navigateVaultBreadcrumb(-1)"><i data-lucide="home" style="width:14px;height:14px"></i></span>`;
+  vaultFolderPath.forEach((f, i) => {
+    html += `<span class="vault-bc-sep">/</span><span class="vault-bc-item" onclick="navigateVaultBreadcrumb(${i})">${f.name}</span>`;
+  });
+  bc.innerHTML = html;
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function navigateVaultFolder(id, name) {
+  currentVaultFolder = id;
+  vaultFolderPath.push({ id, name });
+  if (lastVaultData) renderVault(lastVaultData);
+}
+
+function navigateVaultBreadcrumb(index) {
+  if (index < 0) {
+    currentVaultFolder = null;
+    vaultFolderPath = [];
+  } else {
+    vaultFolderPath = vaultFolderPath.slice(0, index + 1);
+    currentVaultFolder = vaultFolderPath[index].id;
+  }
+  if (lastVaultData) renderVault(lastVaultData);
+}
+
+async function renameVaultItem(id, currentName) {
+  const newName = prompt('Enter new name:', currentName);
+  if (!newName || newName === currentName) return;
+  await fetch(`/api/vault/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ passcode: vaultPasscode, name: newName })
+  });
+  const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+  renderVault(data);
+  showToast('Renamed!');
+}
+
+async function createVaultFolder() {
+  const name = prompt('Folder name:');
+  if (!name) return;
+  const fd = new FormData();
+  fd.append('passcode', vaultPasscode);
+  fd.append('folderName', name);
+  if (currentVaultFolder) fd.append('folder', currentVaultFolder);
+  await fetch('/api/vault', { method: 'POST', body: fd });
+  const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+  renderVault(data);
+  showToast('Folder created!');
 }
 
 function openVaultPreview(url, name, mime) {
@@ -3178,6 +3276,7 @@ async function uploadVaultLink() {
   fd.append('passcode', vaultPasscode);
   fd.append('link', link);
   fd.append('linkName', document.getElementById('vault-link-name').value || link);
+  if (currentVaultFolder) fd.append('folder', currentVaultFolder);
   await fetch('/api/vault', { method: 'POST', body: fd });
   closeModal('vault-upload-modal');
   const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
@@ -3189,6 +3288,7 @@ async function handleVaultFiles(input) {
   if (!input.files.length) return;
   const fd = new FormData();
   fd.append('passcode', vaultPasscode);
+  if (currentVaultFolder) fd.append('folder', currentVaultFolder);
   Array.from(input.files).forEach(f => fd.append('files', f));
   await fetch('/api/vault', { method: 'POST', body: fd });
   closeModal('vault-upload-modal');
