@@ -3306,29 +3306,54 @@ function navigateVaultBreadcrumb(index) {
   if (lastVaultData) renderVault(lastVaultData);
 }
 
+function showVaultNameModal(title, defaultValue, onConfirm) {
+  const modal = document.getElementById('vault-name-modal');
+  const input = document.getElementById('vault-name-input');
+  const confirmBtn = document.getElementById('vault-name-confirm');
+  document.getElementById('vault-name-modal-title').textContent = title;
+  input.value = defaultValue || '';
+  modal.classList.add('active');
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+  const handler = async () => {
+    const val = input.value.trim();
+    if (!val) return;
+    confirmBtn.removeEventListener('click', handler);
+    input.removeEventListener('keydown', keyHandler);
+    closeModal('vault-name-modal');
+    await onConfirm(val);
+  };
+  const keyHandler = (e) => { if (e.key === 'Enter') handler(); };
+  confirmBtn.replaceWith(confirmBtn.cloneNode(true)); // clear old listeners
+  const freshBtn = document.getElementById('vault-name-confirm');
+  freshBtn.addEventListener('click', handler);
+  input.addEventListener('keydown', keyHandler, { once: false });
+  modal._keyHandler = keyHandler;
+}
+
 async function renameVaultItem(id, currentName) {
-  const newName = prompt('Enter new name:', currentName);
-  if (!newName || newName === currentName) return;
-  await fetch(`/api/vault/${id}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ passcode: vaultPasscode, name: newName })
+  showVaultNameModal('Rename', currentName, async (newName) => {
+    if (newName === currentName) return;
+    await fetch(`/api/vault/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: vaultPasscode, name: newName })
+    });
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+    showToast('Renamed!');
   });
-  const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
-  renderVault(data);
-  showToast('Renamed!');
 }
 
 async function createVaultFolder() {
-  const name = prompt('Folder name:');
-  if (!name) return;
-  const fd = new FormData();
-  fd.append('passcode', vaultPasscode);
-  fd.append('folderName', name);
-  if (currentVaultFolder) fd.append('folder', currentVaultFolder);
-  await fetch('/api/vault', { method: 'POST', body: fd });
-  const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
-  renderVault(data);
-  showToast('Folder created!');
+  showVaultNameModal('New Folder', '', async (name) => {
+    const fd = new FormData();
+    fd.append('passcode', vaultPasscode);
+    fd.append('folderName', name);
+    if (currentVaultFolder) fd.append('folder', currentVaultFolder);
+    await fetch('/api/vault', { method: 'POST', body: fd });
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+    showToast('Folder created!');
+  });
 }
 
 function openVaultPreview(url, name, mime) {
