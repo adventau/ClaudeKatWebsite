@@ -710,6 +710,22 @@ function renderMessages(filter = null) {
   });
 }
 
+/** Check if a newly-appended message should be visually grouped with the last rendered one. */
+function shouldGroupWithPrev(msg) {
+  if (!msg || msg.type === 'call-event' || msg.type === 'pin-notice') return false;
+  const area = document.getElementById('messages-area');
+  if (!area) return false;
+  const rows = area.querySelectorAll('.msg-row[data-msg-id]');
+  if (!rows.length) return false;
+  const lastRow = rows[rows.length - 1];
+  const lastMsgId = lastRow.dataset.msgId;
+  const lastMsg = allMessages.find(m => m.id === lastMsgId);
+  if (!lastMsg || lastMsg.type === 'call-event' || lastMsg.type === 'pin-notice') return false;
+  if (lastMsg.sender !== msg.sender) return false;
+  const diff = new Date(msg.timestamp) - new Date(lastMsg.timestamp);
+  return diff >= 0 && diff < 5 * 60 * 1000;
+}
+
 function buildMsgElement(msg, grouped = false) {
   // Call event system messages
   if (msg.type === 'call-event') {
@@ -1020,7 +1036,7 @@ async function sendMessage() {
       const area = document.getElementById('messages-area');
       const empty = document.getElementById('chat-empty');
       if (empty) empty.remove();
-      area.appendChild(buildMsgElement(result.message));
+      area.appendChild(buildMsgElement(result.message, shouldGroupWithPrev(result.message)));
       area.scrollTop = area.scrollHeight;
     }
     if (priority && result.emailStatus) {
@@ -1989,7 +2005,7 @@ function setupSocketEvents() {
     const area = document.getElementById('messages-area');
     const empty = document.getElementById('chat-empty');
     if (empty) empty.remove();
-    area.appendChild(buildMsgElement(msg));
+    area.appendChild(buildMsgElement(msg, shouldGroupWithPrev(msg)));
     area.scrollTop = area.scrollHeight;
     if (msg.sender !== currentUser && msg.sender !== 'ai') {
       SoundSystem.receive();

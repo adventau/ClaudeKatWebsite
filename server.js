@@ -1723,7 +1723,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       const user = parts[2]?.toLowerCase();
       const theme = parts[3]?.toLowerCase();
       if (!user || !theme) return lines('Usage: set theme <user> <theme>', 'warn');
-      const valid = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'heaven', 'rosewood', 'ocean', 'forest'];
+      const valid = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'neon', 'noir', 'rosewood', 'ocean', 'forest'];
       if (!valid.includes(theme)) return lines(`Invalid theme. Options: ${valid.join(', ')}`, 'error');
       const users = rd(F.users);
       if (!users[user]) return lines(`User "${user}" not found`, 'error');
@@ -1841,7 +1841,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     return {
       lines: [
         { text: '🔑 Profile Password Reset Queued', cls: 'success' },
-        { text: `User: ${capitalize(user)}`, cls: 'info' },
+        { text: `User: ${user.charAt(0).toUpperCase() + user.slice(1)}`, cls: 'info' },
         { text: `Old passcode: ${old}`, cls: 'warn' },
         { text: `Next login: ${user} will see their old password and must set a new one before entering.`, cls: 'dim' },
       ],
