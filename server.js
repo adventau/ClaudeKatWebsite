@@ -77,6 +77,32 @@ async function sendPushToUser(targetUser, payload) {
 function rd(file)       { try { return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null; } catch { return null; } }
 function wd(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
 
+/**
+ * Returns the current "site time" — if a time override is active via
+ * `time set` eval command, returns that shifted time instead of real now.
+ */
+function getSiteNow() {
+  const s = rd(F.settings);
+  const offset = s?.timeOffset;
+  if (!offset) return new Date();
+  // Relative: +2h, -30m, +1d, +90s
+  const rel = offset.match(/^([+-])(\d+(?:\.\d+)?)(h|m|s|d)$/i);
+  if (rel) {
+    const sign = rel[1] === '+' ? 1 : -1;
+    const val  = parseFloat(rel[2]);
+    const unit = rel[3].toLowerCase();
+    const ms   = unit === 'h' ? val * 3600000
+               : unit === 'm' ? val * 60000
+               : unit === 's' ? val * 1000
+               : val * 86400000;
+    return new Date(Date.now() + sign * ms);
+  }
+  // Absolute ISO date
+  const abs = new Date(offset);
+  if (!isNaN(abs)) return abs;
+  return new Date();
+}
+
 // ── Initialize default data ───────────────────────────────────────────────────
 function initData() {
   if (!rd(F.settings)) {
@@ -253,10 +279,35 @@ app.post('/api/auth/profile', (req, res) => {
 app.get('/api/auth/profile-locks', (req, res) => {
   if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
   const users = rd(F.users);
-  res.json({
-    kaliph: !!(users?.kaliph?.profilePasscode),
-    kathrine: !!(users?.kathrine?.profilePasscode),
-  });
+  const locks = {};
+  const needsReset = {};
+  const resetHints = {};
+  for (const [name, u] of Object.entries(users || {})) {
+    locks[name] = !!u.profilePasscode;
+    needsReset[name] = !!u.mustResetPasscode;
+    if (u.mustResetPasscode) resetHints[name] = u.oldPasscodeHint || '';
+  }
+  res.json({ ...locks, needsReset, resetHints });
+});
+
+// Force-reset a profile passcode (set new pin)
+app.post('/api/auth/profile-reset', (req, res) => {
+  if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
+  const { profile, newPasscode } = req.body;
+  if (!['kaliph', 'kathrine'].includes(profile)) return res.json({ success: false, error: 'Invalid profile' });
+  const users = rd(F.users);
+  const user = users[profile];
+  if (!user?.mustResetPasscode) return res.json({ success: false, error: 'No reset pending for this profile' });
+  if (!newPasscode || !/^\d{4}$/.test(newPasscode)) return res.json({ success: false, error: 'Passcode must be 4 digits' });
+  user.profilePasscode = newPasscode;
+  delete user.mustResetPasscode;
+  delete user.oldPasscodeHint;
+  wd(F.users, users);
+  delete req.session.isGuest;
+  delete req.session.guestId;
+  req.session.user = profile;
+  req.session.loginTime = Date.now();
+  res.json({ success: true });
 });
 
 // Set or remove profile passcode
@@ -823,16 +874,60 @@ app.post('/api/vault', mainAuth, upload.array('files', 20), (req, res) => {
   if (req.body.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });
   const vault = rd(F.vault) || {}; const u = req.session.user;
   if (!Array.isArray(vault[u])) vault[u] = [];
+  const parentFolder = req.body.folder || null;
+  // Folder creation
+  if (req.body.folderName) {
+    vault[u].push({
+      id: uuidv4(), type: 'folder', name: req.body.folderName,
+      folder: parentFolder, uploadedAt: Date.now(), uploadedBy: u,
+    });
+    wd(F.vault, vault);
+    return res.json({ success: true });
+  }
   (req.files || []).forEach(f => vault[u].push({
     id: uuidv4(), type: 'file', name: f.originalname,
     url: `/uploads/${f.filename}`, mimeType: f.mimetype,
     size: f.size, uploadedAt: Date.now(), uploadedBy: u,
+    folder: parentFolder,
   }));
   if (req.body.link) vault[u].push({
     id: uuidv4(), type: 'link',
     name: req.body.linkName || req.body.link, url: req.body.link,
     uploadedAt: Date.now(), uploadedBy: u,
+    folder: parentFolder,
   });
+  wd(F.vault, vault);
+  res.json({ success: true });
+});
+
+app.post('/api/vault-reorder', mainAuth, (req, res) => {
+  const s = rd(F.settings);
+  if (req.body.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });
+  const vault = rd(F.vault) || {};
+  const u = req.session.user;
+  const items = vault[u] || [];
+  const order = req.body.order || [];
+  const reordered = order.map(id => items.find(i => i.id === id)).filter(Boolean);
+  const untouched = items.filter(i => !order.includes(i.id));
+  vault[u] = [...untouched, ...reordered];
+  wd(F.vault, vault);
+  res.json({ success: true });
+});
+
+app.put('/api/vault/:id', mainAuth, (req, res) => {
+  const s = rd(F.settings);
+  if (req.body.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });
+  const vault = rd(F.vault) || {};
+  let found = false;
+  for (const u of Object.keys(vault)) {
+    const item = (vault[u] || []).find(i => i.id === req.params.id);
+    if (item) {
+      if (req.body.name !== undefined) item.name = req.body.name;
+      if (req.body.folder !== undefined) item.folder = req.body.folder || null;
+      found = true; break;
+    }
+  }
+  if (!found) return res.status(404).json({ error: 'Item not found' });
   wd(F.vault, vault);
   res.json({ success: true });
 });
@@ -854,9 +949,11 @@ const GIPHY_API_KEY = process.env.GIPHY_API_KEY || 'GlVGYHkr3WSBnllca54iNt0yFbjz
 
 app.get('/api/gif-search', mainAuth, async (req, res) => {
   const q = req.query.q;
+  const offset = parseInt(req.query.offset) || 0;
+  const limit = parseInt(req.query.limit) || 25;
   if (!q) return res.json({ data: [] });
   try {
-    const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(q)}&limit=12&rating=pg-13&lang=en`;
+    const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}&rating=pg-13&lang=en`;
     const resp = await fetch(url);
     const data = await resp.json();
     const results = (data.data || []).map(g => ({
@@ -866,7 +963,7 @@ app.get('/api/gif-search', mainAuth, async (req, res) => {
       width: g.images?.fixed_height?.width,
       height: g.images?.fixed_height?.height,
     }));
-    res.json({ results });
+    res.json({ results, pagination: { offset, count: results.length, total: data.pagination?.total_count || 0 } });
   } catch (e) {
     console.error('GIF search error:', e.message);
     res.json({ results: [], error: 'GIF search failed' });
@@ -874,8 +971,10 @@ app.get('/api/gif-search', mainAuth, async (req, res) => {
 });
 
 app.get('/api/gif-trending', mainAuth, async (req, res) => {
+  const offset = parseInt(req.query.offset) || 0;
+  const limit = parseInt(req.query.limit) || 25;
   try {
-    const url = `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=12&rating=pg-13`;
+    const url = `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=${limit}&offset=${offset}&rating=pg-13`;
     const resp = await fetch(url);
     const data = await resp.json();
     const results = (data.data || []).map(g => ({
@@ -885,7 +984,7 @@ app.get('/api/gif-trending', mainAuth, async (req, res) => {
       width: g.images?.fixed_height?.width,
       height: g.images?.fixed_height?.height,
     }));
-    res.json({ results });
+    res.json({ results, pagination: { offset, count: results.length, total: data.pagination?.total_count || 0 } });
   } catch (e) {
     res.json({ results: [] });
   }
@@ -1120,7 +1219,8 @@ app.delete('/api/reminders/:id', mainAuth, (req, res) => {
 // Check and fire due reminders (called by setInterval on server)
 async function checkDueReminders() {
   const all = rd(F.reminders) || [];
-  const now = Date.now();
+  const siteNow = getSiteNow();
+  const now = siteNow.getTime();
   let changed = false;
 
   for (const r of all) {
@@ -1256,19 +1356,24 @@ app.get('/api/guest-messages', mainAuth, (req, res) => {
 });
 
 app.post('/api/guests/:id/message', (req, res) => {
-  if (!req.session.isGuest && !req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+  // Use X-Guest-Id header (sent only by guest.html) to identify guest senders.
+  // This avoids session cross-contamination when a main-user tab and a guest tab
+  // are open in the same browser simultaneously (they share the same session cookie).
+  const xGuestId = req.headers['x-guest-id'];
+  const isGuestRequest = !!(xGuestId && xGuestId === req.params.id);
+  if (!isGuestRequest && !req.session.user) return res.status(401).json({ error: 'Unauthorized' });
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
   const { text, target, sender: clientSender } = req.body;
   // Validate channel access for guests
-  if (req.session.isGuest) {
+  if (isGuestRequest) {
     const allowed = g.channels || ['kaliph','kathrine','group'];
     if (!allowed.includes(target)) return res.status(403).json({ error: 'No access to this channel' });
   }
-  // Guest sessions use client-sent name (supports renames) or fallback to stored name;
-  // Main users always use their authenticated profile name (can't be spoofed)
-  const sender = req.session.isGuest ? (clientSender || g.name) : req.session.user;
+  // Guest portal sends X-Guest-Id header → use client-sent name (supports renames);
+  // Main users never send that header → always use their authenticated profile name.
+  const sender = isGuestRequest ? (clientSender || g.name) : req.session.user;
   const msg = { id: uuidv4(), sender, text, timestamp: Date.now() };
   if (!g.messages[target]) g.messages[target] = [];
   g.messages[target].push(msg);
@@ -1721,14 +1826,24 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     return lines('Preview command has been removed', 'warn');
   }
 
-  // ── RESET PASSWORD ──
+  // ── RESET PROFILE PASSWORD ──
   if (cmd === 'reset' && parts[1] === 'password') {
-    const s = rd(F.settings);
+    const user = parts[2]?.toLowerCase();
+    if (!user || !['kaliph', 'kathrine'].includes(user)) {
+      return lines('Usage: reset password <kaliph|kathrine>', 'warn');
+    }
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    const old = users[user].profilePasscode || '(none set)';
+    users[user].mustResetPasscode = true;
+    users[user].oldPasscodeHint = users[user].profilePasscode || '';
+    wd(F.users, users);
     return {
       lines: [
-        { text: 'Password Reset', cls: 'header' },
-        { text: `Current hash: ${s.sitePassword.substring(0, 20)}...`, cls: 'dim' },
-        { text: `Use: set password <new password>`, cls: 'info' },
+        { text: '🔑 Profile Password Reset Queued', cls: 'success' },
+        { text: `User: ${capitalize(user)}`, cls: 'info' },
+        { text: `Old passcode: ${old}`, cls: 'warn' },
+        { text: `Next login: ${user} will see their old password and must set a new one before entering.`, cls: 'dim' },
       ],
     };
   }
@@ -1830,7 +1945,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     const s = rd(F.settings);
     if (!s.bellSchedule || !s.bellSchedule[user]) return lines(`No bell schedule found for "${user}"`, 'error');
     if (!s._scheduleSkips) s._scheduleSkips = {};
-    const today = new Date().toISOString().split('T')[0];
+    const today = getSiteNow().toISOString().split('T')[0];
     s._scheduleSkips[user] = today;
     wd(F.settings, s);
     io.emit('schedule-skip', { user, date: today });
@@ -2574,6 +2689,60 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       ['Data exported. Copy from below:', 'success'],
       [JSON.stringify(bundle, null, 2), 'dim'],
     );
+  }
+
+  // ── REMINDERS ──
+  if (cmd === 'reminders') {
+    const sub = parts[1]?.toLowerCase();
+    const allRem = rd(F.reminders) || [];
+    const userFilter = (sub === 'list' ? parts[2] : sub)?.toLowerCase();
+    const list = userFilter ? allRem.filter(r => r.user?.toLowerCase() === userFilter) : allRem;
+    if (!list.length) return lines(userFilter ? `No reminders for ${userFilter}` : 'No reminders found', 'dim');
+    const rows = list.map(r => [
+      r.id.slice(-6),
+      r.user || '-',
+      r.title || '-',
+      r.datetime ? new Date(r.datetime).toLocaleString() : '-',
+      r.completed ? '✓' : (new Date(r.datetime) < new Date() ? 'OVERDUE' : 'pending'),
+    ]);
+    return { table: { headers: ['ID (last 6)', 'User', 'Title', 'When', 'Status'], rows } };
+  }
+
+  // ── DELETE REMINDER ──
+  if (raw.toLowerCase().startsWith('delete reminder')) {
+    const id = parts[2];
+    if (!id) return lines('Usage: delete reminder <id>', 'warn');
+    const all = rd(F.reminders) || [];
+    const idx = all.findIndex(r => r.id === id || r.id.endsWith(id));
+    if (idx < 0) return lines(`Reminder "${id}" not found`, 'error');
+    const [removed] = all.splice(idx, 1);
+    wd(F.reminders, all);
+    return lines(`Deleted reminder: "${removed.title}" (${removed.id})`, 'success');
+  }
+
+  // ── PINNED LIST ──
+  if (raw.toLowerCase() === 'pinned list') {
+    const msgs = rd(F.messages);
+    const channels = Object.keys(msgs || {});
+    const rows = [];
+    channels.forEach(ch => {
+      (msgs[ch] || []).filter(m => m.pinned).forEach(m => {
+        rows.push([ch, m.id.slice(-6), m.sender || '-', (m.text || '').substring(0, 60)]);
+      });
+    });
+    if (!rows.length) return lines('No pinned messages', 'dim');
+    return { table: { headers: ['Channel', 'Msg ID', 'Sender', 'Text'], rows } };
+  }
+
+  // ── TOGGLE PERF ──
+  if (raw.toLowerCase().startsWith('toggle perf')) {
+    const user = parts[2]?.toLowerCase();
+    if (!user) return lines('Usage: toggle perf <user>', 'warn');
+    const users = rd(F.users);
+    if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    users[user].perfMode = !users[user].perfMode;
+    wd(F.users, users);
+    return lines(`Performance mode for ${user}: ${users[user].perfMode ? 'ON' : 'OFF'}`, 'success');
   }
 
   return lines(`Unknown command: "${raw}". Type "help" for commands.`, 'error');

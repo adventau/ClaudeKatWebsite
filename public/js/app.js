@@ -11,6 +11,41 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+// ── Site Time Override ────────────────────────────────────────────────
+// When an eval "time set" command is active, _timeOffsetMs shifts all
+// time-sensitive features (bell schedule, reminders, etc.) as if it
+// were actually that time.
+window._timeOffsetMs = 0;
+
+function parseTimeOffset(offset) {
+  if (!offset) return 0;
+  // Relative: +2h, -30m, +1d, +90s
+  const rel = offset.match(/^([+-])(\d+(?:\.\d+)?)(h|m|s|d)$/i);
+  if (rel) {
+    const sign = rel[1] === '+' ? 1 : -1;
+    const val  = parseFloat(rel[2]);
+    const unit = rel[3].toLowerCase();
+    const ms   = unit === 'h' ? val * 3600000
+               : unit === 'm' ? val * 60000
+               : unit === 's' ? val * 1000
+               : val * 86400000; // d
+    return sign * ms;
+  }
+  // Absolute ISO date → compute delta from real now
+  const abs = new Date(offset);
+  if (!isNaN(abs)) return abs.getTime() - Date.now();
+  return 0;
+}
+
+/** Returns the current site time, respecting any active time override. */
+function getNow() {
+  return new Date(Date.now() + window._timeOffsetMs);
+}
+/** Returns current site time as ms timestamp. */
+function getNowMs() {
+  return Date.now() + window._timeOffsetMs;
+}
+
 // ── Stealth preview mode ─────────────────────────────────────────────
 let stealthMode = false;
 let stealthRealUser = null;  // The actual logged-in user when in stealth
@@ -23,8 +58,8 @@ let brainstormMessages = [];
 let replyToId   = null;
 let ctxMsgId    = null;
 let vaultPasscode = null;
-let calYear = new Date().getFullYear();
-let calMonth = new Date().getMonth();
+let calYear = getNow().getFullYear();
+let calMonth = getNow().getMonth();
 let notesTab = 'mine';
 let allNotes = { mine: [], shared: [] };
 let activeNoteId = null;
@@ -83,7 +118,8 @@ const THEMES = [
   { id: 'royal',    name: 'Crimson Throne',     preview: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)' },
   { id: 'light',    name: 'Pristine Light',     preview: 'linear-gradient(135deg,#f9f9f9,#d4d4d4,#e8e8e8)' },
   { id: 'dark',     name: 'Midnight Dark',      preview: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)' },
-  { id: 'heaven',   name: 'Celestial Heaven',   preview: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)' },
+  { id: 'neon',     name: 'Neon Tokyo',           preview: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)' },
+  { id: 'noir',     name: 'Velvet Noir',          preview: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)' },
   { id: 'rosewood', name: 'Rose & Ember',       preview: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)' },
   { id: 'ocean',    name: 'Deep Tide',          preview: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)' },
   { id: 'forest',   name: 'Enchanted Forest',   preview: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)' },
@@ -394,33 +430,72 @@ function applyUserData(me, other) {
     document.getElementById('gif-btn').style.display = 'none';
     document.getElementById('toggle-gif').checked = false;
   }
+  if (me.perfMode) {
+    document.body.classList.add('perf-mode');
+    const tog = document.getElementById('toggle-perf');
+    if (tog) tog.checked = true;
+  }
 }
 
 function applyTheme(themeId) {
   const body = document.body;
-  THEMES.forEach(t => body.classList.remove('theme-' + t.id));
-  body.classList.add('theme-' + (themeId || 'dark'));
-  try { localStorage.setItem('rkk-theme', themeId || 'dark'); } catch {}
-  SoundSystem.setTheme(themeId || 'dark');
-  // Mark active in grid
-  document.querySelectorAll('.theme-card').forEach(c => {
-    c.classList.toggle('active', c.dataset.theme === themeId);
+  // Fallback if saved theme no longer exists
+  if (themeId && !THEMES.find(t => t.id === themeId)) themeId = 'dark';
+  const id = themeId || 'dark';
+
+  // Suppress per-element transitions so nothing animates piecemeal
+  body.classList.add('theme-switching');
+  // Instantly hide the page, swap everything while invisible, then fade back in
+  body.style.transition = 'none';
+  body.style.opacity = '0';
+
+  requestAnimationFrame(() => {
+    // All changes happen in one frame while body is invisible
+    THEMES.forEach(t => body.classList.remove('theme-' + t.id));
+    body.classList.add('theme-' + id);
+    try { localStorage.setItem('rkk-theme', id); } catch {}
+    SoundSystem.setTheme(id);
+    document.querySelectorAll('.theme-card').forEach(c => {
+      c.classList.toggle('active', c.dataset.theme === id);
+    });
+    const footer = document.getElementById('avnt-footer');
+    if (footer) footer.style.display = id === 'kaliph' ? 'flex' : 'none';
+    repositionSearchForTheme();
+
+    // Fade back in smoothly
+    requestAnimationFrame(() => {
+      body.style.transition = 'opacity 0.18s ease';
+      body.style.opacity = '1';
+      setTimeout(() => {
+        body.style.transition = '';
+        body.classList.remove('theme-switching');
+      }, 200);
+    });
   });
-  // AVNT footer
-  const footer = document.getElementById('avnt-footer');
-  if (footer) footer.style.display = themeId === 'kaliph' ? 'flex' : 'none';
-  // Reposition search bar for dark theme (sidebar becomes top bar, header is hidden)
-  repositionSearchForTheme();
 }
 
 function repositionSearchForTheme() {
   const wrap = document.getElementById('search-wrap');
   if (!wrap) return;
-  const isDark = document.body.classList.contains('theme-dark');
+  const body = document.body;
+  const isDark  = body.classList.contains('theme-dark');
+  const isLight = body.classList.contains('theme-light');
+
   if (isDark) {
+    // Move search bar into chat header (between header-info and chat-actions)
+    const chatActions = document.querySelector('.chat-header .chat-actions');
+    if (chatActions && !chatActions.parentElement.contains(wrap)) {
+      chatActions.parentElement.insertBefore(wrap, chatActions);
+    }
+  } else if (isLight) {
+    // Light: app-header hidden; insert search BEFORE the nav in the sidebar
     const sidebar = document.getElementById('sidebar');
-    if (sidebar && wrap.parentElement?.id !== 'sidebar') sidebar.appendChild(wrap);
+    if (sidebar) {
+      const nav = sidebar.querySelector('.sidebar-nav');
+      if (nav) sidebar.insertBefore(wrap, nav);
+    }
   } else {
+    // All other themes: search lives in the header-center
     const headerCenter = document.querySelector('.header-center');
     if (headerCenter && !headerCenter.contains(wrap)) headerCenter.appendChild(wrap);
   }
@@ -568,9 +643,16 @@ function renderMessages(filter = null) {
     ? msgs.findIndex(m => m.sender !== currentUser && m.sender !== 'ai' && m.timestamp > chatLastReadTs)
     : -1;
 
+  // Grouping state — consecutive messages from same sender within 5 min get grouped
+  let prevMsgSender = null;
+  let prevMsgTs = null;
+  let prevWasSystem = false;
+  let prevNewDay = false;
+
   msgs.forEach((msg, idx) => {
     const msgDate = new Date(msg.timestamp).toDateString();
-    if (msgDate !== lastDate) {
+    const newDay = msgDate !== lastDate;
+    if (newDay) {
       lastDate = msgDate;
       const sep = document.createElement('div');
       sep.className = 'date-sep';
@@ -587,24 +669,48 @@ function renderMessages(filter = null) {
       area.appendChild(marker);
     }
 
-    area.appendChild(buildMsgElement(msg));
+    const isSystem = msg.type === 'call-event' || msg.type === 'pin-notice';
+    const grouped = !isSystem && !newDay && !prevWasSystem
+      && prevMsgSender === msg.sender
+      && prevMsgTs !== null
+      && (msg.timestamp - prevMsgTs) < 5 * 60 * 1000;
+
+    prevMsgSender = msg.sender;
+    prevMsgTs = msg.timestamp;
+    prevWasSystem = isSystem;
+
+    area.appendChild(buildMsgElement(msg, grouped));
   });
 
-  // Reliable scroll: instant scroll + retry for images loading
+  // Reliable scroll: instant scroll + retry for images loading + MutationObserver
   requestAnimationFrame(() => {
     const marker = area.querySelector('.new-msg-marker');
-    if (marker) {
-      marker.scrollIntoView({ behavior: 'instant', block: 'center' });
-      setTimeout(() => marker.scrollIntoView({ behavior: 'instant', block: 'center' }), 300);
-      setTimeout(() => marker.scrollIntoView({ behavior: 'instant', block: 'center' }), 800);
-    } else {
-      area.scrollTop = area.scrollHeight;
-      setTimeout(() => { area.scrollTop = area.scrollHeight; }, 300);
-    }
+    const scrollTarget = () => {
+      if (marker) marker.scrollIntoView({ behavior: 'instant', block: 'center' });
+      else area.scrollTop = area.scrollHeight;
+    };
+    scrollTarget();
+    setTimeout(scrollTarget, 200);
+    setTimeout(scrollTarget, 600);
+    setTimeout(scrollTarget, 1500);
+
+    // Watch for images loading (GIFs, avatars) that shift scroll position
+    const imgs = area.querySelectorAll('img');
+    let pending = 0;
+    imgs.forEach(img => {
+      if (!img.complete) {
+        pending++;
+        img.addEventListener('load', () => { pending--; scrollTarget(); }, { once: true });
+        img.addEventListener('error', () => { pending--; }, { once: true });
+      }
+    });
+
+    // Also update jump-to-latest button state after scroll
+    updateJumpBtnState();
   });
 }
 
-function buildMsgElement(msg) {
+function buildMsgElement(msg, grouped = false) {
   // Call event system messages
   if (msg.type === 'call-event') {
     const row = document.createElement('div');
@@ -635,7 +741,7 @@ function buildMsgElement(msg) {
   const isAI   = msg.sender === 'ai' || msg.aiGenerated;
 
   const row = document.createElement('div');
-  row.className = `msg-row ${isSelf ? 'self' : 'other'}`;
+  row.className = `msg-row ${isSelf ? 'self' : 'other'}${grouped ? ' grouped' : ''}`;
   row.id = 'msg-' + msg.id;
   row.dataset.msgId = msg.id;
 
@@ -658,11 +764,14 @@ function buildMsgElement(msg) {
   const content = document.createElement('div');
   content.className = 'msg-content';
 
-  // Sender label
+  // Sender label (hidden for grouped messages)
   const label = document.createElement('div');
   label.className = 'msg-sender-label';
-  if (isAI) label.innerHTML = '<span class="ai-label">🤖 Claude</span>';
-  else {
+  if (grouped) {
+    label.style.display = 'none';
+  } else if (isAI) {
+    label.innerHTML = '<span class="ai-label">🤖 Claude</span>';
+  } else {
     label.textContent = capitalize(msg.sender);
     if (nameColors[msg.sender]) label.style.color = nameColors[msg.sender];
     label.style.cursor = 'pointer';
@@ -724,6 +833,8 @@ function buildMsgElement(msg) {
     t = t.replace(/__(.+?)__/g, '<u>$1</u>');
     t = t.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
     t = t.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '<em>$1</em>');
+    // Preserve newlines (Shift+Enter)
+    t = t.replace(/\n/g, '<br>');
     if (msg.formatting) {
       if (msg.formatting.bold) t = `<strong>${t}</strong>`;
       if (msg.formatting.italic) t = `<em>${t}</em>`;
@@ -795,7 +906,7 @@ function buildMsgElement(msg) {
   actions.className = 'msg-actions';
   // Inline SVGs to avoid per-message lucide.createIcons() (major perf bottleneck)
   const _s = 'xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
-  const svgSmile = `<svg ${_s}><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/><path d="M20 9V7a2 2 0 0 0-2-2h0"/></svg>`;
+  const svgSmile = `<svg ${_s}><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>`;
   const svgReply = `<svg ${_s}><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>`;
   const svgPin = `<svg ${_s}><line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
   const svgPinOff = `<svg ${_s}><line x1="2" x2="22" y1="2" y2="22"/><line x1="12" x2="12" y1="17" y2="22"/><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h12"/><path d="M15 9.34V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0-1.4.58"/></svg>`;
@@ -1251,6 +1362,32 @@ function scrollToMessage(msgId) {
   closePinnedPanel();
 }
 
+function buildPinnedPreviewHtml(m) {
+  if (m.type === 'gif' && m.text) {
+    return `<div class="pinned-item-text">
+      <img src="${escapeHtml(m.text)}" style="max-height:120px;max-width:100%;border-radius:8px;object-fit:cover;display:block;margin-top:4px" loading="lazy">
+    </div>`;
+  }
+  if (m.files?.length) {
+    const images = m.files.filter(f => f.type?.startsWith('image'));
+    const others = m.files.filter(f => !f.type?.startsWith('image'));
+    let html = '<div class="pinned-item-text">';
+    if (m.text) html += `<div style="margin-bottom:4px">${escapeHtml(m.text)}</div>`;
+    if (images.length) {
+      html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">` +
+        images.map(f => `<img src="${escapeHtml(f.url)}" style="height:90px;max-width:130px;border-radius:6px;object-fit:cover" loading="lazy">`).join('') +
+        `</div>`;
+    }
+    if (others.length) {
+      html += others.map(f => `<div style="display:flex;align-items:center;gap:5px;color:var(--text-muted);font-size:0.8rem;margin-top:4px">📄 ${escapeHtml(f.name)}</div>`).join('');
+    }
+    html += '</div>';
+    return html;
+  }
+  if (m.voiceUrl) return `<div class="pinned-item-text" style="color:var(--text-muted)">🎙️ Voice message</div>`;
+  return `<div class="pinned-item-text">${escapeHtml(m.text || '(no content)')}</div>`;
+}
+
 async function togglePinnedPanel() {
   const panel = document.getElementById('pinned-panel');
   if (pinnedPanelOpen) { closePinnedPanel(); return; }
@@ -1270,8 +1407,8 @@ async function togglePinnedPanel() {
       ? `<img src="${senderData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
       : `<span>${(m.sender || 'U')[0].toUpperCase()}</span>`;
     const chatColor = m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : 'var(--kathrine-color, #c084fc)';
-    const text = m.text || (m.files?.length ? '📎 File' : m.voiceUrl ? '🎙️ Voice message' : '(no text)');
     const time = new Date(m.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const pinnedPreview = buildPinnedPreviewHtml(m);
     return `<div class="pinned-item" onclick="scrollToMessage('${m.id}')">
       <div class="pinned-item-header">
         <div style="display:flex;align-items:center;gap:8px">
@@ -1280,7 +1417,7 @@ async function togglePinnedPanel() {
         </div>
         <span class="pinned-item-time">${time}</span>
       </div>
-      <div class="pinned-item-text">${escapeHtml(text)}</div>
+      ${pinnedPreview}
       <button class="pinned-unpin-btn" onclick="event.stopPropagation();unpinMessage('${m.id}')" title="Unpin">✕</button>
     </div>`;
   }).join('');
@@ -1632,53 +1769,207 @@ function fmtAudioTime(s) {
 }
 
 // ── GIF Search ────────────────────────────────────────────────────────
+let activeGifTab = 'trending';
+let gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+
 function openGifSearch() {
   openModal('gif-modal');
-  const grid = document.getElementById('gif-grid');
   const input = document.getElementById('gif-search-input');
   if (input) input.value = '';
-  // Load trending GIFs on open
-  loadTrendingGifs();
+  switchGifTab(activeGifTab, true);
+}
+
+function switchGifTab(tab, force = false) {
+  if (activeGifTab === tab && !force) return;
+  activeGifTab = tab;
+  document.querySelectorAll('.gif-tab').forEach(b => {
+    b.classList.toggle('gif-tab-active', b.dataset.tab === tab);
+  });
+  // Clear search input when switching tabs
+  const input = document.getElementById('gif-search-input');
+  if (input) input.value = '';
+  const categoryQueries = { scandal: ['scandal olivia pope', 'eli pope scandal', 'scandal abc', 'scandal tv show'] };
+  if (tab === 'trending') {
+    loadTrendingGifs();
+  } else if (tab === 'favorites') {
+    loadGifFavorites();
+  } else {
+    loadGifCategory(categoryQueries[tab] || tab);
+  }
 }
 
 let gifTimeout = null;
-async function loadTrendingGifs() {
+let gifOffset = 0;
+let gifLoading = false;
+let gifHasMore = true;
+let gifCurrentQuery = '';
+let gifCurrentMode = ''; // 'trending', 'category', 'search'
+
+async function loadTrendingGifs(append) {
   const grid = document.getElementById('gif-grid');
-  grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Loading…</p>';
+  if (!append) { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Loading…</p>'; gifOffset = 0; gifHasMore = true; }
+  gifCurrentMode = 'trending';
+  gifCurrentQuery = '';
+  gifLoading = true;
   try {
-    const r = await fetch('/api/gif-trending');
+    const r = await fetch(`/api/gif-trending?offset=${gifOffset}&limit=25`);
     const d = await r.json();
-    renderGifResults(d.results || []);
+    const results = d.results || [];
+    gifOffset += results.length;
+    gifHasMore = results.length >= 25;
+    renderGifResults(results, append);
   } catch {
-    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
+    if (!append) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
   }
+  gifLoading = false;
+}
+
+async function loadGifCategory(cat, append) {
+  const grid = document.getElementById('gif-grid');
+  if (!append) { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Loading…</p>'; gifOffset = 0; gifHasMore = true; }
+  gifCurrentMode = 'category';
+  // Multi-query support: if array, combine results from all queries
+  if (Array.isArray(cat)) {
+    gifLoading = true;
+    const perQuery = Math.ceil(25 / cat.length);
+    const perOffset = Math.floor(gifOffset / cat.length);
+    try {
+      const fetches = cat.map(q => fetch(`/api/gif-search?q=${encodeURIComponent(q)}&offset=${perOffset}&limit=${perQuery}`).then(r => r.json()));
+      const allData = await Promise.all(fetches);
+      let combined = [];
+      allData.forEach(d => combined.push(...(d.results || [])));
+      // Deduplicate by id
+      const seen = new Set();
+      combined = combined.filter(g => { if (seen.has(g.id)) return false; seen.add(g.id); return true; });
+      gifOffset += combined.length;
+      gifHasMore = combined.length >= 10;
+      gifCurrentQuery = cat;
+      renderGifResults(combined, append);
+    } catch {
+      if (!append) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
+    }
+    gifLoading = false;
+    return;
+  }
+  gifCurrentQuery = cat;
+  gifLoading = true;
+  try {
+    const r = await fetch(`/api/gif-search?q=${encodeURIComponent(cat)}&offset=${gifOffset}&limit=25`);
+    const d = await r.json();
+    const results = d.results || [];
+    gifOffset += results.length;
+    gifHasMore = results.length >= 25;
+    renderGifResults(results, append);
+  } catch {
+    if (!append) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Could not load GIFs</p>';
+  }
+  gifLoading = false;
+}
+
+function loadGifFavorites() {
+  gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+  if (!gifFavorites.length) {
+    document.getElementById('gif-grid').innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">No favorites yet — hover a GIF and click ♥ to save it</p>';
+    return;
+  }
+  renderGifResults(gifFavorites);
 }
 
 function searchGifs(q) {
   clearTimeout(gifTimeout);
-  if (!q.trim()) { loadTrendingGifs(); return; }
+  if (!q.trim()) {
+    // Restore current tab on clear
+    if (activeGifTab === 'trending') loadTrendingGifs();
+    else if (activeGifTab === 'favorites') loadGifFavorites();
+    else { const cq = { scandal: ['scandal olivia pope', 'eli pope scandal', 'scandal abc', 'scandal tv show'] }; loadGifCategory(cq[activeGifTab] || activeGifTab); }
+    return;
+  }
   gifTimeout = setTimeout(async () => {
     const grid = document.getElementById('gif-grid');
     grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">Searching…</p>';
+    gifOffset = 0; gifHasMore = true; gifCurrentMode = 'search'; gifCurrentQuery = q;
+    gifLoading = true;
     try {
-      const r = await fetch(`/api/gif-search?q=${encodeURIComponent(q)}`);
+      const r = await fetch(`/api/gif-search?q=${encodeURIComponent(q)}&offset=0&limit=25`);
       const d = await r.json();
-      renderGifResults(d.results || []);
+      const results = d.results || [];
+      gifOffset = results.length;
+      gifHasMore = results.length >= 25;
+      renderGifResults(results);
     } catch {
       grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">GIF search failed</p>';
     }
-  }, 400);
+    gifLoading = false;
+  }, 350);
 }
 
-function renderGifResults(results) {
+function renderGifResults(results, append) {
   const grid = document.getElementById('gif-grid');
-  if (!results.length) {
+  if (!results.length && !append) {
     grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-muted)">No GIFs found</p>';
     return;
   }
-  grid.innerHTML = results.map(g =>
-    `<img src="${g.preview || g.url}" data-full="${g.url}" style="width:100%;border-radius:8px;cursor:pointer;aspect-ratio:${g.width || 200}/${g.height || 200};object-fit:cover" onclick="sendGif('${g.url}')" loading="lazy">`
-  ).join('');
+  gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+  const html = results.map(g => {
+    const isFav = gifFavorites.some(f => f.url === g.url);
+    const safeUrl = g.url.replace(/'/g, '%27');
+    const safePreview = (g.preview || g.url).replace(/'/g, '%27');
+    return `<div class="gif-item" style="position:relative;border-radius:8px;overflow:hidden;cursor:pointer" onclick="sendGif('${safeUrl}')">
+      <img src="${safePreview}" data-full="${safeUrl}" style="width:100%;display:block;aspect-ratio:${g.width || 200}/${g.height || 200};object-fit:cover" loading="lazy">
+      <button class="gif-fav-btn ${isFav ? 'gif-fav-active' : ''}" onclick="toggleGifFavorite(event,'${safeUrl}','${safePreview}',${g.width||200},${g.height||200})" title="${isFav ? 'Remove favorite' : 'Add to favorites'}">♥</button>
+    </div>`;
+  }).join('');
+  if (append) grid.insertAdjacentHTML('beforeend', html);
+  else grid.innerHTML = html;
+}
+
+// Infinite scroll for GIF grid (the grid itself is scrollable with overflow-y:auto)
+(function initGifScroll() {
+  // Use event delegation since the grid exists in the DOM
+  document.addEventListener('scroll', function(e) {
+    const grid = document.getElementById('gif-grid');
+    if (!grid || e.target !== grid) return;
+    if (gifLoading || !gifHasMore) return;
+    if (grid.scrollTop + grid.clientHeight >= grid.scrollHeight - 200) {
+      loadMoreGifs();
+    }
+  }, true);
+})();
+
+function loadMoreGifs() {
+  if (gifLoading || !gifHasMore) return;
+  const cq = { scandal: ['scandal olivia pope', 'eli pope scandal', 'scandal abc', 'scandal tv show'] };
+  if (gifCurrentMode === 'trending') loadTrendingGifs(true);
+  else if (gifCurrentMode === 'category') loadGifCategory(gifCurrentQuery || cq[activeGifTab] || activeGifTab, true);
+  else if (gifCurrentMode === 'search') {
+    gifLoading = true;
+    fetch(`/api/gif-search?q=${encodeURIComponent(gifCurrentQuery)}&offset=${gifOffset}&limit=25`)
+      .then(r => r.json()).then(d => {
+        const results = d.results || [];
+        gifOffset += results.length;
+        gifHasMore = results.length >= 25;
+        renderGifResults(results, true);
+      }).catch(() => {}).finally(() => { gifLoading = false; });
+  }
+}
+
+function toggleGifFavorite(e, url, preview, width, height) {
+  e.stopPropagation();
+  gifFavorites = JSON.parse(localStorage.getItem('rkk-gif-favorites') || '[]');
+  const idx = gifFavorites.findIndex(f => f.url === url);
+  if (idx >= 0) {
+    gifFavorites.splice(idx, 1);
+  } else {
+    gifFavorites.unshift({ url, preview, width, height });
+  }
+  localStorage.setItem('rkk-gif-favorites', JSON.stringify(gifFavorites));
+  // Update just this button
+  const btn = e.currentTarget;
+  const isFav = idx < 0; // was added
+  btn.classList.toggle('gif-fav-active', isFav);
+  btn.title = isFav ? 'Remove favorite' : 'Add to favorites';
+  // If on favorites tab, re-render to reflect removal
+  if (activeGifTab === 'favorites') loadGifFavorites();
 }
 
 async function sendGif(url) {
@@ -1964,14 +2255,26 @@ function setupSocketEvents() {
     loadReminders();
   });
 
-  socket.on('time-override', ({ time }) => {
-    if (time) {
-      window._timeOverride = new Date(time);
-      showToast('⏰ Time override active: ' + window._timeOverride.toLocaleString());
+  socket.on('time-offset', ({ offset }) => {
+    if (offset) {
+      window._timeOffsetMs = parseTimeOffset(offset);
+      const fakeTime = getNow();
+      showToast(`⏰ Time override: ${fakeTime.toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}`);
     } else {
-      window._timeOverride = null;
-      showToast('⏰ Time override cleared — using real time.');
+      window._timeOffsetMs = 0;
+      showToast('⏰ Time reset — using real time.');
     }
+    // Jump calendar to the (possibly shifted) current month
+    const now = getNow();
+    calYear = now.getFullYear();
+    calMonth = now.getMonth();
+    // Refresh all time-dependent displays
+    updateClassDisplays();
+    renderCalendar();
+    checkTodayEvents();
+    updateReminderBadge();
+    if (currentSection === 'reminders') renderReminders();
+    if (currentSection === 'calendar') renderCalendar();
   });
 
   socket.on('show-update-log', ({ target }) => {
@@ -2379,7 +2682,7 @@ async function renderCalendar() {
 
   const firstDay = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-  const today = new Date();
+  const today = getNow();
 
   // Build day cells
   const dayCells = {};
@@ -2544,7 +2847,7 @@ function toggleEventDatePicker() {
   edpPickerOpen = !edpPickerOpen;
   picker.style.display = edpPickerOpen ? '' : 'none';
   if (edpPickerOpen) {
-    const today = new Date();
+    const today = getNow();
     if (!edpYear) { edpYear = today.getFullYear(); edpMonth = today.getMonth(); }
     renderEdpGrid();
   }
@@ -2562,7 +2865,7 @@ function renderEdpGrid() {
 
   const firstDay = new Date(edpYear, edpMonth, 1).getDay();
   const daysInMonth = new Date(edpYear, edpMonth + 1, 0).getDate();
-  const today = new Date();
+  const today = getNow();
 
   for (let i = 0; i < firstDay; i++) {
     const empty = document.createElement('div');
@@ -2687,7 +2990,7 @@ function toggleEditEventDatePicker() {
   eedpPickerOpen = !eedpPickerOpen;
   picker.style.display = eedpPickerOpen ? '' : 'none';
   if (eedpPickerOpen) {
-    const today = new Date();
+    const today = getNow();
     if (!eedpYear) { eedpYear = today.getFullYear(); eedpMonth = today.getMonth(); }
     renderEedpGrid();
   }
@@ -2705,7 +3008,7 @@ function renderEedpGrid() {
 
   const firstDay = new Date(eedpYear, eedpMonth, 1).getDay();
   const daysInMonth = new Date(eedpYear, eedpMonth + 1, 0).getDate();
-  const today = new Date();
+  const today = getNow();
 
   for (let i = 0; i < firstDay; i++) {
     const empty = document.createElement('div');
@@ -2840,7 +3143,7 @@ async function checkTodayEvents() {
     const events = calData.shared || [];
     if (!events.length) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getNow().toISOString().split('T')[0];
     const todayEvents = events.filter(ev => {
       const start = ev.start || ev.date;
       const end = ev.end || start;
@@ -2881,6 +3184,12 @@ function dismissEventBanner() {
 
 // ── Vault ──────────────────────────────────────────────────────────────
 let vaultTab = 'mine';
+let vaultDragId = null;
+let vaultDragOccurred = false;
+let currentPreviewItemId = null;
+let currentVaultFolder = null;
+let vaultFolderPath = [];  // [{id, name}, ...]
+let lastVaultData = null;
 
 function resetVault() {
   document.getElementById('vault-lock-screen').style.display = '';
@@ -2918,7 +3227,7 @@ async function checkVaultPasscode() {
   renderVault(data);
 }
 
-function lockVault() { resetVault(); vaultPasscode = null; }
+function lockVault() { resetVault(); vaultPasscode = null; currentVaultFolder = null; vaultFolderPath = []; lastVaultData = null; }
 
 async function refreshVault() {
   if (!vaultPasscode) return;
@@ -2930,22 +3239,60 @@ async function refreshVault() {
 
 function switchVaultTab(tab, el) {
   vaultTab = tab;
+  currentVaultFolder = null;
+  vaultFolderPath = [];
   document.querySelectorAll('#vault-content .section-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json()).then(renderVault);
 }
 
 function renderVault(data) {
-  const items = vaultTab === 'mine' ? (data[currentUser] || []) : (data[otherUser] || []);
+  lastVaultData = data;
+  const allItems = vaultTab === 'mine' ? (data[currentUser] || []) : (data[otherUser] || []);
+  // Filter to current folder
+  const items = allItems.filter(i => (i.folder || null) === currentVaultFolder);
   const grid = document.getElementById('vault-grid');
+  const isMine = vaultTab === 'mine';
+
+  // Render breadcrumb
+  renderVaultBreadcrumb();
+
   if (!items.length) {
-    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon"><i data-lucide="folder-lock" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">No files yet</div></div>';if(window.lucide)lucide.createIcons();
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon"><i data-lucide="folder-lock" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">' + (currentVaultFolder ? 'This folder is empty' : 'No files yet') + '</div></div>';if(window.lucide)lucide.createIcons();
     return;
   }
-  grid.innerHTML = items.map(item => {
+
+  // Folders first, then files/links
+  const folders = items.filter(i => i.type === 'folder');
+  const files = items.filter(i => i.type !== 'folder');
+
+  let html = '';
+
+  // Render folders
+  folders.forEach(item => {
+    const escapedName = (item.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    html += `
+      <div class="vault-item vault-folder" data-id="${item.id}" draggable="true"
+        onclick="if(!vaultDragOccurred)navigateVaultFolder('${item.id}','${escapedName}')"
+        ondragstart="vaultDragStart(event,'${item.id}')"
+        ondragend="vaultDragEnd(event)"
+        ondragover="vaultDragOver(event,'${item.id}','folder')"
+        ondragleave="vaultDragLeave(event)"
+        ondrop="vaultDrop(event,'${item.id}','folder')">
+        <div class="vault-item-icon"><i data-lucide="folder" style="width:32px;height:32px;color:var(--accent)"></i></div>
+        <div class="vault-item-name">${item.name}</div>
+        <div class="vault-item-meta">${formatDate(item.uploadedAt)}</div>
+        ${isMine ? `<div class="vault-item-actions">
+          <button class="vault-action-btn" onclick="event.stopPropagation();renameVaultItem('${item.id}','${escapedName}')" title="Rename"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+          <button class="vault-action-btn vault-action-del" onclick="event.stopPropagation();deleteVaultItem('${item.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+        </div>` : ''}
+      </div>`;
+  });
+
+  // Render files/links
+  files.forEach(item => {
     const icon = item.type === 'link' ? '<i data-lucide="link" style="width:22px;height:22px;color:var(--accent)"></i>' : getFileIcon(item.mimeType);
     const mime = item.mimeType || '';
-    // Show thumbnail preview for images/videos
     let thumbHtml;
     if (mime.startsWith('image')) {
       thumbHtml = `<div class="vault-item-thumb"><img src="${item.url}" alt="" loading="lazy"></div>`;
@@ -2958,29 +3305,266 @@ function renderVault(data) {
     const escapedUrl = (item.url || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
     const clickAction = item.type === 'link'
       ? `window.open('${escapedUrl}','_blank')`
-      : `openVaultPreview('${escapedUrl}','${escapedName}','${mime}')`;
-    return `
-      <div class="vault-item" onclick="${clickAction}">
+      : `openVaultPreview('${escapedUrl}','${escapedName}','${mime}','${item.id}')`;
+    html += `
+      <div class="vault-item" data-id="${item.id}" draggable="true"
+        onclick="if(!vaultDragOccurred)${clickAction}"
+        ondragstart="vaultDragStart(event,'${item.id}')"
+        ondragend="vaultDragEnd(event)"
+        ondragover="vaultDragOver(event,'${item.id}','file')"
+        ondragleave="vaultDragLeave(event)"
+        ondrop="vaultDrop(event,'${item.id}','file')">
         ${thumbHtml}
         <div class="vault-item-name">${item.name}</div>
         <div class="vault-item-meta">${formatDate(item.uploadedAt)}</div>
-        ${vaultTab === 'mine' ? `<button class="vault-del-btn" onclick="event.stopPropagation();deleteVaultItem('${item.id}')">✕</button>` : ''}
+        ${isMine ? `<div class="vault-item-actions">
+          <button class="vault-action-btn" onclick="event.stopPropagation();renameVaultItem('${item.id}','${escapedName}')" title="Rename"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+          <button class="vault-action-btn" onclick="event.stopPropagation();moveVaultItem('${item.id}')" title="Move to folder"><i data-lucide="folder-input" style="width:14px;height:14px"></i></button>
+          <button class="vault-action-btn vault-action-del" onclick="event.stopPropagation();deleteVaultItem('${item.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+        </div>` : ''}
       </div>`;
-  }).join('');
+  });
+
+  grid.innerHTML = html;
   if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-function openVaultPreview(url, name, mime) {
+function renderVaultBreadcrumb() {
+  const bc = document.getElementById('vault-breadcrumb');
+  if (!bc) return;
+  if (!currentVaultFolder) { bc.style.display = 'none'; return; }
+  bc.style.display = 'flex';
+  let html = `<span class="vault-bc-item" onclick="navigateVaultBreadcrumb(-1)"><i data-lucide="home" style="width:14px;height:14px"></i></span>`;
+  vaultFolderPath.forEach((f, i) => {
+    html += `<span class="vault-bc-sep">/</span><span class="vault-bc-item" onclick="navigateVaultBreadcrumb(${i})">${f.name}</span>`;
+  });
+  bc.innerHTML = html;
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function navigateVaultFolder(id, name) {
+  currentVaultFolder = id;
+  vaultFolderPath.push({ id, name });
+  if (lastVaultData) renderVault(lastVaultData);
+}
+
+function navigateVaultBreadcrumb(index) {
+  if (index < 0) {
+    currentVaultFolder = null;
+    vaultFolderPath = [];
+  } else {
+    vaultFolderPath = vaultFolderPath.slice(0, index + 1);
+    currentVaultFolder = vaultFolderPath[index].id;
+  }
+  if (lastVaultData) renderVault(lastVaultData);
+}
+
+function showVaultNameModal(title, defaultValue, onConfirm) {
+  const modal = document.getElementById('vault-name-modal');
+  const input = document.getElementById('vault-name-input');
+  const confirmBtn = document.getElementById('vault-name-confirm');
+  document.getElementById('vault-name-modal-title').textContent = title;
+  input.value = defaultValue || '';
+  openModal('vault-name-modal');
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+  const handler = async () => {
+    const val = input.value.trim();
+    if (!val) return;
+    confirmBtn.removeEventListener('click', handler);
+    input.removeEventListener('keydown', keyHandler);
+    closeModal('vault-name-modal');
+    await onConfirm(val);
+  };
+  const keyHandler = (e) => { if (e.key === 'Enter') handler(); };
+  confirmBtn.replaceWith(confirmBtn.cloneNode(true)); // clear old listeners
+  const freshBtn = document.getElementById('vault-name-confirm');
+  freshBtn.addEventListener('click', handler);
+  input.addEventListener('keydown', keyHandler, { once: false });
+  modal._keyHandler = keyHandler;
+}
+
+function vaultNameConflict(newName, excludeId) {
+  if (!lastVaultData) return false;
+  const items = (lastVaultData[currentUser] || []).filter(i => (i.folder || null) === currentVaultFolder);
+  return items.some(i => i.id !== excludeId && i.name.toLowerCase() === newName.toLowerCase());
+}
+
+async function renameVaultItem(id, currentName) {
+  showVaultNameModal('Rename', currentName, async (newName) => {
+    if (newName === currentName) return;
+    if (vaultNameConflict(newName, id)) {
+      showToast('A file with that name already exists in this folder');
+      return;
+    }
+    await fetch(`/api/vault/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: vaultPasscode, name: newName })
+    });
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+    showToast('Renamed!');
+  });
+}
+
+async function createVaultFolder() {
+  showVaultNameModal('New Folder', '', async (name) => {
+    if (vaultNameConflict(name, null)) {
+      showToast('A folder with that name already exists here');
+      return;
+    }
+    const fd = new FormData();
+    fd.append('passcode', vaultPasscode);
+    fd.append('folderName', name);
+    if (currentVaultFolder) fd.append('folder', currentVaultFolder);
+    await fetch('/api/vault', { method: 'POST', body: fd });
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+    showToast('Folder created!');
+  });
+}
+
+// ── Vault drag-and-drop ──────────────────────────────────────────────
+function vaultDragStart(e, id) {
+  vaultDragId = id;
+  vaultDragOccurred = false;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', id);
+  setTimeout(() => {
+    const el = document.querySelector(`.vault-item[data-id="${id}"]`);
+    if (el) el.classList.add('vault-dragging');
+  }, 0);
+}
+
+function vaultDragEnd(e) {
+  vaultDragOccurred = vaultDragId !== null;
+  vaultDragId = null;
+  document.querySelectorAll('.vault-item').forEach(el => {
+    el.classList.remove('vault-dragging', 'vault-drop-target', 'vault-drop-before', 'vault-drop-after');
+  });
+  setTimeout(() => { vaultDragOccurred = false; }, 100);
+}
+
+function vaultDragOver(e, targetId, targetType) {
+  if (!vaultDragId || vaultDragId === targetId) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const el = e.currentTarget;
+  el.classList.remove('vault-drop-before', 'vault-drop-after', 'vault-drop-target');
+  if (targetType === 'folder') {
+    el.classList.add('vault-drop-target');
+  } else {
+    const rect = el.getBoundingClientRect();
+    if (e.clientX < rect.left + rect.width / 2) el.classList.add('vault-drop-before');
+    else el.classList.add('vault-drop-after');
+  }
+}
+
+function vaultDragLeave(e) {
+  e.currentTarget.classList.remove('vault-drop-target', 'vault-drop-before', 'vault-drop-after');
+}
+
+async function vaultDrop(e, targetId, targetType) {
+  e.preventDefault();
+  const draggedId = vaultDragId;
+  if (!draggedId || draggedId === targetId) return;
+  document.querySelectorAll('.vault-item').forEach(el =>
+    el.classList.remove('vault-dragging', 'vault-drop-target', 'vault-drop-before', 'vault-drop-after'));
+  vaultDragId = null;
+
+  if (targetType === 'folder') {
+    await fetch(`/api/vault/${draggedId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: vaultPasscode, folder: targetId })
+    });
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+    showToast('Moved into folder!');
+  } else {
+    const grid = document.getElementById('vault-grid');
+    const els = [...grid.querySelectorAll('.vault-item[data-id]')];
+    const ids = els.map(el => el.dataset.id);
+    const fromIdx = ids.indexOf(draggedId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const el = grid.querySelector(`.vault-item[data-id="${targetId}"]`);
+    const rect = el.getBoundingClientRect();
+    const insertAfter = e.clientX >= rect.left + rect.width / 2;
+    ids.splice(fromIdx, 1);
+    const newTo = ids.indexOf(targetId);
+    ids.splice(insertAfter ? newTo + 1 : newTo, 0, draggedId);
+    await fetch('/api/vault-reorder', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: vaultPasscode, order: ids })
+    });
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+  }
+}
+
+// ── Move to folder picker ────────────────────────────────────────────
+async function moveVaultItem(id) {
+  if (!lastVaultData) return;
+  const allItems = lastVaultData[currentUser] || [];
+  const folders = allItems.filter(i => i.type === 'folder' && i.id !== id);
+  const list = document.getElementById('vault-move-folder-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const doMove = async (folderId, label) => {
+    closeModal('vault-move-modal');
+    await fetch(`/api/vault/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: vaultPasscode, folder: folderId })
+    });
+    const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
+    renderVault(data);
+    showToast('Moved to ' + label + '!');
+  };
+
+  if (currentVaultFolder) {
+    const btn = document.createElement('button');
+    btn.className = 'vault-move-folder-btn';
+    btn.innerHTML = '<i data-lucide="home" style="width:15px;height:15px"></i><span>Root folder</span>';
+    btn.onclick = () => doMove(null, 'root');
+    list.appendChild(btn);
+  }
+
+  if (!folders.length && !currentVaultFolder) {
+    list.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;padding:4px 0">No folders yet — create one first.</div>';
+  } else {
+    folders.forEach(f => {
+      const btn = document.createElement('button');
+      btn.className = 'vault-move-folder-btn';
+      btn.innerHTML = `<i data-lucide="folder" style="width:15px;height:15px;color:var(--accent)"></i><span>${f.name}</span>`;
+      btn.onclick = () => doMove(f.id, f.name);
+      list.appendChild(btn);
+    });
+  }
+
+  openModal('vault-move-modal');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function openVaultPreview(url, name, mime, itemId) {
   const body = document.getElementById('vault-preview-body');
   const titleEl = document.getElementById('vault-preview-name');
   const openBtn = document.getElementById('vault-preview-open');
   const dlBtn = document.getElementById('vault-preview-download');
+  const renameBtn = document.getElementById('vault-preview-rename');
+  currentPreviewItemId = itemId || null;
   titleEl.textContent = name || 'File';
   openBtn.onclick = () => window.open(url, '_blank');
   dlBtn.onclick = () => {
     const a = document.createElement('a');
     a.href = url; a.download = name || 'file'; a.click();
   };
+  if (renameBtn) {
+    renameBtn.style.display = itemId ? '' : 'none';
+    renameBtn.onclick = () => {
+      closeModal('vault-preview-modal');
+      renameVaultItem(itemId, name);
+    };
+  }
 
   let content = '';
   if (mime.startsWith('image')) {
@@ -3011,6 +3595,7 @@ async function uploadVaultLink() {
   fd.append('passcode', vaultPasscode);
   fd.append('link', link);
   fd.append('linkName', document.getElementById('vault-link-name').value || link);
+  if (currentVaultFolder) fd.append('folder', currentVaultFolder);
   await fetch('/api/vault', { method: 'POST', body: fd });
   closeModal('vault-upload-modal');
   const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
@@ -3022,6 +3607,7 @@ async function handleVaultFiles(input) {
   if (!input.files.length) return;
   const fd = new FormData();
   fd.append('passcode', vaultPasscode);
+  if (currentVaultFolder) fd.append('folder', currentVaultFolder);
   Array.from(input.files).forEach(f => fd.append('files', f));
   await fetch('/api/vault', { method: 'POST', body: fd });
   closeModal('vault-upload-modal');
@@ -3063,7 +3649,6 @@ function setupVaultDropzone() {
     showToast('Files added to locker!');
   });
 }
-// Initialize vault dropzone when DOM is ready
 document.addEventListener('DOMContentLoaded', setupVaultDropzone);
 
 async function deleteVaultItem(id) {
@@ -3554,6 +4139,7 @@ async function sendGuestReply() {
 
 // ── Settings ──────────────────────────────────────────────────────────
 function openSettingsModal() {
+  SoundSystem.modalOpen();
   const modal = document.getElementById('settings-modal');
   modal.classList.add('open');
   loadSettings();
@@ -3566,6 +4152,7 @@ function openSettingsModal() {
 }
 
 function switchSettingsTab(tab, el) {
+  SoundSystem.navigate();
   document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
@@ -3695,6 +4282,10 @@ async function loadBellSchedule() {
     }
     const toggle = document.getElementById('toggle-countdown');
     if (toggle) toggle.checked = window._countdownEnabled;
+    // Apply any active time override
+    if (s.timeOffset) {
+      window._timeOffsetMs = parseTimeOffset(s.timeOffset);
+    }
     return window._bellSchedule;
   } catch { return null; }
 }
@@ -3784,13 +4375,15 @@ async function saveBellSchedule() {
     lateStartDay: lateDayVal,
   };
   const resp = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bellSchedule: existing }) });
-  if (!resp.ok) { showToast('Failed to save schedule'); return; }
+  if (!resp.ok) { SoundSystem.error(); showToast('Failed to save schedule'); return; }
   window._bellSchedule = existing;
   updateClassDisplays();
+  SoundSystem.success();
   showToast('Bell schedule saved!');
 }
 
 function toggleCountdown(el) {
+  SoundSystem.toggle();
   window._countdownEnabled = el.checked;
   fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ countdownEnabled: el.checked }) });
   updateClassDisplays();
@@ -3940,7 +4533,7 @@ function ctpDone(el) {
 // ── Custom DateTime Picker (for reminders) ────────────────────────────────
 const _cdtpState = {};
 function initCdtp(id) {
-  if (!_cdtpState[id]) _cdtpState[id] = { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDate: null };
+  if (!_cdtpState[id]) _cdtpState[id] = { year: getNow().getFullYear(), month: getNow().getMonth(), selectedDate: null };
 }
 function toggleDatetimePicker(id) {
   initCdtp(id);
@@ -3996,7 +4589,7 @@ function renderCdtpCalendar(id) {
   headers.forEach(h => grid.appendChild(h));
   const firstDay = new Date(st.year, st.month, 1).getDay();
   const daysInMonth = new Date(st.year, st.month + 1, 0).getDate();
-  const today = new Date(); today.setHours(0,0,0,0);
+  const today = getNow(); today.setHours(0,0,0,0);
   for (let i = 0; i < firstDay; i++) { const empty = document.createElement('div'); empty.className = 'cdtp-day cdtp-day-empty'; grid.appendChild(empty); }
   for (let d = 1; d <= daysInMonth; d++) {
     const cell = document.createElement('div');
@@ -4063,7 +4656,7 @@ function setDatetimePickerValue(id, date) {
   commitDatetimeValue(id);
 }
 function resetDatetimePicker(id) {
-  _cdtpState[id] = { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDate: null };
+  _cdtpState[id] = { year: getNow().getFullYear(), month: getNow().getMonth(), selectedDate: null };
   document.getElementById(id).value = '';
   const btn = document.getElementById(id + '-btn');
   if (btn) btn.querySelector('.custom-datetime-text').textContent = 'Select date & time...';
@@ -4087,18 +4680,18 @@ function selectPriority(id, value) {
 function getCurrentClass(username) {
   const bs = window._bellSchedule;
   if (!bs || !bs[username]) return null;
-  // Check if schedule is skipped today
-  const today = new Date().toISOString().split('T')[0];
+  // Check if schedule is skipped today (use site time)
+  const siteNow = getNow();
+  const today = siteNow.toISOString().split('T')[0];
   if (window._scheduleSkips[username] === today) return null;
   const data = bs[username];
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const dayName = days[new Date().getDay()];
+  const dayName = days[siteNow.getDay()];
   // Weekend — no class
   if (dayName === 'sunday' || dayName === 'saturday') return null;
   const schedule = (data.lateStartDay && data.lateStartDay === dayName) ? (data.lateStart || []) : (data.regular || []);
   if (!schedule.length) return null;
-  const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowMins = siteNow.getHours() * 60 + siteNow.getMinutes();
   for (const period of schedule) {
     if (!period.start || !period.end) continue;
     const [sh, sm] = period.start.split(':').map(Number);
@@ -4113,9 +4706,9 @@ function getCurrentClass(username) {
 }
 
 function formatCountdown(endMins) {
-  const now = new Date();
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-  const nowSecs = now.getSeconds();
+  const siteNow = getNow();
+  const nowMins = siteNow.getHours() * 60 + siteNow.getMinutes();
+  const nowSecs = siteNow.getSeconds();
   const totalSecsLeft = (endMins - nowMins) * 60 - nowSecs;
   if (totalSecsLeft <= 0) return '0:00';
   const m = Math.floor(totalSecsLeft / 60);
@@ -4175,6 +4768,7 @@ async function saveProfile() {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ displayName, pronouns, customStatus, bio, nameStyle: { color, gradient: true } })
   });
+  SoundSystem.success();
   document.getElementById('my-name').textContent = displayName;
   nameColors[currentUser] = color;
   renderMessages();
@@ -4185,6 +4779,7 @@ async function saveEmails() {
   const email = document.getElementById('my-email-input').value;
   const body = { emails: { [currentUser]: email } };
   await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  SoundSystem.success();
   showToast('📧 Email saved!');
 }
 
@@ -4213,6 +4808,7 @@ async function saveAllEmails() {
       kathrine: kathrineEmails,
     }})
   });
+  SoundSystem.success();
   showToast('📧 Emails saved!');
 }
 
@@ -4227,6 +4823,7 @@ async function uploadAvatar(input) {
     const avatarDiv = wrapper.querySelector('.avatar');
     if (avatarDiv) avatarDiv.innerHTML = `<img src="${d.avatar}" alt="">`;
     else wrapper.innerHTML = `<div class="avatar"><img src="${d.avatar}" alt=""></div><div class="status-indicator online" id="my-status-dot"></div>`;
+    SoundSystem.success();
     showToast('🖼️ Avatar updated!');
   }
 }
@@ -4239,6 +4836,7 @@ async function uploadBanner(input) {
   if (d.banner) {
     const bannerEl = document.getElementById('profile-edit-banner');
     if (bannerEl) { bannerEl.style.backgroundImage = `url(${d.banner})`; bannerEl.style.backgroundSize = 'cover'; }
+    SoundSystem.success();
     showToast('🖼️ Banner updated!');
   }
 }
@@ -4315,7 +4913,7 @@ async function viewProfile(username) {
   const classText = document.getElementById('pv-class-text');
   if (classSec && classText) {
     const cls = getCurrentClass(username);
-    if (cls) { classSec.style.display = ''; classText.textContent = '📚 ' + cls.label + ' (' + cls.start + ' – ' + cls.end + ')'; }
+    if (cls) { classSec.style.display = ''; classText.textContent = '📚 ' + cls.label + ' (' + formatTime12(cls.start) + ' – ' + formatTime12(cls.end) + ')'; }
     else classSec.style.display = 'none';
   }
   // Pronouns
@@ -4521,7 +5119,19 @@ function toggleGif(el) {
   document.getElementById('gif-btn').style.display = el.checked ? '' : 'none';
 }
 
-function toggleSound(el) { SoundSystem.setEnabled(el.checked); }
+function togglePerfMode(el) {
+  const enabled = el.checked;
+  document.body.classList.toggle('perf-mode', enabled);
+  const tog = document.getElementById('toggle-perf');
+  if (tog) tog.checked = enabled;
+  fetch(`/api/users/${currentUser}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ perfMode: enabled })
+  });
+  showToast(enabled ? '⚡ Performance mode on' : '✨ Performance mode off');
+}
+
+function toggleSound(el) { SoundSystem.setEnabled(el.checked); if (el.checked) SoundSystem.toggle(); }
 
 async function changeSitePassword() {
   showToast('Use the Eval terminal to change the site password');
@@ -4560,10 +5170,12 @@ async function saveProfilePasscode() {
   });
   const d = await r.json();
   if (d.success) {
+    SoundSystem.success();
     showToast('Profile passcode saved');
     document.getElementById('profile-passcode-input').value = '';
     document.getElementById('profile-passcode-confirm').value = '';
   } else {
+    SoundSystem.error();
     showToast(d.error || 'Failed to save passcode');
   }
 }
@@ -4594,7 +5206,7 @@ async function loadGuests() {
     const badges = ch.map(c => `<span class="channel-badge">${channelLabels[c] || capitalize(c)}</span>`).join('');
     let expiryInfo = 'Never expires';
     if (g.expiresAt) {
-      const diff = new Date(g.expiresAt) - Date.now();
+      const diff = new Date(g.expiresAt) - getNowMs();
       if (diff <= 0) {
         expiryInfo = '<span style="color:#ef4444">Expired</span>';
       } else {
@@ -4629,7 +5241,7 @@ function startGuestCountdowns() {
   window._guestCountdownInterval = setInterval(() => {
     document.querySelectorAll('.guest-countdown').forEach(el => {
       const expires = new Date(el.dataset.expires);
-      const diff = expires - Date.now();
+      const diff = expires - getNowMs();
       if (diff <= 0) {
         el.innerHTML = '<span style="color:#ef4444">Expired</span>';
       } else {
@@ -4671,7 +5283,7 @@ async function createGuest() {
   if (mode === 'duration') {
     const hrs = parseInt(document.getElementById('guest-expires-hours').value) || 0;
     const mins = parseInt(document.getElementById('guest-expires-minutes').value) || 0;
-    if (hrs || mins) expiresAt = new Date(Date.now() + hrs * 3600000 + mins * 60000).toISOString();
+    if (hrs || mins) expiresAt = new Date(getNowMs() + hrs * 3600000 + mins * 60000).toISOString();
   } else if (mode === 'datetime') {
     const dt = document.getElementById('guest-expires-at').value;
     if (dt) expiresAt = new Date(dt).toISOString();
@@ -4817,6 +5429,7 @@ function toggleStatusMenu() {
 
 async function setStatus(status) {
   if (stealthMode) return; // Can't change status in stealth mode
+  SoundSystem.toggle();
   document.getElementById('status-menu').classList.remove('open');
   setStatusDot('my-status-dot', status);
   updateStatusText(status);
@@ -5494,9 +6107,9 @@ function showValueSuggestions(q) {
       </div>`;
     });
   } else if (type === 'before' || type === 'after') {
-    const today = new Date().toISOString().split('T')[0];
-    const week = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
-    const month = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+    const today = getNow().toISOString().split('T')[0];
+    const week = new Date(getNowMs() - 7 * 86400000).toISOString().split('T')[0];
+    const month = new Date(getNowMs() - 30 * 86400000).toISOString().split('T')[0];
     const presets = type === 'before'
       ? [{ val: today, label: 'Today' }, { val: week, label: 'Past week' }, { val: month, label: 'Past month' }]
       : [{ val: month, label: '30 days ago' }, { val: week, label: '7 days ago' }, { val: today, label: 'Today' }];
@@ -5554,6 +6167,41 @@ function updateSearchPlaceholder() {
   bar.placeholder = hints[searchPendingFilter] || 'Enter value…';
 }
 
+function buildMsgPreviewHtml(m, textQuery) {
+  // GIF message
+  if (m.type === 'gif' && m.text) {
+    return `<div class="search-result-media">
+      <img src="${escapeHtml(m.text)}" style="max-height:100px;max-width:160px;border-radius:6px;object-fit:cover;display:block" loading="lazy">
+    </div>`;
+  }
+  // File attachments
+  if (m.files?.length) {
+    const images = m.files.filter(f => f.type?.startsWith('image'));
+    const others = m.files.filter(f => !f.type?.startsWith('image'));
+    let html = '';
+    if (images.length) {
+      html += `<div class="search-result-media" style="display:flex;flex-wrap:wrap;gap:4px">` +
+        images.map(f => `<img src="${escapeHtml(f.url)}" style="height:80px;max-width:120px;border-radius:6px;object-fit:cover" loading="lazy">`).join('') +
+        `</div>`;
+    }
+    if (others.length) {
+      html += others.map(f =>
+        `<div class="search-result-text" style="display:flex;align-items:center;gap:6px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>${escapeHtml(f.name)}</span>
+        </div>`
+      ).join('');
+    }
+    if (m.text) html += `<div class="search-result-text">${highlight(m.text, textQuery)}</div>`;
+    return html;
+  }
+  // Plain text
+  if (m.text) return `<div class="search-result-text">${highlight(m.text, textQuery)}</div>`;
+  // Voice message
+  if (m.voiceUrl) return `<div class="search-result-text" style="color:var(--text-muted)">🎙️ Voice message</div>`;
+  return `<div class="search-result-text" style="color:var(--text-muted)">(no content)</div>`;
+}
+
 function executeSearch() {
   const dropdown = document.getElementById('search-results');
   const bar = document.getElementById('search-bar');
@@ -5568,8 +6216,9 @@ function executeSearch() {
       hits = hits.filter(m => m.sender?.toLowerCase().includes(v));
     } else if (ft === 'has') {
       if (v === 'link') hits = hits.filter(m => m.text && /https?:\/\//.test(m.text));
-      else if (v === 'image' || v === 'img') hits = hits.filter(m => m.files?.some(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f)));
-      else if (v === 'file') hits = hits.filter(m => m.files?.length > 0);
+      else if (v === 'image' || v === 'img') hits = hits.filter(m => m.type === 'gif' || m.files?.some(f => f.type?.startsWith('image')));
+      else if (v === 'gif') hits = hits.filter(m => m.type === 'gif');
+      else if (v === 'file') hits = hits.filter(m => m.files?.length > 0 || m.type === 'gif');
     } else if (ft === 'before') {
       const d = new Date(v); if (!isNaN(d)) hits = hits.filter(m => new Date(m.timestamp) < d);
     } else if (ft === 'after') {
@@ -5598,13 +6247,13 @@ function executeSearch() {
   } else {
     html += hits.slice(0, 25).map(m => {
       const time = formatSearchTime(m.timestamp);
-      const text = highlight(m.text || '', textQuery);
+      const preview = buildMsgPreviewHtml(m, textQuery);
       return `<div class="search-result-item" onclick="clickSearchResult('${m.id}')">
         <div class="search-result-top">
           <span class="search-result-sender">${capitalize(m.sender)}</span>
           <span class="search-result-time">${time}</span>
         </div>
-        <div class="search-result-text">${text}</div>
+        ${preview}
       </div>`;
     }).join('');
   }
@@ -5679,26 +6328,37 @@ function setupKeyboardShortcuts() {
 
   // Typing emit + emoji autocomplete
   let typingTimeout;
+  let emojiACTimeout;
   document.getElementById('msg-input')?.addEventListener('input', (e) => {
     socket.emit('typing', { user: currentUser });
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => socket.emit('stop-typing', { user: currentUser }), 1500);
     autoResizeInput();
-    // Show emoji autocomplete when typing :name
-    showEmojiAutocomplete(e.target);
-  });
+    // Debounce emoji autocomplete slightly to avoid searching on every keystroke
+    clearTimeout(emojiACTimeout);
+    const target = e.target;
+    emojiACTimeout = setTimeout(() => showEmojiAutocomplete(target), 80);
+  }, { passive: true });
 
-  // Jump-to-latest scroll detection
+  // Jump-to-latest scroll detection (passive for better performance)
   const msgArea = document.getElementById('messages-area');
   const jumpBtn = document.getElementById('jump-to-latest');
   if (msgArea && jumpBtn) {
-    msgArea.addEventListener('scroll', () => {
-      const distFromBottom = msgArea.scrollHeight - msgArea.scrollTop - msgArea.clientHeight;
-      jumpBtn.classList.toggle('show', distFromBottom > 300);
-    });
+    msgArea.addEventListener('scroll', () => updateJumpBtnState(), { passive: true });
+    // Check state on load too (in case we loaded at a non-bottom position)
+    setTimeout(() => updateJumpBtnState(), 1000);
+    setTimeout(() => updateJumpBtnState(), 2500);
   }
 
   setupSearch();
+}
+
+function updateJumpBtnState() {
+  const msgArea = document.getElementById('messages-area');
+  const jumpBtn = document.getElementById('jump-to-latest');
+  if (!msgArea || !jumpBtn) return;
+  const distFromBottom = msgArea.scrollHeight - msgArea.scrollTop - msgArea.clientHeight;
+  jumpBtn.classList.toggle('show', distFromBottom > 300);
 }
 
 function jumpToLatest() {
@@ -5706,10 +6366,16 @@ function jumpToLatest() {
   if (area) area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
 }
 
+let _autoResizeRAF = null;
 function autoResizeInput() {
-  const t = document.getElementById('msg-input');
-  t.style.height = 'auto';
-  t.style.height = Math.min(t.scrollHeight, 120) + 'px';
+  if (_autoResizeRAF) return;
+  _autoResizeRAF = requestAnimationFrame(() => {
+    _autoResizeRAF = null;
+    const t = document.getElementById('msg-input');
+    if (!t) return;
+    t.style.height = 'auto';
+    t.style.height = Math.min(t.scrollHeight, 120) + 'px';
+  });
 }
 
 function resetInputHeight() {
@@ -5721,7 +6387,7 @@ function resetInputHeight() {
 function formatLastSeen(ts) {
   if (!ts) return 'Offline';
   const date = new Date(ts);
-  const now = new Date();
+  const now = getNow();
   const diff = now - ts;
   const mins = Math.floor(diff / 60000);
   const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -5949,7 +6615,7 @@ function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 function formatTime(ts) { return new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); }
 function formatSearchTime(ts) {
   const d = new Date(ts);
-  const now = new Date();
+  const now = getNow();
   const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   if (d.toDateString() === now.toDateString()) return time;
   const yest = new Date(now); yest.setDate(yest.getDate() - 1);
@@ -5959,7 +6625,7 @@ function formatSearchTime(ts) {
 function formatDate(ts) {
   if (!ts) return '';
   const d = new Date(ts);
-  const today = new Date(); const yest = new Date(today); yest.setDate(yest.getDate()-1);
+  const today = getNow(); const yest = new Date(today); yest.setDate(yest.getDate()-1);
   if (d.toDateString() === today.toDateString()) return 'Today';
   if (d.toDateString() === yest.toDateString()) return 'Yesterday';
   return d.toLocaleDateString([], { month:'short', day:'numeric', year:'numeric' });
@@ -6013,7 +6679,7 @@ async function loadReminders() {
 }
 
 function updateReminderBadge() {
-  const now = Date.now();
+  const now = getNowMs();
   const due = _reminders.filter(r => !r.completed && new Date(r.datetime).getTime() <= now).length;
   const badge = document.getElementById('reminders-badge');
   if (badge) {
@@ -6033,7 +6699,7 @@ function renderReminders() {
   const container = document.getElementById('reminders-list');
   if (!container) return;
 
-  const now = Date.now();
+  const now = getNowMs();
   let filtered = _reminders;
 
   if (_remindersTab === 'upcoming') {
@@ -6097,7 +6763,7 @@ function renderReminders() {
 
 function formatReminderTime(dt) {
   const d = new Date(dt);
-  const now = new Date();
+  const now = getNow();
   const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   if (d.toDateString() === now.toDateString()) return 'Today ' + time;
   const tmrw = new Date(now); tmrw.setDate(tmrw.getDate() + 1);
@@ -6200,14 +6866,14 @@ async function toggleReminderComplete(id) {
   await fetch(`/api/reminders/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ completed: !r.completed, completedAt: !r.completed ? Date.now() : null }),
+    body: JSON.stringify({ completed: !r.completed, completedAt: !r.completed ? getNowMs() : null }),
   });
   await loadReminders();
   showToast(r.completed ? '🔔 Reminder reopened' : '✅ Reminder completed!');
 }
 
 async function snoozeReminder(id) {
-  const snoozeUntil = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+  const snoozeUntil = new Date(getNowMs() + 3600000).toISOString(); // 1 hour
   await fetch(`/api/reminders/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -6265,6 +6931,68 @@ function startReminderChecker() {
 
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
+  {
+    version: '3.7.0',
+    date: 'Mar 13 2026',
+    intro: 'Message grouping, performance mode for Chromebook, admin profile PIN reset, vault drag-and-drop, Neon Tokyo & Velvet Noir themes, and comprehensive eval upgrades.',
+    sections: [
+      { icon: '💬', title: 'Chat', items: [
+        { name: 'Message Grouping', desc: 'Consecutive messages from the same person now group together — no repeated name or avatar for a cleaner look.' },
+      ]},
+      { icon: '⚡', title: 'Performance Mode', items: [
+        { name: 'Chromebook Mode', desc: 'New "Performance Mode" toggle in Settings → Chat disables all animations, blur effects, and box shadows for dramatically faster rendering on low-end devices.' },
+        { name: 'Eval Toggle', desc: 'Admins can toggle performance mode per user via eval: toggle perf kaliph / kathrine.' },
+      ]},
+      { icon: '🔑', title: 'Profile Security', items: [
+        { name: 'Admin PIN Reset', desc: 'Admins can force a PIN reset with eval "reset password <user>" — the user sees their old password and must set a new one before entering their profile.' },
+        { name: 'Themed Reset UI', desc: 'The reset screen is fully styled to each user\'s personal theme with a modern two-step flow.' },
+      ]},
+      { icon: '📁', title: 'Document Locker', items: [
+        { name: 'Drag to Reorder', desc: 'Drag files to reorder them or drop them into folders.' },
+        { name: 'Move to Folder Button', desc: 'New folder icon on each file to move it into any folder.' },
+        { name: 'Rename in Preview', desc: 'Pencil icon in the file preview header lets you rename without closing the preview.' },
+        { name: 'No Duplicate Names', desc: 'Renaming a file to an already-taken name is blocked with a toast.' },
+      ]},
+      { icon: '🎨', title: 'New Themes', items: [
+        { name: 'Neon Tokyo', desc: 'High-contrast cyberpunk theme with pink-to-cyan gradients, scanline effects, and a pixel grid overlay.' },
+        { name: 'Velvet Noir', desc: 'Luxurious dark theme with champagne gold accents, art deco shimmer, and Cormorant Garamond serif typography.' },
+      ]},
+      { icon: '🖥️', title: 'Eval', items: [
+        { name: 'Reminders Commands', desc: 'New: reminders list, reminders list kaliph/kathrine, delete reminder <id>.' },
+        { name: 'Pinned List', desc: 'New: pinned list — shows all pinned messages across all channels.' },
+        { name: 'Autocomplete Fixes', desc: 'time set/reset, skipclass, theme builder, reset password, and more are now in autocomplete.' },
+      ]},
+      { icon: '⏰', title: 'Time Override', items: [
+        { name: 'Calendar Jumps to Time', desc: 'When time set is used, the calendar immediately jumps to the simulated month and re-highlights today.' },
+        { name: 'Events & All Dates', desc: 'All event date pickers, todo dates, reminder countdowns, search filters, and guest expiry now respect the time offset.' },
+      ]},
+    ],
+  },
+  {
+    version: '3.6.0',
+    date: 'Mar 12 2026',
+    intro: 'GIF categories, hover favorites, Chromebook typing speed improvements, real time override, and a cleaner update log.',
+    sections: [
+      { icon: '🎬', title: 'GIFs', items: [
+        { name: 'GIF Categories', desc: 'GIF picker now has tabs — Trending, Favorites, Reactions, Scandal, Memes, and Gaming.' },
+        { name: 'Hover to Favorite', desc: 'Hover over any GIF and click the ♥ button to save it to your Favorites tab.' },
+        { name: 'Favorites Tab', desc: 'Access all your saved GIFs instantly from the Favorites tab.' },
+        { name: 'Search Results Show Media', desc: 'has:file and has:image in search now show actual image thumbnails and GIF previews.' },
+        { name: 'Pinned Messages Show Media', desc: 'Pinned messages panel now shows images and GIFs inline instead of a placeholder.' },
+      ]},
+      { icon: '⏰', title: 'Time Override', items: [
+        { name: 'Real Time Simulation', desc: 'Eval "time set" now fully simulates the site at that time — bell schedule, reminders, and countdowns all respond as if it were actually that time.' },
+      ]},
+      { icon: '⚡', title: 'Performance', items: [
+        { name: 'Faster Typing', desc: 'Input box resize is now deferred with requestAnimationFrame — no more layout jank while typing on Chromebook.' },
+        { name: 'Passive Scroll', desc: 'Scroll listeners are now passive, reducing stutter when scrolling through messages.' },
+        { name: 'Emoji Autocomplete Debounce', desc: 'Emoji autocomplete search is debounced so it no longer runs on every single keystroke.' },
+      ]},
+      { icon: '🗒️', title: 'Update Log', items: [
+        { name: 'Latest Only', desc: 'Update log on login now shows only the most recent update instead of stacking all unseen ones.' },
+      ]},
+    ],
+  },
   {
     version: '3.5.0',
     date: 'Mar 12 2026',
@@ -6580,21 +7308,8 @@ function checkAndShowUpdateLog() {
   const dismissed = localStorage.getItem(key);
   if (dismissed === CHANGELOG[0].version) return;
 
-  // Find all unseen versions (everything newer than what was dismissed)
-  const unseen = dismissed
-    ? CHANGELOG.filter((_, i) => i < CHANGELOG.findIndex(c => c.version === dismissed))
-    : CHANGELOG;
-  if (!unseen.length) return;
-
   const container = document.getElementById('update-log-content');
-  let html = '';
-
-  unseen.forEach((entry, idx) => {
-    if (idx > 0) html += `<hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0">`;
-    html += renderChangelogEntry(entry);
-  });
-
-  container.innerHTML = html;
+  container.innerHTML = renderChangelogEntry(CHANGELOG[0]);
   openModal('update-log-modal');
 }
 

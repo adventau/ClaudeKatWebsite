@@ -370,8 +370,10 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
 .call-event-text { font-weight: 500; }
 .call-event-time { font-size: 0.7rem; opacity: 0.6; }
 
-/* Group consecutive same-sender messages — tighter spacing */
-.msg-row + .msg-row.same-sender { padding-top: 0; }
+/* Group consecutive same-sender messages — tighter spacing, no avatar/name repeat */
+.msg-row.grouped { padding-top: 0; margin-top: 0; }
+.msg-row.grouped .msg-avatar-sm { visibility: hidden; }
+.msg-row.grouped .msg-priority-badge { margin-top: 0; }
 .msg-row + .msg-row.same-sender .msg-avatar-sm { visibility: hidden; }
 .msg-row + .msg-row.same-sender .msg-sender-label { display: none; }
 
@@ -1002,6 +1004,7 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
 
 .vault-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; padding: 16px;
+  overflow-y: auto; flex: 1;
 }
 .vault-item {
   background: var(--bg-card); border: 1px solid var(--border-card);
@@ -1022,6 +1025,76 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
   padding: 2px;
 }
 .vault-item:hover .vault-del-btn { opacity: 1; }
+
+/* Vault breadcrumb */
+.vault-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 20px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-card);
+  background: var(--bg-card);
+}
+.vault-bc-item {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+}
+.vault-bc-item:hover { background: var(--bg-hover); color: var(--accent); }
+.vault-bc-sep { color: var(--text-muted); font-size: 0.75rem; }
+
+/* Vault folder card */
+.vault-folder { cursor: pointer; }
+.vault-folder .vault-item-icon { color: var(--accent); }
+
+/* Vault item action buttons (rename/delete on hover) */
+.vault-item-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 2;
+}
+.vault-item:hover .vault-item-actions { opacity: 1; }
+.vault-action-btn {
+  background: var(--bg-main);
+  border: 1px solid var(--border-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.vault-action-btn:hover { background: var(--bg-hover); color: var(--accent); }
+.vault-action-del:hover { color: #ef4444; }
+
+/* Vault drag-and-drop */
+.vault-item[draggable="true"] { cursor: grab; }
+.vault-item.vault-dragging { opacity: 0.35; }
+.vault-item.vault-drop-target { box-shadow: 0 0 0 2px var(--accent); background: var(--bg-hover); }
+.vault-item.vault-drop-before { box-shadow: -3px 0 0 var(--accent); }
+.vault-item.vault-drop-after  { box-shadow:  3px 0 0 var(--accent); }
+
+/* Move-to-folder picker button */
+.vault-move-folder-btn {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 10px 12px; border-radius: 8px;
+  background: var(--bg-card); border: 1px solid var(--border-card);
+  color: var(--text-primary); font-size: 0.875rem; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s; text-align: left;
+}
+.vault-move-folder-btn:hover { background: var(--bg-hover); border-color: var(--accent); color: var(--accent); }
 
 /* Vault item thumbnail preview */
 .vault-item-thumb {
@@ -1418,6 +1491,29 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
 }
 .modal-title { font-family: var(--font-heading); font-size: 1rem; font-weight: 700; letter-spacing: 0.02em; }
 
+/* ── GIF PICKER ─────────────────────────────────────────────────── */
+.gif-tab {
+  padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-muted); font-size: 0.78rem;
+  cursor: pointer; transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.gif-tab:hover { background: var(--bg-hover); color: var(--text); }
+.gif-tab-active { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; }
+
+.gif-item .gif-fav-btn {
+  position: absolute; top: 4px; right: 4px;
+  width: 26px; height: 26px; border-radius: 50%;
+  border: none; cursor: pointer;
+  background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.5);
+  font-size: 0.95rem; display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.15s, color 0.15s, transform 0.15s;
+  pointer-events: none;
+}
+.gif-item:hover .gif-fav-btn { opacity: 1; pointer-events: auto; }
+.gif-fav-btn:hover { transform: scale(1.15); color: #ff6b81; }
+.gif-fav-btn.gif-fav-active { color: #ff6b81; opacity: 1; pointer-events: auto; }
+
 /* ── PROMPT DIALOG (edit message, etc) ──────────────────────────── */
 .prompt-card {
   background: var(--bg-modal, var(--bg-sidebar));
@@ -1511,7 +1607,7 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
 
 /* ── SEARCH DROPDOWN ─────────────────────────────────────────────── */
 .search-dropdown {
-  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 60;
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 200;
   background: var(--bg-modal); border: 1px solid var(--border);
   border-radius: 12px; max-height: 440px; overflow-y: auto; display: none;
   box-shadow: 0 16px 48px rgba(0,0,0,0.45); backdrop-filter: blur(12px);
@@ -1581,6 +1677,10 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
 .search-result-text {
   color: var(--text-primary); font-size: 0.82rem; line-height: 1.5;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.search-result-media {
+  margin-top: 4px; line-height: 0;
+  pointer-events: none; /* clicks still go to the result item */
 }
 
 /* Value suggestions in dropdown */
@@ -3303,3 +3403,21 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .priority-low { background: var(--status-online, #22c55e); }
 .priority-normal { background: var(--accent, #3b82f6); }
 .priority-high { background: var(--status-dnd, #ef4444); }
+
+/* ── Performance Mode ───────────────────────────────────────────── */
+body.perf-mode *,
+body.perf-mode *::before,
+body.perf-mode *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+body.perf-mode .wallpaper-overlay { display: none !important; }
+body.perf-mode .msg-bubble,
+body.perf-mode .msg-bubble-self,
+body.perf-mode .msg-bubble-other { box-shadow: none !important; }
+body.perf-mode .vault-item { box-shadow: none !important; }
+body.perf-mode .sidebar { box-shadow: none !important; }
+body.perf-mode .modal { box-shadow: none !important; }

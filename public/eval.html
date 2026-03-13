@@ -737,7 +737,7 @@ let acIdx = -1;
 // ═══════════════════════════════════════════════════════════════════
 const COMMANDS = [
   // Messages
-  { cmd: 'messages', desc: 'Show message stats', cat: 'Messages' },
+  { cmd: 'messages', desc: 'Show message stats (total, by sender, files)', cat: 'Messages' },
   { cmd: 'messages list', desc: 'List last N messages', cat: 'Messages' },
   { cmd: 'messages list 50', desc: 'List last 50 messages', cat: 'Messages' },
   { cmd: 'messages from kaliph', desc: 'Messages from Kaliph', cat: 'Messages' },
@@ -758,6 +758,7 @@ const COMMANDS = [
   { cmd: 'clear edited ', desc: 'Remove edited indicator from message', cat: 'Messages' },
   { cmd: 'brainstorm list', desc: 'List brainstorm messages', cat: 'Messages' },
   { cmd: 'brainstorm clear', desc: 'Clear all brainstorm messages', cat: 'Messages' },
+  { cmd: 'pinned list', desc: 'List all pinned messages across channels', cat: 'Messages' },
 
   // Announcements
   { cmd: 'announce ', desc: 'Create announcement for both users', cat: 'Announcements' },
@@ -800,10 +801,14 @@ const COMMANDS = [
   { cmd: 'toggle gif kathrine', desc: 'Toggle GIF for Kathrine', cat: 'Users' },
   { cmd: 'toggle wallpaper kaliph', desc: 'Toggle wallpaper for Kaliph', cat: 'Users' },
   { cmd: 'toggle wallpaper kathrine', desc: 'Toggle wallpaper for Kathrine', cat: 'Users' },
+  { cmd: 'toggle perf kaliph', desc: 'Toggle performance mode for Kaliph', cat: 'Users' },
+  { cmd: 'toggle perf kathrine', desc: 'Toggle performance mode for Kathrine', cat: 'Users' },
 
   // Settings
   { cmd: 'settings', desc: 'View all current settings', cat: 'Settings' },
   { cmd: 'set password ', desc: 'Change site password', cat: 'Settings' },
+  { cmd: 'reset password kaliph', desc: 'Force Kaliph to reset profile PIN on next login', cat: 'Settings' },
+  { cmd: 'reset password kathrine', desc: 'Force Kathrine to reset profile PIN on next login', cat: 'Settings' },
   { cmd: 'set eval-password ', desc: 'Change eval terminal password', cat: 'Settings' },
   { cmd: 'set vault-code ', desc: 'Change vault passcode', cat: 'Settings' },
   { cmd: 'set email kaliph ', desc: 'Set Kaliph notification emails', cat: 'Settings' },
@@ -829,6 +834,29 @@ const COMMANDS = [
   { cmd: 'guests revoke ', desc: 'Revoke a guest by ID', cat: 'Data' },
   { cmd: 'suggestions list', desc: 'List all suggestions', cat: 'Data' },
   { cmd: 'delete suggestion ', desc: 'Delete a suggestion by ID', cat: 'Data' },
+  { cmd: 'reminders list', desc: 'List all reminders', cat: 'Data' },
+  { cmd: 'reminders list kaliph', desc: 'List Kaliph reminders', cat: 'Data' },
+  { cmd: 'reminders list kathrine', desc: 'List Kathrine reminders', cat: 'Data' },
+  { cmd: 'delete reminder ', desc: 'Delete a reminder by ID', cat: 'Data' },
+
+  // Time
+  { cmd: 'time set ', desc: 'Set time offset (ISO date, +2h, -30m, +1d)', cat: 'Time' },
+  { cmd: 'time reset', desc: 'Reset time to real system clock', cat: 'Time' },
+
+  // Bell Schedule
+  { cmd: 'skipclass kaliph', desc: 'Skip bell schedule for Kaliph today', cat: 'Schedule' },
+  { cmd: 'skipclass kathrine', desc: 'Skip bell schedule for Kathrine today', cat: 'Schedule' },
+  { cmd: 'unskipclass kaliph', desc: 'Restore bell schedule for Kaliph', cat: 'Schedule' },
+  { cmd: 'unskipclass kathrine', desc: 'Restore bell schedule for Kathrine', cat: 'Schedule' },
+
+  // Theme Builder
+  { cmd: 'theme builder', desc: 'Show theme builder UI', cat: 'Theme' },
+  { cmd: 'theme set kaliph ', desc: 'Set Kaliph custom theme property', cat: 'Theme' },
+  { cmd: 'theme set kathrine ', desc: 'Set Kathrine custom theme property', cat: 'Theme' },
+  { cmd: 'theme preview kaliph', desc: 'Preview Kaliph custom theme', cat: 'Theme' },
+  { cmd: 'theme preview kathrine', desc: 'Preview Kathrine custom theme', cat: 'Theme' },
+  { cmd: 'theme reset kaliph', desc: 'Reset Kaliph custom theme to default', cat: 'Theme' },
+  { cmd: 'theme reset kathrine', desc: 'Reset Kathrine custom theme to default', cat: 'Theme' },
 
   // System
   { cmd: 'republish update-log', desc: 'Re-show update log to both users', cat: 'System' },
@@ -1185,7 +1213,7 @@ function showHelp() {
     'SETTINGS': [
       ['settings', 'View all settings'],
       ['set password <new>', 'Change site password'],
-      ['reset password', 'Show password hash & reset info'],
+      ['reset password <kaliph|kathrine>', 'Force user to reset profile PIN on next login'],
       ['set eval-password <new>', 'Change eval password'],
       ['set vault-code <code>', 'Change locker passcode'],
       ['set email <user> <e1,e2>', 'Set notification emails'],

@@ -373,10 +373,12 @@
         <div class="section-header">
           <span class="section-title">Document Locker</span>
           <div style="display:flex;gap:8px">
+            <button class="btn-ghost" onclick="createVaultFolder()" style="display:flex;align-items:center;gap:4px"><i data-lucide="folder-plus" style="width:15px;height:15px"></i> New Folder</button>
             <button class="btn-primary" onclick="openModal('vault-upload-modal')">+ Add Files</button>
             <button class="btn-ghost" onclick="lockVault()">Lock</button>
           </div>
         </div>
+        <div id="vault-breadcrumb" class="vault-breadcrumb" style="display:none"></div>
         <div class="section-tabs">
           <div class="section-tab active" onclick="switchVaultTab('mine',this)">My Files</div>
           <div class="section-tab" onclick="switchVaultTab('other',this)" id="vault-other-tab">Kathrine's Files</div>
@@ -630,6 +632,10 @@
             <div class="settings-row">
               <div><div class="settings-label">Class Countdown Timer</div><div class="settings-sublabel">Show a countdown bar in chat until the current class ends</div></div>
               <label class="toggle"><input type="checkbox" id="toggle-countdown" onchange="toggleCountdown(this)" checked><span class="toggle-slider"></span></label>
+            </div>
+            <div class="settings-row">
+              <div><div class="settings-label">⚡ Performance Mode</div><div class="settings-sublabel">Disables animations, blur &amp; shadows — best for Chromebook or slow devices</div></div>
+              <label class="toggle"><input type="checkbox" id="toggle-perf" onchange="togglePerfMode(this)"><span class="toggle-slider"></span></label>
             </div>
           </div>
         </div>
@@ -1313,12 +1319,43 @@
   </div>
 </div>
 
+<!-- Vault Rename / New Folder -->
+<div class="modal-overlay" id="vault-name-modal" onclick="if(event.target===this)closeModal('vault-name-modal')">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <span class="modal-title" id="vault-name-modal-title">Rename</span>
+      <button class="btn-icon" onclick="closeModal('vault-name-modal')">✕</button>
+    </div>
+    <div class="form-row" style="margin-top:8px">
+      <input type="text" id="vault-name-input" placeholder="Enter name…" style="font-size:0.95rem">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+      <button class="btn-icon" style="padding:6px 14px;border-radius:8px;font-size:0.85rem;color:var(--text-secondary);border:1px solid var(--border-card)" onclick="closeModal('vault-name-modal')">Cancel</button>
+      <button class="btn-primary" id="vault-name-confirm">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Vault Move to Folder -->
+<div class="modal-overlay" id="vault-move-modal" onclick="if(event.target===this)closeModal('vault-move-modal')">
+  <div class="modal" style="max-width:320px">
+    <div class="modal-header">
+      <span class="modal-title"><i data-lucide="folder-input" style="width:15px;height:15px;display:inline;margin-right:6px"></i>Move to Folder</span>
+      <button class="btn-icon" onclick="closeModal('vault-move-modal')">✕</button>
+    </div>
+    <div id="vault-move-folder-list" style="display:flex;flex-direction:column;gap:6px;margin-top:10px;max-height:300px;overflow-y:auto"></div>
+  </div>
+</div>
+
 <!-- Vault File Preview -->
 <div class="modal-overlay" id="vault-preview-modal" onclick="if(event.target===this)closeModal('vault-preview-modal')">
   <div class="vault-preview-container">
     <div class="vault-preview-header">
       <span class="vault-preview-title" id="vault-preview-name">File</span>
       <div class="vault-preview-actions">
+        <button class="vault-preview-btn" id="vault-preview-rename" title="Rename">
+          <i data-lucide="pencil" style="width:16px;height:16px"></i>
+        </button>
         <button class="vault-preview-btn" id="vault-preview-open" title="Open in new tab">
           <i data-lucide="external-link" style="width:16px;height:16px"></i>
         </button>
@@ -1432,15 +1469,23 @@
 
 <!-- GIF Search Modal -->
 <div class="modal-overlay" id="gif-modal">
-  <div class="modal">
+  <div class="modal" style="width:min(480px,96vw)">
     <div class="modal-header">
-      <span class="modal-title">GIF Search</span>
+      <span class="modal-title">GIFs</span>
       <button class="btn-icon" onclick="closeModal('gif-modal')">✕</button>
     </div>
-    <div class="form-row">
-      <input type="text" id="gif-search-input" placeholder="Search GIFs…" oninput="searchGifs(this.value)">
+    <div class="form-row" style="margin-bottom:0.4rem">
+      <input type="text" id="gif-search-input" placeholder="Search GIFs…" oninput="searchGifs(this.value)" autocomplete="off">
     </div>
-    <div id="gif-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-height:320px;overflow-y:auto;margin-top:0.5rem;padding:2px">
+    <div id="gif-category-tabs" style="display:flex;gap:4px;flex-wrap:wrap;padding:2px 0 6px;border-bottom:1px solid var(--border);margin-bottom:6px">
+      <button class="gif-tab gif-tab-active" data-tab="trending" onclick="switchGifTab('trending')">🔥 Trending</button>
+      <button class="gif-tab" data-tab="favorites" onclick="switchGifTab('favorites')">⭐ Favorites</button>
+      <button class="gif-tab" data-tab="reactions" onclick="switchGifTab('reactions')">😂 Reactions</button>
+      <button class="gif-tab" data-tab="scandal" onclick="switchGifTab('scandal')">🌹 Scandal</button>
+      <button class="gif-tab" data-tab="memes" onclick="switchGifTab('memes')">😴 Memes</button>
+      <button class="gif-tab" data-tab="gaming" onclick="switchGifTab('gaming')">🎮 Gaming</button>
+    </div>
+    <div id="gif-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-height:320px;overflow-y:auto;padding:2px">
       <p style="grid-column:1/-1;color:var(--text-muted);font-size:0.85rem;text-align:center">Loading trending GIFs…</p>
     </div>
   </div>
