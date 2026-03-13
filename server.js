@@ -814,16 +814,46 @@ app.post('/api/vault', mainAuth, upload.array('files', 20), (req, res) => {
   if (req.body.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });
   const vault = rd(F.vault) || {}; const u = req.session.user;
   if (!Array.isArray(vault[u])) vault[u] = [];
+  const parentFolder = req.body.folder || null;
+  // Folder creation
+  if (req.body.folderName) {
+    vault[u].push({
+      id: uuidv4(), type: 'folder', name: req.body.folderName,
+      folder: parentFolder, uploadedAt: Date.now(), uploadedBy: u,
+    });
+    wd(F.vault, vault);
+    return res.json({ success: true });
+  }
   (req.files || []).forEach(f => vault[u].push({
     id: uuidv4(), type: 'file', name: f.originalname,
     url: `/uploads/${f.filename}`, mimeType: f.mimetype,
     size: f.size, uploadedAt: Date.now(), uploadedBy: u,
+    folder: parentFolder,
   }));
   if (req.body.link) vault[u].push({
     id: uuidv4(), type: 'link',
     name: req.body.linkName || req.body.link, url: req.body.link,
     uploadedAt: Date.now(), uploadedBy: u,
+    folder: parentFolder,
   });
+  wd(F.vault, vault);
+  res.json({ success: true });
+});
+
+app.put('/api/vault/:id', mainAuth, (req, res) => {
+  const s = rd(F.settings);
+  if (req.body.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });
+  const vault = rd(F.vault) || {};
+  let found = false;
+  for (const u of Object.keys(vault)) {
+    const item = (vault[u] || []).find(i => i.id === req.params.id);
+    if (item) {
+      if (req.body.name !== undefined) item.name = req.body.name;
+      if (req.body.folder !== undefined) item.folder = req.body.folder || null;
+      found = true; break;
+    }
+  }
+  if (!found) return res.status(404).json({ error: 'Item not found' });
   wd(F.vault, vault);
   res.json({ success: true });
 });

@@ -1020,6 +1020,58 @@ html, body { height: 100dvh; height: 100%; overflow: hidden; }
 }
 .vault-item:hover .vault-del-btn { opacity: 1; }
 
+/* Vault breadcrumb */
+.vault-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 20px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-card);
+  background: var(--bg-card);
+}
+.vault-bc-item {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+}
+.vault-bc-item:hover { background: var(--bg-hover); color: var(--accent); }
+.vault-bc-sep { color: var(--text-muted); font-size: 0.75rem; }
+
+/* Vault folder card */
+.vault-folder { cursor: pointer; }
+.vault-folder .vault-item-icon { color: var(--accent); }
+
+/* Vault item action buttons (rename/delete on hover) */
+.vault-item-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.vault-item:hover .vault-item-actions { opacity: 1; }
+.vault-action-btn {
+  background: var(--bg-main);
+  border: 1px solid var(--border-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.vault-action-btn:hover { background: var(--bg-hover); color: var(--accent); }
+.vault-action-del:hover { color: #ef4444; }
+
 /* Vault item thumbnail preview */
 .vault-item-thumb {
   width: 100%; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
