@@ -101,16 +101,38 @@ async function loadDbCache() {
   if (!db.pool) return;
   try {
     await db.createSchema();
+    // Migrate existing JSON messages into the SQL messages table (idempotent)
+    await migrateMessages();
     // Fire all DB reads in parallel instead of sequentially
     const results = await Promise.all(
       Object.keys(F).map(key => db.read(key).then(data => [key, data]))
     );
     results.forEach(([key, data]) => {
+      if (key === 'messages') return; // messages now live in their own SQL table
       if (data !== null) dataCache[key] = data;
     });
     console.log('[db] Cache loaded from Postgres');
   } catch (e) {
     console.error('[db] loadDbCache error:', e.message, '— continuing with JSON files');
+  }
+}
+
+// One-time migration: copy messages from messages.json into the messages SQL table.
+// Safe to run on every startup — ON CONFLICT DO NOTHING skips already-migrated rows.
+async function migrateMessages() {
+  if (!db.pool) return;
+  try {
+    const msgs = rd(F.messages);
+    const list = msgs?.main || [];
+    if (!list.length) return;
+    let migrated = 0;
+    for (const msg of list) {
+      await db.insertMessage(msg);
+      migrated++;
+    }
+    if (migrated) console.log(`[db] Migrated ${migrated} messages to SQL table`);
+  } catch (e) {
+    console.error('[db] migrateMessages error:', e.message);
   }
 }
 
@@ -497,24 +519,33 @@ app.get('/api/wallpaper', mainAuth, (_, res) => {
 // MESSAGES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/messages', mainAuth, (req, res) => {
+app.get('/api/messages', mainAuth, async (req, res) => {
+  const limit  = parseInt(req.query.limit)  || 50;
+  const before = parseInt(req.query.before) || null;
+  const after  = parseInt(req.query.after)  || null;
+  const q      = req.query.q || null;
+
+  if (db.pool) {
+    try {
+      const rows = await db.getMessages({ limit, before, after, search: q });
+      return res.json(rows);
+    } catch (e) {
+      console.error('[db] getMessages error:', e.message);
+    }
+  }
+
+  // Legacy JSON fallback
   const msgs = rd(F.messages);
   let main = msgs?.main || [];
-  // Pagination: ?limit=N&before=<timestamp>&after=<timestamp>&q=<text>
-  const limit  = parseInt(req.query.limit)  || 0;
-  const before = parseInt(req.query.before) || 0;
-  const after  = parseInt(req.query.after)  || 0;
-  const q      = req.query.q ? req.query.q.toLowerCase() : '';
   if (after)  main = main.filter(m => m.timestamp > after);
   if (before) main = main.filter(m => m.timestamp < before);
-  if (q)      main = main.filter(m => m.text?.toLowerCase().includes(q));
+  if (q)      main = main.filter(m => m.text?.toLowerCase().includes(q.toLowerCase()));
   if (limit && !q) main = main.slice(-limit);
   else if (limit)  main = main.slice(0, limit);
   res.json(main);
 });
 
 app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) => {
-  const msgs = rd(F.messages);
   const settings = rd(F.settings);
 
   const message = {
@@ -537,9 +568,23 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
     aiGenerated: false,
   };
 
-  if (!Array.isArray(msgs.main)) msgs.main = [];
-  msgs.main.push(message);
-  wd(F.messages, msgs);
+  if (db.pool) {
+    try {
+      await db.insertMessage(message);
+    } catch (e) {
+      console.error('[db] insertMessage error:', e.message);
+      // Fall through to legacy path on DB error
+      const msgs2 = rd(F.messages);
+      if (!Array.isArray(msgs2.main)) msgs2.main = [];
+      msgs2.main.push(message);
+      wd(F.messages, msgs2);
+    }
+  } else {
+    const msgs2 = rd(F.messages);
+    if (!Array.isArray(msgs2.main)) msgs2.main = [];
+    msgs2.main.push(message);
+    wd(F.messages, msgs2);
+  }
 
   // Priority email (supports multiple emails per person)
   let emailStatus = null;
@@ -572,11 +617,15 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
   }
 
   // Auto-expire unsend window (3 min)
-  setTimeout(() => {
+  setTimeout(async () => {
     try {
-      const m = rd(F.messages);
-      const i = (m.main || []).findIndex(x => x.id === message.id);
-      if (i !== -1) { m.main[i].unsendable = false; wd(F.messages, m); }
+      if (db.pool) {
+        await db.updateMessage(message.id, { unsendable: false });
+      } else {
+        const m = rd(F.messages);
+        const i = (m.main || []).findIndex(x => x.id === message.id);
+        if (i !== -1) { m.main[i].unsendable = false; wd(F.messages, m); }
+      }
       io.emit('msg-unsend-expire', message.id);
     } catch {}
   }, 3 * 60 * 1000);
@@ -600,9 +649,7 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
 });
 
 // Call event messages (missed call, call ended)
-app.post('/api/messages/call-event', mainAuth, (req, res) => {
-  const msgs = rd(F.messages);
-  if (!Array.isArray(msgs.main)) msgs.main = [];
+app.post('/api/messages/call-event', mainAuth, async (req, res) => {
   const event = {
     id: req.body.id || uuidv4(),
     sender: 'system',
@@ -618,13 +665,31 @@ app.post('/api/messages/call-event', mainAuth, (req, res) => {
     read: true,
     reactions: {},
   };
-  msgs.main.push(event);
-  wd(F.messages, msgs);
+  if (db.pool) {
+    try { await db.insertMessage(event); } catch (e) { console.error('[db] insertMessage error:', e.message); }
+  } else {
+    const msgs = rd(F.messages);
+    if (!Array.isArray(msgs.main)) msgs.main = [];
+    msgs.main.push(event);
+    wd(F.messages, msgs);
+  }
   io.emit('new-message', event);
   res.json({ success: true });
 });
 
-app.post('/api/messages/:id/read', mainAuth, (req, res) => {
+app.post('/api/messages/:id/read', mainAuth, async (req, res) => {
+  if (db.pool) {
+    try {
+      const msg = await db.getMessageById(req.params.id);
+      if (msg && msg.sender !== req.session.user) {
+        const readAt = Date.now();
+        await db.updateMessage(req.params.id, { read: true, readAt });
+        io.emit('msg-read', { id: req.params.id, readAt });
+      }
+    } catch (e) { console.error('[db] read-receipt error:', e.message); }
+    return res.json({ success: true });
+  }
+  // Legacy JSON fallback
   const msgs = rd(F.messages);
   const i = (msgs.main || []).findIndex(m => m.id === req.params.id);
   if (i !== -1 && msgs.main[i].sender !== req.session.user) {
@@ -635,8 +700,25 @@ app.post('/api/messages/:id/read', mainAuth, (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/messages/:id/react', mainAuth, (req, res) => {
+app.post('/api/messages/:id/react', mainAuth, async (req, res) => {
   const { emoji } = req.body;
+  if (db.pool) {
+    try {
+      const msg = await db.getMessageById(req.params.id);
+      if (msg) {
+        const reactions = msg.reactions || {};
+        if (!reactions[emoji]) reactions[emoji] = [];
+        const ui = reactions[emoji].indexOf(req.session.user);
+        if (ui === -1) reactions[emoji].push(req.session.user);
+        else reactions[emoji].splice(ui, 1);
+        if (reactions[emoji].length === 0) delete reactions[emoji];
+        await db.updateMessage(req.params.id, { reactions });
+        io.emit('msg-reaction', { id: req.params.id, reactions });
+      }
+    } catch (e) { console.error('[db] react error:', e.message); }
+    return res.json({ success: true });
+  }
+  // Legacy JSON fallback
   const msgs = rd(F.messages);
   const i = (msgs.main || []).findIndex(m => m.id === req.params.id);
   if (i !== -1) {
@@ -652,7 +734,19 @@ app.post('/api/messages/:id/react', mainAuth, (req, res) => {
   res.json({ success: true });
 });
 
-app.delete('/api/messages/:id', mainAuth, (req, res) => {
+app.delete('/api/messages/:id', mainAuth, async (req, res) => {
+  if (db.pool) {
+    try {
+      const msg = await db.getMessageById(req.params.id);
+      if (!msg) return res.json({ success: true });
+      if (msg.sender !== req.session.user) return res.status(403).json({ error: 'Forbidden' });
+      if (!msg.unsendable) return res.status(403).json({ error: 'Unsend window expired' });
+      await db.deleteMessage(req.params.id);
+      io.emit('msg-unsent', req.params.id);
+      return res.json({ success: true });
+    } catch (e) { console.error('[db] delete error:', e.message); return res.status(500).json({ error: 'DB error' }); }
+  }
+  // Legacy JSON fallback
   const msgs = rd(F.messages);
   const i = (msgs.main || []).findIndex(m => m.id === req.params.id);
   if (i === -1) return res.json({ success: true });
@@ -664,7 +758,19 @@ app.delete('/api/messages/:id', mainAuth, (req, res) => {
   res.json({ success: true });
 });
 
-app.put('/api/messages/:id', mainAuth, (req, res) => {
+app.put('/api/messages/:id', mainAuth, async (req, res) => {
+  if (db.pool) {
+    try {
+      const msg = await db.getMessageById(req.params.id);
+      if (msg && msg.sender === req.session.user) {
+        const editedAt = Date.now();
+        await db.updateMessage(req.params.id, { text: req.body.text, edited: true, editedAt });
+        io.emit('msg-edited', { id: req.params.id, text: req.body.text, editedAt });
+      }
+    } catch (e) { console.error('[db] edit error:', e.message); }
+    return res.json({ success: true });
+  }
+  // Legacy JSON fallback
   const msgs = rd(F.messages);
   const i = (msgs.main || []).findIndex(m => m.id === req.params.id);
   if (i !== -1 && msgs.main[i].sender === req.session.user) {
@@ -677,7 +783,28 @@ app.put('/api/messages/:id', mainAuth, (req, res) => {
 });
 
 // ── Pin / Unpin Messages ────────────────────────────────────────────────────
-app.post('/api/messages/:id/pin', mainAuth, (req, res) => {
+app.post('/api/messages/:id/pin', mainAuth, async (req, res) => {
+  if (db.pool) {
+    try {
+      const msg = await db.getMessageById(req.params.id);
+      if (!msg) return res.status(404).json({ error: 'Message not found' });
+      const pinnedAt = Date.now();
+      await db.updateMessage(req.params.id, { pinned: true, pinnedBy: req.session.user, pinnedAt });
+      const pinNotice = {
+        id: uuidv4(), sender: 'system', type: 'pin-notice', text: '',
+        files: [], priority: false, replyTo: null,
+        timestamp: pinnedAt, edited: false, editedAt: null,
+        reactions: {}, read: true, readAt: null, unsendable: false,
+        aiGenerated: false, systemMessage: true,
+        pinnedMsgId: msg.id, pinnedBy: req.session.user,
+      };
+      await db.insertMessage(pinNotice);
+      io.emit('msg-pinned', { id: msg.id, pinnedBy: req.session.user, pinnedAt });
+      io.emit('new-message', pinNotice);
+      return res.json({ success: true });
+    } catch (e) { console.error('[db] pin error:', e.message); return res.status(500).json({ error: 'DB error' }); }
+  }
+  // Legacy JSON fallback
   const msgs = rd(F.messages);
   const msg = (msgs.main || []).find(m => m.id === req.params.id);
   if (!msg) return res.status(404).json({ error: 'Message not found' });
@@ -685,7 +812,6 @@ app.post('/api/messages/:id/pin', mainAuth, (req, res) => {
   msg.pinnedBy = req.session.user;
   msg.pinnedAt = Date.now();
   wd(F.messages, msgs);
-  // Send system message about the pin
   const pinNotice = {
     id: uuidv4(), sender: 'system', type: 'pin-notice', text: '',
     files: [], priority: false, replyTo: null,
@@ -701,7 +827,17 @@ app.post('/api/messages/:id/pin', mainAuth, (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/messages/:id/unpin', mainAuth, (req, res) => {
+app.post('/api/messages/:id/unpin', mainAuth, async (req, res) => {
+  if (db.pool) {
+    try {
+      const msg = await db.getMessageById(req.params.id);
+      if (!msg) return res.status(404).json({ error: 'Message not found' });
+      await db.updateMessage(req.params.id, { pinned: false, pinnedBy: null, pinnedAt: null });
+      io.emit('msg-unpinned', { id: msg.id });
+      return res.json({ success: true });
+    } catch (e) { console.error('[db] unpin error:', e.message); return res.status(500).json({ error: 'DB error' }); }
+  }
+  // Legacy JSON fallback
   const msgs = rd(F.messages);
   const msg = (msgs.main || []).find(m => m.id === req.params.id);
   if (!msg) return res.status(404).json({ error: 'Message not found' });
@@ -713,7 +849,14 @@ app.post('/api/messages/:id/unpin', mainAuth, (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/messages/pinned', mainAuth, (_, res) => {
+app.get('/api/messages/pinned', mainAuth, async (_, res) => {
+  if (db.pool) {
+    try {
+      const pinned = await db.getPinnedMessages();
+      return res.json(pinned);
+    } catch (e) { console.error('[db] getPinned error:', e.message); }
+  }
+  // Legacy JSON fallback
   const msgs = rd(F.messages);
   const pinned = (msgs.main || []).filter(m => m.pinned);
   res.json(pinned);
@@ -1479,8 +1622,9 @@ app.post('/api/backdoor/destroy', async (req, res) => {
       [{ filename: `vault-backup-${Date.now()}.json`, content: JSON.stringify(bundle, null, 2) }]
     );
 
-    // Wipe data files
+    // Wipe data files and SQL messages table
     for (const file of Object.values(F)) { if (fs.existsSync(file)) fs.removeSync(file); }
+    if (db.pool) { try { await db.clearMessages(); } catch {} }
     fs.emptyDirSync(UPLOADS_DIR);
     initData();
     io.emit('force-logout');
@@ -1496,21 +1640,18 @@ app.post('/api/backdoor/erase-messages', async (req, res) => {
     return res.status(403).json({ error: 'Invalid code' });
   }
   try {
-    // Backup messages before erasing
-    const messages = rd(F.messages) || [];
-    if (messages.length > 0) {
-      await sendMail(
-        'royalkvault@gmail.com',
-        '🔒 Royal Kat & Kai Vault — Chat History Backup (Pre-Erase)',
-        `<h2>Chat History Backup</h2><p>${messages.length} messages backed up before erasure.</p>`,
-        [{ filename: `chat-backup-${Date.now()}.json`, content: JSON.stringify(messages, null, 2) }]
-      );
+    let msgCount = 0;
+    if (db.pool) {
+      const r = await db.query('SELECT COUNT(*) FROM messages');
+      msgCount = parseInt(r.rows[0].count);
+      await db.clearMessages();
+    } else {
+      const messages = rd(F.messages) || [];
+      msgCount = messages.length;
+      wd(F.messages, []);
     }
-
-    // Erase only messages
-    wd(F.messages, []);
     io.emit('messages-cleared');
-    res.json({ success: true, message: `${messages.length} messages erased.`, count: messages.length });
+    res.json({ success: true, message: `${msgCount} messages erased.`, count: msgCount });
   } catch (e) {
     console.error('Erase messages error:', e);
     res.status(500).json({ error: e.message });
@@ -1541,8 +1682,31 @@ app.post('/api/backdoor/import', express.json({ limit: '50mb' }), async (req, re
     return [...(current || []), ...incoming.filter(i => i.id && !ids.has(i.id))];
   }
 
+  // ── Handle messages table separately ──────────────────────────────────────
+  if (backup.messages !== undefined && db.pool) {
+    const incomingMsgs = backup.messages?.main || (Array.isArray(backup.messages) ? backup.messages : []);
+    if (mode === 'replace') {
+      await db.clearMessages();
+    }
+    let imported = 0;
+    for (const msg of incomingMsgs) {
+      try { await db.insertMessage(msg); imported++; } catch {}
+    }
+    report.messages = mode === 'replace' ? `replaced (${imported} rows)` : `merged (${imported} rows, duplicates skipped)`;
+  } else if (backup.messages !== undefined && !db.pool) {
+    // Legacy JSON path for messages
+    if (mode === 'replace') {
+      wd(F.messages, backup.messages);
+      report.messages = 'replaced';
+    } else {
+      const current = rd(F.messages);
+      const merged = { main: mergeArr(current?.main, backup.messages?.main), brainstorm: mergeArr(current?.brainstorm, backup.messages?.brainstorm) };
+      wd(F.messages, merged);
+      report.messages = 'merged';
+    }
+  }
+
   const fileMap = [
-    ['messages',      F.messages],
     ['users',         F.users],
     ['notes',         F.notes],
     ['contacts',      F.contacts],
@@ -1565,9 +1729,7 @@ app.post('/api/backdoor/import', express.json({ limit: '50mb' }), async (req, re
     } else {
       const current = rd(filePath);
       let merged;
-      if (key === 'messages') {
-        merged = { main: mergeArr(current?.main, incoming?.main), brainstorm: mergeArr(current?.brainstorm, incoming?.brainstorm) };
-      } else if (key === 'notes' || key === 'vault') {
+      if (key === 'notes' || key === 'vault') {
         merged = { ...(current || {}) };
         for (const u of ['kaliph', 'kathrine']) merged[u] = mergeArr(merged[u], incoming?.[u]);
       } else if (key === 'calendar') {
@@ -1680,42 +1842,55 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
   // ── MESSAGES ──
   if (cmd === 'messages') {
     const sub = parts[1]?.toLowerCase();
-    const msgs = rd(F.messages);
-    const main = msgs?.main || [];
 
     if (!sub) {
-      const kCount = main.filter(m => m.sender === 'kaliph').length;
-      const keCount = main.filter(m => m.sender === 'kathrine').length;
-      const aiCount = main.filter(m => m.sender === 'ai').length;
-      const pCount = main.filter(m => m.priority).length;
+      if (db.pool) {
+        const total = (await db.query('SELECT COUNT(*) FROM messages')).rows[0].count;
+        const kCount = (await db.query("SELECT COUNT(*) FROM messages WHERE sender='kaliph'")).rows[0].count;
+        const keCount = (await db.query("SELECT COUNT(*) FROM messages WHERE sender='kathrine'")).rows[0].count;
+        const aiCount = (await db.query("SELECT COUNT(*) FROM messages WHERE sender='ai'")).rows[0].count;
+        const pCount = (await db.query('SELECT COUNT(*) FROM messages WHERE priority=true')).rows[0].count;
+        const fCount = (await db.query("SELECT COUNT(*) FROM messages WHERE files != '[]'")).rows[0].count;
+        return multi(
+          [`Total messages: ${total}`, 'success'],
+          [`  Kaliph: ${kCount}  |  Kathrine: ${keCount}  |  AI: ${aiCount}`, 'data'],
+          [`  Priority: ${pCount}  |  With files: ${fCount}`, 'data'],
+        );
+      }
+      const main = rd(F.messages)?.main || [];
       return multi(
         [`Total messages: ${main.length}`, 'success'],
-        [`  Kaliph: ${kCount}  |  Kathrine: ${keCount}  |  AI: ${aiCount}`, 'data'],
-        [`  Priority: ${pCount}  |  With files: ${main.filter(m => m.files?.length).length}`, 'data'],
+        [`  Kaliph: ${main.filter(m => m.sender === 'kaliph').length}  |  Kathrine: ${main.filter(m => m.sender === 'kathrine').length}  |  AI: ${main.filter(m => m.sender === 'ai').length}`, 'data'],
+        [`  Priority: ${main.filter(m => m.priority).length}  |  With files: ${main.filter(m => m.files?.length).length}`, 'data'],
       );
     }
     if (sub === 'list') {
       const count = parseInt(parts[2]) || 20;
-      const slice = main.slice(-count);
-      return { messages: slice };
+      if (db.pool) {
+        const slice = await db.getMessages({ limit: count });
+        return { messages: slice };
+      }
+      return { messages: (rd(F.messages)?.main || []).slice(-count) };
     }
     if (sub === 'from') {
       const user = parts[2]?.toLowerCase();
       if (!user) return lines('Usage: messages from <user>', 'warn');
-      const filtered = main.filter(m => m.sender === user);
-      return {
-        lines: [{ text: `${filtered.length} messages from ${user}`, cls: 'success' }],
-        messages: filtered.slice(-30),
-      };
+      if (db.pool) {
+        const filtered = await db.getMessages({ limit: 30, sender: user });
+        return { lines: [{ text: `${filtered.length} messages from ${user} (last 30)`, cls: 'success' }], messages: filtered };
+      }
+      const filtered = (rd(F.messages)?.main || []).filter(m => m.sender === user);
+      return { lines: [{ text: `${filtered.length} messages from ${user}`, cls: 'success' }], messages: filtered.slice(-30) };
     }
     if (sub === 'search') {
-      const query = parts.slice(2).join(' ').toLowerCase();
-      if (!query) return lines('Usage: messages search <text>', 'warn');
-      const found = main.filter(m => m.text?.toLowerCase().includes(query));
-      return {
-        lines: [{ text: `${found.length} messages matching "${query}"`, cls: 'success' }],
-        messages: found.slice(-30),
-      };
+      const searchQ = parts.slice(2).join(' ');
+      if (!searchQ) return lines('Usage: messages search <text>', 'warn');
+      if (db.pool) {
+        const found = await db.getMessages({ limit: 30, search: searchQ });
+        return { lines: [{ text: `${found.length} messages matching "${searchQ}" (last 30)`, cls: 'success' }], messages: found };
+      }
+      const found = (rd(F.messages)?.main || []).filter(m => m.text?.toLowerCase().includes(searchQ.toLowerCase()));
+      return { lines: [{ text: `${found.length} messages matching "${searchQ}"`, cls: 'success' }], messages: found.slice(-30) };
     }
   }
 
@@ -1723,6 +1898,13 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
   if (cmd === 'delete' && parts[1]?.toLowerCase() === 'msg') {
     const id = parts[2];
     if (!id) return lines('Usage: delete msg <id>', 'warn');
+    if (db.pool) {
+      const msg = await db.getMessageById(id);
+      if (!msg) return lines('Message not found', 'error');
+      await db.deleteMessage(id);
+      io.emit('msg-unsent', id);
+      return lines(`Deleted message from ${msg.sender}: "${(msg.text || '').substring(0, 60)}"`, 'success');
+    }
     const msgs = rd(F.messages);
     const i = (msgs.main || []).findIndex(m => m.id === id);
     if (i === -1) return lines('Message not found', 'error');
@@ -1736,6 +1918,21 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
   if (cmd === 'unsend') {
     const id = parts[1];
     if (!id) return lines('Usage: unsend <message-id>', 'warn');
+    if (db.pool) {
+      const msg = await db.getMessageById(id);
+      if (!msg) {
+        // Try prefix match via query
+        const r = await db.query('SELECT * FROM messages WHERE id LIKE $1 LIMIT 1', [id + '%']);
+        if (!r.rows.length) return lines('Message not found', 'error');
+        const found = db.rowToMsg ? db.rowToMsg(r.rows[0]) : r.rows[0];
+        await db.updateMessage(found.id, { unsendable: true });
+        io.emit('msg-unsend-allowed', { id: found.id });
+        return lines(`Marked message from ${found.sender} as unsendable: "${(found.text || found.content || '').substring(0, 60)}"`, 'success');
+      }
+      await db.updateMessage(msg.id, { unsendable: true });
+      io.emit('msg-unsend-allowed', { id: msg.id });
+      return lines(`Marked message from ${msg.sender} as unsendable (bypasses time limit): "${(msg.text || '').substring(0, 60)}"`, 'success');
+    }
     const msgs = rd(F.messages);
     const i = (msgs.main || []).findIndex(m => m.id === id || m.id.startsWith(id));
     if (i === -1) return lines('Message not found', 'error');
@@ -1747,8 +1944,12 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
 
   // ── EDIT MODE ──
   if (raw.toLowerCase() === 'edit mode') {
-    const msgs = rd(F.messages);
-    const main = (msgs?.main || []).slice(-50);
+    let main;
+    if (db.pool) {
+      main = await db.getMessages({ limit: 50 });
+    } else {
+      main = (rd(F.messages)?.main || []).slice(-50);
+    }
     return {
       setMode: 'edit', modeInfo: `${main.length} messages shown — click Delete to remove`,
       lines: [{ text: `Edit mode: showing last ${main.length} messages. Use "exit" to leave.`, cls: 'warn' }],
@@ -1760,8 +1961,6 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
   if (cmd === 'broadcast') {
     const text = parts.slice(1).join(' ');
     if (!text) return lines('Usage: broadcast <message>', 'warn');
-    const msgs = rd(F.messages);
-    if (!Array.isArray(msgs.main)) msgs.main = [];
     const msg = {
       id: uuidv4(), sender: 'system', type: 'text', text,
       files: [], priority: false, replyTo: null,
@@ -1769,8 +1968,14 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       reactions: {}, read: false, readAt: null, unsendable: false,
       aiGenerated: false, systemMessage: true,
     };
-    msgs.main.push(msg);
-    wd(F.messages, msgs);
+    if (db.pool) {
+      await db.insertMessage(msg);
+    } else {
+      const msgs = rd(F.messages);
+      if (!Array.isArray(msgs.main)) msgs.main = [];
+      msgs.main.push(msg);
+      wd(F.messages, msgs);
+    }
     io.emit('new-message', msg);
     return lines(`Broadcast sent: "${text}"`, 'success');
   }
@@ -2194,8 +2399,9 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
 
     if (cmd === 'messages') {
       const count = parseInt(parts[1]) || 20;
-      const msgs = rd(F.messages);
-      const userMsgs = (msgs.main || []).filter(m => m.sender === browseUser).slice(-count);
+      const userMsgs = db.pool
+        ? await db.getMessages({ limit: count, sender: browseUser })
+        : (rd(F.messages)?.main || []).filter(m => m.sender === browseUser).slice(-count);
       if (!userMsgs.length) return lines(`No messages from ${browseUser}`, 'dim');
       const out = [{ text: `── Last ${userMsgs.length} messages from ${browseUser} ──`, cls: 'header' }];
       userMsgs.forEach(m => {
@@ -2263,8 +2469,13 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       const users = rd(F.users);
       const u = users[browseUser];
       const presence = onlineUsers[browseUser]?.state || 'offline';
-      const msgs = rd(F.messages);
-      const unread = (msgs.main || []).filter(m => m.sender !== browseUser && !m.read).length;
+      let unread = 0;
+      if (db.pool) {
+        const r = await db.query('SELECT COUNT(*) FROM messages WHERE sender != $1 AND is_read = false', [browseUser]);
+        unread = parseInt(r.rows[0].count);
+      } else {
+        unread = (rd(F.messages)?.main || []).filter(m => m.sender !== browseUser && !m.read).length;
+      }
       return multi(
         [`── ${u.displayName || browseUser} Status ──`, 'header'],
         [`  Presence:  ${presence}`, 'data'],
@@ -2367,7 +2578,6 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
 
   // ── STATS ──
   if (cmd === 'stats') {
-    const msgs = rd(F.messages);
     const notes = rd(F.notes);
     const contacts = rd(F.contacts);
     const calendar = rd(F.calendar);
@@ -2375,11 +2585,18 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     const guests = rd(F.guests);
     const anns = rd(F.announcements);
     const sugs = rd(F.suggestions);
-    const mainMsgs = msgs?.main || [];
+    let msgCount = 0;
+    if (db.pool) {
+      const r = await db.query('SELECT COUNT(*) FROM messages');
+      msgCount = parseInt(r.rows[0].count);
+    } else {
+      msgCount = (rd(F.messages)?.main || []).length;
+    }
+    const bsCount = (rd(F.messages)?.brainstorm || []).length;
     return multi(
       ['── Site Statistics ──', 'header'],
-      [`  Messages:      ${mainMsgs.length}`, 'data'],
-      [`  Brainstorm:    ${(msgs?.brainstorm || []).length}`, 'data'],
+      [`  Messages:      ${msgCount}`, 'data'],
+      [`  Brainstorm:    ${bsCount}`, 'data'],
       [`  Notes:         K: ${(notes?.kaliph || []).length}  Ke: ${(notes?.kathrine || []).length}`, 'data'],
       [`  Contacts:      ${(contacts || []).length}`, 'data'],
       [`  Calendar:      K: ${(calendar?.kaliph || []).length}  Ke: ${(calendar?.kathrine || []).length}  Shared: ${(calendar?.shared || []).length}`, 'data'],
@@ -2565,13 +2782,19 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     const id = parts[2];
     const newText = parts.slice(3).join(' ');
     if (!id || !newText) return lines('Usage: modify msg <id> <new text>', 'warn');
+    if (db.pool) {
+      const msg = await db.getMessageById(id);
+      if (!msg) return lines('Message not found', 'error');
+      const editedAt = Date.now();
+      await db.updateMessage(id, { text: newText, edited: true, editedAt });
+      io.emit('msg-edited', { id: msg.id, text: newText, editedAt });
+      return lines(`Modified message: "${(msg.text || '').substring(0, 40)}" → "${newText.substring(0, 40)}"`, 'success');
+    }
     const msgs = rd(F.messages);
     const msg = (msgs.main || []).find(m => m.id === id || m.id.startsWith(id));
     if (!msg) return lines('Message not found', 'error');
     const oldText = msg.text;
-    msg.text = newText;
-    msg.edited = true;
-    msg.editedAt = Date.now();
+    msg.text = newText; msg.edited = true; msg.editedAt = Date.now();
     wd(F.messages, msgs);
     io.emit('msg-edited', { id: msg.id, text: newText, editedAt: msg.editedAt });
     return lines(`Modified message: "${(oldText || '').substring(0, 40)}" → "${newText.substring(0, 40)}"`, 'success');
@@ -2581,6 +2804,14 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
   if (raw.toLowerCase().startsWith('clear reactions')) {
     const id = parts[2];
     if (!id) return lines('Usage: clear reactions <id>', 'warn');
+    if (db.pool) {
+      const msg = await db.getMessageById(id);
+      if (!msg) return lines('Message not found', 'error');
+      const count = Object.keys(msg.reactions || {}).length;
+      await db.updateMessage(id, { reactions: {} });
+      io.emit('msg-reaction', { id: msg.id, reactions: {} });
+      return lines(`Cleared ${count} reaction(s) from message`, 'success');
+    }
     const msgs = rd(F.messages);
     const msg = (msgs.main || []).find(m => m.id === id || m.id.startsWith(id));
     if (!msg) return lines('Message not found', 'error');
@@ -2595,12 +2826,19 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
   if (raw.toLowerCase().startsWith('clear edited')) {
     const id = parts[2];
     if (!id) return lines('Usage: clear edited <message-id>', 'warn');
+    if (db.pool) {
+      const msg = await db.getMessageById(id);
+      if (!msg) return lines('Message not found', 'error');
+      if (!msg.edited) return lines('Message is not marked as edited', 'warn');
+      await db.updateMessage(id, { edited: false, editedAt: null });
+      io.emit('msg-edit-cleared', { id: msg.id });
+      return lines(`Cleared edited indicator from message by ${msg.sender}`, 'success');
+    }
     const msgs = rd(F.messages);
     const msg = (msgs.main || []).find(m => m.id === id || m.id.startsWith(id));
     if (!msg) return lines('Message not found', 'error');
     if (!msg.edited) return lines('Message is not marked as edited', 'warn');
-    msg.edited = false;
-    msg.editedAt = null;
+    msg.edited = false; msg.editedAt = null;
     wd(F.messages, msgs);
     io.emit('msg-edit-cleared', { id: msg.id });
     return lines(`Cleared edited indicator from message by ${msg.sender}`, 'success');
@@ -2613,8 +2851,6 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     if (!user || !text) return lines('Usage: send as <user> <text>', 'warn');
     const users = rd(F.users);
     if (!users[user]) return lines(`User "${user}" not found`, 'error');
-    const msgs = rd(F.messages);
-    if (!Array.isArray(msgs.main)) msgs.main = [];
     const msg = {
       id: uuidv4(), sender: user, type: 'text', text,
       files: [], priority: false, replyTo: null,
@@ -2622,8 +2858,14 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       reactions: {}, read: false, readAt: null, unsendable: false,
       formatting: null, aiGenerated: false,
     };
-    msgs.main.push(msg);
-    wd(F.messages, msgs);
+    if (db.pool) {
+      await db.insertMessage(msg);
+    } else {
+      const msgs = rd(F.messages);
+      if (!Array.isArray(msgs.main)) msgs.main = [];
+      msgs.main.push(msg);
+      wd(F.messages, msgs);
+    }
     io.emit('new-message', msg);
     return lines(`Sent as ${user}: "${text}"`, 'success');
   }
@@ -2631,33 +2873,49 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
   // ── PURGE ──
   if (cmd === 'purge') {
     const sub = parts[1]?.toLowerCase();
-    const msgs = rd(F.messages);
-    const main = msgs?.main || [];
     let removed = 0;
 
     if (sub === 'from') {
       const user = parts[2]?.toLowerCase();
       if (!user) return lines('Usage: purge from <user>', 'warn');
-      const before = main.length;
-      msgs.main = main.filter(m => m.sender !== user);
-      removed = before - msgs.main.length;
-      wd(F.messages, msgs);
+      if (db.pool) {
+        const r = await db.query('DELETE FROM messages WHERE sender = $1', [user]);
+        removed = r.rowCount;
+      } else {
+        const msgs = rd(F.messages);
+        const before = (msgs?.main || []).length;
+        msgs.main = (msgs?.main || []).filter(m => m.sender !== user);
+        removed = before - msgs.main.length;
+        wd(F.messages, msgs);
+      }
     } else if (sub === 'before') {
       const dateStr = parts[2];
       if (!dateStr) return lines('Usage: purge before <YYYY-MM-DD>', 'warn');
       const cutoff = new Date(dateStr).getTime();
       if (isNaN(cutoff)) return lines('Invalid date format. Use YYYY-MM-DD', 'error');
-      const before = main.length;
-      msgs.main = main.filter(m => m.timestamp >= cutoff);
-      removed = before - msgs.main.length;
-      wd(F.messages, msgs);
+      if (db.pool) {
+        const r = await db.query('DELETE FROM messages WHERE timestamp < $1', [cutoff]);
+        removed = r.rowCount;
+      } else {
+        const msgs = rd(F.messages);
+        const before = (msgs?.main || []).length;
+        msgs.main = (msgs?.main || []).filter(m => m.timestamp >= cutoff);
+        removed = before - msgs.main.length;
+        wd(F.messages, msgs);
+      }
     } else if (sub === 'keyword') {
-      const kw = parts.slice(2).join(' ').toLowerCase();
+      const kw = parts.slice(2).join(' ');
       if (!kw) return lines('Usage: purge keyword <text>', 'warn');
-      const before = main.length;
-      msgs.main = main.filter(m => !m.text?.toLowerCase().includes(kw));
-      removed = before - msgs.main.length;
-      wd(F.messages, msgs);
+      if (db.pool) {
+        const r = await db.query('DELETE FROM messages WHERE content ILIKE $1', [`%${kw}%`]);
+        removed = r.rowCount;
+      } else {
+        const msgs = rd(F.messages);
+        const before = (msgs?.main || []).length;
+        msgs.main = (msgs?.main || []).filter(m => !m.text?.toLowerCase().includes(kw.toLowerCase()));
+        removed = before - msgs.main.length;
+        wd(F.messages, msgs);
+      }
     } else {
       return lines('Usage: purge from <user> | purge before <date> | purge keyword <text>', 'warn');
     }
@@ -2963,15 +3221,14 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
 
   // ── PINNED LIST ──
   if (raw.toLowerCase() === 'pinned list') {
-    const msgs = rd(F.messages);
-    const channels = Object.keys(msgs || {});
-    const rows = [];
-    channels.forEach(ch => {
-      (msgs[ch] || []).filter(m => m.pinned).forEach(m => {
-        rows.push([ch, m.id.slice(-6), m.sender || '-', (m.text || '').substring(0, 60)]);
-      });
-    });
-    if (!rows.length) return lines('No pinned messages', 'dim');
+    let pinned;
+    if (db.pool) {
+      pinned = await db.getPinnedMessages();
+    } else {
+      pinned = (rd(F.messages)?.main || []).filter(m => m.pinned);
+    }
+    if (!pinned.length) return lines('No pinned messages', 'dim');
+    const rows = pinned.map(m => ['main', m.id.slice(-6), m.sender || '-', (m.text || '').substring(0, 60)]);
     return { table: { headers: ['Channel', 'Msg ID', 'Sender', 'Text'], rows } };
   }
 
