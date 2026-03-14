@@ -101,10 +101,13 @@ async function loadDbCache() {
   if (!db.pool) return;
   try {
     await db.createSchema();
-    for (const key of Object.keys(F)) {
-      const data = await db.read(key);
+    // Fire all DB reads in parallel instead of sequentially
+    const results = await Promise.all(
+      Object.keys(F).map(key => db.read(key).then(data => [key, data]))
+    );
+    results.forEach(([key, data]) => {
       if (data !== null) dataCache[key] = data;
-    }
+    });
     console.log('[db] Cache loaded from Postgres');
   } catch (e) {
     console.error('[db] loadDbCache error:', e.message, '— continuing with JSON files');
@@ -187,9 +190,9 @@ initData();
 if (compression) app.use(compression());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
 // Serve uploads from persistent volume when UPLOADS_DIR is external
-if (process.env.UPLOADS_DIR) app.use('/uploads', express.static(UPLOADS_DIR));
+if (process.env.UPLOADS_DIR) app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '7d' }));
 app.use(session({
   store: new FileStore({ path: path.join(DATA_DIR, 'sessions'), ttl: 7200, retries: 0, logFn: () => {} }),
   secret: process.env.SESSION_SECRET,

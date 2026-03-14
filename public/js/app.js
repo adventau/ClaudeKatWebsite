@@ -196,8 +196,8 @@ async function init() {
   // Init Lucide icons so UI is visible
   if (window.lucide) lucide.createIcons();
 
-  // ── Phase 2: Load all data before revealing UI ──
-  await Promise.all([loadMessages(), loadAnnouncements(), loadNotes(), loadContacts(), loadGuestMessages()]).catch(console.error);
+  // ── Phase 2: Load messages first so chat is visible ASAP ──
+  await loadMessages();
 
   // Count initial unread messages (from other user, after last read time)
   if (chatLastReadTs) {
@@ -209,11 +209,14 @@ async function init() {
   // Mark as read since chat is the default section (skip in stealth)
   if (currentSection === 'chat' && !stealthMode) clearUnreadBadge();
 
-  checkAndShowAnnouncements();
-  if (!stealthMode) requestNotificationPermission();
-
-  // Reveal chat content now that messages are loaded
+  // Reveal chat immediately — don't wait for secondary data
   document.body.classList.add('app-loaded');
+
+  // Load everything else in background — notes, contacts, guests, announcements
+  Promise.all([loadAnnouncements(), loadNotes(), loadContacts(), loadGuestMessages()])
+    .then(() => checkAndShowAnnouncements())
+    .catch(console.error);
+  if (!stealthMode) requestNotificationPermission();
 
   // Show update log if user hasn't dismissed the latest version
   if (!stealthMode) checkAndShowUpdateLog();
