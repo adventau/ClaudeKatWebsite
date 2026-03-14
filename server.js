@@ -209,6 +209,10 @@ function initData() {
 initData();
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+// Trust Railway's (and any other single) reverse proxy so req.secure = true
+// when the upstream connection is HTTPS. Without this, express-session refuses
+// to set the session cookie (cookie.secure:true) because it sees HTTP internally.
+app.set('trust proxy', 1);
 if (compression) app.use(compression());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
