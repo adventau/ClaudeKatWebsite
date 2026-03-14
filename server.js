@@ -215,8 +215,44 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
 // Serve uploads from persistent volume when UPLOADS_DIR is external
 if (process.env.UPLOADS_DIR) app.use('/uploads', express.static(UPLOADS_DIR, { maxAge: '7d' }));
+// Postgres-backed session store — used when DATABASE_URL is set so sessions
+// survive deployments and don't depend on the ephemeral filesystem.
+class PgStore extends session.Store {
+  async get(sid, cb) {
+    try {
+      const r = await db.query(
+        'SELECT data FROM sessions WHERE sid = $1 AND expires > $2',
+        [sid, Date.now()]
+      );
+      cb(null, r.rows.length ? r.rows[0].data : null);
+    } catch (e) { cb(e); }
+  }
+  async set(sid, sess, cb) {
+    const ttl = sess.cookie?.expires
+      ? new Date(sess.cookie.expires).getTime()
+      : Date.now() + 2 * 60 * 60 * 1000;
+    try {
+      await db.query(
+        'INSERT INTO sessions (sid, data, expires) VALUES ($1, $2, $3) ' +
+        'ON CONFLICT (sid) DO UPDATE SET data = $2, expires = $3',
+        [sid, JSON.stringify(sess), ttl]
+      );
+      cb(null);
+    } catch (e) { cb(e); }
+  }
+  async destroy(sid, cb) {
+    try { await db.query('DELETE FROM sessions WHERE sid = $1', [sid]); cb(null); }
+    catch (e) { cb(e); }
+  }
+  async touch(sid, sess, cb) { return this.set(sid, sess, cb); }
+}
+
+const sessionStore = db.pool
+  ? new PgStore()
+  : new FileStore({ path: path.join(DATA_DIR, 'sessions'), ttl: 7200, retries: 0, logFn: () => {} });
+
 app.use(session({
-  store: new FileStore({ path: path.join(DATA_DIR, 'sessions'), ttl: 7200, retries: 0, logFn: () => {} }),
+  store: sessionStore,
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
@@ -3314,9 +3350,16 @@ io.on('connection', socket => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, async () => {
-  // Load all app data from Postgres into the in-memory cache (if DATABASE_URL is set)
-  await loadDbCache();
+
+// Create schema (including sessions table) BEFORE accepting connections so the
+// PgStore can save sessions for the very first request after a cold start.
+(async () => {
+  if (db.pool) {
+    try { await db.createSchema(); } catch (e) { console.error('[db] Early schema error:', e.message); }
+  }
+  server.listen(PORT, async () => {
+    // Load all app data from Postgres into the in-memory cache (if DATABASE_URL is set)
+    await loadDbCache();
 
   console.log(`\n🏰 ══════════════════════════════════════════ 🏰`);
   console.log(`   The Royal Kat & Kai Vault`);
@@ -3330,4 +3373,5 @@ server.listen(PORT, async () => {
     console.log(`   Email      → ❌ EmailJS not configured`);
   }
   console.log(`🏰 ══════════════════════════════════════════ 🏰\n`);
-});
+  });
+})();

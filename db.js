@@ -50,7 +50,20 @@ async function createSchema() {
       updated_at BIGINT
     )
   `);
+  await createSessionsTable();
   await createMessagesTable();
+}
+
+// ── Sessions table (for Postgres-backed express-session store) ────────────────
+async function createSessionsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      sid     TEXT   PRIMARY KEY,
+      data    JSONB  NOT NULL,
+      expires BIGINT NOT NULL
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions (expires)`);
 }
 
 // ── Messages table ────────────────────────────────────────────────────────────
