@@ -54,6 +54,9 @@ let stealthRealUser = null;  // The actual logged-in user when in stealth
 let currentUser = null;
 let otherUser   = null;
 let allMessages = [];
+let hasMoreMessages = false;
+let loadingMoreMessages = false;
+const MSG_PAGE_SIZE = 50;
 let brainstormMessages = [];
 let replyToId   = null;
 let ctxMsgId    = null;
@@ -612,19 +615,124 @@ function closeMobileSidebar() {
 
 // ── Messages ──────────────────────────────────────────────────────────
 async function loadMessages() {
-  const data = await fetch('/api/messages').then(r => r.json());
+  const data = await fetch(`/api/messages?limit=${MSG_PAGE_SIZE}`).then(r => r.json());
   allMessages = Array.isArray(data) ? data : [];
+  hasMoreMessages = allMessages.length >= MSG_PAGE_SIZE;
   renderMessages();
+}
+
+async function loadOlderMessages() {
+  if (loadingMoreMessages || !hasMoreMessages || allMessages.length === 0) return;
+  loadingMoreMessages = true;
+
+  const sentinel = document.getElementById('load-more-top');
+  if (sentinel) sentinel.classList.add('loading');
+
+  try {
+    const oldestTs = allMessages[0].timestamp;
+    const data = await fetch(`/api/messages?limit=${MSG_PAGE_SIZE}&before=${oldestTs}`).then(r => r.json());
+    const older = Array.isArray(data) ? data : [];
+
+    if (older.length === 0) {
+      hasMoreMessages = false;
+      if (sentinel) sentinel.remove();
+      return;
+    }
+
+    hasMoreMessages = older.length >= MSG_PAGE_SIZE;
+
+    // Prepend to allMessages (deduplicate just in case)
+    const existingIds = new Set(allMessages.map(m => m.id));
+    const newOnes = older.filter(m => !existingIds.has(m.id));
+    allMessages = [...newOnes, ...allMessages];
+
+    // Preserve scroll position while inserting at top
+    const area = document.getElementById('messages-area');
+    const prevScrollHeight = area.scrollHeight;
+
+    // Build a fragment of all older message elements in order
+    const frag = document.createDocumentFragment();
+
+    // Add updated sentinel first (or remove if no more)
+    if (!hasMoreMessages) {
+      if (sentinel) sentinel.remove();
+    } else if (sentinel) {
+      sentinel.classList.remove('loading');
+    }
+
+    // Determine the first existing msg element to insert before
+    const firstExisting = area.querySelector('.msg-row[data-msg-id], .date-sep');
+
+    let lastDate = null;
+    let prevMsgSender = null;
+    let prevMsgTs = null;
+    let prevWasSystem = false;
+
+    newOnes.forEach(msg => {
+      const msgDate = new Date(msg.timestamp).toDateString();
+      if (msgDate !== lastDate) {
+        lastDate = msgDate;
+        const sep = document.createElement('div');
+        sep.className = 'date-sep';
+        sep.textContent = formatDate(msg.timestamp);
+        frag.appendChild(sep);
+      }
+      const isSystem = msg.type === 'call-event' || msg.type === 'pin-notice';
+      const grouped = !isSystem
+        && prevMsgSender === msg.sender
+        && prevMsgTs !== null
+        && (msg.timestamp - prevMsgTs) < 5 * 60 * 1000;
+      prevMsgSender = msg.sender;
+      prevMsgTs = msg.timestamp;
+      prevWasSystem = isSystem;
+      frag.appendChild(buildMsgElement(msg, grouped));
+    });
+
+    if (firstExisting) {
+      area.insertBefore(frag, firstExisting);
+    } else {
+      area.appendChild(frag);
+    }
+
+    // Restore scroll position so the user stays where they were
+    area.scrollTop += area.scrollHeight - prevScrollHeight;
+  } catch (e) {
+    console.error('loadOlderMessages error', e);
+  } finally {
+    loadingMoreMessages = false;
+    const s = document.getElementById('load-more-top');
+    if (s) s.classList.remove('loading');
+  }
+}
+
+let _loadMoreObserver = null;
+function setupLoadMoreObserver() {
+  if (_loadMoreObserver) { _loadMoreObserver.disconnect(); _loadMoreObserver = null; }
+  const sentinel = document.getElementById('load-more-top');
+  if (!sentinel) return;
+  _loadMoreObserver = new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting) loadOlderMessages();
+  }, { root: document.getElementById('messages-area'), threshold: 0 });
+  _loadMoreObserver.observe(sentinel);
 }
 
 function renderMessages(filter = null) {
   const area = document.getElementById('messages-area');
-  const msgs = filter ? allMessages.filter(m => m.text.toLowerCase().includes(filter.toLowerCase())) : allMessages;
+  const msgs = filter ? allMessages.filter(m => m.text?.toLowerCase().includes(filter.toLowerCase())) : allMessages;
 
   // Remove old message elements (keep wallpaper overlay + empty state)
   const wallpaper = area.querySelector('.wallpaper-overlay');
   area.innerHTML = '';
   if (wallpaper) area.appendChild(wallpaper);
+
+  // Sentinel for infinite-scroll upward (only when not in filter/search mode)
+  if (!filter && hasMoreMessages) {
+    const sentinel = document.createElement('div');
+    sentinel.id = 'load-more-top';
+    sentinel.className = 'load-more-sentinel';
+    sentinel.innerHTML = '<span class="load-more-spinner"></span>';
+    area.appendChild(sentinel);
+  }
 
   const empty = document.getElementById('chat-empty') || (() => {
     const d = document.createElement('div');
@@ -707,6 +815,8 @@ function renderMessages(filter = null) {
 
     // Also update jump-to-latest button state after scroll
     updateJumpBtnState();
+    // Wire up infinite-scroll sentinel after DOM settles
+    setupLoadMoreObserver();
   });
 }
 
@@ -6218,13 +6328,29 @@ function buildMsgPreviewHtml(m, textQuery) {
   return `<div class="search-result-text" style="color:var(--text-muted)">(no content)</div>`;
 }
 
-function executeSearch() {
+async function executeSearch() {
   const dropdown = document.getElementById('search-results');
   const bar = document.getElementById('search-bar');
   const textQuery = bar.value.trim().toLowerCase();
-  let hits = [...allMessages];
 
-  // Apply all committed filters
+  // Show no-search state
+  if (!textQuery && !searchFilters.length) { showSearchFilters(); return; }
+
+  // For text queries: fetch from server so we search full history (not just loaded page)
+  let hits;
+  if (textQuery) {
+    dropdown.innerHTML = '<div class="search-result-item"><div class="search-result-text" style="color:var(--text-muted);text-align:center">Searching…</div></div>';
+    dropdown.classList.add('open');
+    document.getElementById('search-clear-btn').style.display = '';
+    try {
+      hits = await fetch(`/api/messages?q=${encodeURIComponent(textQuery)}&limit=50`).then(r => r.json());
+      if (!Array.isArray(hits)) hits = [];
+    } catch { hits = []; }
+  } else {
+    hits = [...allMessages];
+  }
+
+  // Apply structural filters (from:, has:, before:, after:) — these work client-side on whatever hits we have
   searchFilters.forEach(f => {
     const ft = f.type;
     const v = f.value.toLowerCase();
@@ -6242,14 +6368,6 @@ function executeSearch() {
     }
   });
 
-  // Apply text search
-  if (textQuery) {
-    hits = hits.filter(m => m.text?.toLowerCase().includes(textQuery));
-  }
-
-  // Show no-search state
-  if (!textQuery && !searchFilters.length) { showSearchFilters(); return; }
-
   // Sort by newest first
   hits.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
@@ -6264,7 +6382,7 @@ function executeSearch() {
     html += hits.slice(0, 25).map(m => {
       const time = formatSearchTime(m.timestamp);
       const preview = buildMsgPreviewHtml(m, textQuery);
-      return `<div class="search-result-item" onclick="clickSearchResult('${m.id}')">
+      return `<div class="search-result-item" onclick="clickSearchResult('${m.id}', ${m.timestamp})">
         <div class="search-result-top">
           <span class="search-result-sender">${capitalize(m.sender)}</span>
           <span class="search-result-time">${time}</span>
@@ -6279,21 +6397,30 @@ function executeSearch() {
   document.getElementById('search-clear-btn').style.display = '';
 }
 
-function clickSearchResult(id) {
+function clickSearchResult(id, timestamp) {
   document.getElementById('search-results').classList.remove('open');
-  scrollToMessage(id);
+  scrollToMessage(id, timestamp);
 }
 
-function scrollToMessage(id) {
+async function scrollToMessage(id, timestamp) {
   showSection('chat', document.querySelector('.nav-item[data-section=chat]'));
-  setTimeout(() => {
-    const el = document.getElementById('msg-' + id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('msg-highlight');
-      setTimeout(() => el.classList.remove('msg-highlight'), 2500);
+  // Small delay to let the section animate in
+  await new Promise(r => setTimeout(r, 100));
+
+  let el = document.getElementById('msg-' + id);
+  if (!el && timestamp && hasMoreMessages) {
+    // Message not in DOM — load history backwards until we find it (up to 10 pages)
+    for (let i = 0; i < 10 && !el && hasMoreMessages; i++) {
+      await loadOlderMessages();
+      el = document.getElementById('msg-' + id);
     }
-  }, 100);
+  }
+
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('msg-highlight');
+    setTimeout(() => el.classList.remove('msg-highlight'), 2500);
+  }
 }
 
 function highlight(text, q) {
@@ -6508,18 +6635,15 @@ document.addEventListener('visibilitychange', () => {
 
 async function syncMissedMessages() {
   try {
-    const resp = await fetch('/api/messages');
-    const msgs = await resp.json();
-    const serverMsgs = msgs.main || [];
-    if (serverMsgs.length <= allMessages.length) return;
-    // Find messages we don't have yet
+    const latestTs = allMessages.length > 0 ? allMessages[allMessages.length - 1].timestamp : 0;
+    const missed = await fetch(`/api/messages?after=${latestTs}`).then(r => r.json());
+    if (!Array.isArray(missed) || missed.length === 0) return;
     const existingIds = new Set(allMessages.map(m => m.id));
-    const missed = serverMsgs.filter(m => !existingIds.has(m.id));
-    if (missed.length === 0) return;
     const area = document.getElementById('messages-area');
     missed.forEach(msg => {
+      if (existingIds.has(msg.id)) return;
       allMessages.push(msg);
-      area.appendChild(buildMsgElement(msg));
+      area.appendChild(buildMsgElement(msg, shouldGroupWithPrev(msg)));
     });
     area.scrollTop = area.scrollHeight;
   } catch {}

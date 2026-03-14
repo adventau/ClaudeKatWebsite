@@ -332,6 +332,27 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
   content: ''; flex: 1; height: 1px; background: var(--border);
 }
 
+/* Load-more infinite scroll sentinel */
+.load-more-sentinel {
+  display: flex; justify-content: center; align-items: center;
+  padding: 12px 0; min-height: 40px;
+}
+.load-more-spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.load-more-sentinel.loading .load-more-spinner {
+  opacity: 1;
+  animation: spinnerRotate 0.7s linear infinite;
+}
+@keyframes spinnerRotate {
+  to { transform: rotate(360deg); }
+}
+
 /* Discord-style NEW message marker */
 .new-msg-marker {
   display: flex; align-items: center; gap: 0;

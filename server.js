@@ -488,11 +488,16 @@ app.get('/api/wallpaper', mainAuth, (_, res) => {
 app.get('/api/messages', mainAuth, (req, res) => {
   const msgs = rd(F.messages);
   let main = msgs?.main || [];
-  // Pagination: ?limit=N&before=<timestamp>
+  // Pagination: ?limit=N&before=<timestamp>&after=<timestamp>&q=<text>
   const limit  = parseInt(req.query.limit)  || 0;
   const before = parseInt(req.query.before) || 0;
-  if (limit && before) main = main.filter(m => m.timestamp < before).slice(-limit);
-  else if (limit)      main = main.slice(-limit);
+  const after  = parseInt(req.query.after)  || 0;
+  const q      = req.query.q ? req.query.q.toLowerCase() : '';
+  if (after)  main = main.filter(m => m.timestamp > after);
+  if (before) main = main.filter(m => m.timestamp < before);
+  if (q)      main = main.filter(m => m.text?.toLowerCase().includes(q));
+  if (limit && !q) main = main.slice(-limit);
+  else if (limit)  main = main.slice(0, limit);
   res.json(main);
 });
 
