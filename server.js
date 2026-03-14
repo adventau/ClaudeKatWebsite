@@ -282,7 +282,10 @@ app.post('/api/auth/password', async (req, res) => {
       delete req.session.loginTime;
       req.session.isGuest = true;
       req.session.guestId = id;
-      return res.json({ success: true, isGuest: true, guestName: g.name });
+      return req.session.save(err => {
+        if (err) return res.status(500).json({ error: 'Session error' });
+        res.json({ success: true, isGuest: true, guestName: g.name });
+      });
     }
   }
 
@@ -291,7 +294,10 @@ app.post('/api/auth/password', async (req, res) => {
     delete req.session.isGuest;
     delete req.session.guestId;
     req.session.authenticated = true;
-    return res.json({ success: true });
+    return req.session.save(err => {
+      if (err) return res.status(500).json({ error: 'Session error' });
+      res.json({ success: true });
+    });
   }
   res.json({ success: false, error: 'Incorrect password' });
 });
@@ -317,7 +323,10 @@ app.post('/api/auth/profile', async (req, res) => {
   delete req.session.guestId;
   req.session.user = profile;
   req.session.loginTime = Date.now();
-  res.json({ success: true });
+  req.session.save(err => {
+    if (err) return res.status(500).json({ error: 'Session error' });
+    res.json({ success: true });
+  });
 });
 
 // Check which profiles have passcodes enabled (for login page)
