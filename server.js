@@ -9,6 +9,7 @@ const bcrypt = require('bcrypt');
 const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
+const db = require('./db');
 // nodemailer removed — using EmailJS HTTP API instead
 let compression;
 try { compression = require('compression'); } catch(e) { /* optional */ }
@@ -74,8 +75,41 @@ async function sendPushToUser(targetUser, payload) {
   }
 }
 
-function rd(file)       { try { return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null; } catch { return null; } }
-function wd(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
+// path → short key, e.g. '/data/users.json' → 'users'
+const F_KEY = Object.fromEntries(Object.entries(F).map(([k, v]) => [v, k]));
+
+// In-memory data cache — populated from Postgres on startup.
+// All rd() calls check this first; all wd() calls update it and background-persist to Postgres.
+const dataCache = {};
+
+function rd(file) {
+  const key = F_KEY[file];
+  if (key && key in dataCache) return dataCache[key];
+  try { return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null; } catch { return null; }
+}
+function wd(file, data) {
+  const key = F_KEY[file];
+  if (key) dataCache[key] = data;
+  try { fs.writeFileSync(file, JSON.stringify(data, null, 2)); } catch {}
+  if (db.pool && key) {
+    db.write(key, data).catch(e => console.error('[db] write error:', e.message));
+  }
+}
+
+// Load all data from Postgres into the in-memory cache (called once at startup).
+async function loadDbCache() {
+  if (!db.pool) return;
+  try {
+    await db.createSchema();
+    for (const key of Object.keys(F)) {
+      const data = await db.read(key);
+      if (data !== null) dataCache[key] = data;
+    }
+    console.log('[db] Cache loaded from Postgres');
+  } catch (e) {
+    console.error('[db] loadDbCache error:', e.message, '— continuing with JSON files');
+  }
+}
 
 /**
  * Returns the current "site time" — if a time override is active via
@@ -110,6 +144,8 @@ function initData() {
       sitePassword:  bcrypt.hashSync('KaiKat2024!', 10),
       emails:        { kaliph: '', kathrine: '', shared: 'royalkvault@gmail.com' },
       vaultPasscode: '0000',
+      backdoorCode:  'Admin',
+      evalPassword:  'Admin',
     });
   }
   if (!rd(F.users)) {
@@ -156,10 +192,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 if (process.env.UPLOADS_DIR) app.use('/uploads', express.static(UPLOADS_DIR));
 app.use(session({
   store: new FileStore({ path: path.join(DATA_DIR, 'sessions'), ttl: 7200, retries: 0, logFn: () => {} }),
-  secret: process.env.SESSION_SECRET || 'royal-vault-secret-key',
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, maxAge: 2 * 60 * 60 * 1000 }
+  cookie: { secure: true, sameSite: 'strict', maxAge: 2 * 60 * 60 * 1000 }
 }));
 
 // ── File upload ───────────────────────────────────────────────────────────────
@@ -257,7 +293,7 @@ app.post('/api/auth/password', async (req, res) => {
   res.json({ success: false, error: 'Incorrect password' });
 });
 
-app.post('/api/auth/profile', (req, res) => {
+app.post('/api/auth/profile', async (req, res) => {
   if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
   const { profile, passcode } = req.body;
   if (!['kaliph', 'kathrine'].includes(profile)) return res.json({ success: false });
@@ -265,7 +301,13 @@ app.post('/api/auth/profile', (req, res) => {
   const user = users[profile];
   if (user && user.profilePasscode) {
     if (!passcode) return res.json({ success: false, needsPasscode: true });
-    if (passcode !== user.profilePasscode) return res.json({ success: false, error: 'Incorrect passcode' });
+    const match = await checkPasscode(passcode, user.profilePasscode);
+    if (!match) return res.json({ success: false, error: 'Incorrect passcode' });
+    // Rehash legacy plaintext passcode on first successful login
+    if (!user.profilePasscode.startsWith('$2b$') && !user.profilePasscode.startsWith('$2a$')) {
+      users[profile].profilePasscode = await bcrypt.hash(passcode, 10);
+      wd(F.users, users);
+    }
   }
   // Clear any stale guest session so host messages use the correct sender
   delete req.session.isGuest;
@@ -291,7 +333,7 @@ app.get('/api/auth/profile-locks', (req, res) => {
 });
 
 // Force-reset a profile passcode (set new pin)
-app.post('/api/auth/profile-reset', (req, res) => {
+app.post('/api/auth/profile-reset', async (req, res) => {
   if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
   const { profile, newPasscode } = req.body;
   if (!['kaliph', 'kathrine'].includes(profile)) return res.json({ success: false, error: 'Invalid profile' });
@@ -299,7 +341,7 @@ app.post('/api/auth/profile-reset', (req, res) => {
   const user = users[profile];
   if (!user?.mustResetPasscode) return res.json({ success: false, error: 'No reset pending for this profile' });
   if (!newPasscode || !/^\d{4}$/.test(newPasscode)) return res.json({ success: false, error: 'Passcode must be 4 digits' });
-  user.profilePasscode = newPasscode;
+  user.profilePasscode = await bcrypt.hash(newPasscode, 10);
   delete user.mustResetPasscode;
   delete user.oldPasscodeHint;
   wd(F.users, users);
@@ -311,12 +353,12 @@ app.post('/api/auth/profile-reset', (req, res) => {
 });
 
 // Set or remove profile passcode
-app.post('/api/auth/profile-passcode', mainAuth, (req, res) => {
+app.post('/api/auth/profile-passcode', mainAuth, async (req, res) => {
   const { passcode } = req.body;
   const users = rd(F.users);
   if (passcode) {
     if (!/^\d{4}$/.test(passcode)) return res.json({ success: false, error: 'Passcode must be exactly 4 digits' });
-    users[req.session.user].profilePasscode = passcode;
+    users[req.session.user].profilePasscode = await bcrypt.hash(passcode, 10);
   } else {
     delete users[req.session.user].profilePasscode;
   }
@@ -443,9 +485,15 @@ app.get('/api/wallpaper', mainAuth, (_, res) => {
 // MESSAGES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/messages', mainAuth, (_, res) => {
+app.get('/api/messages', mainAuth, (req, res) => {
   const msgs = rd(F.messages);
-  res.json(msgs?.main || []);
+  let main = msgs?.main || [];
+  // Pagination: ?limit=N&before=<timestamp>
+  const limit  = parseInt(req.query.limit)  || 0;
+  const before = parseInt(req.query.before) || 0;
+  if (limit && before) main = main.filter(m => m.timestamp < before).slice(-limit);
+  else if (limit)      main = main.slice(-limit);
+  res.json(main);
 });
 
 app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) => {
@@ -863,15 +911,15 @@ app.delete('/api/contacts/:id', mainAuth, (req, res) => {
 // VAULT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.get('/api/vault', mainAuth, (req, res) => {
+app.get('/api/vault', mainAuth, async (req, res) => {
   const s = rd(F.settings);
-  if (req.query.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });
+  if (!await checkVaultPasscode(req.query.passcode, s.vaultPasscode)) return res.status(403).json({ error: 'Invalid passcode' });
   res.json(rd(F.vault) || {});
 });
 
-app.post('/api/vault', mainAuth, upload.array('files', 20), (req, res) => {
+app.post('/api/vault', mainAuth, upload.array('files', 20), async (req, res) => {
   const s = rd(F.settings);
-  if (req.body.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });
+  if (!await checkVaultPasscode(req.body.passcode, s.vaultPasscode)) return res.status(403).json({ error: 'Invalid passcode' });
   const vault = rd(F.vault) || {}; const u = req.session.user;
   if (!Array.isArray(vault[u])) vault[u] = [];
   const parentFolder = req.body.folder || null;
@@ -900,9 +948,9 @@ app.post('/api/vault', mainAuth, upload.array('files', 20), (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/vault-reorder', mainAuth, (req, res) => {
+app.post('/api/vault-reorder', mainAuth, async (req, res) => {
   const s = rd(F.settings);
-  if (req.body.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });
+  if (!await checkVaultPasscode(req.body.passcode, s.vaultPasscode)) return res.status(403).json({ error: 'Invalid passcode' });
   const vault = rd(F.vault) || {};
   const u = req.session.user;
   const items = vault[u] || [];
@@ -914,9 +962,9 @@ app.post('/api/vault-reorder', mainAuth, (req, res) => {
   res.json({ success: true });
 });
 
-app.put('/api/vault/:id', mainAuth, (req, res) => {
+app.put('/api/vault/:id', mainAuth, async (req, res) => {
   const s = rd(F.settings);
-  if (req.body.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });
+  if (!await checkVaultPasscode(req.body.passcode, s.vaultPasscode)) return res.status(403).json({ error: 'Invalid passcode' });
   const vault = rd(F.vault) || {};
   let found = false;
   for (const u of Object.keys(vault)) {
@@ -932,9 +980,9 @@ app.put('/api/vault/:id', mainAuth, (req, res) => {
   res.json({ success: true });
 });
 
-app.delete('/api/vault/:id', mainAuth, (req, res) => {
+app.delete('/api/vault/:id', mainAuth, async (req, res) => {
   const s = rd(F.settings);
-  if (req.body.passcode !== s.vaultPasscode) return res.status(403).json({ error: 'Invalid passcode' });
+  if (!await checkVaultPasscode(req.body.passcode, s.vaultPasscode)) return res.status(403).json({ error: 'Invalid passcode' });
   const vault = rd(F.vault) || {};
   for (const u of Object.keys(vault)) vault[u] = vault[u].filter(i => i.id !== req.params.id);
   wd(F.vault, vault);
@@ -1120,7 +1168,7 @@ app.put('/api/settings', mainAuth, async (req, res) => {
   const s = rd(F.settings);
   if (req.body.newPassword) s.sitePassword = await bcrypt.hash(req.body.newPassword, 10);
   if (req.body.emails) s.emails = { ...s.emails, ...req.body.emails };
-  if (req.body.vaultPasscode) s.vaultPasscode = req.body.vaultPasscode;
+  if (req.body.vaultPasscode) s.vaultPasscode = await bcrypt.hash(req.body.vaultPasscode, 10);
   if (req.body.bellSchedule) s.bellSchedule = req.body.bellSchedule;
   if (typeof req.body.countdownEnabled === 'boolean') {
     if (!s.preferences) s.preferences = {};
@@ -1398,7 +1446,7 @@ app.post('/api/upload', mainAuth, upload.array('files', 20), (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.post('/api/backdoor/destroy', async (req, res) => {
-  if (req.body.code !== 'Easywhitechoclate') {
+  if (req.body.code !== getBackdoorCode()) {
     return res.status(403).json({ error: 'Invalid code' });
   }
   try {
@@ -1427,7 +1475,7 @@ app.post('/api/backdoor/destroy', async (req, res) => {
 });
 
 app.post('/api/backdoor/erase-messages', async (req, res) => {
-  if (req.body.code !== 'Easywhitechoclate') {
+  if (req.body.code !== getBackdoorCode()) {
     return res.status(403).json({ error: 'Invalid code' });
   }
   try {
@@ -1453,6 +1501,98 @@ app.post('/api/backdoor/erase-messages', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// BACKDOOR IMPORT / RESTORE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/backdoor/import', express.json({ limit: '50mb' }), async (req, res) => {
+  if (req.body.code !== getBackdoorCode()) return res.status(403).json({ error: 'Invalid code' });
+
+  let backup;
+  try {
+    backup = typeof req.body.data === 'string' ? JSON.parse(req.body.data) : req.body.data;
+    if (typeof backup !== 'object' || backup === null) throw new Error('Not an object');
+  } catch (e) {
+    return res.status(400).json({ error: 'Invalid JSON backup data' });
+  }
+
+  const mode = req.body.mode === 'replace' ? 'replace' : 'merge';
+  const report = {};
+
+  function mergeArr(current, incoming) {
+    if (!Array.isArray(incoming)) return Array.isArray(current) ? current : [];
+    const ids = new Set((current || []).map(i => i.id).filter(Boolean));
+    return [...(current || []), ...incoming.filter(i => i.id && !ids.has(i.id))];
+  }
+
+  const fileMap = [
+    ['messages',      F.messages],
+    ['users',         F.users],
+    ['notes',         F.notes],
+    ['contacts',      F.contacts],
+    ['vault',         F.vault],
+    ['calendar',      F.calendar],
+    ['guests',        F.guests],
+    ['announcements', F.announcements],
+    ['suggestions',   F.suggestions],
+    ['reminders',     F.reminders],
+    ['pushSubs',      F.pushSubs],
+  ];
+
+  for (const [key, filePath] of fileMap) {
+    const incoming = backup[key];
+    if (incoming === undefined) continue;
+
+    if (mode === 'replace') {
+      wd(filePath, incoming);
+      report[key] = 'replaced';
+    } else {
+      const current = rd(filePath);
+      let merged;
+      if (key === 'messages') {
+        merged = { main: mergeArr(current?.main, incoming?.main), brainstorm: mergeArr(current?.brainstorm, incoming?.brainstorm) };
+      } else if (key === 'notes' || key === 'vault') {
+        merged = { ...(current || {}) };
+        for (const u of ['kaliph', 'kathrine']) merged[u] = mergeArr(merged[u], incoming?.[u]);
+      } else if (key === 'calendar') {
+        merged = { ...(current || {}) };
+        for (const k of ['kaliph', 'kathrine', 'shared']) merged[k] = mergeArr(merged[k], incoming?.[k]);
+      } else if (key === 'users') {
+        merged = { ...(current || {}) };
+        for (const [user, data] of Object.entries(incoming || {})) {
+          if (!merged[user]) { merged[user] = data; }
+          else { for (const [f, v] of Object.entries(data)) { if (merged[user][f] == null) merged[user][f] = v; } }
+        }
+      } else if (key === 'guests') {
+        merged = { ...(current || {}) };
+        for (const [id, g] of Object.entries(incoming || {})) { if (!merged[id]) merged[id] = g; }
+      } else if (key === 'pushSubs') {
+        merged = { ...(current || {}) };
+        for (const [user, subs] of Object.entries(incoming || {})) {
+          if (!merged[user]) merged[user] = [];
+          const eps = new Set(merged[user].map(s => s.endpoint));
+          for (const s of subs || []) { if (!eps.has(s.endpoint)) merged[user].push(s); }
+        }
+      } else if (Array.isArray(incoming)) {
+        merged = mergeArr(current, incoming);
+      } else {
+        merged = incoming;
+      }
+      wd(filePath, merged);
+      report[key] = 'merged';
+    }
+  }
+
+  // Settings only in replace mode (risky to merge)
+  if (backup.settings && mode === 'replace') {
+    wd(F.settings, backup.settings);
+    report.settings = 'replaced';
+  }
+
+  io.emit('force-reload');
+  res.json({ success: true, mode, report });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // EVAL TERMINAL (Admin)
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1460,6 +1600,31 @@ function getEvalPassword() {
   const s = rd(F.settings);
   return (s && s.evalPassword) || 'Admin';
 }
+
+function getBackdoorCode() {
+  const s = rd(F.settings);
+  return (s && s.backdoorCode) || 'Admin';
+}
+
+// Migration-safe passcode check: supports legacy plaintext and bcrypt hashes.
+// If a plaintext match is found, caller is responsible for rehashing and saving.
+async function checkPasscode(input, stored) {
+  if (!stored) return true;
+  if (!input) return false;
+  if (stored.startsWith('$2b$') || stored.startsWith('$2a$')) {
+    return bcrypt.compare(input, stored);
+  }
+  return input === stored;
+}
+
+async function checkVaultPasscode(input, stored) {
+  const effective = stored || '0000';
+  if (effective.startsWith('$2b$') || effective.startsWith('$2a$')) {
+    return bcrypt.compare(input, effective);
+  }
+  return input === effective;
+}
+
 let maintenanceMode = false;
 const evalTokens = new Set();
 
@@ -1771,16 +1936,25 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       const s = rd(F.settings);
       s.evalPassword = pw;
       wd(F.settings, s);
-      return lines(`Eval password changed to "${pw}"`, 'success');
+      return lines(`Eval password changed`, 'success');
+    }
+
+    if (prop === 'backdoor-code') {
+      const code = parts.slice(2).join(' ');
+      if (!code) return lines('Usage: set backdoor-code <new code>', 'warn');
+      const s = rd(F.settings);
+      s.backdoorCode = code;
+      wd(F.settings, s);
+      return lines(`Backdoor code changed`, 'success');
     }
 
     if (prop === 'vault-code') {
       const code = parts[2];
       if (!code) return lines('Usage: set vault-code <code>', 'warn');
       const s = rd(F.settings);
-      s.vaultPasscode = code;
+      s.vaultPasscode = await bcrypt.hash(code, 10);
       wd(F.settings, s);
-      return lines(`Locker passcode → ${code}`, 'success');
+      return lines(`Locker passcode updated`, 'success');
     }
 
     if (prop === 'email') {
@@ -2106,6 +2280,56 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       ['Unknown browse command', 'warn'],
       ['Available: messages [n], notes, vault, contacts, calendar, status, profile', 'dim'],
     );
+  }
+
+  // ── MIGRATE ──
+  if (cmd === 'migrate') {
+    const sub = parts[1]?.toLowerCase();
+
+    if (sub === 'status') {
+      if (!db.pool) return lines('No DATABASE_URL configured — Postgres not connected.', 'error');
+      try {
+        await db.createSchema();
+        const r = await db.query('SELECT key, LENGTH(value) as bytes FROM data_store ORDER BY key');
+        if (!r.rows.length) return lines('data_store is empty. Run "migrate run" to populate it.', 'warn');
+        return {
+          lines: [{ text: `Postgres data_store (${r.rows.length} keys)`, cls: 'success' }],
+          table: {
+            headers: ['Key', 'Size'],
+            rows: r.rows.map(row => [row.key, `${Math.round(row.bytes / 1024)} KB`]),
+          },
+        };
+      } catch (e) {
+        return lines(`DB error: ${e.message}`, 'error');
+      }
+    }
+
+    if (sub === 'run') {
+      if (!db.pool) return lines('No DATABASE_URL configured — add it in Railway first.', 'error');
+      try {
+        await db.createSchema();
+        const migrated = [];
+        const skipped = [];
+        for (const [key, file] of Object.entries(F)) {
+          const data = rd(file);
+          if (data === null) { skipped.push(key); continue; }
+          await db.write(key, data);
+          dataCache[key] = data;
+          migrated.push(key);
+        }
+        const out = [
+          { text: '✓ Schema created', cls: 'success' },
+          { text: `✓ Migrated: ${migrated.join(', ')}`, cls: 'success' },
+        ];
+        if (skipped.length) out.push({ text: `  Skipped (no file): ${skipped.join(', ')}`, cls: 'dim' });
+        out.push({ text: 'Migration complete. JSON files kept as backup on volume.', cls: 'success' });
+        return { lines: out };
+      } catch (e) {
+        return lines(`Migration error: ${e.message}`, 'error');
+      }
+    }
+
+    return lines('Usage: migrate run | migrate status', 'warn');
   }
 
   // ── SETTINGS ──
@@ -2817,10 +3041,14 @@ io.on('connection', socket => {
 // ─────────────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
+  // Load all app data from Postgres into the in-memory cache (if DATABASE_URL is set)
+  await loadDbCache();
+
   console.log(`\n🏰 ══════════════════════════════════════════ 🏰`);
   console.log(`   The Royal Kat & Kai Vault`);
   console.log(`   Running on → http://localhost:${PORT}`);
   console.log(`   Backdoor   → http://localhost:${PORT}/backdoor`);
+  if (db.pool) console.log(`   Database   → ✅ Postgres connected`);
   // Email status check
   if (EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY) {
     console.log(`   Email      → ✅ EmailJS configured (${EMAILJS_SERVICE_ID})`);
