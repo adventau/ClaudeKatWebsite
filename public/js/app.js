@@ -747,12 +747,6 @@ function renderMessages(filter = null) {
   if (msgs.length === 0) { area.appendChild(empty); return; }
 
   let lastDate = null;
-  let newMarkerInserted = false;
-
-  // Find the first unread message from the other user (after our last read time)
-  const firstUnreadIdx = chatLastReadTs
-    ? msgs.findIndex(m => m.sender !== currentUser && m.sender !== 'ai' && m.timestamp > chatLastReadTs)
-    : -1;
 
   // Grouping state — consecutive messages from same sender within 5 min get grouped
   let prevMsgSender = null;
@@ -771,15 +765,6 @@ function renderMessages(filter = null) {
       area.appendChild(sep);
     }
 
-    // Insert "NEW" marker before the first unread message
-    if (!newMarkerInserted && firstUnreadIdx >= 0 && idx === firstUnreadIdx) {
-      newMarkerInserted = true;
-      const marker = document.createElement('div');
-      marker.className = 'new-msg-marker';
-      marker.innerHTML = '<span class="new-msg-marker-line"></span><span class="new-msg-marker-badge">NEW</span>';
-      area.appendChild(marker);
-    }
-
     const isSystem = msg.type === 'call-event' || msg.type === 'pin-notice';
     const grouped = !isSystem && !newDay && !prevWasSystem
       && prevMsgSender === msg.sender
@@ -793,32 +778,19 @@ function renderMessages(filter = null) {
     area.appendChild(buildMsgElement(msg, grouped));
   });
 
-  // Reliable scroll: instant scroll + retry for images loading + MutationObserver
+  // Scroll to bottom — always open at the latest message
   requestAnimationFrame(() => {
-    const marker = area.querySelector('.new-msg-marker');
-    const scrollTarget = () => {
-      if (marker) marker.scrollIntoView({ behavior: 'instant', block: 'center' });
-      else area.scrollTop = area.scrollHeight;
-    };
-    scrollTarget();
-    setTimeout(scrollTarget, 200);
-    setTimeout(scrollTarget, 600);
-    setTimeout(scrollTarget, 1500);
+    area.scrollTop = area.scrollHeight;
 
-    // Watch for images loading (GIFs, avatars) that shift scroll position
-    const imgs = area.querySelectorAll('img');
-    let pending = 0;
-    imgs.forEach(img => {
+    // Re-scroll after any images load so they don't push content below the view
+    area.querySelectorAll('img').forEach(img => {
       if (!img.complete) {
-        pending++;
-        img.addEventListener('load', () => { pending--; scrollTarget(); }, { once: true });
-        img.addEventListener('error', () => { pending--; }, { once: true });
+        img.addEventListener('load',  () => { area.scrollTop = area.scrollHeight; }, { once: true });
+        img.addEventListener('error', () => { area.scrollTop = area.scrollHeight; }, { once: true });
       }
     });
 
-    // Also update jump-to-latest button state after scroll
     updateJumpBtnState();
-    // Wire up infinite-scroll sentinel after DOM settles
     setupLoadMoreObserver();
   });
 }
