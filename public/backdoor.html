@@ -479,6 +479,51 @@
       border-radius: 3px;
     }
     .btn-confirm-erase:hover { background: #8b6914; }
+
+    /* Import / Restore section */
+    .mode-tab.active-import {
+      background: rgba(30,100,180,0.15);
+      color: #4a9eda;
+      border-bottom: 2px solid #4a9eda;
+    }
+    .file-drop-zone {
+      border: 1px dashed #2a2a2a;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 16px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      background: #080808;
+    }
+    .file-drop-zone:hover { border-color: #444; }
+    .file-drop-zone.has-file { border-color: #4a9eda; }
+    .file-drop-zone input[type="file"] { display: none; }
+    .file-drop-label { font-size: 11px; color: #555; letter-spacing: 0.08em; }
+    .file-drop-zone.has-file .file-drop-label { color: #4a9eda; }
+    .btn-import-merge {
+      width: 100%; padding: 12px; background: #0e1e2e;
+      border: 1px solid #2a5080; color: #4a9eda;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase;
+      cursor: pointer; transition: all 0.2s; margin-bottom: 10px;
+    }
+    .btn-import-merge:hover:not(:disabled) { background: #1a3050; box-shadow: 0 0 12px rgba(74,158,218,0.3); }
+    .btn-import-replace {
+      width: 100%; padding: 12px; background: #1e0e2e;
+      border: 1px solid #6030a0; color: #9060d0;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-import-replace:hover:not(:disabled) { background: #301050; box-shadow: 0 0 12px rgba(144,96,208,0.3); }
+    .btn-import-merge:disabled, .btn-import-replace:disabled { opacity: 0.35; cursor: not-allowed; }
+    .import-or { text-align: center; font-size: 10px; color: #333; letter-spacing: 0.12em; margin: 8px 0; }
+    #import-replace-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    #import-replace-overlay.show { display: flex; }
   </style>
 </head>
 <body>
@@ -496,6 +541,22 @@
     <div class="confirm-buttons">
       <button class="btn-cancel-confirm" id="btn-cancel-dialog">Abort</button>
       <button class="btn-confirm-destroy" id="btn-confirm-dialog">Destroy All Data</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import full-replace confirm overlay -->
+<div id="import-replace-overlay">
+  <div class="confirm-dialog">
+    <span class="warn-icon" style="color:#9060d0">⚠</span>
+    <h2 style="color:#9060d0">Confirm Full Replace</h2>
+    <p>
+      This will <strong style="color:#9060d0">wipe ALL current data</strong> and replace it entirely with the backup file.<br><br>
+      Messages, notes, vault, contacts, calendar, reminders, and settings will all be <strong>replaced.</strong>
+    </p>
+    <div class="confirm-buttons">
+      <button class="btn-cancel-confirm" id="btn-cancel-import-replace">Abort</button>
+      <button class="btn-confirm-destroy" id="btn-confirm-import-replace" style="background:#6030a0;border-color:#6030a0">Replace All Data</button>
     </div>
   </div>
 </div>
@@ -527,8 +588,9 @@
     <p class="subtitle">Royal Kat &amp; Kai Vault — Emergency Protocol</p>
 
     <div class="mode-tabs">
-      <button class="mode-tab active-erase" id="tab-erase" onclick="switchMode('erase')">Erase Chat History</button>
-      <button class="mode-tab" id="tab-destroy" onclick="switchMode('destroy')">Destroy All Data</button>
+      <button class="mode-tab active-erase" id="tab-erase" onclick="switchMode('erase')">Erase Chat</button>
+      <button class="mode-tab" id="tab-destroy" onclick="switchMode('destroy')">Destroy All</button>
+      <button class="mode-tab" id="tab-import" onclick="switchMode('import')">Import / Restore</button>
     </div>
 
     <!-- ── ERASE MESSAGES FORM ── -->
@@ -589,6 +651,38 @@
       <div id="log"></div>
     </div>
 
+    <!-- ── IMPORT / RESTORE FORM ── -->
+    <div id="import-form" style="display:none">
+      <div class="field-label">Access Code</div>
+      <div class="input-wrap">
+        <input type="password" id="import-code-input" placeholder="Enter access code" autocomplete="off" spellcheck="false" />
+        <button class="eye-btn" id="import-eye-btn" type="button" title="Toggle visibility">👁</button>
+      </div>
+
+      <div class="field-label">Backup File (.json)</div>
+      <div class="file-drop-zone" id="file-drop-zone" onclick="document.getElementById('backup-file-input').click()">
+        <input type="file" id="backup-file-input" accept=".json" />
+        <div class="file-drop-label" id="file-drop-label">Click to select backup JSON file</div>
+      </div>
+
+      <div class="confirm-section" style="border-left-color:#2a5080; margin-bottom:16px">
+        <p>
+          <strong style="color:#4a9eda">Merge</strong> — Adds records from the backup that don't already exist. Safe for partial restores. Won't overwrite anything.<br><br>
+          <strong style="color:#9060d0">Full Replace</strong> — Wipes all current data and restores entirely from the backup file.
+        </p>
+      </div>
+
+      <button class="btn-import-merge" id="btn-import-merge" disabled>
+        ⬛ &nbsp; Merge Import
+      </button>
+      <div class="import-or">or</div>
+      <button class="btn-import-replace" id="btn-import-replace" disabled>
+        ⬛ &nbsp; Full Replace Import
+      </button>
+
+      <div class="status-box" id="import-status-box"></div>
+    </div>
+
     <!-- ── SUCCESS SCREENS ── -->
     <div id="wiped-screen">
       <div class="wiped-icon">✓</div>
@@ -643,12 +737,16 @@
 
   /* ── Mode switching ── */
   function switchMode(mode) {
-    const tabErase = document.getElementById('tab-erase');
+    const tabErase   = document.getElementById('tab-erase');
     const tabDestroy = document.getElementById('tab-destroy');
-    tabErase.className = 'mode-tab' + (mode === 'erase' ? ' active-erase' : '');
+    const tabImport  = document.getElementById('tab-import');
+    const importFormEl = document.getElementById('import-form');
+    tabErase.className   = 'mode-tab' + (mode === 'erase'   ? ' active-erase'   : '');
     tabDestroy.className = 'mode-tab' + (mode === 'destroy' ? ' active-destroy' : '');
-    eraseForm.style.display = mode === 'erase' ? 'block' : 'none';
-    mainForm.style.display = mode === 'destroy' ? 'block' : 'none';
+    tabImport.className  = 'mode-tab' + (mode === 'import'  ? ' active-import'  : '');
+    eraseForm.style.display     = mode === 'erase'   ? 'block' : 'none';
+    mainForm.style.display      = mode === 'destroy' ? 'block' : 'none';
+    importFormEl.style.display  = mode === 'import'  ? 'block' : 'none';
   }
 
   /* ── Destroy All logic ── */
@@ -767,6 +865,83 @@
   eraseCodeInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !btnErase.disabled) eraseOverlay.classList.add('show');
   });
+
+  /* ── Import / Restore logic ── */
+  const importCodeInput       = document.getElementById('import-code-input');
+  const importEyeBtn          = document.getElementById('import-eye-btn');
+  const backupFileInput       = document.getElementById('backup-file-input');
+  const fileDropZone          = document.getElementById('file-drop-zone');
+  const fileDropLabel         = document.getElementById('file-drop-label');
+  const btnImportMerge        = document.getElementById('btn-import-merge');
+  const btnImportReplace      = document.getElementById('btn-import-replace');
+  const importStatusBox       = document.getElementById('import-status-box');
+  const importReplaceOverlay  = document.getElementById('import-replace-overlay');
+  const btnCancelIR           = document.getElementById('btn-cancel-import-replace');
+  const btnConfirmIR          = document.getElementById('btn-confirm-import-replace');
+  let backupData = null;
+
+  function updateImportBtns() {
+    const ready = importCodeInput.value.trim() && backupData !== null;
+    btnImportMerge.disabled    = !ready;
+    btnImportReplace.disabled  = !ready;
+  }
+  importCodeInput.addEventListener('input', updateImportBtns);
+
+  importEyeBtn.addEventListener('click', () => {
+    const isPass = importCodeInput.type === 'password';
+    importCodeInput.type = isPass ? 'text' : 'password';
+    importEyeBtn.textContent = isPass ? '🙈' : '👁';
+  });
+
+  backupFileInput.addEventListener('change', () => {
+    const file = backupFileInput.files[0];
+    if (!file) { backupData = null; fileDropZone.classList.remove('has-file'); fileDropLabel.textContent = 'Click to select backup JSON file'; updateImportBtns(); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        backupData = JSON.parse(e.target.result);
+        fileDropZone.classList.add('has-file');
+        fileDropLabel.textContent = `✓ ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      } catch {
+        backupData = null;
+        showStatusOn(importStatusBox, '⛔ Invalid JSON file.', 'error');
+      }
+      updateImportBtns();
+    };
+    reader.readAsText(file);
+  });
+
+  btnImportMerge.addEventListener('click', () => executeImport('merge'));
+  btnImportReplace.addEventListener('click', () => { if (!btnImportReplace.disabled) importReplaceOverlay.classList.add('show'); });
+  btnCancelIR.addEventListener('click', () => importReplaceOverlay.classList.remove('show'));
+  btnConfirmIR.addEventListener('click', async () => { importReplaceOverlay.classList.remove('show'); await executeImport('replace'); });
+
+  async function executeImport(mode) {
+    const code = importCodeInput.value.trim();
+    if (!code || !backupData) return;
+    btnImportMerge.disabled = true;
+    btnImportReplace.disabled = true;
+    showStatusOn(importStatusBox, mode === 'merge' ? 'Merging backup data...' : 'Replacing all data...', 'info');
+    try {
+      const res = await fetch('/api/backdoor/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, mode, data: JSON.stringify(backupData) })
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        showStatusOn(importStatusBox, '⛔ ' + (result.error || 'Import failed.'), 'error');
+        updateImportBtns();
+        return;
+      }
+      const report = Object.entries(result.report || {}).map(([k, v]) => `${k}: ${v}`).join(' | ');
+      showStatusOn(importStatusBox, `✓ Import complete (${mode}). ${report}`, 'success');
+      if (mode === 'replace') setTimeout(() => window.location.reload(), 3000);
+    } catch (err) {
+      showStatusOn(importStatusBox, '⛔ Network error: ' + err.message, 'error');
+      updateImportBtns();
+    }
+  }
 
   async function executeErase() {
     const code = eraseCodeInput.value.trim();
