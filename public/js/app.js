@@ -2505,6 +2505,7 @@ function renderNotesList() {
   if (notesTab === 'mine') notes = (allNotes.mine || []).filter(n => !n.archived);
   else if (notesTab === 'shared') notes = allNotes.shared || [];
   else notes = (allNotes.mine || []).filter(n => n.archived);
+  notes.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
 
   if (!notes.length) {
     list.innerHTML = '<div class="empty-state" style="height:200px"><div class="empty-state-icon"><i data-lucide="file-text" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">No notes here</div></div>';if(window.lucide)lucide.createIcons();
@@ -2572,8 +2573,11 @@ function openNote(id) {
           <button class="btn-primary" onclick="addTodoItemToNote('${id}')" style="border-radius:10px;padding:8px 16px">Add</button>
         </div>` : ''}
       </div>
-      ${isOwn ? '<button class="btn-primary" onclick="saveCurrentNote()" style="margin-top:1rem;width:100%;border-radius:10px">Save Changes</button>' : ''}`;
+    `;
     if (window.lucide) lucide.createIcons();
+    // Auto-save title changes for todos
+    const todoTitleEl = document.getElementById('edit-note-title');
+    if (todoTitleEl && isOwn) todoTitleEl.addEventListener('input', scheduleAutoSave);
     // Setup drag to reorder for todo items
     if (isOwn) setupTodoDragReorder(id);
   } else {
@@ -2588,13 +2592,25 @@ function openNote(id) {
           ` : ''}
         </div>
       </div>
-      <textarea id="edit-note-content" rows="20" style="width:100%;border-radius:10px;line-height:1.75" ${isOwn?'':'readonly'}>${note.content||''}</textarea>
-      ${isOwn ? '<button class="btn-primary" onclick="saveCurrentNote()" style="margin-top:1rem;width:100%;border-radius:10px">Save Changes</button>' : ''}`;
+      <textarea id="edit-note-content" rows="20" style="width:100%;border-radius:10px;line-height:1.75" ${isOwn?'':'readonly'}>${note.content||''}</textarea>`;
     if (window.lucide) lucide.createIcons();
+    // Auto-save on title and content changes
+    const noteTitleEl = document.getElementById('edit-note-title');
+    const noteContentEl = document.getElementById('edit-note-content');
+    if (isOwn) {
+      if (noteTitleEl) noteTitleEl.addEventListener('input', scheduleAutoSave);
+      if (noteContentEl) noteContentEl.addEventListener('input', scheduleAutoSave);
+    }
   }
 }
 
-async function saveCurrentNote() {
+let _noteAutoSaveTimer = null;
+function scheduleAutoSave() {
+  clearTimeout(_noteAutoSaveTimer);
+  _noteAutoSaveTimer = setTimeout(() => saveCurrentNote(true), 800);
+}
+
+async function saveCurrentNote(silent) {
   const note = [...(allNotes.mine||[])].find(n => n.id === activeNoteId);
   if (!note) return;
   const titleEl = document.getElementById('edit-note-title');
@@ -2606,31 +2622,28 @@ async function saveCurrentNote() {
     body: JSON.stringify(body)
   });
   await loadNotes();
-  showToast('📝 Note saved!');
+  if (activeNoteId) renderNotesList();
+  if (!silent) showToast('📝 Note saved!');
 }
 
-async function saveNote() {
-  const title = document.getElementById('note-title').value.trim() || 'Untitled';
-  const content = document.getElementById('note-content').value;
-  await fetch('/api/notes', {
+async function createBlankNote() {
+  const res = await fetch('/api/notes', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, content, type: 'note' })
+    body: JSON.stringify({ title: 'Untitled', content: '', type: 'note' })
   });
-  closeModal('new-note-modal');
+  const data = await res.json();
   await loadNotes();
-  showToast('📝 Note saved!');
+  if (data.note) openNote(data.note.id);
 }
 
-async function saveTodo() {
-  const title = document.getElementById('todo-title').value.trim() || 'My Todo List';
-  const items = Array.from(document.querySelectorAll('.todo-new-item')).map(i => ({ text: i.value, done: false })).filter(i => i.text);
-  await fetch('/api/notes', {
+async function createBlankTodo() {
+  const res = await fetch('/api/notes', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, todos: items, type: 'todo' })
+    body: JSON.stringify({ title: 'Untitled', todos: [], type: 'todo' })
   });
-  closeModal('new-todo-modal');
+  const data = await res.json();
   await loadNotes();
-  showToast('✅ Todo list saved!');
+  if (data.note) openNote(data.note.id);
 }
 
 function addTodoItem() {
