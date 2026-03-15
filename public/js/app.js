@@ -7729,39 +7729,43 @@ async function renderTotpGrid() {
 
   grid.innerHTML = '';
   const remaining = getTotpTimeRemaining();
+  const R = 17;
+  const C = 2 * Math.PI * R;
 
   for (const account of totpAccounts) {
     const code = await generateTOTP(account.secret);
     const formattedCode = code.slice(0, 3) + ' ' + code.slice(3);
+    const isUrgent = remaining <= 5;
 
     const card = document.createElement('div');
     card.className = 'totp-card';
     card.dataset.id = account.id;
 
-    const progressPercent = (remaining / 30) * 100;
-    const isUrgent = remaining <= 5;
-
     card.innerHTML = `
-      <div class="totp-card-ring${isUrgent ? ' urgent' : ''}">
-        <svg viewBox="0 0 40 40" class="totp-ring-svg">
-          <circle cx="20" cy="20" r="17" fill="none" stroke="var(--border)" stroke-width="3" opacity="0.2"/>
-          <circle cx="20" cy="20" r="17" fill="none" stroke="${isUrgent ? '#ef4444' : 'var(--accent)'}" stroke-width="3"
-            stroke-dasharray="${2 * Math.PI * 17}" stroke-dashoffset="${2 * Math.PI * 17 * (1 - remaining / 30)}"
-            stroke-linecap="round" class="totp-ring-progress" style="transition:stroke-dashoffset 1s linear"/>
-        </svg>
-        <span class="totp-ring-time">${remaining}s</span>
+      <div class="totp-card-top">
+        <div class="totp-card-info">
+          <div class="totp-card-name">${escapeHtml(account.name)}</div>
+          ${account.issuer ? `<div class="totp-card-issuer">${escapeHtml(account.issuer)}</div>` : ''}
+        </div>
+        <div class="totp-card-actions">
+          <button class="totp-card-btn" onclick="openTotpEdit('${account.id}')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+          <button class="totp-card-btn totp-card-btn-danger" onclick="openTotpDelete('${account.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+        </div>
       </div>
-      <div class="totp-card-info">
-        <div class="totp-card-name">${escapeHtml(account.name)}</div>
-        ${account.issuer ? `<div class="totp-card-issuer">${escapeHtml(account.issuer)}</div>` : ''}
-      </div>
-      <div class="totp-card-code" onclick="totpCopyCode(this, '${code}')" title="Click to copy">
-        <span class="totp-code-digits">${formattedCode}</span>
-        <span class="totp-code-copied" style="display:none">Copied!</span>
-      </div>
-      <div class="totp-card-actions">
-        <button class="totp-card-btn" onclick="openTotpEdit('${account.id}')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
-        <button class="totp-card-btn totp-card-btn-danger" onclick="openTotpDelete('${account.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+      <div class="totp-card-bottom">
+        <div class="totp-card-code" onclick="totpCopyCode(this, '${code}')" title="Click to copy">
+          <span class="totp-code-digits">${formattedCode}</span>
+          <span class="totp-code-copied" style="display:none">Copied!</span>
+        </div>
+        <div class="totp-card-ring${isUrgent ? ' urgent' : ''}">
+          <svg viewBox="0 0 40 40" class="totp-ring-svg">
+            <circle cx="20" cy="20" r="${R}" fill="none" stroke="var(--border)" stroke-width="3" opacity="0.2"/>
+            <circle cx="20" cy="20" r="${R}" fill="none" stroke="${isUrgent ? '#ef4444' : 'var(--accent)'}" stroke-width="3"
+              stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - remaining / 30)}"
+              stroke-linecap="round" class="totp-ring-progress" style="transition:stroke-dashoffset 1s linear"/>
+          </svg>
+          <span class="totp-ring-time">${remaining}s</span>
+        </div>
       </div>
     `;
     grid.appendChild(card);

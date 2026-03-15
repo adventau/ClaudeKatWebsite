@@ -3467,54 +3467,55 @@ body.perf-mode .modal { box-shadow: none !important; }
   transition: width 1s linear, background 0.3s;
 }
 
-/* Grid */
+/* List */
 .totp-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding: 1rem 1.25rem;
   overflow-y: auto;
   flex: 1;
+  max-width: 560px;
 }
 
-/* Card */
+/* Card — compact, Google Authenticator style */
 .totp-card {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
+  flex-direction: column;
+  padding: 14px 18px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 14px;
   transition: all 0.25s ease;
-  animation: totpCardIn 0.35s ease;
+  animation: totpCardIn 0.3s ease;
   position: relative;
-  overflow: hidden;
-}
-.totp-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, transparent 50%, rgba(124, 58, 237, 0.03) 100%);
-  pointer-events: none;
-  border-radius: 14px;
 }
 .totp-card:hover {
   border-color: var(--accent);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  transform: translateY(-2px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+}
+.totp-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.totp-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 /* Ring Timer */
 .totp-card-ring {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
 }
 .totp-ring-svg {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   transform: rotate(-90deg);
 }
 .totp-ring-progress {
@@ -3526,7 +3527,7 @@ body.perf-mode .modal { box-shadow: none !important; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 700;
   color: var(--text-secondary);
   font-family: var(--font-main);
@@ -3542,8 +3543,8 @@ body.perf-mode .modal { box-shadow: none !important; }
   min-width: 0;
 }
 .totp-card-name {
-  font-weight: 700;
-  font-size: 0.92rem;
+  font-weight: 600;
+  font-size: 0.85rem;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -3551,9 +3552,9 @@ body.perf-mode .modal { box-shadow: none !important; }
   font-family: var(--font-main);
 }
 .totp-card-issuer {
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
-  margin-top: 2px;
+  margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3562,30 +3563,21 @@ body.perf-mode .modal { box-shadow: none !important; }
 /* Code Display */
 .totp-card-code {
   font-family: 'Space Grotesk', 'SF Mono', monospace;
-  font-size: 1.35rem;
+  font-size: 1.6rem;
   font-weight: 700;
-  letter-spacing: 3px;
+  letter-spacing: 4px;
   color: var(--accent);
   cursor: pointer;
-  padding: 6px 12px;
-  border-radius: 10px;
-  background: var(--bg-input);
   transition: all 0.2s ease;
   user-select: none;
-  flex-shrink: 0;
   position: relative;
-  text-align: center;
-  min-width: 120px;
 }
-.totp-card-code:hover {
-  background: var(--bg-hover);
-  transform: scale(1.04);
-}
-.totp-card-code.copied {
-  background: rgba(34, 197, 94, 0.15);
-}
+.totp-card-code:hover { opacity: 0.8; }
+.totp-card-code:active { transform: scale(0.97); }
+.totp-card-code.copied .totp-code-digits { display: none; }
+.totp-card-code.copied .totp-code-copied { display: inline !important; }
 .totp-code-copied {
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   letter-spacing: 0;
   color: #22c55e;
   font-weight: 600;
@@ -3594,16 +3586,16 @@ body.perf-mode .modal { box-shadow: none !important; }
 /* Card Actions */
 .totp-card-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   opacity: 0;
   transition: opacity 0.2s;
 }
 .totp-card:hover .totp-card-actions { opacity: 1; }
 .totp-card-btn {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -3612,8 +3604,6 @@ body.perf-mode .modal { box-shadow: none !important; }
   justify-content: center;
   transition: all 0.2s;
   -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
 }
 .totp-card-btn:hover {
   background: var(--bg-hover);
@@ -3750,9 +3740,6 @@ body.perf-mode .modal { box-shadow: none !important; }
 
 /* Responsive */
 @media (max-width: 600px) {
-  .totp-grid { grid-template-columns: 1fr; }
-  .totp-card { flex-wrap: wrap; gap: 10px; }
-  .totp-card-code { font-size: 1.1rem; min-width: auto; flex: 1; }
+  .totp-card-code { font-size: 1.3rem; letter-spacing: 3px; }
   .totp-card-actions { opacity: 1; }
-  .totp-header { flex-direction: column; align-items: flex-start; }
 }
