@@ -1240,15 +1240,6 @@
 .theme-dark .nav-item .nav-icon svg { width: 14px; height: 14px; }
 /* Only Settings stays icon-only (gear is universally recognized) */
 .theme-dark .nav-item:not([data-section]) .nav-label { display: none; }
-/* Push utility group to the far right */
-.theme-dark .nav-item[data-section="reminders"] {
-  margin-left: auto;
-  padding-left: 14px;
-  border-left: 1px solid #2a2a2a;
-}
-.theme-dark .nav-item[data-section="authenticator"] {
-  padding: 6px 10px;
-}
 
 /* Search bar — hide from sidebar, show in chat header instead */
 .theme-dark #sidebar .search-wrap {
