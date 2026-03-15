@@ -2097,13 +2097,15 @@ function setupSocketEvents() {
   socket.on('new-message', msg => {
     // Skip if we already have this message (e.g. added from HTTP response)
     if (allMessages.some(m => m.id === msg.id)) return;
+    // Skip guest call events from main chat entirely
+    if (msg.type === 'call-event' && msg.callPeer && msg.callPeer.startsWith('guest:')) return;
     allMessages.push(msg);
     const area = document.getElementById('messages-area');
     const empty = document.getElementById('chat-empty');
     if (empty) empty.remove();
     area.appendChild(buildMsgElement(msg, shouldGroupWithPrev(msg)));
     area.scrollTop = area.scrollHeight;
-    if (msg.sender !== currentUser && msg.sender !== 'ai') {
+    if (msg.sender !== currentUser && msg.sender !== 'ai' && msg.type !== 'call-event') {
       SoundSystem.receive();
       markMessageRead(msg.id);
       sendDesktopNotif(`New message from ${capitalize(msg.sender)}`, msg.text?.substring(0, 80) || 'New file');
@@ -2418,7 +2420,13 @@ function setupSocketEvents() {
   socket.on('call-offer', handleCallOffer);
   socket.on('call-answer', handleCallAnswer);
   socket.on('call-ice-candidate', handleIceCandidate);
-  socket.on('call-ended', () => endCall(true));
+  socket.on('call-ended', (data) => {
+    // Only process if we're actually in a call (prevents ghost call-end events from guest calls)
+    if (!inCall && !callPeer) return;
+    // If callId provided, only end if it matches our active call
+    if (data?.callId && window._activeCallId && data.callId !== window._activeCallId) return;
+    endCall(true);
+  });
   socket.on('call-camera-toggle', ({ user, cameraOn }) => {
     if (!inCall || user === currentUser) return;
     const remoteVid = document.getElementById('call-video-remote');
@@ -5713,6 +5721,8 @@ let callAnswered = false;      // track if call was answered
 
 // Post a call event (missed/ended) as a system message in chat
 async function postCallEvent(type, peer, cType) {
+  // Never post call events for guest calls to main chat
+  if (peer && peer.startsWith('guest:')) return;
   const icon = cType === 'video' ? '📹' : '📞';
   let text;
   if (type === 'missed') {
