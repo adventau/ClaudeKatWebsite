@@ -1240,12 +1240,16 @@
 .theme-dark .nav-item .nav-icon svg { width: 14px; height: 14px; }
 /* Reminders + Settings are icon-only in the top bar (bell/gear are universally recognized) */
 .theme-dark .nav-item[data-section="reminders"] .nav-label,
+.theme-dark .nav-item[data-section="authenticator"] .nav-label,
 .theme-dark .nav-item:not([data-section]) .nav-label { display: none; }
 /* Thin separator before the icon-only utility group */
 .theme-dark .nav-item[data-section="reminders"] {
   margin-left: 6px;
   padding-left: 14px;
   border-left: 1px solid #2a2a2a;
+}
+.theme-dark .nav-item[data-section="authenticator"] {
+  padding: 6px 10px;
 }
 
 /* Search bar — hide from sidebar, show in chat header instead */
