@@ -117,44 +117,57 @@
       color: #fff; margin-bottom: 3px;
     }
 
-    /* ── Input area ────────────────────────────────────────── */
+    /* ── Input area — matches main app chat bar ─────────────── */
     .input-area {
-      padding: 10px 16px 14px; background: var(--surface);
-      border-top: 1px solid var(--border); display: flex; gap: 8px;
-      align-items: flex-end; flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      padding: 10px 16px 14px;
+      flex-shrink: 0;
     }
-    .input-wrap {
-      flex: 1; background: rgba(255,255,255,0.04);
-      border: 1.5px solid var(--border); border-radius: 13px;
-      display: flex; flex-direction: column;
-      padding: 8px 12px 6px; transition: border-color 0.2s, box-shadow 0.2s;
+    .input-row {
+      display: flex; gap: 8px; align-items: flex-end;
     }
-    .input-wrap:focus-within {
+    .msg-input-wrap {
+      flex: 1; position: relative;
+      background: rgba(255,255,255,0.04);
+      border: 1.5px solid var(--border);
+      border-radius: 22px;
+      display: flex; align-items: flex-end; gap: 4px;
+      padding: 8px 8px 8px 16px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .msg-input-wrap:focus-within {
       border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow);
     }
-    .emoji-row { display: flex; gap: 1px; margin-bottom: 6px; }
-    .eq {
-      background: none; border: none; font-size: 1.1rem; cursor: pointer;
-      padding: 3px 5px; border-radius: 7px; transition: background 0.15s; line-height: 1;
-    }
-    .eq:hover { background: rgba(255,255,255,0.09); }
     textarea {
       flex: 1; background: transparent; border: none; outline: none;
-      color: var(--text); font-size: 0.88rem; font-family: 'Inter', sans-serif;
-      resize: none; max-height: 110px; min-height: 32px; line-height: 1.55; padding: 0;
+      color: var(--text); font-size: 0.92rem; font-family: 'Inter', sans-serif;
+      resize: none; max-height: 140px; min-height: 40px; line-height: 1.55;
+      padding: 7px 0;
     }
     textarea::placeholder { color: var(--muted); }
-
+    .input-actions {
+      display: flex; align-items: center; gap: 2px; flex-shrink: 0; padding-bottom: 2px;
+    }
+    .input-actions .eq {
+      background: none; border: none; font-size: 1rem; cursor: pointer;
+      padding: 4px 5px; border-radius: 7px; transition: background 0.15s; line-height: 1;
+    }
+    .input-actions .eq:hover { background: rgba(255,255,255,0.09); }
     .send-btn {
-      width: 38px; height: 38px; border-radius: 11px;
+      width: 40px; height: 40px; border-radius: 50%;
       background: linear-gradient(135deg, var(--accent), #a85580);
       border: none; color: #fff; font-size: 0.9rem; cursor: pointer;
       flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-      transition: transform 0.18s, box-shadow 0.18s;
-      box-shadow: 0 2px 10px var(--glow);
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 2px 8px var(--glow);
     }
     .send-btn:hover { transform: scale(1.08); box-shadow: 0 4px 16px var(--glow); }
     .send-btn:active { transform: scale(0.95); }
+    @media (max-width: 600px) {
+      .input-area { padding: 8px 10px 12px; }
+      .msg-input-wrap { padding: 6px 6px 6px 12px; }
+    }
 
     /* ── Watermark ─────────────────────────────────────────── */
     .vault-watermark {
@@ -436,19 +449,21 @@
 
   <!-- Input -->
   <div class="input-area">
-    <div class="input-wrap">
-      <div class="emoji-row">
-        <button class="eq" onclick="insertEmoji('😊')">😊</button>
-        <button class="eq" onclick="insertEmoji('❤️')">❤️</button>
-        <button class="eq" onclick="insertEmoji('😂')">😂</button>
-        <button class="eq" onclick="insertEmoji('🙏')">🙏</button>
-        <button class="eq" onclick="insertEmoji('✨')">✨</button>
-        <button class="eq" onclick="insertEmoji('💜')">💜</button>
-        <button class="eq" onclick="insertEmoji('🔥')">🔥</button>
+    <div class="input-row">
+      <div class="msg-input-wrap">
+        <textarea id="msg-input" placeholder="Type a message…" rows="1"></textarea>
+        <div class="input-actions">
+          <button class="eq" onclick="insertEmoji('😊')">😊</button>
+          <button class="eq" onclick="insertEmoji('❤️')">❤️</button>
+          <button class="eq" onclick="insertEmoji('😂')">😂</button>
+          <button class="eq" onclick="insertEmoji('🙏')">🙏</button>
+          <button class="eq" onclick="insertEmoji('✨')">✨</button>
+          <button class="eq" onclick="insertEmoji('💜')">💜</button>
+          <button class="eq" onclick="insertEmoji('🔥')">🔥</button>
+        </div>
       </div>
-      <textarea id="msg-input" placeholder="Type a message…" rows="1"></textarea>
+      <button class="send-btn" onclick="sendMsg()">➤</button>
     </div>
-    <button class="send-btn" onclick="sendMsg()">➤</button>
   </div>
 
   <!-- Guest Profile Viewer -->
@@ -576,6 +591,13 @@
       document.getElementById('typing-row').style.display = 'flex';
       clearTimeout(window._typingTimer);
       window._typingTimer = setTimeout(() => document.getElementById('typing-row').style.display = 'none', 2000);
+    });
+
+    // Live presence updates
+    socket.on('user-presence', ({ user, state }) => {
+      if (window._hostUsers[user]) {
+        window._hostUsers[user]._presence = state;
+      }
     });
 
     // Immediate logout if guest access is revoked
@@ -842,10 +864,10 @@
     } else {
       avatarEl.innerHTML = `<span>${(u.displayName || u.name)[0].toUpperCase()}</span>`;
     }
-    // Status dot
-    const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
+    // Status dot — use live presence
+    const statusColors = { online: '#22c55e', idle: '#eab308', offline: '#6b7280' };
     const presence = u._presence || 'offline';
-    document.getElementById('gp-status-dot').style.background = statusColors[presence === 'online' ? 'online' : presence === 'idle' ? 'idle' : 'invisible'] || '#6b7280';
+    document.getElementById('gp-status-dot').style.background = statusColors[presence] || '#6b7280';
     // Name
     const nameEl = document.getElementById('gp-name');
     nameEl.textContent = u.displayName || capitalize(u.name);
@@ -853,11 +875,13 @@
     else nameEl.style.color = '';
     // Username
     document.getElementById('gp-username').textContent = u.name + (u.pronouns ? ' \u2022 ' + u.pronouns : '');
-    // Status row
-    const statusIcons = { online: '🟢', idle: '🌙', dnd: '⛔', invisible: '⚫' };
-    const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
-    const userStatus = u.status || 'online';
-    let statusHtml = `<span>${statusIcons[userStatus] || '🟢'}</span><span>${statusLabels[userStatus] || 'Online'}</span>`;
+    // Status row — show live presence + last seen for offline
+    const presenceIcons = { online: '🟢', idle: '🌙', offline: '⚫' };
+    const presenceLabels = { online: 'Online', idle: 'Idle', offline: 'Offline' };
+    let statusHtml = `<span>${presenceIcons[presence] || '⚫'}</span><span>${presenceLabels[presence] || 'Offline'}</span>`;
+    if (presence === 'offline' && u.lastSeen) {
+      statusHtml += `<span>— Last seen ${new Date(u.lastSeen).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>`;
+    }
     if (u.customStatus) statusHtml += `<span>— ${escHtml(u.customStatus)}</span>`;
     document.getElementById('gp-status-row').innerHTML = statusHtml;
     // Bio
