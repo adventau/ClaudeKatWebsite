@@ -1731,6 +1731,15 @@ app.post('/api/guests/:id/avatar', auth, upload.single('avatar'), (req, res) => 
   res.json({ success: true, avatar: g.avatar });
 });
 
+app.delete('/api/guests/:id/avatar', mainAuth, (req, res) => {
+  const guests = rd(F.guests) || {};
+  const g = guests[req.params.id];
+  if (!g) return res.status(404).json({ error: 'Not found' });
+  g.avatar = null;
+  wd(F.guests, guests);
+  res.json({ success: true });
+});
+
 app.delete('/api/guests/:id', mainAuth, (req, res) => {
   const guests = rd(F.guests) || {};
   if (guests[req.params.id]) {

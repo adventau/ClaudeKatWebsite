@@ -958,12 +958,12 @@
       if (guestData.createdBy) creatorTheme = guestData.createdBy;
       if (guestData.avatar) guestAvatar = guestData.avatar;
       applyChannelPermissions();
-      renderChannel();
       updateAvatarPreview();
+      // Load host user data BEFORE rendering messages so avatars are available
+      await loadHostUsers();
+      renderChannel();
       // Load creator's theme info for guest settings
       loadCreatorTheme();
-      // Load host user data for profile viewing
-      loadHostUsers();
     }
 
     // Real-time — single handler per channel (no duplicates)
@@ -1040,7 +1040,7 @@
     socket.on('call-offer', data => handleGuestCallOffer(data));
     socket.on('call-answer', data => handleGuestCallAnswer(data));
     socket.on('call-ice-candidate', data => handleGuestIce(data));
-    socket.on('call-ended', () => endGuestCall(true));
+    socket.on('call-ended', data => { if (!data?.callId || data.callId === guestCallId) endGuestCall(true); });
 
     // Live permission/name update from host
     socket.on('guest-updated', ({ guestId: updatedId, name, channels }) => {
@@ -1637,23 +1637,23 @@
   }
 
   // ── Calling (WebRTC) ─────────────────────────────────────────────
+  // Guest calling uses the same broadcast signaling as the main app.
+  // To route calls correctly, we include `from` and `to` fields:
+  //   from: guestName (e.g. "testing")   to: host username (e.g. "kaliph")
+  // The guest filters incoming offers to only accept those addressed to it.
   const GUEST_ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
   let guestPeer = null, guestLocalStream = null, guestCallType = null;
   let guestCallPeer = null, guestInCall = false, guestCallAnswered = false;
   let guestIceQueue = [], guestCallTimer = null, guestCallSecs = 0;
+  // Unique call ID so ICE candidates and answers route to the right peer
+  let guestCallId = null;
 
-  async function startGuestCall(type) {
-    if (guestInCall) { showToast('Already in a call'); return; }
-    if (channel === 'group') { showToast('Select a DM channel to call'); return; }
-    guestCallType = type;
-    guestCallPeer = channel;
-    guestCallAnswered = false;
-    const vidC = type === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false;
-    guestLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: vidC }).catch(() => null);
-    if (!guestLocalStream) { showToast('Media access denied'); return; }
+  function _setupGuestPeer(type) {
     guestPeer = new RTCPeerConnection(GUEST_ICE);
     guestLocalStream.getTracks().forEach(t => guestPeer.addTrack(t, guestLocalStream));
-    guestPeer.onicecandidate = e => { if (e.candidate) socket.emit('call-ice-candidate', { candidate: e.candidate, from: 'guest:' + guestId }); };
+    guestPeer.onicecandidate = e => {
+      if (e.candidate) socket.emit('call-ice-candidate', { candidate: e.candidate, callId: guestCallId });
+    };
     guestPeer.ontrack = e => {
       const rv = document.getElementById('gcall-remote-video');
       rv.srcObject = e.streams[0];
@@ -1662,21 +1662,42 @@
     guestPeer.oniceconnectionstatechange = () => {
       const st = guestPeer?.iceConnectionState;
       if (st === 'failed') endGuestCall(true);
-      else if (st === 'disconnected') { clearTimeout(window._gIceTimer); window._gIceTimer = setTimeout(() => { if (guestPeer?.iceConnectionState === 'disconnected') endGuestCall(true); }, 5000); }
-      else if (st === 'connected' || st === 'completed') clearTimeout(window._gIceTimer);
+      else if (st === 'disconnected') {
+        clearTimeout(window._gIceTimer);
+        window._gIceTimer = setTimeout(() => { if (guestPeer?.iceConnectionState === 'disconnected') endGuestCall(true); }, 5000);
+      } else if (st === 'connected' || st === 'completed') clearTimeout(window._gIceTimer);
     };
-    if (type === 'video') { const lv = document.getElementById('gcall-local-video'); lv.srcObject = guestLocalStream; lv.style.display = 'block'; lv.play().catch(() => {}); }
+    if (type === 'video') {
+      const lv = document.getElementById('gcall-local-video');
+      lv.srcObject = guestLocalStream; lv.style.display = 'block'; lv.play().catch(() => {});
+    }
+  }
+
+  async function startGuestCall(type) {
+    if (guestInCall) { showToast('Already in a call'); return; }
+    if (channel === 'group') { showToast('Select a DM channel to call'); return; }
+    guestCallType = type;
+    guestCallPeer = channel; // host username like 'kaliph'
+    guestCallAnswered = false;
+    guestCallId = 'gc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    const vidC = type === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false;
+    guestLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: vidC }).catch(() => null);
+    if (!guestLocalStream) { showToast('Media access denied'); return; }
+    _setupGuestPeer(type);
     const offer = await guestPeer.createOffer();
     await guestPeer.setLocalDescription(offer);
-    socket.emit('call-offer', { offer, type, from: 'guest:' + guestId + ':' + guestName });
+    socket.emit('call-offer', { offer, type, from: guestName, to: channel, callId: guestCallId, isGuest: true });
     guestInCall = true;
     showGuestCallOverlay('Calling…', type);
   }
 
-  function handleGuestCallOffer({ offer, type, from }) {
+  function handleGuestCallOffer({ offer, type, from, to, callId }) {
+    // Only accept calls addressed to this guest (by guestName)
+    if (to !== guestName) return;
     if (guestInCall) return;
     guestCallType = type;
     guestCallPeer = from;
+    guestCallId = callId || 'unknown';
     guestIceQueue = [];
     window._guestPendingOffer = offer;
     const modal = document.getElementById('gcall-incoming');
@@ -1691,33 +1712,20 @@
     const vidC = guestCallType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false;
     guestLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: vidC }).catch(() => null);
     if (!guestLocalStream) { showToast('Media access denied'); return; }
-    guestPeer = new RTCPeerConnection(GUEST_ICE);
-    guestLocalStream.getTracks().forEach(t => guestPeer.addTrack(t, guestLocalStream));
-    guestPeer.onicecandidate = e => { if (e.candidate) socket.emit('call-ice-candidate', { candidate: e.candidate, from: 'guest:' + guestId }); };
-    guestPeer.ontrack = e => {
-      const rv = document.getElementById('gcall-remote-video');
-      rv.srcObject = e.streams[0];
-      if (guestCallType === 'video') { rv.style.display = 'block'; document.getElementById('gcall-info').style.display = 'none'; }
-    };
-    guestPeer.oniceconnectionstatechange = () => {
-      const st = guestPeer?.iceConnectionState;
-      if (st === 'failed') endGuestCall(true);
-      else if (st === 'disconnected') { clearTimeout(window._gIceTimer); window._gIceTimer = setTimeout(() => { if (guestPeer?.iceConnectionState === 'disconnected') endGuestCall(true); }, 5000); }
-      else if (st === 'connected' || st === 'completed') clearTimeout(window._gIceTimer);
-    };
-    if (guestCallType === 'video') { const lv = document.getElementById('gcall-local-video'); lv.srcObject = guestLocalStream; lv.style.display = 'block'; lv.play().catch(() => {}); }
+    _setupGuestPeer(guestCallType);
     await guestPeer.setRemoteDescription(window._guestPendingOffer);
     for (const c of guestIceQueue) await guestPeer.addIceCandidate(c);
     guestIceQueue = [];
     const answer = await guestPeer.createAnswer();
     await guestPeer.setLocalDescription(answer);
-    socket.emit('call-answer', { answer, from: 'guest:' + guestId });
+    socket.emit('call-answer', { answer, callId: guestCallId });
     guestInCall = true;
     startGuestCallTimer();
     showGuestCallOverlay('Connected', guestCallType);
   }
 
-  function handleGuestCallAnswer({ answer }) {
+  function handleGuestCallAnswer({ answer, callId }) {
+    if (callId && callId !== guestCallId) return;
     guestCallAnswered = true;
     if (guestPeer) {
       guestPeer.setRemoteDescription(answer);
@@ -1726,7 +1734,8 @@
     }
   }
 
-  function handleGuestIce({ candidate }) {
+  function handleGuestIce({ candidate, callId }) {
+    if (callId && callId !== guestCallId) return;
     if (!candidate) return;
     if (guestPeer && guestPeer.remoteDescription) guestPeer.addIceCandidate(candidate);
     else guestIceQueue.push(candidate);
@@ -1734,17 +1743,18 @@
 
   function declineGuestCall() {
     document.getElementById('gcall-incoming').style.display = 'none';
+    socket.emit('call-end', { callId: guestCallId });
     guestCallPeer = null; window._guestPendingOffer = null; guestIceQueue = [];
-    socket.emit('call-end', { from: 'guest:' + guestId });
+    guestCallId = null;
   }
 
   function endGuestCall(remote = false) {
-    if (!remote) socket.emit('call-end', { from: 'guest:' + guestId });
+    if (!remote) socket.emit('call-end', { callId: guestCallId });
     if (guestPeer) { guestPeer.close(); guestPeer = null; }
     if (guestLocalStream) { guestLocalStream.getTracks().forEach(t => t.stop()); guestLocalStream = null; }
     clearInterval(guestCallTimer);
     guestInCall = false; guestCallAnswered = false; guestCallPeer = null;
-    window._guestPendingOffer = null; guestIceQueue = []; guestCallSecs = 0;
+    window._guestPendingOffer = null; guestIceQueue = []; guestCallSecs = 0; guestCallId = null;
     document.getElementById('gcall-overlay').style.display = 'none';
     document.getElementById('gcall-remote-video').style.display = 'none';
     document.getElementById('gcall-local-video').style.display = 'none';

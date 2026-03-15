@@ -4109,7 +4109,7 @@ function setupGuestSocketListeners() {
           const chLabel = channel === 'group' ? 'Group' : 'DM';
           sendDesktopNotif(`${msg.sender} (${chLabel})`, msg.text?.substring(0, 80) || 'New message');
           SoundSystem.receive();
-          showMsgNotif(`${msg.sender} · ${chLabel}`, msg.text?.substring(0, 80) || 'New message');
+          showMsgNotif(`${msg.sender} · ${chLabel}`, msg.text?.substring(0, 80) || 'New message', guest?.avatar);
         }
       }
     };
@@ -5395,11 +5395,14 @@ function startGuestCountdowns() {
 }
 
 async function editGuest(guestId) {
+  if (!guestId) return;
   const guests = await fetch('/api/guests').then(r => r.json());
   const g = guests[guestId];
   if (!g) return showToast('Guest not found');
   const channels = g.channels || ['kaliph','kathrine','group'];
-  // Build modal
+  const avatarPreview = g.avatar
+    ? `<img src="${g.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+    : `<span style="font-size:1.4rem;color:var(--text-primary,#fff)">${g.name[0].toUpperCase()}</span>`;
   let overlay = document.getElementById('edit-guest-overlay');
   if (overlay) overlay.remove();
   overlay = document.createElement('div');
@@ -5407,13 +5410,23 @@ async function editGuest(guestId) {
   overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease';
   overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
   overlay.innerHTML = `
-    <div style="background:var(--bg-card,var(--surface,#1e1e2e));border:1px solid var(--border);border-radius:16px;padding:1.5rem;width:360px;max-width:90vw;box-shadow:0 12px 40px rgba(0,0,0,0.4)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+    <div style="background:var(--bg-card,var(--surface,#1e1e2e));border:1px solid var(--border);border-radius:16px;padding:1.5rem;width:380px;max-width:90vw;box-shadow:0 12px 40px rgba(0,0,0,0.4)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem">
         <h3 style="margin:0;font-size:1rem;color:var(--text-primary,#fff)">Edit Guest</h3>
         <button onclick="this.closest('#edit-guest-overlay').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem">&times;</button>
       </div>
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.2rem">
+        <div id="edit-guest-avatar-preview" style="width:56px;height:56px;min-width:56px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;position:relative" onclick="document.getElementById('edit-guest-avatar-input').click()">
+          ${avatarPreview}
+          <div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);opacity:0;transition:opacity 0.2s;display:flex;align-items:center;justify-content:center;border-radius:50%" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0"><i data-lucide="camera" style="width:20px;height:20px;color:#fff"></i></div>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:0.72rem;color:var(--text-muted,#888);margin-bottom:4px">Click avatar to change photo</div>
+          ${g.avatar ? `<button class="btn-ghost" onclick="removeGuestAvatarHost('${guestId}')" style="font-size:0.72rem;padding:2px 8px">Remove photo</button>` : ''}
+        </div>
+        <input type="file" id="edit-guest-avatar-input" accept="image/*" style="display:none" onchange="uploadGuestAvatarHost('${guestId}',this)">
+      </div>
       <div class="form-row" style="margin-bottom:1rem"><label style="font-size:0.78rem;color:var(--text-secondary,#aaa);margin-bottom:4px;display:block">Guest Name</label><input type="text" id="edit-guest-name" value="${escapeHtml(g.name)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input,rgba(255,255,255,0.06));color:var(--text-primary,#fff);font-size:0.85rem"></div>
-      <div class="form-row" style="margin-bottom:1rem"><label style="font-size:0.78rem;color:var(--text-secondary,#aaa);margin-bottom:4px;display:block">New Password <span style="opacity:0.5">(leave blank to keep current)</span></label><input type="password" id="edit-guest-pw" placeholder="••••••••" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input,rgba(255,255,255,0.06));color:var(--text-primary,#fff);font-size:0.85rem"></div>
       <div style="margin-bottom:1rem">
         <label style="font-size:0.78rem;color:var(--text-secondary,#aaa);margin-bottom:8px;display:block">Channel Permissions</label>
         <div style="display:flex;flex-direction:column;gap:8px">
@@ -5428,22 +5441,44 @@ async function editGuest(guestId) {
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  if (window.lucide) lucide.createIcons();
+}
+
+async function uploadGuestAvatarHost(guestId, input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('avatar', file);
+  const res = await fetch(`/api/guests/${guestId}/avatar`, { method: 'POST', body: fd });
+  const data = await res.json();
+  if (data.avatar) {
+    const preview = document.getElementById('edit-guest-avatar-preview');
+    if (preview) preview.innerHTML = `<img src="${data.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"><div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);opacity:0;transition:opacity 0.2s;display:flex;align-items:center;justify-content:center;border-radius:50%" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0"><i data-lucide="camera" style="width:20px;height:20px;color:#fff"></i></div>`;
+    if (window.lucide) lucide.createIcons();
+    showToast('Avatar updated');
+    await loadGuestMessages();
+    renderGuestChat();
+  }
+}
+
+async function removeGuestAvatarHost(guestId) {
+  await fetch(`/api/guests/${guestId}/avatar`, { method: 'DELETE' });
+  showToast('Avatar removed');
+  await loadGuestMessages();
+  editGuest(guestId); // Refresh modal
 }
 
 async function saveGuestEdit(guestId) {
   const name = document.getElementById('edit-guest-name').value.trim();
   if (!name) return showToast('Name is required');
-  const password = document.getElementById('edit-guest-pw').value;
   const channels = [];
   if (document.getElementById('edit-perm-kaliph').checked) channels.push('kaliph');
   if (document.getElementById('edit-perm-kathrine').checked) channels.push('kathrine');
   if (document.getElementById('edit-perm-group').checked) channels.push('group');
   if (!channels.length) return showToast('Select at least one channel');
-  const body = { name, channels };
-  if (password) body.password = password;
   await fetch(`/api/guests/${guestId}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify({ name, channels })
   });
   document.getElementById('edit-guest-overlay')?.remove();
   await loadGuests();
@@ -5731,7 +5766,7 @@ async function startCall(type) {
   peerConnection = new RTCPeerConnection(ICE_CONFIG);
   localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
 
-  peerConnection.onicecandidate = e => { if (e.candidate) socket.emit('call-ice-candidate', { candidate: e.candidate }); };
+  peerConnection.onicecandidate = e => { if (e.candidate) socket.emit('call-ice-candidate', { candidate: e.candidate, callId: window._activeCallId }); };
   peerConnection.ontrack = e => {
     const remoteVid = document.getElementById('call-video-remote');
     remoteVid.srcObject = e.streams[0];
@@ -5763,16 +5798,19 @@ async function startCall(type) {
 
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
-  socket.emit('call-offer', { offer, type, from: currentUser });
+  socket.emit('call-offer', { offer, type, from: currentUser, to: callPeer });
   inCall = true;
   SoundSystem.startRingtone('outgoing');
   showCallOverlay('Calling ' + capitalize(callPeer) + '...', type);
 }
 
-async function handleCallOffer({ offer, type, from }) {
+async function handleCallOffer({ offer, type, from, to, callId, isGuest }) {
+  // Only accept calls addressed to us (or unaddressed calls from the other main user)
+  if (to && to !== currentUser) return;
   if (inCall) return; // already in a call
   callType = type;
   callPeer = from;
+  window._activeCallId = callId || null;
   iceCandidateQueue = [];
   document.getElementById('incoming-call').style.display = 'block';
   document.getElementById('incoming-call-name').textContent = capitalize(from);
@@ -5794,7 +5832,7 @@ async function acceptCall() {
 
   peerConnection = new RTCPeerConnection(ICE_CONFIG);
   localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
-  peerConnection.onicecandidate = e => { if (e.candidate) socket.emit('call-ice-candidate', { candidate: e.candidate }); };
+  peerConnection.onicecandidate = e => { if (e.candidate) socket.emit('call-ice-candidate', { candidate: e.candidate, callId: window._activeCallId }); };
   peerConnection.ontrack = e => {
     const remoteVid = document.getElementById('call-video-remote');
     remoteVid.srcObject = e.streams[0];
@@ -5829,7 +5867,7 @@ async function acceptCall() {
 
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
-  socket.emit('call-answer', { answer });
+  socket.emit('call-answer', { answer, callId: window._activeCallId });
   inCall = true;
   startCallTimer();
   showCallOverlay(capitalize(callPeer), callType);
@@ -5862,13 +5900,13 @@ function declineCall() {
   callPeer = null;
   window._pendingOffer = null;
   iceCandidateQueue = [];
-  socket.emit('call-end', {});
+  socket.emit('call-end', { callId: window._activeCallId });
 }
 
 function endCall(remote = false) {
   SoundSystem.stopRingtone();
   SoundSystem.callSound('hangup');
-  if (!remote) socket.emit('call-end', {});
+  if (!remote) socket.emit('call-end', { callId: window._activeCallId });
   // Post call event to chat
   const peer = callPeer;
   const cType = callType;
@@ -6075,14 +6113,15 @@ function stopCallControlsAutoHide() {
 }
 
 // ── Message Notification Popup ───────────────────────────────────────
-function showMsgNotif(sender, text) {
+function showMsgNotif(sender, text, overrideAvatar) {
   const container = document.getElementById('msg-notif-container');
   const users = window._users || {};
   const senderData = users[sender];
   const el = document.createElement('div');
   el.className = 'msg-notif';
-  const avatarHtml = senderData?.avatar
-    ? `<img src="${senderData.avatar}">`
+  const avatarUrl = overrideAvatar || senderData?.avatar;
+  const avatarHtml = avatarUrl
+    ? `<img src="${avatarUrl}">`
     : sender[0].toUpperCase();
   el.innerHTML = `
     <div class="msg-notif-avatar">${avatarHtml}</div>
