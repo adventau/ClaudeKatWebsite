@@ -1791,6 +1791,7 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
   width: 36px; height: 36px; border-radius: 50%;
   background: var(--bg-btn); display: flex; align-items: center; justify-content: center;
   font-size: 0.8rem; font-weight: 700; color: #fff; flex-shrink: 0;
+  overflow: hidden;
 }
 .guest-list-item.active .guest-item-avatar { background: rgba(255,255,255,0.2); }
 .guest-item-info { flex: 1; min-width: 0; }
@@ -1816,6 +1817,7 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
   width: 34px; height: 34px; border-radius: 50%;
   background: var(--accent); display: flex; align-items: center; justify-content: center;
   font-size: 0.8rem; font-weight: 700; color: #fff; flex-shrink: 0;
+  overflow: hidden;
 }
 .guest-header-info { display: flex; flex-direction: column; }
 .guest-header-name { font-weight: 700; font-size: 0.92rem; color: var(--text-primary); }
@@ -1839,6 +1841,7 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
   display: flex; align-items: center; justify-content: center;
   font-size: 0.7rem; font-weight: 700; color: #fff; flex-shrink: 0;
   align-self: flex-end; margin-bottom: 2px;
+  overflow: hidden;
 }
 .guest-msg-content {
   display: flex; flex-direction: column; max-width: 68%; min-width: 0;
