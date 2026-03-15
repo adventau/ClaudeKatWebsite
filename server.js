@@ -231,7 +231,9 @@ class PgStore extends session.Store {
         'SELECT data FROM sessions WHERE sid = $1 AND expires > $2',
         [sid, Date.now()]
       );
-      cb(null, r.rows.length ? r.rows[0].data : null);
+      if (!r.rows.length) return cb(null, null);
+      const data = r.rows[0].data;
+      cb(null, typeof data === 'string' ? JSON.parse(data) : data);
     } catch (e) { cb(e); }
   }
   async set(sid, sess, cb) {
@@ -240,8 +242,8 @@ class PgStore extends session.Store {
       : Date.now() + 2 * 60 * 60 * 1000;
     try {
       await db.query(
-        'INSERT INTO sessions (sid, data, expires) VALUES ($1, $2, $3) ' +
-        'ON CONFLICT (sid) DO UPDATE SET data = $2, expires = $3',
+        'INSERT INTO sessions (sid, data, expires) VALUES ($1, $2::jsonb, $3) ' +
+        'ON CONFLICT (sid) DO UPDATE SET data = $2::jsonb, expires = $3',
         [sid, JSON.stringify(sess), ttl]
       );
       cb(null);
