@@ -236,9 +236,9 @@ async function init() {
   // Show/hide authenticator nav based on user preference
   const totpNav = document.getElementById('nav-authenticator');
   const totpToggle = document.getElementById('toggle-totp');
-  const totpEnabled = usersRes[currentUser]?.totpEnabled !== false;
-  if (totpNav) totpNav.style.display = totpEnabled ? '' : 'none';
-  if (totpToggle) totpToggle.checked = totpEnabled;
+  const totpDisabled = usersRes[currentUser]?.totpEnabled === false;
+  if (totpNav) totpNav.style.display = totpDisabled ? 'none' : '';
+  if (totpToggle) totpToggle.checked = !totpDisabled;
 
   // Set up drag & drop and paste for message input
   setupDragDropPaste();
