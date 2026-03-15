@@ -1521,13 +1521,21 @@
           ? 'radial-gradient(circle, #7c3aed 0%, #0a0612 100%)'
           : 'radial-gradient(circle, #8b5cf6 0%, #0a0612 100%)';
 
-        const r = await fetch('/api/auth/profile', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ profile })
-        });
-        const data = await r.json();
-        if (data.success) {
-          doTransition(() => window.location.href = '/app');
+        try {
+          const r = await fetch('/api/auth/profile', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile })
+          });
+          const data = await r.json();
+          if (data.success) {
+            doTransition(() => window.location.href = '/app');
+          } else {
+            // Session expired or cookie blocked — restart login
+            alert('Session expired. Please log in again.');
+            window.location.reload();
+          }
+        } catch (err) {
+          alert('Connection error. Please try again.');
         }
       });
     });
