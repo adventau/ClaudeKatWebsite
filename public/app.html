@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/themes.css?v=totp2">
-  <link rel="stylesheet" href="/css/app.css?v=totp2">
+  <link rel="stylesheet" href="/css/themes.css?v=totp3">
+  <link rel="stylesheet" href="/css/app.css?v=totp3">
   <script src="/js/lucide.min.js" defer></script>
 </head>
 <body class="theme-dark">
@@ -1783,8 +1783,8 @@
         <div class="totp-qr-upload-area" id="totp-qr-dropzone" onclick="document.getElementById('totp-qr-file').click()" style="border:2px dashed var(--border);border-radius:14px;padding:2rem 1.5rem;text-align:center;cursor:pointer;transition:all 0.25s;margin-bottom:16px">
           <input type="file" id="totp-qr-file" accept="image/*" style="display:none" onchange="handleTotpQrUpload(this)">
           <div style="color:var(--text-muted);margin-bottom:8px"><i data-lucide="image-plus" style="width:40px;height:40px;opacity:0.4"></i></div>
-          <div style="color:var(--text-primary);font-size:0.88rem;font-weight:600;margin-bottom:4px">Click or drag & drop a QR code screenshot</div>
-          <div style="color:var(--text-muted);font-size:0.76rem">Supports PNG, JPG, and other image formats</div>
+          <div style="color:var(--text-primary);font-size:0.88rem;font-weight:600;margin-bottom:4px">Click, drag & drop, or paste a QR code screenshot</div>
+          <div style="color:var(--text-muted);font-size:0.76rem">Paste from clipboard with Ctrl+V</div>
         </div>
         <div id="totp-qr-preview" style="display:none">
           <div style="display:flex;align-items:center;gap:14px;padding:12px;background:var(--bg-input);border-radius:12px;margin-bottom:16px">
@@ -1847,6 +1847,6 @@
 <!-- Scripts -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js"></script>
-<script src="/js/app.js?v=totp2"></script>
+<script src="/js/app.js?v=totp3"></script>
 </body>
 </html>

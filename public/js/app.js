@@ -7729,39 +7729,43 @@ async function renderTotpGrid() {
 
   grid.innerHTML = '';
   const remaining = getTotpTimeRemaining();
+  const R = 17;
+  const C = 2 * Math.PI * R;
 
   for (const account of totpAccounts) {
     const code = await generateTOTP(account.secret);
     const formattedCode = code.slice(0, 3) + ' ' + code.slice(3);
+    const isUrgent = remaining <= 5;
 
     const card = document.createElement('div');
     card.className = 'totp-card';
     card.dataset.id = account.id;
 
-    const progressPercent = (remaining / 30) * 100;
-    const isUrgent = remaining <= 5;
-
     card.innerHTML = `
-      <div class="totp-card-ring${isUrgent ? ' urgent' : ''}">
-        <svg viewBox="0 0 40 40" class="totp-ring-svg">
-          <circle cx="20" cy="20" r="17" fill="none" stroke="var(--border)" stroke-width="3" opacity="0.2"/>
-          <circle cx="20" cy="20" r="17" fill="none" stroke="${isUrgent ? '#ef4444' : 'var(--accent)'}" stroke-width="3"
-            stroke-dasharray="${2 * Math.PI * 17}" stroke-dashoffset="${2 * Math.PI * 17 * (1 - remaining / 30)}"
-            stroke-linecap="round" class="totp-ring-progress" style="transition:stroke-dashoffset 1s linear"/>
-        </svg>
-        <span class="totp-ring-time">${remaining}s</span>
+      <div class="totp-card-top">
+        <div class="totp-card-info">
+          <div class="totp-card-name">${escapeHtml(account.name)}</div>
+          ${account.issuer ? `<div class="totp-card-issuer">${escapeHtml(account.issuer)}</div>` : ''}
+        </div>
+        <div class="totp-card-actions">
+          <button class="totp-card-btn" onclick="openTotpEdit('${account.id}')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+          <button class="totp-card-btn totp-card-btn-danger" onclick="openTotpDelete('${account.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+        </div>
       </div>
-      <div class="totp-card-info">
-        <div class="totp-card-name">${escapeHtml(account.name)}</div>
-        ${account.issuer ? `<div class="totp-card-issuer">${escapeHtml(account.issuer)}</div>` : ''}
-      </div>
-      <div class="totp-card-code" onclick="totpCopyCode(this, '${code}')" title="Click to copy">
-        <span class="totp-code-digits">${formattedCode}</span>
-        <span class="totp-code-copied" style="display:none">Copied!</span>
-      </div>
-      <div class="totp-card-actions">
-        <button class="totp-card-btn" onclick="openTotpEdit('${account.id}')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
-        <button class="totp-card-btn totp-card-btn-danger" onclick="openTotpDelete('${account.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+      <div class="totp-card-bottom">
+        <div class="totp-card-code" onclick="totpCopyCode(this, '${code}')" title="Click to copy">
+          <span class="totp-code-digits">${formattedCode}</span>
+          <span class="totp-code-copied" style="display:none">Copied!</span>
+        </div>
+        <div class="totp-card-ring${isUrgent ? ' urgent' : ''}">
+          <svg viewBox="0 0 40 40" class="totp-ring-svg">
+            <circle cx="20" cy="20" r="${R}" fill="none" stroke="var(--border)" stroke-width="3" opacity="0.2"/>
+            <circle cx="20" cy="20" r="${R}" fill="none" stroke="${isUrgent ? '#ef4444' : 'var(--accent)'}" stroke-width="3"
+              stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - remaining / 30)}"
+              stroke-linecap="round" class="totp-ring-progress" style="transition:stroke-dashoffset 1s linear"/>
+          </svg>
+          <span class="totp-ring-time">${remaining}s</span>
+        </div>
       </div>
     `;
     grid.appendChild(card);
@@ -7886,7 +7890,7 @@ function handleTotpQrUpload(input) {
   parseTotpQrImage(file);
 }
 
-// Set up drag & drop for QR dropzone
+// Set up drag & drop and paste for QR dropzone
 document.addEventListener('DOMContentLoaded', () => {
   const dropzone = document.getElementById('totp-qr-dropzone');
   if (!dropzone) return;
@@ -7897,6 +7901,25 @@ document.addEventListener('DOMContentLoaded', () => {
     dropzone.classList.remove('dragover');
     const file = e.dataTransfer?.files?.[0];
     if (file && file.type.startsWith('image/')) parseTotpQrImage(file);
+  });
+
+  // Paste support — listen on the whole document, only act when QR tab is visible
+  document.addEventListener('paste', e => {
+    const qrTab = document.getElementById('totp-add-qr');
+    if (!qrTab || qrTab.style.display === 'none') return;
+    // Also check the modal is open
+    const modal = document.getElementById('totp-add-modal');
+    if (!modal || !modal.classList.contains('open')) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) parseTotpQrImage(file);
+        return;
+      }
+    }
   });
 });
 
@@ -7929,6 +7952,7 @@ async function parseTotpQrImage(file) {
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
         if (qrCode && qrCode.data) {
+          console.log('QR code data:', qrCode.data);
           const parsed = parseTotpUri(qrCode.data);
           if (parsed) {
             totpQrParsedData = parsed;
@@ -7960,15 +7984,27 @@ async function parseTotpQrImage(file) {
 
 function parseTotpUri(uri) {
   // otpauth://totp/Label?secret=XXX&issuer=YYY
+  // Manual parsing because new URL() doesn't handle otpauth:// reliably across browsers
   try {
-    const url = new URL(uri);
-    if (url.protocol !== 'otpauth:') return null;
-    const type = url.hostname; // 'totp' or 'hotp'
-    if (type !== 'totp') return null;
-    const label = decodeURIComponent(url.pathname.replace(/^\//, ''));
-    const secret = url.searchParams.get('secret');
-    const issuer = url.searchParams.get('issuer') || '';
+    if (!uri) return null;
+    const str = uri.trim();
+    // Match otpauth://totp/ pattern (case insensitive)
+    const match = str.match(/^otpauth:\/\/totp\/([^?]+)\?(.+)$/i);
+    if (!match) {
+      // Also try without label (some services omit it)
+      const match2 = str.match(/^otpauth:\/\/totp\/?(\?(.+))$/i);
+      if (!match2) return null;
+      // Parse params only
+      const params = new URLSearchParams(match2[2] || match2[1]);
+      const secret = params.get('secret');
+      if (!secret) return null;
+      return { name: params.get('issuer') || 'Unknown', secret: secret.toUpperCase(), issuer: params.get('issuer') || '' };
+    }
+    const label = decodeURIComponent(match[1]);
+    const params = new URLSearchParams(match[2]);
+    const secret = params.get('secret');
     if (!secret) return null;
+    const issuer = params.get('issuer') || '';
     // Label might be "Issuer:account" or just "account"
     let name = label;
     let parsedIssuer = issuer;
@@ -7977,8 +8013,8 @@ function parseTotpUri(uri) {
       parsedIssuer = parsedIssuer || parts[0].trim();
       name = parts.slice(1).join(':').trim();
     }
-    return { name, secret: secret.toUpperCase(), issuer: parsedIssuer };
-  } catch { return null; }
+    return { name: name || 'Unknown', secret: secret.toUpperCase(), issuer: parsedIssuer };
+  } catch(e) { console.error('parseTotpUri error:', e, uri); return null; }
 }
 
 let jsQRLoaded = false;
