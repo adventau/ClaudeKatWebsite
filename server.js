@@ -266,7 +266,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   proxy: true,
-  cookie: { secure: false, sameSite: 'lax', maxAge: 2 * 60 * 60 * 1000 }
+  cookie: { secure: true, sameSite: 'none', maxAge: 2 * 60 * 60 * 1000 }
 }));
 
 // ── File upload ───────────────────────────────────────────────────────────────
