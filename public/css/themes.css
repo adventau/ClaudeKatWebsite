@@ -1242,9 +1242,9 @@
 .theme-dark .nav-item[data-section="reminders"] .nav-label,
 .theme-dark .nav-item[data-section="authenticator"] .nav-label,
 .theme-dark .nav-item:not([data-section]) .nav-label { display: none; }
-/* Thin separator before the icon-only utility group */
+/* Push the icon-only utility group to the far right */
 .theme-dark .nav-item[data-section="reminders"] {
-  margin-left: 6px;
+  margin-left: auto;
   padding-left: 14px;
   border-left: 1px solid #2a2a2a;
 }
