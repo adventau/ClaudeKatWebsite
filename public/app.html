@@ -516,34 +516,34 @@
     <!-- ── AUTHENTICATOR ──────────────────────────────────────── -->
     <section id="section-authenticator" class="section">
       <!-- Login gate -->
-      <div id="totp-login-screen" class="totp-login-screen">
-        <div class="totp-login-card">
-          <div class="totp-login-icon"><i data-lucide="shield-check" style="width:48px;height:48px;color:var(--accent)"></i></div>
-          <h2 class="totp-login-title">Authenticator</h2>
-          <p class="totp-login-sub" id="totp-login-sub">Enter your authenticator password to unlock</p>
-          <div id="totp-login-fields">
-            <input type="password" id="totp-password-input" class="totp-input" placeholder="Password" autocomplete="off" onkeydown="if(event.key==='Enter')totpLogin()">
-            <button class="totp-btn totp-btn-primary" onclick="totpLogin()">Unlock</button>
+      <div id="totp-login-screen" style="display:flex;align-items:center;justify-content:center;flex:1;padding:2rem">
+        <div class="totp-login-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:20px;padding:2.5rem 2rem;max-width:380px;width:100%;text-align:center;box-shadow:var(--shadow-card)">
+          <div style="margin-bottom:1rem"><i data-lucide="shield-check" style="width:48px;height:48px;color:var(--accent)"></i></div>
+          <h2 style="font-family:var(--font-heading);color:var(--text-primary);font-size:1.4rem;margin-bottom:0.5rem">Authenticator</h2>
+          <p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:1.25rem" id="totp-login-sub">Enter your authenticator password to unlock</p>
+          <div id="totp-login-fields" style="display:flex;flex-direction:column;gap:10px">
+            <input type="password" id="totp-password-input" placeholder="Password" autocomplete="off" onkeydown="if(event.key==='Enter')totpLogin()" style="width:100%;box-sizing:border-box">
+            <button class="btn-primary" onclick="totpLogin()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px"><i data-lucide="unlock" style="width:16px;height:16px"></i> Unlock</button>
           </div>
-          <div id="totp-setup-fields" style="display:none">
-            <p class="totp-login-sub" style="margin-bottom:8px">Create a password to protect your authenticator</p>
-            <input type="password" id="totp-new-password" class="totp-input" placeholder="New password (min 4 chars)" autocomplete="off">
-            <input type="password" id="totp-confirm-password" class="totp-input" placeholder="Confirm password" autocomplete="off" onkeydown="if(event.key==='Enter')totpSetPassword()">
-            <button class="totp-btn totp-btn-primary" onclick="totpSetPassword()">Set Password</button>
+          <div id="totp-setup-fields" style="display:none;flex-direction:column;gap:10px">
+            <p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:4px">Create a password to protect your authenticator</p>
+            <input type="password" id="totp-new-password" placeholder="New password (min 4 chars)" autocomplete="off" style="width:100%;box-sizing:border-box">
+            <input type="password" id="totp-confirm-password" placeholder="Confirm password" autocomplete="off" onkeydown="if(event.key==='Enter')totpSetPassword()" style="width:100%;box-sizing:border-box">
+            <button class="btn-primary" onclick="totpSetPassword()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px"><i data-lucide="shield-check" style="width:16px;height:16px"></i> Set Password</button>
           </div>
         </div>
       </div>
 
       <!-- Main authenticator UI (hidden until unlocked) -->
-      <div id="totp-main" style="display:none">
-        <div class="totp-header">
-          <div class="totp-header-left">
+      <div id="totp-main" style="display:none;flex-direction:column;overflow:hidden;flex:1">
+        <div class="section-header">
+          <div style="display:flex;align-items:baseline;gap:10px">
             <span class="section-title">Authenticator</span>
-            <span class="totp-account-count" id="totp-account-count">0 accounts</span>
+            <span style="color:var(--text-muted);font-size:0.78rem" id="totp-account-count">0 accounts</span>
           </div>
-          <div class="totp-header-actions">
-            <button class="totp-btn totp-btn-outline" onclick="totpLock()" title="Lock"><i data-lucide="lock" style="width:16px;height:16px"></i> Lock</button>
-            <button class="totp-btn totp-btn-primary" onclick="openTotpAddModal()"><i data-lucide="plus" style="width:16px;height:16px"></i> Add Account</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn-ghost" onclick="totpLock()" title="Lock" style="display:flex;align-items:center;gap:6px"><i data-lucide="lock" style="width:15px;height:15px"></i> Lock</button>
+            <button class="btn-primary" onclick="openTotpAddModal()" style="display:flex;align-items:center;gap:6px"><i data-lucide="plus" style="width:15px;height:15px"></i> Add Account</button>
           </div>
         </div>
         <div class="totp-timer-bar">
@@ -551,10 +551,10 @@
         </div>
         <div class="totp-grid" id="totp-grid">
           <div class="totp-empty-state" id="totp-empty">
-            <div class="totp-empty-icon"><i data-lucide="shield-check" style="width:56px;height:56px;opacity:0.3"></i></div>
-            <div class="totp-empty-text">No accounts yet</div>
-            <div class="totp-empty-sub">Add your first 2FA account to get started</div>
-            <button class="totp-btn totp-btn-primary" onclick="openTotpAddModal()" style="margin-top:12px"><i data-lucide="plus" style="width:16px;height:16px"></i> Add Account</button>
+            <div style="margin-bottom:1rem;color:var(--text-muted)"><i data-lucide="shield-check" style="width:56px;height:56px;opacity:0.3"></i></div>
+            <div style="font-size:1.1rem;font-weight:600;color:var(--text-primary);margin-bottom:0.35rem">No accounts yet</div>
+            <div style="font-size:0.82rem;color:var(--text-muted)">Add your first 2FA account to get started</div>
+            <button class="btn-primary" onclick="openTotpAddModal()" style="margin-top:12px;display:inline-flex;align-items:center;gap:6px"><i data-lucide="plus" style="width:15px;height:15px"></i> Add Account</button>
           </div>
         </div>
       </div>
@@ -781,6 +781,23 @@
 
         <!-- Security tab -->
         <div class="settings-panel" id="tab-security">
+          <div class="settings-section">
+            <h3 style="display:flex;align-items:center;gap:8px"><i data-lucide="shield-check" style="width:18px;height:18px;color:var(--accent)"></i> Authenticator Password</h3>
+            <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem">Set or change the password used to unlock your TOTP authenticator.</p>
+            <div id="totp-pw-section">
+              <div id="totp-pw-change" style="display:none">
+                <div class="form-row" style="margin-bottom:8px"><label>Current Password</label><input type="password" id="totp-settings-current-pw" placeholder="Current password" autocomplete="off"></div>
+                <div class="form-row" style="margin-bottom:8px"><label>New Password</label><input type="password" id="totp-settings-new-pw" placeholder="New password (min 4 chars)" autocomplete="off"></div>
+                <div class="form-row" style="margin-bottom:12px"><label>Confirm New Password</label><input type="password" id="totp-settings-confirm-pw" placeholder="Confirm new password" autocomplete="off"></div>
+                <button class="btn-primary" onclick="totpChangePasswordFromSettings()">Update Password</button>
+              </div>
+              <div id="totp-pw-setup">
+                <div class="form-row" style="margin-bottom:8px"><label>New Password</label><input type="password" id="totp-settings-setup-pw" placeholder="New password (min 4 chars)" autocomplete="off"></div>
+                <div class="form-row" style="margin-bottom:12px"><label>Confirm Password</label><input type="password" id="totp-settings-setup-confirm" placeholder="Confirm password" autocomplete="off"></div>
+                <button class="btn-primary" onclick="totpSetupPasswordFromSettings()">Set Password</button>
+              </div>
+            </div>
+          </div>
           <div class="settings-section">
             <h3>Locker Passcode</h3>
             <div class="form-row"><label>New 4-digit Locker Passcode</label><input type="tel" id="new-vault-passcode" placeholder="4 digits" maxlength="4" inputmode="numeric" pattern="[0-9]*"></div>
@@ -1738,57 +1755,57 @@
 
 <!-- TOTP Add Account Modal -->
 <div class="modal-overlay" id="totp-add-modal">
-  <div class="modal totp-modal">
+  <div class="modal" style="max-width:440px;width:100%">
     <div class="modal-header">
       <span class="modal-title"><i data-lucide="plus-circle" style="width:18px;height:18px"></i> Add 2FA Account</span>
       <button class="btn-icon" onclick="closeModal('totp-add-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
     </div>
     <div class="modal-body" style="padding:1.25rem">
-      <div class="totp-add-tabs">
-        <button class="totp-add-tab active" onclick="switchTotpAddTab('manual',this)">Manual Entry</button>
-        <button class="totp-add-tab" onclick="switchTotpAddTab('qr',this)">QR Code Screenshot</button>
+      <div class="totp-add-tabs" style="display:flex;gap:4px;margin-bottom:16px;background:var(--bg-input);border-radius:10px;padding:3px">
+        <button class="totp-add-tab active" onclick="switchTotpAddTab('manual',this)" style="flex:1;padding:8px 12px;border:none;border-radius:8px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font-main);transition:all 0.2s">Manual Entry</button>
+        <button class="totp-add-tab" onclick="switchTotpAddTab('qr',this)" style="flex:1;padding:8px 12px;border:none;border-radius:8px;font-size:0.8rem;font-weight:600;cursor:pointer;font-family:var(--font-main);transition:all 0.2s">QR Code Screenshot</button>
       </div>
       <div id="totp-add-manual">
         <div class="form-row" style="margin-bottom:12px">
-          <label style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:4px;display:block">Account Name</label>
-          <input type="text" id="totp-add-name" class="totp-input" placeholder="e.g. GitHub, Google, Discord" autocomplete="off">
+          <label>Account Name</label>
+          <input type="text" id="totp-add-name" placeholder="e.g. GitHub, Google, Discord" autocomplete="off">
         </div>
         <div class="form-row" style="margin-bottom:12px">
-          <label style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:4px;display:block">Issuer (optional)</label>
-          <input type="text" id="totp-add-issuer" class="totp-input" placeholder="e.g. github.com" autocomplete="off">
+          <label>Issuer (optional)</label>
+          <input type="text" id="totp-add-issuer" placeholder="e.g. github.com" autocomplete="off">
         </div>
         <div class="form-row" style="margin-bottom:16px">
-          <label style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:4px;display:block">Secret Key (Base32)</label>
-          <input type="text" id="totp-add-secret" class="totp-input" placeholder="e.g. JBSWY3DPEHPK3PXP" autocomplete="off" style="font-family:monospace;letter-spacing:1px">
+          <label>Secret Key (Base32)</label>
+          <input type="text" id="totp-add-secret" placeholder="e.g. JBSWY3DPEHPK3PXP" autocomplete="off" style="font-family:'Space Grotesk',monospace;letter-spacing:1px">
         </div>
       </div>
       <div id="totp-add-qr" style="display:none">
-        <div class="totp-qr-upload-area" id="totp-qr-dropzone" onclick="document.getElementById('totp-qr-file').click()">
+        <div class="totp-qr-upload-area" id="totp-qr-dropzone" onclick="document.getElementById('totp-qr-file').click()" style="border:2px dashed var(--border);border-radius:14px;padding:2rem 1.5rem;text-align:center;cursor:pointer;transition:all 0.25s;margin-bottom:16px">
           <input type="file" id="totp-qr-file" accept="image/*" style="display:none" onchange="handleTotpQrUpload(this)">
-          <div class="totp-qr-upload-icon"><i data-lucide="image-plus" style="width:40px;height:40px;opacity:0.4"></i></div>
-          <div class="totp-qr-upload-text">Click or drag & drop a QR code screenshot</div>
-          <div class="totp-qr-upload-sub">Supports PNG, JPG, and other image formats</div>
+          <div style="color:var(--text-muted);margin-bottom:8px"><i data-lucide="image-plus" style="width:40px;height:40px;opacity:0.4"></i></div>
+          <div style="color:var(--text-primary);font-size:0.88rem;font-weight:600;margin-bottom:4px">Click or drag & drop a QR code screenshot</div>
+          <div style="color:var(--text-muted);font-size:0.76rem">Supports PNG, JPG, and other image formats</div>
         </div>
         <div id="totp-qr-preview" style="display:none">
-          <div class="totp-qr-result">
-            <img id="totp-qr-preview-img" style="max-width:120px;max-height:120px;border-radius:8px;border:1px solid var(--border)">
-            <div class="totp-qr-result-info">
+          <div style="display:flex;align-items:center;gap:14px;padding:12px;background:var(--bg-input);border-radius:12px;margin-bottom:16px">
+            <img id="totp-qr-preview-img" style="max-width:80px;max-height:80px;border-radius:8px;border:1px solid var(--border)">
+            <div style="flex:1;min-width:0">
               <div id="totp-qr-result-name" style="font-weight:600;color:var(--text-primary)"></div>
               <div id="totp-qr-result-issuer" style="font-size:0.8rem;color:var(--text-secondary)"></div>
               <div id="totp-qr-result-status" style="font-size:0.8rem;color:var(--accent);margin-top:4px"></div>
             </div>
-            <button class="totp-btn totp-btn-outline" onclick="resetTotpQr()" style="margin-left:auto;font-size:0.75rem">Change</button>
+            <button class="btn-ghost" onclick="resetTotpQr()" style="font-size:0.75rem">Change</button>
           </div>
         </div>
       </div>
-      <button class="totp-btn totp-btn-primary totp-btn-full" onclick="totpAddAccount()" id="totp-add-submit">Add Account</button>
+      <button class="btn-primary" onclick="totpAddAccount()" id="totp-add-submit" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px"><i data-lucide="plus" style="width:15px;height:15px"></i> Add Account</button>
     </div>
   </div>
 </div>
 
 <!-- TOTP Edit Account Modal -->
 <div class="modal-overlay" id="totp-edit-modal">
-  <div class="modal totp-modal">
+  <div class="modal" style="max-width:400px;width:100%">
     <div class="modal-header">
       <span class="modal-title"><i data-lucide="pencil" style="width:18px;height:18px"></i> Edit Account</span>
       <button class="btn-icon" onclick="closeModal('totp-edit-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
@@ -1796,21 +1813,21 @@
     <div class="modal-body" style="padding:1.25rem">
       <input type="hidden" id="totp-edit-id">
       <div class="form-row" style="margin-bottom:12px">
-        <label style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:4px;display:block">Account Name</label>
-        <input type="text" id="totp-edit-name" class="totp-input" autocomplete="off">
+        <label>Account Name</label>
+        <input type="text" id="totp-edit-name" autocomplete="off">
       </div>
       <div class="form-row" style="margin-bottom:16px">
-        <label style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:4px;display:block">Issuer</label>
-        <input type="text" id="totp-edit-issuer" class="totp-input" autocomplete="off">
+        <label>Issuer</label>
+        <input type="text" id="totp-edit-issuer" autocomplete="off">
       </div>
-      <button class="totp-btn totp-btn-primary totp-btn-full" onclick="totpSaveEdit()">Save Changes</button>
+      <button class="btn-primary" onclick="totpSaveEdit()" style="width:100%">Save Changes</button>
     </div>
   </div>
 </div>
 
 <!-- TOTP Delete Confirm Modal -->
 <div class="modal-overlay" id="totp-delete-modal">
-  <div class="modal totp-modal" style="max-width:380px">
+  <div class="modal" style="max-width:380px;width:100%">
     <div class="modal-header">
       <span class="modal-title" style="color:#ef4444"><i data-lucide="trash-2" style="width:18px;height:18px"></i> Delete Account</span>
       <button class="btn-icon" onclick="closeModal('totp-delete-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
@@ -1820,8 +1837,8 @@
       <p style="color:var(--accent);font-weight:700;font-size:1.1rem;margin-bottom:12px" id="totp-delete-name"></p>
       <p style="color:var(--text-muted);font-size:0.8rem;margin-bottom:16px">This will permanently remove the 2FA account. You won't be able to generate codes for it anymore.</p>
       <div style="display:flex;gap:8px">
-        <button class="totp-btn totp-btn-outline totp-btn-full" onclick="closeModal('totp-delete-modal')">Cancel</button>
-        <button class="totp-btn totp-btn-danger totp-btn-full" onclick="totpConfirmDelete()" id="totp-delete-confirm">Delete</button>
+        <button class="btn-ghost" onclick="closeModal('totp-delete-modal')" style="flex:1">Cancel</button>
+        <button class="btn-danger" onclick="totpConfirmDelete()" id="totp-delete-confirm" style="flex:1">Delete</button>
       </div>
     </div>
   </div>
