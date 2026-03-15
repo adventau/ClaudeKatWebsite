@@ -145,18 +145,98 @@
     .input-wrap:focus-within {
       border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow);
     }
-    .emoji-row { display: flex; gap: 1px; margin-bottom: 6px; }
-    .eq {
-      background: none; border: none; font-size: 1.1rem; cursor: pointer;
-      padding: 3px 5px; border-radius: 7px; transition: background 0.15s; line-height: 1;
-    }
-    .eq:hover { background: rgba(255,255,255,0.09); }
     textarea {
       flex: 1; background: transparent; border: none; outline: none;
       color: var(--text); font-size: 0.88rem; font-family: 'Inter', sans-serif;
       resize: none; max-height: 110px; min-height: 32px; line-height: 1.55; padding: 0;
     }
     textarea::placeholder { color: var(--muted); }
+    .input-row { display: flex; gap: 8px; align-items: flex-end; }
+    .guest-input-actions {
+      display: flex; gap: 2px; align-items: center;
+      padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 4px;
+    }
+    .gia-btn {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      width: 32px; height: 28px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      transition: color 0.15s, background 0.15s;
+    }
+    .gia-btn:hover { color: var(--accent); background: rgba(255,255,255,0.06); }
+    .gia-btn.active { color: var(--accent); }
+    /* File preview bar */
+    .guest-file-bar {
+      display: flex; gap: 8px; padding: 8px 12px; flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+    }
+    .guest-file-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+      border-radius: 8px; padding: 4px 10px; font-size: 0.75rem;
+    }
+    .guest-file-chip img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
+    .guest-file-chip button {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: 0.85rem; padding: 0 2px;
+    }
+    /* Priority row */
+    .guest-priority-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 12px; border-bottom: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+    }
+    /* Voice recording */
+    .guest-voice-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+    }
+    .guest-rec-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #ef4444;
+      animation: recBlink 1s infinite;
+    }
+    @keyframes recBlink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    .guest-voice-cancel {
+      margin-left: auto; background: none; border: 1px solid var(--border);
+      color: var(--muted); border-radius: 6px; padding: 4px 12px;
+      font-size: 0.78rem; cursor: pointer;
+    }
+    .guest-voice-send {
+      background: var(--accent); border: none; color: #fff;
+      border-radius: 6px; padding: 4px 14px; font-size: 0.78rem; cursor: pointer;
+    }
+    /* GIF panel */
+    .guest-gif-panel, .guest-emoji-panel {
+      border-bottom: 1px solid var(--border);
+      max-height: 280px; display: flex; flex-direction: column;
+    }
+    .guest-gif-header {
+      display: flex; gap: 8px; padding: 8px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .guest-gif-header input {
+      flex: 1; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 10px; font-size: 0.8rem;
+      color: var(--text); outline: none; font-family: 'Inter', sans-serif;
+    }
+    .guest-gif-header input:focus { border-color: var(--accent); }
+    .guest-gif-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+      padding: 8px; overflow-y: auto; max-height: 220px;
+    }
+    .guest-gif-grid img {
+      width: 100%; height: 80px; object-fit: cover; border-radius: 6px;
+      cursor: pointer; transition: transform 0.1s;
+    }
+    .guest-gif-grid img:hover { transform: scale(1.05); }
+    .guest-emoji-grid {
+      display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px;
+      padding: 8px; overflow-y: auto; max-height: 220px;
+    }
+    .guest-emoji-grid button {
+      width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; background: none; border: none; border-radius: 6px; cursor: pointer;
+    }
+    .guest-emoji-grid button:hover { background: rgba(255,255,255,0.08); transform: scale(1.15); }
 
     .send-btn {
       width: 38px; height: 38px; border-radius: 11px;
@@ -375,18 +455,31 @@
       transition: transform 0.1s; line-height: 1;
     }
     .msg-quick-react button:hover { transform: scale(1.4); }
-    .msg-react-btn {
-      position: absolute; top: 2px; opacity: 0;
+    /* ── Message hover actions bar ──────────────────────── */
+    .msg-actions {
+      position: absolute; top: -14px; z-index: 20;
+      display: flex; align-items: center; gap: 2px;
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 6px; width: 26px; height: 26px;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; font-size: 0.8rem; transition: opacity 0.15s;
-      z-index: 10;
+      border-radius: 8px; padding: 2px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.12s ease, transform 0.12s ease;
+      transform: translateY(4px);
+      backdrop-filter: blur(12px);
     }
-    .msg-row.self .msg-react-btn { left: -30px; }
-    .msg-row.other .msg-react-btn { right: -30px; }
-    .msg-content-wrap:hover .msg-react-btn { opacity: 1; }
+    .msg-row:hover .msg-actions { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    .msg-row.self .msg-actions { right: 0; }
+    .msg-row.other .msg-actions { left: 40px; }
+    .msg-action-btn {
+      background: none; border: none; cursor: pointer;
+      width: 28px; height: 28px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); transition: all 0.1s;
+    }
+    .msg-action-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); transform: scale(1.15); }
     .msg-content-wrap { position: relative; }
+    /* Touch support: tap to toggle */
+    .msg-row.actions-visible .msg-actions { opacity: 1; pointer-events: auto; transform: translateY(0); }
 
     /* ── Mobile responsive ───────────────────────────────── */
     @media (max-width: 600px) {
@@ -418,7 +511,13 @@
       .settings-panel { width: 95vw; border-radius: 14px; }
       .settings-body { padding: 14px 16px; }
       .msg-row.other .msg-quick-react { left: 0; }
-      .msg-react-btn { opacity: 1; }
+      .msg-row.other .msg-actions { left: 0; }
+      .guest-input-actions { flex-wrap: wrap; }
+      .gia-btn { width: 28px; height: 26px; }
+      .gia-btn svg { width: 16px; height: 16px; }
+      .guest-gif-grid { grid-template-columns: repeat(2, 1fr); }
+      .guest-emoji-grid { grid-template-columns: repeat(7, 1fr); }
+      .guest-gif-panel, .guest-emoji-panel { max-height: 220px; }
     }
 
     /* ── Light theme overrides ────────────────────────────── */
@@ -615,19 +714,58 @@
 
   <!-- Input -->
   <div class="input-area">
-    <div class="input-wrap">
-      <div class="emoji-row">
-        <button class="eq" onclick="insertEmoji('😊')">😊</button>
-        <button class="eq" onclick="insertEmoji('❤️')">❤️</button>
-        <button class="eq" onclick="insertEmoji('😂')">😂</button>
-        <button class="eq" onclick="insertEmoji('🙏')">🙏</button>
-        <button class="eq" onclick="insertEmoji('✨')">✨</button>
-        <button class="eq" onclick="insertEmoji('💜')">💜</button>
-        <button class="eq" onclick="insertEmoji('🔥')">🔥</button>
-      </div>
-      <textarea id="msg-input" placeholder="Type a message…" rows="1"></textarea>
+    <!-- File attachment preview -->
+    <div id="guest-file-bar" class="guest-file-bar" style="display:none"></div>
+    <!-- Priority row -->
+    <div class="guest-priority-row" id="guest-priority-row" style="display:none">
+      <input type="checkbox" id="guest-priority-checkbox">
+      <label for="guest-priority-checkbox" style="font-size:0.78rem;color:var(--text);cursor:pointer">Mark as Priority — sends notification</label>
     </div>
-    <button class="send-btn" onclick="sendMsg()">➤</button>
+    <!-- Voice recording indicator -->
+    <div id="guest-voice-bar" class="guest-voice-bar" style="display:none">
+      <div class="guest-rec-dot"></div>
+      <span id="guest-rec-timer">Recording… 0:00</span>
+      <button class="guest-voice-cancel" onclick="cancelGuestVoice()">Cancel</button>
+      <button class="guest-voice-send" onclick="sendGuestVoice()">Send</button>
+    </div>
+    <!-- GIF search panel -->
+    <div id="guest-gif-panel" class="guest-gif-panel" style="display:none">
+      <div class="guest-gif-header">
+        <input type="text" id="guest-gif-search" placeholder="Search GIFs…" oninput="searchGuestGifs(this.value)">
+        <button onclick="closeGuestGif()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem">&times;</button>
+      </div>
+      <div class="guest-gif-grid" id="guest-gif-grid"></div>
+    </div>
+    <!-- Emoji picker panel -->
+    <div id="guest-emoji-panel" class="guest-emoji-panel" style="display:none">
+      <div class="guest-gif-header">
+        <input type="text" id="guest-emoji-search" placeholder="Search emoji…" oninput="filterGuestEmoji(this.value)">
+        <button onclick="closeGuestEmoji()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem">&times;</button>
+      </div>
+      <div class="guest-emoji-grid" id="guest-emoji-grid"></div>
+    </div>
+    <div class="input-row">
+      <div class="input-wrap">
+        <textarea id="msg-input" placeholder="Type a message…" rows="1"></textarea>
+        <div class="guest-input-actions">
+          <button class="gia-btn" onclick="toggleGuestEmoji()" title="Emoji">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>
+          </button>
+          <button class="gia-btn" onclick="toggleGuestGif()" title="GIF" style="font-weight:700;font-size:0.7rem;letter-spacing:0.02em">GIF</button>
+          <button class="gia-btn" onclick="document.getElementById('guest-file-input').click()" title="Attach file">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+          <button class="gia-btn" id="guest-mic-btn" onclick="toggleGuestVoice()" title="Voice message">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+          </button>
+          <button class="gia-btn" id="guest-priority-btn" onclick="toggleGuestPriority()" title="Priority notification">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          </button>
+          <input type="file" id="guest-file-input" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt" style="display:none" onchange="handleGuestFiles(this)">
+        </div>
+      </div>
+      <button class="send-btn" onclick="sendMsg()">➤</button>
+    </div>
   </div>
 
   <!-- Guest Profile Viewer -->
@@ -982,13 +1120,37 @@
         `<div class="reaction-chip ${users.includes(guestName) ? 'mine' : ''}" onclick="reactToGuestMessage('${msg.id}','${emoji}')" title="${users.join(', ')}">${emoji} ${users.length}</div>`
       ).join('') + '</div>';
     }
-    const reactBtn = msg.id ? `<button class="msg-react-btn" onclick="showGuestQuickReact('${msg.id}',this)" title="React">😊</button>` : '';
+    // Render message content (text, GIF, voice, files)
+    let msgBody = '';
+    if (msg.type === 'gif' && msg.gifUrl) {
+      msgBody = `<div class="msg-bubble ${isSelf ? 'self' : 'other'}" style="padding:4px;background:transparent;border:none;box-shadow:none"><img src="${msg.gifUrl}" style="max-width:220px;border-radius:10px;display:block" alt="GIF"></div>`;
+    } else if (msg.type === 'voice' && msg.voiceUrl) {
+      msgBody = `<div class="msg-bubble ${isSelf ? 'self' : 'other'}"><audio controls src="${msg.voiceUrl}" style="max-width:220px;height:32px"></audio></div>`;
+    } else {
+      msgBody = `<div class="msg-bubble ${isSelf ? 'self' : 'other'}">${escHtml(msg.text)}</div>`;
+    }
+    // File attachments
+    let filesHtml = '';
+    if (msg.files?.length) {
+      filesHtml = msg.files.map(f => {
+        if (f.type?.startsWith('image/')) return `<img src="${f.url}" style="max-width:200px;border-radius:8px;margin-top:4px;display:block" alt="${escHtml(f.name)}">`;
+        return `<a href="${f.url}" target="_blank" style="color:var(--accent);font-size:0.8rem;display:block;margin-top:4px">📎 ${escHtml(f.name)}</a>`;
+      }).join('');
+    }
+    // Hover actions bar (only on hover, not sticky)
+    const _s = 'xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    const actionsBar = msg.id ? `<div class="msg-actions">
+      <button class="msg-action-btn" onclick="showGuestQuickReact('${msg.id}',this)" title="React"><svg ${_s}><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg></button>
+      <button class="msg-action-btn" onclick="guestReply('${msg.id}','${escHtml(senderLabel)}')" title="Reply"><svg ${_s}><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></button>
+      <button class="msg-action-btn" onclick="copyGuestMsg('${msg.id}')" title="Copy"><svg ${_s}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+    </div>` : '';
     content.innerHTML = `
       <div class="msg-sender"${isHost ? ` style="cursor:pointer" onclick="showGuestProfile('${msg.sender}')"` : ''}>${senderLabel}</div>
-      <div class="msg-bubble ${isSelf ? 'self' : 'other'}">${escHtml(msg.text)}</div>
+      ${msgBody}
+      ${filesHtml}
       ${reactionsHtml}
       <div class="msg-time">${formatTime(msg.timestamp)}</div>
-      ${reactBtn}`;
+      ${actionsBar}`;
     if (isSelf) { row.appendChild(content); row.appendChild(avatar); }
     else { row.appendChild(avatar); row.appendChild(content); }
     return row;
@@ -1019,24 +1181,48 @@
 
   // ── Send ─────────────────────────────────────────────────────────
   let isSending = false;
+  window._guestPendingFiles = null;
+
   async function sendMsg() {
     if (isSending) return;
     const input = document.getElementById('msg-input');
     const text = input.value.trim();
-    if (!text) return;
+    const hasFiles = window._guestPendingFiles?.length > 0;
+    if (!text && !hasFiles) return;
     isSending = true;
     input.value = '';
     input.style.height = 'auto';
     if (!welcomeDismissed) dismissWelcome();
-    const msg = { text, target: channel, sender: guestName };
+    const priority = document.getElementById('guest-priority-checkbox')?.checked || false;
+    const formData = new FormData();
+    formData.append('text', text);
+    formData.append('target', channel);
+    formData.append('sender', guestName);
+    formData.append('type', 'text');
+    if (priority) formData.append('priority', 'true');
+    if (window._guestPendingFiles) {
+      window._guestPendingFiles.forEach(f => formData.append('files', f));
+      window._guestPendingFiles = null;
+      renderGuestFileBar();
+    }
     try {
       await fetch(`/api/guests/${guestId}/message`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guest-Id': guestId },
-        body: JSON.stringify(msg)
+        method: 'POST', headers: { 'X-Guest-Id': guestId },
+        body: formData
       });
+      if (priority) { document.getElementById('guest-priority-checkbox').checked = false; toggleGuestPriority(); }
     } finally {
       isSending = false;
     }
+  }
+
+  async function sendGuestGif(gifUrl) {
+    closeGuestGif();
+    if (!welcomeDismissed) dismissWelcome();
+    await fetch(`/api/guests/${guestId}/message`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guest-Id': guestId },
+      body: JSON.stringify({ text: '', target: channel, sender: guestName, type: 'gif', gifUrl })
+    });
   }
 
   function insertEmoji(e) {
@@ -1046,6 +1232,179 @@
     t.selectionStart = t.selectionEnd = p + e.length;
     t.focus();
   }
+
+  // ── Input toolbar functions ────────────────────────────────────
+  // Emoji picker
+  const GUEST_EMOJIS = ['😊','😂','❤️','🔥','👍','😭','🥺','✨','💜','🙏','😍','🥰','😘','😎','🤔','😤','😈','👀','💀','🎉','🎊','💯','⭐','🌙','🌟','💫','💖','💝','💗','💕','🤗','🤩','🥳','😋','😜','🤪','😇','🥲','😶','🫡','👋','✌️','🤝','👏','💪','🤌','💅','🧡','💛','💚','💙','🩵','🩷','🖤','🤍','🫶','♥️','😮','🫠','🤭','😐','🙄','😴','🤯','🫣','😵','🤡','👹','💩'];
+
+  function toggleGuestEmoji() {
+    const panel = document.getElementById('guest-emoji-panel');
+    if (panel.style.display === 'none') {
+      closeGuestGif();
+      panel.style.display = 'flex';
+      renderGuestEmojiGrid('');
+      document.getElementById('guest-emoji-search').focus();
+    } else {
+      panel.style.display = 'none';
+    }
+  }
+  function closeGuestEmoji() { document.getElementById('guest-emoji-panel').style.display = 'none'; }
+
+  function renderGuestEmojiGrid(query) {
+    const grid = document.getElementById('guest-emoji-grid');
+    const filtered = query ? GUEST_EMOJIS.filter(e => e.includes(query)) : GUEST_EMOJIS;
+    grid.innerHTML = filtered.map(e => `<button onclick="insertEmoji('${e}');closeGuestEmoji()">${e}</button>`).join('');
+    if (!filtered.length) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">No results</p>';
+  }
+  function filterGuestEmoji(q) { renderGuestEmojiGrid(q); }
+
+  // GIF search
+  let gifSearchTimer = null;
+  function toggleGuestGif() {
+    const panel = document.getElementById('guest-gif-panel');
+    if (panel.style.display === 'none') {
+      closeGuestEmoji();
+      panel.style.display = 'flex';
+      document.getElementById('guest-gif-search').value = '';
+      document.getElementById('guest-gif-search').focus();
+      searchGuestGifs('');
+    } else {
+      panel.style.display = 'none';
+    }
+  }
+  function closeGuestGif() { document.getElementById('guest-gif-panel').style.display = 'none'; }
+
+  function searchGuestGifs(q) {
+    clearTimeout(gifSearchTimer);
+    gifSearchTimer = setTimeout(async () => {
+      const grid = document.getElementById('guest-gif-grid');
+      if (!q) { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">Type to search GIFs</p>'; return; }
+      grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">Searching…</p>';
+      try {
+        const data = await fetch(`/api/guest-gif-search?q=${encodeURIComponent(q)}&limit=20`).then(r => r.json());
+        const results = data.results || [];
+        grid.innerHTML = results.map(g => {
+          const url = g.media_formats?.gif?.url || g.media_formats?.tinygif?.url || '';
+          return url ? `<img src="${url}" onclick="sendGuestGif('${url}')" alt="GIF" loading="lazy">` : '';
+        }).join('') || '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">No GIFs found</p>';
+      } catch { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">Search failed</p>'; }
+    }, 350);
+  }
+
+  // File attachments
+  function handleGuestFiles(input) {
+    if (!window._guestPendingFiles) window._guestPendingFiles = [];
+    [...input.files].forEach(f => window._guestPendingFiles.push(f));
+    renderGuestFileBar();
+    input.value = '';
+  }
+
+  function renderGuestFileBar() {
+    const bar = document.getElementById('guest-file-bar');
+    if (!window._guestPendingFiles?.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+    bar.style.display = 'flex';
+    bar.innerHTML = window._guestPendingFiles.map((f, i) => {
+      const icon = f.type?.startsWith('image/') ? '🖼️' : f.type?.startsWith('video/') ? '🎬' : f.type?.startsWith('audio/') ? '🎵' : '📎';
+      const thumb = f.type?.startsWith('image/') ? `<img src="${URL.createObjectURL(f)}">` : '';
+      return `<div class="guest-file-chip">${thumb}${!thumb ? icon : ''} <span style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span><button onclick="removeGuestFile(${i})">&times;</button></div>`;
+    }).join('');
+  }
+
+  function removeGuestFile(idx) {
+    window._guestPendingFiles.splice(idx, 1);
+    renderGuestFileBar();
+  }
+
+  // Voice recording
+  let guestRecording = false, guestRecorder = null, guestAudioChunks = [], guestRecInterval = null, guestRecSecs = 0;
+
+  async function toggleGuestVoice() {
+    if (guestRecording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      guestRecording = true;
+      guestAudioChunks = [];
+      guestRecorder = new MediaRecorder(stream);
+      guestRecorder.ondataavailable = e => guestAudioChunks.push(e.data);
+      guestRecorder.onstop = () => stream.getTracks().forEach(t => t.stop());
+      guestRecorder.start();
+      guestRecSecs = 0;
+      document.getElementById('guest-voice-bar').style.display = 'flex';
+      document.getElementById('guest-mic-btn').classList.add('active');
+      guestRecInterval = setInterval(() => {
+        guestRecSecs++;
+        const m = Math.floor(guestRecSecs / 60), s = guestRecSecs % 60;
+        document.getElementById('guest-rec-timer').textContent = `Recording… ${m}:${s.toString().padStart(2, '0')}`;
+      }, 1000);
+    } catch { showToast('Microphone access denied'); }
+  }
+
+  function cancelGuestVoice() {
+    if (guestRecorder?.state === 'recording') guestRecorder.stop();
+    guestRecording = false; guestAudioChunks = [];
+    clearInterval(guestRecInterval);
+    document.getElementById('guest-voice-bar').style.display = 'none';
+    document.getElementById('guest-mic-btn').classList.remove('active');
+  }
+
+  async function sendGuestVoice() {
+    if (!guestRecorder || guestRecorder.state !== 'recording') return;
+    guestRecorder.stop();
+    clearInterval(guestRecInterval);
+    document.getElementById('guest-voice-bar').style.display = 'none';
+    document.getElementById('guest-mic-btn').classList.remove('active');
+    guestRecording = false;
+    // Wait for final data
+    await new Promise(r => setTimeout(r, 200));
+    const blob = new Blob(guestAudioChunks, { type: 'audio/webm' });
+    const formData = new FormData();
+    formData.append('text', '');
+    formData.append('target', channel);
+    formData.append('sender', guestName);
+    formData.append('type', 'voice');
+    formData.append('files', blob, `voice-${Date.now()}.webm`);
+    await fetch(`/api/guests/${guestId}/message`, { method: 'POST', headers: { 'X-Guest-Id': guestId }, body: formData });
+  }
+
+  // Priority notification
+  function toggleGuestPriority() {
+    const row = document.getElementById('guest-priority-row');
+    const btn = document.getElementById('guest-priority-btn');
+    if (row.style.display === 'none') { row.style.display = 'flex'; btn.classList.add('active'); }
+    else { row.style.display = 'none'; btn.classList.remove('active'); document.getElementById('guest-priority-checkbox').checked = false; }
+  }
+
+  // Message actions: copy & reply
+  function copyGuestMsg(msgId) {
+    for (const ch of Object.keys(channelMessages)) {
+      const msg = (channelMessages[ch] || []).find(m => m.id === msgId);
+      if (msg?.text) { navigator.clipboard.writeText(msg.text).then(() => showToast('Copied')); return; }
+    }
+  }
+
+  function guestReply(msgId, senderLabel) {
+    for (const ch of Object.keys(channelMessages)) {
+      const msg = (channelMessages[ch] || []).find(m => m.id === msgId);
+      if (msg) {
+        const input = document.getElementById('msg-input');
+        const preview = msg.text?.substring(0, 40) || '';
+        input.placeholder = `Replying to ${senderLabel}: "${preview}…"`;
+        input.focus();
+        return;
+      }
+    }
+  }
+
+  // Mobile touch: tap to show/hide actions bar
+  document.addEventListener('touchstart', function(e) {
+    const row = e.target.closest('.msg-row');
+    if (row) {
+      document.querySelectorAll('.msg-row.actions-visible').forEach(r => { if (r !== row) r.classList.remove('actions-visible'); });
+      row.classList.toggle('actions-visible');
+    } else {
+      document.querySelectorAll('.msg-row.actions-visible').forEach(r => r.classList.remove('actions-visible'));
+    }
+  }, { passive: true });
 
   // ── Utility ──────────────────────────────────────────────────────
   function escHtml(t) { return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
