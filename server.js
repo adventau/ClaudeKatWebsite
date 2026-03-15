@@ -14,6 +14,7 @@ const db = require('./db');
 let compression;
 try { compression = require('compression'); } catch(e) { /* optional */ }
 const webpush = require('web-push');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -41,6 +42,7 @@ const F = {
   suggestions:   path.join(DATA_DIR, 'suggestions.json'),
   pushSubs:      path.join(DATA_DIR, 'push-subscriptions.json'),
   reminders:     path.join(DATA_DIR, 'reminders.json'),
+  totp:          path.join(DATA_DIR, 'totp.json'),
 };
 
 // ── Web Push (VAPID) ─────────────────────────────────────────────────────────
@@ -201,6 +203,7 @@ function initData() {
     guests:        {},
     announcements: [],
     suggestions:   [],
+    totp:          { kaliph: [], kathrine: [] },
   };
   for (const [k, v] of Object.entries(defaults)) {
     if (!rd(F[k])) wd(F[k], v);
@@ -1530,6 +1533,132 @@ async function checkDueReminders() {
 
 // Check reminders every 30 seconds
 setInterval(checkDueReminders, 30000);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TOTP AUTHENTICATOR
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Encryption helpers for TOTP secrets — never stored as plain text
+const TOTP_ENC_KEY = process.env.TOTP_ENC_KEY || 'RoyalKatKaiVaultTOTPKey2024!!@@';
+function totpEncrypt(text) {
+  const iv = crypto.randomBytes(16);
+  const key = crypto.scryptSync(TOTP_ENC_KEY, 'totp-salt', 32);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return iv.toString('hex') + ':' + encrypted;
+}
+function totpDecrypt(data) {
+  const [ivHex, enc] = data.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const key = crypto.scryptSync(TOTP_ENC_KEY, 'totp-salt', 32);
+  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+  let decrypted = decipher.update(enc, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+// TOTP password per user (separate from site password)
+app.post('/api/totp/auth', mainAuth, async (req, res) => {
+  const user = req.session.user;
+  const { password } = req.body;
+  const users = rd(F.users);
+  const u = users[user];
+  if (!u?.totpPassword) return res.status(400).json({ error: 'No TOTP password set. Please set one first.' });
+  const match = await bcrypt.compare(password, u.totpPassword);
+  if (!match) return res.status(401).json({ error: 'Incorrect password' });
+  req.session.totpUnlocked = true;
+  res.json({ success: true });
+});
+
+app.post('/api/totp/set-password', mainAuth, async (req, res) => {
+  const user = req.session.user;
+  const { password, currentPassword } = req.body;
+  if (!password || password.length < 4) return res.status(400).json({ error: 'Password must be at least 4 characters' });
+  const users = rd(F.users);
+  // If password already set, require current password
+  if (users[user]?.totpPassword) {
+    if (!currentPassword) return res.status(400).json({ error: 'Current password required' });
+    const match = await bcrypt.compare(currentPassword, users[user].totpPassword);
+    if (!match) return res.status(401).json({ error: 'Current password is incorrect' });
+  }
+  users[user].totpPassword = await bcrypt.hash(password, 10);
+  wd(F.users, users);
+  req.session.totpUnlocked = true;
+  res.json({ success: true });
+});
+
+app.get('/api/totp/status', mainAuth, (req, res) => {
+  const users = rd(F.users);
+  const u = users[req.session.user];
+  res.json({
+    hasPassword: !!u?.totpPassword,
+    unlocked: !!req.session.totpUnlocked,
+    enabled: u?.totpEnabled !== false,
+  });
+});
+
+// Guard: require TOTP session unlock
+function totpAuth(req, res, next) {
+  if (!req.session.totpUnlocked) return res.status(403).json({ error: 'TOTP locked' });
+  next();
+}
+
+app.get('/api/totp/accounts', mainAuth, totpAuth, (req, res) => {
+  const all = rd(F.totp) || { kaliph: [], kathrine: [] };
+  const user = req.session.user;
+  // Decrypt secrets before sending (they'll be used client-side for code generation)
+  const accounts = (all[user] || []).map(a => ({
+    ...a,
+    secret: totpDecrypt(a.secret),
+  }));
+  res.json(accounts);
+});
+
+app.post('/api/totp/accounts', mainAuth, totpAuth, (req, res) => {
+  const { name, secret, issuer } = req.body;
+  if (!name || !secret) return res.status(400).json({ error: 'Name and secret are required' });
+  // Validate secret is valid base32
+  const cleanSecret = secret.replace(/\s+/g, '').toUpperCase();
+  if (!/^[A-Z2-7]+=*$/.test(cleanSecret)) return res.status(400).json({ error: 'Invalid TOTP secret (must be base32)' });
+  const all = rd(F.totp) || { kaliph: [], kathrine: [] };
+  const user = req.session.user;
+  if (!all[user]) all[user] = [];
+  const account = {
+    id: uuidv4(),
+    name,
+    issuer: issuer || '',
+    secret: totpEncrypt(cleanSecret),
+    createdAt: Date.now(),
+  };
+  all[user].push(account);
+  wd(F.totp, all);
+  res.json({ success: true, account: { ...account, secret: cleanSecret } });
+});
+
+app.put('/api/totp/accounts/:id', mainAuth, totpAuth, (req, res) => {
+  const all = rd(F.totp) || { kaliph: [], kathrine: [] };
+  const user = req.session.user;
+  const idx = (all[user] || []).findIndex(a => a.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Account not found' });
+  if (req.body.name !== undefined) all[user][idx].name = req.body.name;
+  if (req.body.issuer !== undefined) all[user][idx].issuer = req.body.issuer;
+  wd(F.totp, all);
+  res.json({ success: true, account: { ...all[user][idx], secret: totpDecrypt(all[user][idx].secret) } });
+});
+
+app.delete('/api/totp/accounts/:id', mainAuth, totpAuth, (req, res) => {
+  const all = rd(F.totp) || { kaliph: [], kathrine: [] };
+  const user = req.session.user;
+  all[user] = (all[user] || []).filter(a => a.id !== req.params.id);
+  wd(F.totp, all);
+  res.json({ success: true });
+});
+
+app.post('/api/totp/lock', mainAuth, (req, res) => {
+  req.session.totpUnlocked = false;
+  res.json({ success: true });
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SUGGESTIONS
