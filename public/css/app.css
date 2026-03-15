@@ -3476,7 +3476,6 @@ body.perf-mode .modal { box-shadow: none !important; }
   overflow-y: auto;
   flex: 1;
   max-width: 560px;
-  margin: 0 auto;
 }
 
 /* Card — compact, Google Authenticator style */
@@ -3623,8 +3622,12 @@ a.totp-card-issuer:hover {
 }
 
 /* Empty State */
+.totp-grid:has(.totp-empty-state) {
+  max-width: none;
+  align-items: center;
+  justify-content: center;
+}
 .totp-empty-state {
-  grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
   align-items: center;
