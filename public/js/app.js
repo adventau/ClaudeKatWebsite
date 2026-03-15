@@ -4255,6 +4255,8 @@ function openSettingsModal() {
   loadGuests();
   loadSuggestions();
   loadBellSchedule().then(() => loadBellScheduleUI());
+  // Load TOTP password status for security tab
+  fetch('/api/totp/status').then(r => r.json()).then(s => updateTotpSettingsUI(s.hasPassword)).catch(() => {});
   if (window.lucide) lucide.createIcons();
   // Close mobile sidebar when opening settings on tablet
   if (window.innerWidth <= 834) closeMobileSidebar();
@@ -7517,33 +7519,88 @@ async function initTotpSection() {
   const loginScreen = document.getElementById('totp-login-screen');
   const mainUI = document.getElementById('totp-main');
 
+  // Update security settings tab too
+  updateTotpSettingsUI(res.hasPassword);
+
   if (res.unlocked) {
     loginScreen.style.display = 'none';
-    mainUI.style.display = '';
+    mainUI.style.display = 'flex';
     await loadTotpAccounts();
     startTotpTimer();
   } else {
-    loginScreen.style.display = '';
+    loginScreen.style.display = 'flex';
     mainUI.style.display = 'none';
     // Show setup or login
     const loginFields = document.getElementById('totp-login-fields');
     const setupFields = document.getElementById('totp-setup-fields');
     const sub = document.getElementById('totp-login-sub');
     if (res.hasPassword) {
-      loginFields.style.display = '';
+      loginFields.style.display = 'flex';
       setupFields.style.display = 'none';
       sub.textContent = 'Enter your authenticator password to unlock';
       document.getElementById('totp-password-input').value = '';
       setTimeout(() => document.getElementById('totp-password-input').focus(), 100);
     } else {
       loginFields.style.display = 'none';
-      setupFields.style.display = '';
+      setupFields.style.display = 'flex';
       sub.textContent = 'First time? Set up your authenticator password';
       document.getElementById('totp-new-password').value = '';
       document.getElementById('totp-confirm-password').value = '';
       setTimeout(() => document.getElementById('totp-new-password').focus(), 100);
     }
   }
+}
+
+function updateTotpSettingsUI(hasPassword) {
+  const changeDiv = document.getElementById('totp-pw-change');
+  const setupDiv = document.getElementById('totp-pw-setup');
+  if (hasPassword) {
+    changeDiv.style.display = '';
+    setupDiv.style.display = 'none';
+  } else {
+    changeDiv.style.display = 'none';
+    setupDiv.style.display = '';
+  }
+}
+
+async function totpChangePasswordFromSettings() {
+  const current = document.getElementById('totp-settings-current-pw').value;
+  const newPw = document.getElementById('totp-settings-new-pw').value;
+  const confirm = document.getElementById('totp-settings-confirm-pw').value;
+  if (!current) { showToast('Please enter your current password'); return; }
+  if (newPw.length < 4) { showToast('New password must be at least 4 characters'); return; }
+  if (newPw !== confirm) { showToast('Passwords do not match'); return; }
+  try {
+    const res = await fetch('/api/totp/set-password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: newPw, currentPassword: current })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Failed to change password'); return; }
+    showToast('Authenticator password updated!');
+    document.getElementById('totp-settings-current-pw').value = '';
+    document.getElementById('totp-settings-new-pw').value = '';
+    document.getElementById('totp-settings-confirm-pw').value = '';
+  } catch { showToast('Failed to change password'); }
+}
+
+async function totpSetupPasswordFromSettings() {
+  const pw = document.getElementById('totp-settings-setup-pw').value;
+  const confirm = document.getElementById('totp-settings-setup-confirm').value;
+  if (pw.length < 4) { showToast('Password must be at least 4 characters'); return; }
+  if (pw !== confirm) { showToast('Passwords do not match'); return; }
+  try {
+    const res = await fetch('/api/totp/set-password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Failed to set password'); return; }
+    showToast('Authenticator password set!');
+    updateTotpSettingsUI(true);
+    document.getElementById('totp-settings-setup-pw').value = '';
+    document.getElementById('totp-settings-setup-confirm').value = '';
+  } catch { showToast('Failed to set password'); }
 }
 
 async function totpLogin() {
@@ -7666,7 +7723,7 @@ function createTotpEmpty() {
     <div class="totp-empty-icon"><i data-lucide="shield-check" style="width:56px;height:56px;opacity:0.3"></i></div>
     <div class="totp-empty-text">No accounts yet</div>
     <div class="totp-empty-sub">Add your first 2FA account to get started</div>
-    <button class="totp-btn totp-btn-primary" onclick="openTotpAddModal()" style="margin-top:12px"><i data-lucide="plus" style="width:16px;height:16px"></i> Add Account</button>
+    <button class="btn-primary" onclick="openTotpAddModal()" style="margin-top:12px;display:inline-flex;align-items:center;gap:6px"><i data-lucide="plus" style="width:15px;height:15px"></i> Add Account</button>
   `;
   return div;
 }
