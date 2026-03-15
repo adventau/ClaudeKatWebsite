@@ -3742,6 +3742,11 @@ body.perf-mode .modal { box-shadow: none !important; }
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+@keyframes totpShake {
+  0%, 100% { transform: translateX(0); }
+  10%, 50%, 90% { transform: translateX(-6px); }
+  30%, 70% { transform: translateX(6px); }
+}
 
 /* Responsive */
 @media (max-width: 600px) {
