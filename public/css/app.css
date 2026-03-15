@@ -757,6 +757,7 @@ html, body { height: 100vh; height: 100dvh; overflow: hidden; width: 100vw; }
   outline: none; max-height: 140px; min-height: 40px;
   padding: 7px 0; line-height: 1.55;
 }
+#msg-input:focus { border: none; box-shadow: none; }
 #msg-input::placeholder { color: var(--text-muted); }
 #msg-input.fmt-bold { font-weight: 700; }
 #msg-input.fmt-italic { font-style: italic; }
