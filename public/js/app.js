@@ -7929,6 +7929,7 @@ async function parseTotpQrImage(file) {
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
         if (qrCode && qrCode.data) {
+          console.log('QR code data:', qrCode.data);
           const parsed = parseTotpUri(qrCode.data);
           if (parsed) {
             totpQrParsedData = parsed;
@@ -7960,15 +7961,27 @@ async function parseTotpQrImage(file) {
 
 function parseTotpUri(uri) {
   // otpauth://totp/Label?secret=XXX&issuer=YYY
+  // Manual parsing because new URL() doesn't handle otpauth:// reliably across browsers
   try {
-    const url = new URL(uri);
-    if (url.protocol !== 'otpauth:') return null;
-    const type = url.hostname; // 'totp' or 'hotp'
-    if (type !== 'totp') return null;
-    const label = decodeURIComponent(url.pathname.replace(/^\//, ''));
-    const secret = url.searchParams.get('secret');
-    const issuer = url.searchParams.get('issuer') || '';
+    if (!uri) return null;
+    const str = uri.trim();
+    // Match otpauth://totp/ pattern (case insensitive)
+    const match = str.match(/^otpauth:\/\/totp\/([^?]+)\?(.+)$/i);
+    if (!match) {
+      // Also try without label (some services omit it)
+      const match2 = str.match(/^otpauth:\/\/totp\/?(\?(.+))$/i);
+      if (!match2) return null;
+      // Parse params only
+      const params = new URLSearchParams(match2[2] || match2[1]);
+      const secret = params.get('secret');
+      if (!secret) return null;
+      return { name: params.get('issuer') || 'Unknown', secret: secret.toUpperCase(), issuer: params.get('issuer') || '' };
+    }
+    const label = decodeURIComponent(match[1]);
+    const params = new URLSearchParams(match[2]);
+    const secret = params.get('secret');
     if (!secret) return null;
+    const issuer = params.get('issuer') || '';
     // Label might be "Issuer:account" or just "account"
     let name = label;
     let parsedIssuer = issuer;
@@ -7977,8 +7990,8 @@ function parseTotpUri(uri) {
       parsedIssuer = parsedIssuer || parts[0].trim();
       name = parts.slice(1).join(':').trim();
     }
-    return { name, secret: secret.toUpperCase(), issuer: parsedIssuer };
-  } catch { return null; }
+    return { name: name || 'Unknown', secret: secret.toUpperCase(), issuer: parsedIssuer };
+  } catch(e) { console.error('parseTotpUri error:', e, uri); return null; }
 }
 
 let jsQRLoaded = false;
