@@ -308,7 +308,7 @@
       <div class="section-header">
         <span class="section-title">Notes & Todos</span>
         <div style="display:flex;gap:8px">
-          <button class="btn-primary" onclick="openModal('new-note-modal')">+ New Note</button>
+          <button class="btn-primary" onclick="createBlankNote()">+ New Note</button>
           <button class="btn-ghost" onclick="openModal('new-todo-modal')">+ Todo List</button>
         </div>
       </div>
@@ -1021,21 +1021,6 @@
      MODALS
 ══════════════════════════════════════════════════════════ -->
 
-<!-- New Note -->
-<div class="modal-overlay" id="new-note-modal">
-  <div class="modal modal-sm">
-    <div class="modal-header">
-      <span class="modal-title">📝 New Note</span>
-      <button class="btn-icon" onclick="closeModal('new-note-modal')">✕</button>
-    </div>
-    <div class="form-row"><label>Title</label><input type="text" id="note-title" placeholder="Note title"></div>
-    <div class="form-row"><label>Content</label><textarea id="note-content" rows="6" placeholder="Write your note…"></textarea></div>
-    <div style="display:flex;gap:8px;margin-top:1rem">
-      <button class="btn-primary" onclick="saveNote()">Save Note</button>
-      <button class="btn-ghost" onclick="closeModal('new-note-modal')">Cancel</button>
-    </div>
-  </div>
-</div>
 
 <!-- New Todo -->
 <div class="modal-overlay" id="new-todo-modal">
