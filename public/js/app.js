@@ -4069,6 +4069,12 @@ function setupGuestSocketListeners() {
     socket.off(`guest-msg-${g.id}-${currentUser}`);
   });
 
+  socket.off('guest-created');
+  socket.on('guest-created', async ({ guestId, name }) => {
+    // Reload guest data and re-register socket listeners for new guest
+    await loadGuestMessages();
+  });
+
   socket.on('guest-revoked', ({ guestId }) => {
     guestData = guestData.filter(g => g.id !== guestId);
     if (activeGuestId === guestId) {
@@ -5352,6 +5358,7 @@ async function loadGuests() {
         <div class="guest-pass-channels">${badges}</div>
       </div>
       <div class="guest-pass-actions">
+        <button class="btn-ghost guest-pass-action-btn" onclick="editGuest('${g.id}')" title="Edit"><i data-lucide="pencil" style="width:15px;height:15px;color:var(--accent)"></i></button>
         <button class="btn-ghost guest-pass-action-btn" onclick="revokeGuest('${g.id}','${escapeHtml(g.name)}')" title="Revoke"><i data-lucide="trash-2" style="width:15px;height:15px;color:#ef4444"></i></button>
       </div>
     </div>`;
@@ -5380,6 +5387,59 @@ function startGuestCountdowns() {
       }
     });
   }, 1000);
+}
+
+async function editGuest(guestId) {
+  const guests = await fetch('/api/guests').then(r => r.json());
+  const g = guests[guestId];
+  if (!g) return showToast('Guest not found');
+  const channels = g.channels || ['kaliph','kathrine','group'];
+  // Build modal
+  let overlay = document.getElementById('edit-guest-overlay');
+  if (overlay) overlay.remove();
+  overlay = document.createElement('div');
+  overlay.id = 'edit-guest-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:var(--bg-card,var(--surface,#1e1e2e));border:1px solid var(--border);border-radius:16px;padding:1.5rem;width:360px;max-width:90vw;box-shadow:0 12px 40px rgba(0,0,0,0.4)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <h3 style="margin:0;font-size:1rem;color:var(--text-primary,#fff)">Edit Guest</h3>
+        <button onclick="this.closest('#edit-guest-overlay').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem">&times;</button>
+      </div>
+      <div class="form-row" style="margin-bottom:1rem"><label style="font-size:0.78rem;color:var(--text-secondary,#aaa);margin-bottom:4px;display:block">Guest Name</label><input type="text" id="edit-guest-name" value="${escapeHtml(g.name)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input,rgba(255,255,255,0.06));color:var(--text-primary,#fff);font-size:0.85rem"></div>
+      <div style="margin-bottom:1rem">
+        <label style="font-size:0.78rem;color:var(--text-secondary,#aaa);margin-bottom:8px;display:block">Channel Permissions</label>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label class="channel-perm-check"><div class="toggle-switch"><input type="checkbox" id="edit-perm-kaliph" ${channels.includes('kaliph') ? 'checked' : ''}><span class="toggle-slider"></span></div><span style="font-size:0.82rem">Speak with Kaliph</span></label>
+          <label class="channel-perm-check"><div class="toggle-switch"><input type="checkbox" id="edit-perm-kathrine" ${channels.includes('kathrine') ? 'checked' : ''}><span class="toggle-slider"></span></div><span style="font-size:0.82rem">Speak with Kathrine</span></label>
+          <label class="channel-perm-check"><div class="toggle-switch"><input type="checkbox" id="edit-perm-group" ${channels.includes('group') ? 'checked' : ''}><span class="toggle-slider"></span></div><span style="font-size:0.82rem">Speak in Group Chat</span></label>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn-ghost" onclick="this.closest('#edit-guest-overlay').remove()" style="padding:6px 16px;font-size:0.82rem">Cancel</button>
+        <button class="btn-primary" onclick="saveGuestEdit('${guestId}')" style="padding:6px 16px;font-size:0.82rem">Save Changes</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function saveGuestEdit(guestId) {
+  const name = document.getElementById('edit-guest-name').value.trim();
+  if (!name) return showToast('Name is required');
+  const channels = [];
+  if (document.getElementById('edit-perm-kaliph').checked) channels.push('kaliph');
+  if (document.getElementById('edit-perm-kathrine').checked) channels.push('kathrine');
+  if (document.getElementById('edit-perm-group').checked) channels.push('group');
+  if (!channels.length) return showToast('Select at least one channel');
+  await fetch(`/api/guests/${guestId}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, channels })
+  });
+  document.getElementById('edit-guest-overlay')?.remove();
+  await loadGuests();
+  await loadGuestMessages();
+  showToast('Guest updated');
 }
 
 function updateGuestChannelOptions(activeGuests) {
@@ -5423,10 +5483,11 @@ async function createGuest() {
     if (cb.checked) channels.push('guest-' + cb.dataset.guestChannel);
   });
   if (!channels.length) return showToast('⚠️ Select at least one channel');
-  await fetch('/api/guests', {
+  const resp = await fetch('/api/guests', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, password: pw, expiresAt, channels })
   });
+  const result = await resp.json();
   document.getElementById('guest-name').value = '';
   document.getElementById('guest-pw').value = '';
   setCustomSelectValue('guest-expires-mode', 'never', 'Never expires');
@@ -5435,6 +5496,13 @@ async function createGuest() {
   document.getElementById('guest-perm-kathrine').checked = true;
   document.getElementById('guest-perm-group').checked = true;
   await loadGuests();
+  // Auto-open the new guest's conversation
+  if (result.guestId) {
+    await loadGuestMessages();
+    const defaultCh = channels.includes('group') ? 'group' : channels[0];
+    showSection('guest-messages', document.querySelector('.nav-item[data-section="guest-messages"]'));
+    selectGuest(result.guestId, defaultCh);
+  }
   showToast(`🌟 Guest pass created for ${name}!`);
 }
 

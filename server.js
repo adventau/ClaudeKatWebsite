@@ -1702,7 +1702,32 @@ app.post('/api/guests', mainAuth, async (req, res) => {
     messages: { kaliph: [], kathrine: [], group: [] },
   };
   wd(F.guests, guests);
+  io.emit('guest-created', { guestId: id, name });
   res.json({ success: true, guestId: id, name });
+});
+
+// Update guest name and/or channel permissions
+app.put('/api/guests/:id', mainAuth, (req, res) => {
+  const guests = rd(F.guests) || {};
+  const g = guests[req.params.id];
+  if (!g) return res.status(404).json({ error: 'Not found' });
+  const { name, channels } = req.body;
+  if (name) g.name = name;
+  if (Array.isArray(channels) && channels.length) g.channels = channels;
+  wd(F.guests, guests);
+  io.emit('guest-updated', { guestId: req.params.id, name: g.name, channels: g.channels });
+  res.json({ success: true });
+});
+
+// Guest avatar upload (authenticated as guest)
+app.post('/api/guests/:id/avatar', auth, upload.single('avatar'), (req, res) => {
+  const guests = rd(F.guests) || {};
+  const g = guests[req.params.id];
+  if (!g) return res.status(404).json({ error: 'Not found' });
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  g.avatar = `/uploads/${req.file.filename}`;
+  wd(F.guests, guests);
+  res.json({ success: true, avatar: g.avatar });
 });
 
 app.delete('/api/guests/:id', mainAuth, (req, res) => {
@@ -1719,7 +1744,7 @@ app.get('/api/guests/:id', auth, (req, res) => {
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
-  res.json({ id: g.id, name: g.name, messages: g.messages, active: g.active, channels: g.channels || ['kaliph','kathrine','group'], createdBy: g.createdBy });
+  res.json({ id: g.id, name: g.name, messages: g.messages, active: g.active, channels: g.channels || ['kaliph','kathrine','group'], createdBy: g.createdBy, avatar: g.avatar || null });
 });
 
 // Get all guest messages for the current main user
@@ -1735,7 +1760,51 @@ app.get('/api/guest-messages', mainAuth, (req, res) => {
   res.json(result);
 });
 
-app.post('/api/guests/:id/message', (req, res) => {
+// Guest message reactions
+app.post('/api/guests/:guestId/messages/:msgId/react', auth, (req, res) => {
+  const { emoji, sender } = req.body;
+  const guests = rd(F.guests) || {};
+  const g = guests[req.params.guestId];
+  if (!g) return res.status(404).json({ error: 'Not found' });
+  let found = false;
+  const user = req.session.user || sender || 'guest';
+  for (const ch of Object.keys(g.messages || {})) {
+    const msg = (g.messages[ch] || []).find(m => m.id === req.params.msgId);
+    if (msg) {
+      if (!msg.reactions) msg.reactions = {};
+      if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+      const idx = msg.reactions[emoji].indexOf(user);
+      if (idx === -1) msg.reactions[emoji].push(user);
+      else msg.reactions[emoji].splice(idx, 1);
+      if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
+      wd(F.guests, guests);
+      io.emit(`guest-msg-reaction-${req.params.guestId}`, { msgId: req.params.msgId, reactions: msg.reactions });
+      found = true;
+      break;
+    }
+  }
+  res.json({ success: found });
+});
+
+// Guest file upload
+app.post('/api/guests/:id/upload', upload.array('files', 10), (req, res) => {
+  const xGuestId = req.headers['x-guest-id'];
+  if (!xGuestId && !req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+  const files = (req.files || []).map(f => ({
+    url: `/uploads/${f.filename}`, type: f.mimetype, name: f.originalname, size: f.size
+  }));
+  res.json({ success: true, files });
+});
+
+// GIF search for guests
+app.get('/api/guest-gif-search', (req, res) => {
+  // Proxy to the existing GIF search logic
+  const { q, limit } = req.query;
+  fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=${process.env.TENOR_KEY || 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ'}&limit=${limit || 20}&media_filter=gif`)
+    .then(r => r.json()).then(data => res.json(data)).catch(() => res.json({ results: [] }));
+});
+
+app.post('/api/guests/:id/message', upload.array('files', 10), (req, res) => {
   // Use X-Guest-Id header (sent only by guest.html) to identify guest senders.
   // This avoids session cross-contamination when a main-user tab and a guest tab
   // are open in the same browser simultaneously (they share the same session cookie).
@@ -1745,7 +1814,7 @@ app.post('/api/guests/:id/message', (req, res) => {
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
-  const { text, target, sender: clientSender } = req.body;
+  const { text, target, sender: clientSender, type, gifUrl, priority } = req.body;
   // Validate channel access for guests
   if (isGuestRequest) {
     const allowed = g.channels || ['kaliph','kathrine','group'];
@@ -1754,7 +1823,17 @@ app.post('/api/guests/:id/message', (req, res) => {
   // Guest portal sends X-Guest-Id header → use client-sent name (supports renames);
   // Main users never send that header → always use their authenticated profile name.
   const sender = isGuestRequest ? (clientSender || g.name) : req.session.user;
-  const msg = { id: uuidv4(), sender, text, timestamp: Date.now() };
+  const msg = { id: uuidv4(), sender, text: text || '', timestamp: Date.now() };
+  // Handle different message types
+  if (type === 'gif' && gifUrl) { msg.type = 'gif'; msg.gifUrl = gifUrl; }
+  if (type === 'voice' && req.files?.length) {
+    msg.type = 'voice';
+    msg.voiceUrl = `/uploads/${req.files[0].filename}`;
+  }
+  if (req.files?.length && type !== 'voice') {
+    msg.files = req.files.map(f => ({ url: `/uploads/${f.filename}`, type: f.mimetype, name: f.originalname, size: f.size }));
+  }
+  if (priority === 'true') msg.priority = true;
   if (!g.messages[target]) g.messages[target] = [];
   g.messages[target].push(msg);
   wd(F.guests, guests);

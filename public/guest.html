@@ -145,18 +145,98 @@
     .input-wrap:focus-within {
       border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow);
     }
-    .emoji-row { display: flex; gap: 1px; margin-bottom: 6px; }
-    .eq {
-      background: none; border: none; font-size: 1.1rem; cursor: pointer;
-      padding: 3px 5px; border-radius: 7px; transition: background 0.15s; line-height: 1;
-    }
-    .eq:hover { background: rgba(255,255,255,0.09); }
     textarea {
       flex: 1; background: transparent; border: none; outline: none;
       color: var(--text); font-size: 0.88rem; font-family: 'Inter', sans-serif;
       resize: none; max-height: 110px; min-height: 32px; line-height: 1.55; padding: 0;
     }
     textarea::placeholder { color: var(--muted); }
+    .input-row { display: flex; gap: 8px; align-items: flex-end; }
+    .guest-input-actions {
+      display: flex; gap: 2px; align-items: center;
+      padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 4px;
+    }
+    .gia-btn {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      width: 32px; height: 28px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      transition: color 0.15s, background 0.15s;
+    }
+    .gia-btn:hover { color: var(--accent); background: rgba(255,255,255,0.06); }
+    .gia-btn.active { color: var(--accent); }
+    /* File preview bar */
+    .guest-file-bar {
+      display: flex; gap: 8px; padding: 8px 12px; flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+    }
+    .guest-file-chip {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+      border-radius: 8px; padding: 4px 10px; font-size: 0.75rem;
+    }
+    .guest-file-chip img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
+    .guest-file-chip button {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: 0.85rem; padding: 0 2px;
+    }
+    /* Priority row */
+    .guest-priority-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 12px; border-bottom: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+    }
+    /* Voice recording */
+    .guest-voice-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+    }
+    .guest-rec-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #ef4444;
+      animation: recBlink 1s infinite;
+    }
+    @keyframes recBlink { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    .guest-voice-cancel {
+      margin-left: auto; background: none; border: 1px solid var(--border);
+      color: var(--muted); border-radius: 6px; padding: 4px 12px;
+      font-size: 0.78rem; cursor: pointer;
+    }
+    .guest-voice-send {
+      background: var(--accent); border: none; color: #fff;
+      border-radius: 6px; padding: 4px 14px; font-size: 0.78rem; cursor: pointer;
+    }
+    /* GIF panel */
+    .guest-gif-panel, .guest-emoji-panel {
+      border-bottom: 1px solid var(--border);
+      max-height: 280px; display: flex; flex-direction: column;
+    }
+    .guest-gif-header {
+      display: flex; gap: 8px; padding: 8px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .guest-gif-header input {
+      flex: 1; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 10px; font-size: 0.8rem;
+      color: var(--text); outline: none; font-family: 'Inter', sans-serif;
+    }
+    .guest-gif-header input:focus { border-color: var(--accent); }
+    .guest-gif-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+      padding: 8px; overflow-y: auto; max-height: 220px;
+    }
+    .guest-gif-grid img {
+      width: 100%; height: 80px; object-fit: cover; border-radius: 6px;
+      cursor: pointer; transition: transform 0.1s;
+    }
+    .guest-gif-grid img:hover { transform: scale(1.05); }
+    .guest-emoji-grid {
+      display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px;
+      padding: 8px; overflow-y: auto; max-height: 220px;
+    }
+    .guest-emoji-grid button {
+      width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; background: none; border: none; border-radius: 6px; cursor: pointer;
+    }
+    .guest-emoji-grid button:hover { background: rgba(255,255,255,0.08); transform: scale(1.15); }
 
     .send-btn {
       width: 38px; height: 38px; border-radius: 11px;
@@ -308,6 +388,138 @@
       border: 1px solid rgba(255,255,255,0.15);
     }
 
+    /* ── Chat Header Bar ──────────────────────────────────── */
+    .guest-chat-bar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0; background: var(--surface);
+      backdrop-filter: blur(12px);
+    }
+    .gcb-left { position: relative; flex-shrink: 0; }
+    .gcb-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2, var(--accent)));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; font-weight: 700; color: #fff;
+      overflow: hidden; cursor: pointer;
+    }
+    .gcb-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .gcb-status-dot {
+      position: absolute; bottom: 0; right: 0;
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #22c55e; border: 2px solid var(--surface);
+    }
+    .gcb-status-dot.offline { background: #666; }
+    .gcb-status-dot.idle { background: #fbbf24; }
+    .gcb-info { flex: 1; min-width: 0; }
+    .gcb-name { font-weight: 700; font-size: 0.92rem; line-height: 1.2; }
+    .gcb-status { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
+    .gcb-actions { display: flex; gap: 4px; align-items: center; }
+    .gcb-action-btn {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      width: 34px; height: 34px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      transition: color 0.2s, background 0.2s;
+    }
+    .gcb-action-btn:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+
+    /* ── Message Reactions (guest) ────────────────────────── */
+    .msg-reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+    .msg-row.self .msg-reactions { justify-content: flex-end; }
+    .reaction-chip {
+      background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+      border-radius: 9999px; padding: 3px 9px;
+      font-size: 0.78rem; cursor: pointer;
+      transition: all 0.15s; display: flex; align-items: center; gap: 3px;
+      user-select: none;
+    }
+    .reaction-chip:hover { background: rgba(255,255,255,0.12); transform: scale(1.06); }
+    .reaction-chip.mine { border-color: var(--accent); background: rgba(200,150,122,0.15); }
+    .msg-quick-react {
+      position: absolute; top: -44px; z-index: 25;
+      display: flex; align-items: center; gap: 3px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px; padding: 5px 6px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      backdrop-filter: blur(12px);
+      animation: reactBarIn 0.15s ease;
+    }
+    .msg-row.self .msg-quick-react { right: 0; }
+    .msg-row.other .msg-quick-react { left: 40px; }
+    @keyframes reactBarIn { from { opacity:0; transform:translateY(6px) scale(0.9); } to { opacity:1; transform:translateY(0) scale(1); } }
+    .msg-quick-react button {
+      background: none; border: none; font-size: 1.15rem;
+      cursor: pointer; padding: 3px; border-radius: 6px;
+      transition: transform 0.1s; line-height: 1;
+    }
+    .msg-quick-react button:hover { transform: scale(1.4); }
+    /* ── Message hover actions bar ──────────────────────── */
+    .msg-actions {
+      position: absolute; top: -14px; z-index: 20;
+      display: flex; align-items: center; gap: 2px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 2px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.12s ease, transform 0.12s ease;
+      transform: translateY(4px);
+      backdrop-filter: blur(12px);
+    }
+    .msg-row:hover .msg-actions { opacity: 1; pointer-events: auto; transform: translateY(0); }
+    .msg-row.self .msg-actions { right: 0; }
+    .msg-row.other .msg-actions { left: 40px; }
+    .msg-action-btn {
+      background: none; border: none; cursor: pointer;
+      width: 28px; height: 28px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); transition: all 0.1s;
+    }
+    .msg-action-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); transform: scale(1.15); }
+    .msg-content-wrap { position: relative; }
+    /* Touch support: tap to toggle */
+    .msg-row.actions-visible .msg-actions { opacity: 1; pointer-events: auto; transform: translateY(0); }
+
+    /* ── Mobile responsive ───────────────────────────────── */
+    @media (max-width: 600px) {
+      header { padding: 0 12px; height: 50px; }
+      .header-brand { font-size: 0.72rem; letter-spacing: 0.05em; }
+      .guest-badge { font-size: 0.62rem; padding: 3px 10px; }
+      .leave-btn { font-size: 0.7rem; padding: 4px 8px; }
+      .channel-bar { padding: 8px 10px; gap: 4px; }
+      .channel-tab { padding: 6px 10px; font-size: 0.72rem; }
+      .guest-chat-bar { padding: 8px 12px; gap: 10px; }
+      .gcb-avatar { width: 32px; height: 32px; font-size: 0.75rem; }
+      .gcb-name { font-size: 0.82rem; }
+      .gcb-status { font-size: 0.65rem; }
+      .gcb-action-btn { width: 30px; height: 30px; }
+      .gcb-action-btn svg { width: 16px; height: 16px; }
+      .messages-area { padding: 12px 10px 8px; }
+      .msg-content-wrap { max-width: 80%; }
+      .msg-bubble { padding: 8px 11px; font-size: 0.82rem; }
+      .msg-avatar { width: 26px; height: 26px; font-size: 0.6rem; }
+      .msg-sender { font-size: 0.62rem; }
+      .msg-time { font-size: 0.58rem; }
+      .input-area { padding: 8px 10px 10px; }
+      .input-wrap { padding: 6px 10px 5px; }
+      .emoji-row { gap: 0; margin-bottom: 4px; }
+      .eq { font-size: 0.95rem; padding: 2px 4px; }
+      textarea { font-size: 0.82rem; min-height: 28px; }
+      .send-btn { width: 34px; height: 34px; font-size: 0.8rem; }
+      .vault-watermark { font-size: 0.62rem; padding: 5px; }
+      .settings-panel { width: 95vw; border-radius: 14px; }
+      .settings-body { padding: 14px 16px; }
+      .msg-row.other .msg-quick-react { left: 0; }
+      .msg-row.other .msg-actions { left: 0; }
+      .guest-input-actions { flex-wrap: wrap; }
+      .gia-btn { width: 28px; height: 26px; }
+      .gia-btn svg { width: 16px; height: 16px; }
+      .guest-gif-grid { grid-template-columns: repeat(2, 1fr); }
+      .guest-emoji-grid { grid-template-columns: repeat(7, 1fr); }
+      .guest-gif-panel, .guest-emoji-panel { max-height: 220px; }
+    }
+
     /* ── Light theme overrides ────────────────────────────── */
     body.light-theme {
       --bg: #f5f3f0; --surface: #ffffff; --border: rgba(0,0,0,0.1);
@@ -354,6 +566,37 @@
       --bg: #060d10; --surface: #0a1418; --border: rgba(20,184,166,0.2);
       --accent: #14b8a6; --accent2: #2dd4bf; --text: #e0f2f1; --muted: rgba(224,242,241,0.45);
       --glow: rgba(20,184,166,0.22); --msg-self: linear-gradient(135deg,#0d9488,#2dd4bf);
+    }
+    body.host-theme-neon {
+      --bg: #0a0a12; --surface: #0e0e1a; --border: rgba(255,45,123,0.2);
+      --accent: #ff2d7b; --accent2: #00f0ff; --text: #e8e8f0; --muted: rgba(232,232,240,0.45);
+      --glow: rgba(255,45,123,0.25); --msg-self: linear-gradient(135deg,#ff2d7b,#ff1493);
+    }
+    body.host-theme-noir {
+      --bg: #1a1a2e; --surface: #16162a; --border: rgba(212,175,55,0.2);
+      --accent: #d4af37; --accent2: #5c2a3e; --text: #e8e0d0; --muted: rgba(232,224,208,0.45);
+      --glow: rgba(212,175,55,0.15); --msg-self: linear-gradient(135deg,#d4af37,#c9a227);
+    }
+    body.host-theme-dark {
+      --bg: #1a1a1a; --surface: #242424; --border: #303030;
+      --accent: #ececec; --accent2: #a0a0a0; --text: #ececec; --muted: rgba(236,236,236,0.45);
+      --glow: rgba(255,255,255,0.06); --msg-self: #e8e8e8; --msg-other: #242424;
+    }
+    body.host-theme-dark header { background: #171717; }
+    body.host-theme-dark .channel-bar { background: #171717; }
+    body.host-theme-dark .input-area { background: #171717; }
+    body.host-theme-light {
+      --bg: #f9f9f9; --surface: #ffffff; --border: #e5e5e5;
+      --accent: #0d0d0d; --accent2: #4a4a4a; --text: #0d0d0d; --muted: rgba(13,13,13,0.45);
+      --glow: rgba(0,0,0,0.06); --msg-self: #1a1a1a; --msg-other: rgba(0,0,0,0.04);
+    }
+    body.host-theme-light header { background: rgba(255,255,255,0.97); }
+    body.host-theme-light .channel-bar { background: #fafaf8; }
+    body.host-theme-light .input-area { background: #fafaf8; }
+    body.host-theme-forest {
+      --bg: #0f1a14; --surface: #0d1a12; --border: rgba(92,184,138,0.18);
+      --accent: #52b788; --accent2: #95d5b2; --text: #e8ead3; --muted: rgba(232,234,211,0.45);
+      --glow: rgba(92,184,138,0.22); --msg-self: linear-gradient(135deg,#2d6a4f,#52b788);
     }
 
     /* ── Guest Profile Viewer ──────────────────────────────── */
@@ -430,6 +673,28 @@
     <div class="channel-tab" data-target="kathrine" onclick="switchChannel('kathrine',this)">Message Kathrine</div>
   </div>
 
+  <!-- Chat Header Bar (like main chat) -->
+  <div class="guest-chat-bar" id="guest-chat-bar">
+    <div class="gcb-left">
+      <div class="gcb-avatar" id="gcb-avatar">
+        <span id="gcb-initial">K</span>
+      </div>
+      <div class="gcb-status-dot" id="gcb-status-dot"></div>
+    </div>
+    <div class="gcb-info">
+      <div class="gcb-name" id="gcb-name">Group Chat</div>
+      <div class="gcb-status" id="gcb-status">Kaliph & Kathrine</div>
+    </div>
+    <div class="gcb-actions">
+      <button class="gcb-action-btn" onclick="startGuestCall('audio')" title="Voice Call">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </button>
+      <button class="gcb-action-btn" onclick="startGuestCall('video')" title="Video Call">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      </button>
+    </div>
+  </div>
+
   <!-- Messages -->
   <div class="messages-area" id="messages-area">
     <!-- Welcome banner -->
@@ -449,19 +714,58 @@
 
   <!-- Input -->
   <div class="input-area">
-    <div class="input-wrap">
-      <div class="emoji-row">
-        <button class="eq" onclick="insertEmoji('😊')">😊</button>
-        <button class="eq" onclick="insertEmoji('❤️')">❤️</button>
-        <button class="eq" onclick="insertEmoji('😂')">😂</button>
-        <button class="eq" onclick="insertEmoji('🙏')">🙏</button>
-        <button class="eq" onclick="insertEmoji('✨')">✨</button>
-        <button class="eq" onclick="insertEmoji('💜')">💜</button>
-        <button class="eq" onclick="insertEmoji('🔥')">🔥</button>
-      </div>
-      <textarea id="msg-input" placeholder="Type a message…" rows="1"></textarea>
+    <!-- File attachment preview -->
+    <div id="guest-file-bar" class="guest-file-bar" style="display:none"></div>
+    <!-- Priority row -->
+    <div class="guest-priority-row" id="guest-priority-row" style="display:none">
+      <input type="checkbox" id="guest-priority-checkbox">
+      <label for="guest-priority-checkbox" style="font-size:0.78rem;color:var(--text);cursor:pointer">Mark as Priority — sends notification</label>
     </div>
-    <button class="send-btn" onclick="sendMsg()">➤</button>
+    <!-- Voice recording indicator -->
+    <div id="guest-voice-bar" class="guest-voice-bar" style="display:none">
+      <div class="guest-rec-dot"></div>
+      <span id="guest-rec-timer">Recording… 0:00</span>
+      <button class="guest-voice-cancel" onclick="cancelGuestVoice()">Cancel</button>
+      <button class="guest-voice-send" onclick="sendGuestVoice()">Send</button>
+    </div>
+    <!-- GIF search panel -->
+    <div id="guest-gif-panel" class="guest-gif-panel" style="display:none">
+      <div class="guest-gif-header">
+        <input type="text" id="guest-gif-search" placeholder="Search GIFs…" oninput="searchGuestGifs(this.value)">
+        <button onclick="closeGuestGif()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem">&times;</button>
+      </div>
+      <div class="guest-gif-grid" id="guest-gif-grid"></div>
+    </div>
+    <!-- Emoji picker panel -->
+    <div id="guest-emoji-panel" class="guest-emoji-panel" style="display:none">
+      <div class="guest-gif-header">
+        <input type="text" id="guest-emoji-search" placeholder="Search emoji…" oninput="filterGuestEmoji(this.value)">
+        <button onclick="closeGuestEmoji()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem">&times;</button>
+      </div>
+      <div class="guest-emoji-grid" id="guest-emoji-grid"></div>
+    </div>
+    <div class="input-row">
+      <div class="input-wrap">
+        <textarea id="msg-input" placeholder="Type a message…" rows="1"></textarea>
+        <div class="guest-input-actions">
+          <button class="gia-btn" onclick="toggleGuestEmoji()" title="Emoji">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>
+          </button>
+          <button class="gia-btn" onclick="toggleGuestGif()" title="GIF" style="font-weight:700;font-size:0.7rem;letter-spacing:0.02em">GIF</button>
+          <button class="gia-btn" onclick="document.getElementById('guest-file-input').click()" title="Attach file">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+          <button class="gia-btn" id="guest-mic-btn" onclick="toggleGuestVoice()" title="Voice message">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+          </button>
+          <button class="gia-btn" id="guest-priority-btn" onclick="toggleGuestPriority()" title="Priority notification">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          </button>
+          <input type="file" id="guest-file-input" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt" style="display:none" onchange="handleGuestFiles(this)">
+        </div>
+      </div>
+      <button class="send-btn" onclick="sendMsg()">➤</button>
+    </div>
   </div>
 
   <!-- Guest Profile Viewer -->
@@ -503,6 +807,18 @@
         <button class="settings-close" onclick="toggleGuestSettings()">&times;</button>
       </div>
       <div class="settings-body">
+        <div class="settings-group">
+          <label class="settings-label">Profile Picture</label>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+            <div id="guest-avatar-preview" style="width:48px;height:48px;border-radius:50%;overflow:hidden;border:2px solid var(--border);background:linear-gradient(135deg,var(--accent),var(--accent2,var(--accent)));display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;color:#fff;flex-shrink:0"></div>
+            <div style="display:flex;flex-direction:column;gap:6px;flex:1">
+              <button class="settings-save-btn" onclick="document.getElementById('guest-avatar-input').click()" style="font-size:0.78rem;padding:5px 14px">Upload Photo</button>
+              <button class="settings-save-btn" onclick="removeGuestAvatar()" id="guest-avatar-remove-btn" style="font-size:0.72rem;padding:4px 10px;background:transparent;border:1px solid var(--border);color:var(--muted);display:none">Remove</button>
+            </div>
+            <input type="file" id="guest-avatar-input" accept="image/*" style="display:none" onchange="uploadGuestAvatar(this)">
+          </div>
+        </div>
+        <div class="settings-divider"></div>
         <div class="settings-group">
           <label class="settings-label">Display Name</label>
           <div class="settings-input-row">
@@ -572,8 +888,10 @@
       if (guestData.messages) channelMessages = guestData.messages;
       if (guestData.channels) allowedChannels = guestData.channels;
       if (guestData.createdBy) creatorTheme = guestData.createdBy;
+      if (guestData.avatar) guestAvatar = guestData.avatar;
       applyChannelPermissions();
       renderChannel();
+      updateAvatarPreview();
       // Load creator's theme info for guest settings
       loadCreatorTheme();
       // Load host user data for profile viewing
@@ -600,6 +918,71 @@
     });
     socket.on('force-logout', () => {
       window.location.href = '/';
+    });
+
+    // Reaction updates
+    socket.on(`guest-msg-reaction-${guestId}`, ({ msgId, reactions }) => {
+      // Update stored message
+      for (const ch of Object.keys(channelMessages)) {
+        const msg = (channelMessages[ch] || []).find(m => m.id === msgId);
+        if (msg) { msg.reactions = reactions; break; }
+      }
+      // Update DOM
+      const el = document.getElementById('guest-msg-' + msgId);
+      if (!el) return;
+      let reactRow = el.querySelector('.msg-reactions');
+      if (!reactRow) {
+        reactRow = document.createElement('div');
+        reactRow.className = 'msg-reactions';
+        const timeEl = el.querySelector('.msg-time');
+        if (timeEl) el.insertBefore(reactRow, timeEl);
+        else el.appendChild(reactRow);
+      }
+      reactRow.innerHTML = Object.entries(reactions).filter(([,u]) => u.length > 0).map(([emoji, users]) =>
+        `<div class="reaction-chip ${users.includes(guestName)?'mine':''}" onclick="reactToGuestMessage('${msgId}','${emoji}')" title="${users.join(', ')}">${emoji} ${users.length}</div>`
+      ).join('');
+    });
+
+    // Status updates for chat header bar
+    socket.on('status-changed', ({ user, status }) => {
+      if (window._hostUsers?.[user]) {
+        window._hostUsers[user]._presence = status === 'invisible' ? 'offline' : status;
+        if (user === channel) updateChatBar();
+      }
+    });
+
+    // Live permission/name update from host
+    socket.on('guest-updated', ({ guestId: updatedId, name, channels }) => {
+      if (updatedId === guestId) {
+        if (channels) { allowedChannels = channels; applyChannelPermissions(); }
+      }
+    });
+
+    // Live theme sync — if guest is using host's theme, update immediately when host changes it
+    socket.on('user-updated', ({ user, data }) => {
+      if (user === creatorTheme && data.theme && currentGuestTheme === 'host') {
+        // Update the host theme button's stored theme ID
+        const hostBtn = document.getElementById('host-theme-btn');
+        if (hostBtn) hostBtn.setAttribute('data-theme', data.theme);
+        // Update the preview gradient
+        const hostPreview = document.getElementById('host-theme-preview');
+        const themePreviewColors = {
+          kaliph: 'linear-gradient(135deg,#08051a,#7c3aed,#3b82f6)',
+          kathrine: 'linear-gradient(135deg,#0d0716,#8b5cf6,#e9d5ff)',
+          royal: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)',
+          heaven: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)',
+          neon: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)',
+          noir: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)',
+          dark: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)',
+          light: 'linear-gradient(135deg,#f9f9f9,#d4d4d4,#e8e8e8)',
+          rosewood: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)',
+          ocean: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)',
+          forest: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)',
+        };
+        if (hostPreview) hostPreview.style.background = themePreviewColors[data.theme] || 'var(--accent)';
+        // Re-apply the host theme with updated colors
+        setGuestTheme('host');
+      }
     });
   }
 
@@ -640,6 +1023,13 @@
             kathrine: 'linear-gradient(135deg,#0d0716,#8b5cf6,#e9d5ff)',
             royal: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)',
             heaven: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)',
+            neon: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)',
+            noir: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)',
+            dark: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)',
+            light: 'linear-gradient(135deg,#f9f9f9,#d4d4d4,#e8e8e8)',
+            rosewood: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)',
+            ocean: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)',
+            forest: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)',
           };
           if (hostPreview) hostPreview.style.background = themePreviewColors[creator.theme] || 'var(--accent)';
           if (hostName) hostName.textContent = capitalize(creatorTheme) + "'s Theme";
@@ -660,6 +1050,7 @@
     el.classList.add('active');
     clearBadge(ch);
     renderChannel();
+    updateChatBar();
   }
 
   function dismissWelcome() {
@@ -721,11 +1112,45 @@
     if (isHost) avatar.onclick = () => showGuestProfile(msg.sender);
     const content = document.createElement('div');
     content.className = 'msg-content-wrap';
+    if (msg.id) content.id = 'guest-msg-' + msg.id;
     const senderLabel = isSelf ? 'You' : capitalize(msg.sender);
+    let reactionsHtml = '';
+    if (msg.reactions && Object.keys(msg.reactions).length > 0) {
+      reactionsHtml = '<div class="msg-reactions">' + Object.entries(msg.reactions).filter(([,u]) => u.length > 0).map(([emoji, users]) =>
+        `<div class="reaction-chip ${users.includes(guestName) ? 'mine' : ''}" onclick="reactToGuestMessage('${msg.id}','${emoji}')" title="${users.join(', ')}">${emoji} ${users.length}</div>`
+      ).join('') + '</div>';
+    }
+    // Render message content (text, GIF, voice, files)
+    let msgBody = '';
+    if (msg.type === 'gif' && msg.gifUrl) {
+      msgBody = `<div class="msg-bubble ${isSelf ? 'self' : 'other'}" style="padding:4px;background:transparent;border:none;box-shadow:none"><img src="${msg.gifUrl}" style="max-width:220px;border-radius:10px;display:block" alt="GIF"></div>`;
+    } else if (msg.type === 'voice' && msg.voiceUrl) {
+      msgBody = `<div class="msg-bubble ${isSelf ? 'self' : 'other'}"><audio controls src="${msg.voiceUrl}" style="max-width:220px;height:32px"></audio></div>`;
+    } else {
+      msgBody = `<div class="msg-bubble ${isSelf ? 'self' : 'other'}">${escHtml(msg.text)}</div>`;
+    }
+    // File attachments
+    let filesHtml = '';
+    if (msg.files?.length) {
+      filesHtml = msg.files.map(f => {
+        if (f.type?.startsWith('image/')) return `<img src="${f.url}" style="max-width:200px;border-radius:8px;margin-top:4px;display:block" alt="${escHtml(f.name)}">`;
+        return `<a href="${f.url}" target="_blank" style="color:var(--accent);font-size:0.8rem;display:block;margin-top:4px">📎 ${escHtml(f.name)}</a>`;
+      }).join('');
+    }
+    // Hover actions bar (only on hover, not sticky)
+    const _s = 'xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    const actionsBar = msg.id ? `<div class="msg-actions">
+      <button class="msg-action-btn" onclick="showGuestQuickReact('${msg.id}',this)" title="React"><svg ${_s}><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg></button>
+      <button class="msg-action-btn" onclick="guestReply('${msg.id}','${escHtml(senderLabel)}')" title="Reply"><svg ${_s}><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></button>
+      <button class="msg-action-btn" onclick="copyGuestMsg('${msg.id}')" title="Copy"><svg ${_s}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+    </div>` : '';
     content.innerHTML = `
       <div class="msg-sender"${isHost ? ` style="cursor:pointer" onclick="showGuestProfile('${msg.sender}')"` : ''}>${senderLabel}</div>
-      <div class="msg-bubble ${isSelf ? 'self' : 'other'}">${escHtml(msg.text)}</div>
-      <div class="msg-time">${formatTime(msg.timestamp)}</div>`;
+      ${msgBody}
+      ${filesHtml}
+      ${reactionsHtml}
+      <div class="msg-time">${formatTime(msg.timestamp)}</div>
+      ${actionsBar}`;
     if (isSelf) { row.appendChild(content); row.appendChild(avatar); }
     else { row.appendChild(avatar); row.appendChild(content); }
     return row;
@@ -756,24 +1181,48 @@
 
   // ── Send ─────────────────────────────────────────────────────────
   let isSending = false;
+  window._guestPendingFiles = null;
+
   async function sendMsg() {
     if (isSending) return;
     const input = document.getElementById('msg-input');
     const text = input.value.trim();
-    if (!text) return;
+    const hasFiles = window._guestPendingFiles?.length > 0;
+    if (!text && !hasFiles) return;
     isSending = true;
     input.value = '';
     input.style.height = 'auto';
     if (!welcomeDismissed) dismissWelcome();
-    const msg = { text, target: channel, sender: guestName };
+    const priority = document.getElementById('guest-priority-checkbox')?.checked || false;
+    const formData = new FormData();
+    formData.append('text', text);
+    formData.append('target', channel);
+    formData.append('sender', guestName);
+    formData.append('type', 'text');
+    if (priority) formData.append('priority', 'true');
+    if (window._guestPendingFiles) {
+      window._guestPendingFiles.forEach(f => formData.append('files', f));
+      window._guestPendingFiles = null;
+      renderGuestFileBar();
+    }
     try {
       await fetch(`/api/guests/${guestId}/message`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guest-Id': guestId },
-        body: JSON.stringify(msg)
+        method: 'POST', headers: { 'X-Guest-Id': guestId },
+        body: formData
       });
+      if (priority) { document.getElementById('guest-priority-checkbox').checked = false; toggleGuestPriority(); }
     } finally {
       isSending = false;
     }
+  }
+
+  async function sendGuestGif(gifUrl) {
+    closeGuestGif();
+    if (!welcomeDismissed) dismissWelcome();
+    await fetch(`/api/guests/${guestId}/message`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guest-Id': guestId },
+      body: JSON.stringify({ text: '', target: channel, sender: guestName, type: 'gif', gifUrl })
+    });
   }
 
   function insertEmoji(e) {
@@ -783,6 +1232,179 @@
     t.selectionStart = t.selectionEnd = p + e.length;
     t.focus();
   }
+
+  // ── Input toolbar functions ────────────────────────────────────
+  // Emoji picker
+  const GUEST_EMOJIS = ['😊','😂','❤️','🔥','👍','😭','🥺','✨','💜','🙏','😍','🥰','😘','😎','🤔','😤','😈','👀','💀','🎉','🎊','💯','⭐','🌙','🌟','💫','💖','💝','💗','💕','🤗','🤩','🥳','😋','😜','🤪','😇','🥲','😶','🫡','👋','✌️','🤝','👏','💪','🤌','💅','🧡','💛','💚','💙','🩵','🩷','🖤','🤍','🫶','♥️','😮','🫠','🤭','😐','🙄','😴','🤯','🫣','😵','🤡','👹','💩'];
+
+  function toggleGuestEmoji() {
+    const panel = document.getElementById('guest-emoji-panel');
+    if (panel.style.display === 'none') {
+      closeGuestGif();
+      panel.style.display = 'flex';
+      renderGuestEmojiGrid('');
+      document.getElementById('guest-emoji-search').focus();
+    } else {
+      panel.style.display = 'none';
+    }
+  }
+  function closeGuestEmoji() { document.getElementById('guest-emoji-panel').style.display = 'none'; }
+
+  function renderGuestEmojiGrid(query) {
+    const grid = document.getElementById('guest-emoji-grid');
+    const filtered = query ? GUEST_EMOJIS.filter(e => e.includes(query)) : GUEST_EMOJIS;
+    grid.innerHTML = filtered.map(e => `<button onclick="insertEmoji('${e}');closeGuestEmoji()">${e}</button>`).join('');
+    if (!filtered.length) grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">No results</p>';
+  }
+  function filterGuestEmoji(q) { renderGuestEmojiGrid(q); }
+
+  // GIF search
+  let gifSearchTimer = null;
+  function toggleGuestGif() {
+    const panel = document.getElementById('guest-gif-panel');
+    if (panel.style.display === 'none') {
+      closeGuestEmoji();
+      panel.style.display = 'flex';
+      document.getElementById('guest-gif-search').value = '';
+      document.getElementById('guest-gif-search').focus();
+      searchGuestGifs('');
+    } else {
+      panel.style.display = 'none';
+    }
+  }
+  function closeGuestGif() { document.getElementById('guest-gif-panel').style.display = 'none'; }
+
+  function searchGuestGifs(q) {
+    clearTimeout(gifSearchTimer);
+    gifSearchTimer = setTimeout(async () => {
+      const grid = document.getElementById('guest-gif-grid');
+      if (!q) { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">Type to search GIFs</p>'; return; }
+      grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">Searching…</p>';
+      try {
+        const data = await fetch(`/api/guest-gif-search?q=${encodeURIComponent(q)}&limit=20`).then(r => r.json());
+        const results = data.results || [];
+        grid.innerHTML = results.map(g => {
+          const url = g.media_formats?.gif?.url || g.media_formats?.tinygif?.url || '';
+          return url ? `<img src="${url}" onclick="sendGuestGif('${url}')" alt="GIF" loading="lazy">` : '';
+        }).join('') || '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">No GIFs found</p>';
+      } catch { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">Search failed</p>'; }
+    }, 350);
+  }
+
+  // File attachments
+  function handleGuestFiles(input) {
+    if (!window._guestPendingFiles) window._guestPendingFiles = [];
+    [...input.files].forEach(f => window._guestPendingFiles.push(f));
+    renderGuestFileBar();
+    input.value = '';
+  }
+
+  function renderGuestFileBar() {
+    const bar = document.getElementById('guest-file-bar');
+    if (!window._guestPendingFiles?.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+    bar.style.display = 'flex';
+    bar.innerHTML = window._guestPendingFiles.map((f, i) => {
+      const icon = f.type?.startsWith('image/') ? '🖼️' : f.type?.startsWith('video/') ? '🎬' : f.type?.startsWith('audio/') ? '🎵' : '📎';
+      const thumb = f.type?.startsWith('image/') ? `<img src="${URL.createObjectURL(f)}">` : '';
+      return `<div class="guest-file-chip">${thumb}${!thumb ? icon : ''} <span style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</span><button onclick="removeGuestFile(${i})">&times;</button></div>`;
+    }).join('');
+  }
+
+  function removeGuestFile(idx) {
+    window._guestPendingFiles.splice(idx, 1);
+    renderGuestFileBar();
+  }
+
+  // Voice recording
+  let guestRecording = false, guestRecorder = null, guestAudioChunks = [], guestRecInterval = null, guestRecSecs = 0;
+
+  async function toggleGuestVoice() {
+    if (guestRecording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      guestRecording = true;
+      guestAudioChunks = [];
+      guestRecorder = new MediaRecorder(stream);
+      guestRecorder.ondataavailable = e => guestAudioChunks.push(e.data);
+      guestRecorder.onstop = () => stream.getTracks().forEach(t => t.stop());
+      guestRecorder.start();
+      guestRecSecs = 0;
+      document.getElementById('guest-voice-bar').style.display = 'flex';
+      document.getElementById('guest-mic-btn').classList.add('active');
+      guestRecInterval = setInterval(() => {
+        guestRecSecs++;
+        const m = Math.floor(guestRecSecs / 60), s = guestRecSecs % 60;
+        document.getElementById('guest-rec-timer').textContent = `Recording… ${m}:${s.toString().padStart(2, '0')}`;
+      }, 1000);
+    } catch { showToast('Microphone access denied'); }
+  }
+
+  function cancelGuestVoice() {
+    if (guestRecorder?.state === 'recording') guestRecorder.stop();
+    guestRecording = false; guestAudioChunks = [];
+    clearInterval(guestRecInterval);
+    document.getElementById('guest-voice-bar').style.display = 'none';
+    document.getElementById('guest-mic-btn').classList.remove('active');
+  }
+
+  async function sendGuestVoice() {
+    if (!guestRecorder || guestRecorder.state !== 'recording') return;
+    guestRecorder.stop();
+    clearInterval(guestRecInterval);
+    document.getElementById('guest-voice-bar').style.display = 'none';
+    document.getElementById('guest-mic-btn').classList.remove('active');
+    guestRecording = false;
+    // Wait for final data
+    await new Promise(r => setTimeout(r, 200));
+    const blob = new Blob(guestAudioChunks, { type: 'audio/webm' });
+    const formData = new FormData();
+    formData.append('text', '');
+    formData.append('target', channel);
+    formData.append('sender', guestName);
+    formData.append('type', 'voice');
+    formData.append('files', blob, `voice-${Date.now()}.webm`);
+    await fetch(`/api/guests/${guestId}/message`, { method: 'POST', headers: { 'X-Guest-Id': guestId }, body: formData });
+  }
+
+  // Priority notification
+  function toggleGuestPriority() {
+    const row = document.getElementById('guest-priority-row');
+    const btn = document.getElementById('guest-priority-btn');
+    if (row.style.display === 'none') { row.style.display = 'flex'; btn.classList.add('active'); }
+    else { row.style.display = 'none'; btn.classList.remove('active'); document.getElementById('guest-priority-checkbox').checked = false; }
+  }
+
+  // Message actions: copy & reply
+  function copyGuestMsg(msgId) {
+    for (const ch of Object.keys(channelMessages)) {
+      const msg = (channelMessages[ch] || []).find(m => m.id === msgId);
+      if (msg?.text) { navigator.clipboard.writeText(msg.text).then(() => showToast('Copied')); return; }
+    }
+  }
+
+  function guestReply(msgId, senderLabel) {
+    for (const ch of Object.keys(channelMessages)) {
+      const msg = (channelMessages[ch] || []).find(m => m.id === msgId);
+      if (msg) {
+        const input = document.getElementById('msg-input');
+        const preview = msg.text?.substring(0, 40) || '';
+        input.placeholder = `Replying to ${senderLabel}: "${preview}…"`;
+        input.focus();
+        return;
+      }
+    }
+  }
+
+  // Mobile touch: tap to show/hide actions bar
+  document.addEventListener('touchstart', function(e) {
+    const row = e.target.closest('.msg-row');
+    if (row) {
+      document.querySelectorAll('.msg-row.actions-visible').forEach(r => { if (r !== row) r.classList.remove('actions-visible'); });
+      row.classList.toggle('actions-visible');
+    } else {
+      document.querySelectorAll('.msg-row.actions-visible').forEach(r => r.classList.remove('actions-visible'));
+    }
+  }, { passive: true });
 
   // ── Utility ──────────────────────────────────────────────────────
   function escHtml(t) { return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -821,7 +1443,7 @@
   function setGuestTheme(theme) {
     currentGuestTheme = theme;
     sessionStorage.setItem('guestTheme', theme);
-    document.body.classList.remove('light-theme', 'host-theme-kaliph', 'host-theme-kathrine', 'host-theme-royal', 'host-theme-heaven');
+    document.body.classList.remove('light-theme', 'host-theme-kaliph', 'host-theme-kathrine', 'host-theme-royal', 'host-theme-heaven', 'host-theme-neon', 'host-theme-noir', 'host-theme-dark', 'host-theme-light', 'host-theme-rosewood', 'host-theme-ocean', 'host-theme-forest');
     if (theme === 'light') {
       document.body.classList.add('light-theme');
     } else if (theme === 'host') {
@@ -841,6 +1463,124 @@
     sessionStorage.setItem('guestSound', soundEnabled ? 'true' : 'false');
   }
 
+  // ── Chat Header Bar ─────────────────────────────────────────────
+  function updateChatBar() {
+    const nameEl = document.getElementById('gcb-name');
+    const statusEl = document.getElementById('gcb-status');
+    const avatarEl = document.getElementById('gcb-avatar');
+    const dotEl = document.getElementById('gcb-status-dot');
+    if (!nameEl) return;
+
+    if (channel === 'group') {
+      nameEl.textContent = 'Group Chat';
+      statusEl.textContent = 'Kaliph & Kathrine';
+      avatarEl.innerHTML = '<span style="font-size:0.7rem">👥</span>';
+      avatarEl.onclick = null;
+      dotEl.style.display = 'none';
+    } else {
+      const host = (window._hostUsers || {})[channel];
+      const displayName = host?.displayName || capitalize(channel);
+      nameEl.textContent = displayName;
+      if (host?.avatar) {
+        avatarEl.innerHTML = `<img src="${host.avatar}">`;
+      } else {
+        avatarEl.innerHTML = `<span>${displayName[0].toUpperCase()}</span>`;
+      }
+      avatarEl.onclick = () => showGuestProfile(channel);
+      avatarEl.style.cursor = 'pointer';
+      // Status
+      const presence = host?._presence || 'offline';
+      dotEl.style.display = '';
+      if (presence === 'online') {
+        dotEl.className = 'gcb-status-dot';
+        statusEl.textContent = 'Online';
+      } else if (presence === 'idle') {
+        dotEl.className = 'gcb-status-dot idle';
+        statusEl.textContent = 'Idle';
+      } else {
+        dotEl.className = 'gcb-status-dot offline';
+        statusEl.textContent = host?.lastSeen ? formatLastSeen(host.lastSeen) : 'Offline';
+      }
+    }
+  }
+
+  function formatLastSeen(ts) {
+    const d = new Date(ts);
+    const now = new Date();
+    const diff = now - d;
+    if (diff < 60000) return 'Last seen just now';
+    if (diff < 3600000) return `Last seen ${Math.floor(diff/60000)}m ago`;
+    if (diff < 86400000) return `Last seen ${Math.floor(diff/3600000)}h ago`;
+    return `Last seen ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  }
+
+  function startGuestCall(type) {
+    showToast('Calling is not available for guest accounts');
+  }
+
+  // ── Quick Reactions ────────────────────────────────────────────
+  async function reactToGuestMessage(msgId, emoji) {
+    await fetch(`/api/guests/${guestId}/messages/${msgId}/react`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji, sender: guestName })
+    });
+  }
+
+  function showGuestQuickReact(msgId, btnEl) {
+    document.querySelectorAll('.msg-quick-react').forEach(el => el.remove());
+    const content = btnEl.closest('.msg-content-wrap');
+    const bar = document.createElement('div');
+    bar.className = 'msg-quick-react';
+    bar.innerHTML = ['❤️','😂','👍','😮','😭','🔥','💜','✨'].map(e =>
+      `<button onclick="reactToGuestMessage('${msgId}','${e}');this.parentElement.remove()">${e}</button>`
+    ).join('');
+    content.appendChild(bar);
+    const close = (e) => { if (!bar.contains(e.target) && e.target !== btnEl) { bar.remove(); document.removeEventListener('click', close); } };
+    setTimeout(() => document.addEventListener('click', close), 10);
+  }
+
+  // ── Guest Avatar ────────────────────────────────────────────────
+  let guestAvatar = null;
+
+  function updateAvatarPreview() {
+    const preview = document.getElementById('guest-avatar-preview');
+    const removeBtn = document.getElementById('guest-avatar-remove-btn');
+    if (!preview) return;
+    if (guestAvatar) {
+      preview.innerHTML = `<img src="${guestAvatar}" style="width:100%;height:100%;object-fit:cover">`;
+      if (removeBtn) removeBtn.style.display = '';
+    } else {
+      preview.innerHTML = guestName ? guestName[0].toUpperCase() : 'G';
+      if (removeBtn) removeBtn.style.display = 'none';
+    }
+  }
+
+  async function uploadGuestAvatar(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('avatar', file);
+    try {
+      const res = await fetch(`/api/guests/${guestId}/avatar`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.avatar) {
+        guestAvatar = data.avatar;
+        updateAvatarPreview();
+        showToast('Profile picture updated');
+      }
+    } catch { showToast('Upload failed'); }
+    input.value = '';
+  }
+
+  async function removeGuestAvatar() {
+    try {
+      await fetch(`/api/guests/${guestId}/avatar`, { method: 'POST', body: new FormData() });
+    } catch {}
+    guestAvatar = null;
+    updateAvatarPreview();
+    showToast('Profile picture removed');
+  }
+
   // ── Guest Profile Viewer ─────────────────────────────────────────
   window._hostUsers = {};
 
@@ -848,6 +1588,7 @@
     try {
       const users = await fetch('/api/users').then(r => r.json());
       window._hostUsers = users || {};
+      updateChatBar();
     } catch {}
   }
 
