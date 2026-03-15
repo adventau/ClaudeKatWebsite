@@ -1702,7 +1702,32 @@ app.post('/api/guests', mainAuth, async (req, res) => {
     messages: { kaliph: [], kathrine: [], group: [] },
   };
   wd(F.guests, guests);
+  io.emit('guest-created', { guestId: id, name });
   res.json({ success: true, guestId: id, name });
+});
+
+// Update guest name and/or channel permissions
+app.put('/api/guests/:id', mainAuth, (req, res) => {
+  const guests = rd(F.guests) || {};
+  const g = guests[req.params.id];
+  if (!g) return res.status(404).json({ error: 'Not found' });
+  const { name, channels } = req.body;
+  if (name) g.name = name;
+  if (Array.isArray(channels) && channels.length) g.channels = channels;
+  wd(F.guests, guests);
+  io.emit('guest-updated', { guestId: req.params.id, name: g.name, channels: g.channels });
+  res.json({ success: true });
+});
+
+// Guest avatar upload (authenticated as guest)
+app.post('/api/guests/:id/avatar', auth, upload.single('avatar'), (req, res) => {
+  const guests = rd(F.guests) || {};
+  const g = guests[req.params.id];
+  if (!g) return res.status(404).json({ error: 'Not found' });
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  g.avatar = `/uploads/${req.file.filename}`;
+  wd(F.guests, guests);
+  res.json({ success: true, avatar: g.avatar });
 });
 
 app.delete('/api/guests/:id', mainAuth, (req, res) => {
@@ -1719,7 +1744,7 @@ app.get('/api/guests/:id', auth, (req, res) => {
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
-  res.json({ id: g.id, name: g.name, messages: g.messages, active: g.active, channels: g.channels || ['kaliph','kathrine','group'], createdBy: g.createdBy });
+  res.json({ id: g.id, name: g.name, messages: g.messages, active: g.active, channels: g.channels || ['kaliph','kathrine','group'], createdBy: g.createdBy, avatar: g.avatar || null });
 });
 
 // Get all guest messages for the current main user
@@ -1733,6 +1758,32 @@ app.get('/api/guest-messages', mainAuth, (req, res) => {
     result.push({ id: g.id, name: g.name, channels });
   });
   res.json(result);
+});
+
+// Guest message reactions
+app.post('/api/guests/:guestId/messages/:msgId/react', auth, (req, res) => {
+  const { emoji, sender } = req.body;
+  const guests = rd(F.guests) || {};
+  const g = guests[req.params.guestId];
+  if (!g) return res.status(404).json({ error: 'Not found' });
+  let found = false;
+  const user = req.session.user || sender || 'guest';
+  for (const ch of Object.keys(g.messages || {})) {
+    const msg = (g.messages[ch] || []).find(m => m.id === req.params.msgId);
+    if (msg) {
+      if (!msg.reactions) msg.reactions = {};
+      if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+      const idx = msg.reactions[emoji].indexOf(user);
+      if (idx === -1) msg.reactions[emoji].push(user);
+      else msg.reactions[emoji].splice(idx, 1);
+      if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
+      wd(F.guests, guests);
+      io.emit(`guest-msg-reaction-${req.params.guestId}`, { msgId: req.params.msgId, reactions: msg.reactions });
+      found = true;
+      break;
+    }
+  }
+  res.json({ success: found });
 });
 
 app.post('/api/guests/:id/message', (req, res) => {

@@ -308,6 +308,119 @@
       border: 1px solid rgba(255,255,255,0.15);
     }
 
+    /* ── Chat Header Bar ──────────────────────────────────── */
+    .guest-chat-bar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0; background: var(--surface);
+      backdrop-filter: blur(12px);
+    }
+    .gcb-left { position: relative; flex-shrink: 0; }
+    .gcb-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2, var(--accent)));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; font-weight: 700; color: #fff;
+      overflow: hidden; cursor: pointer;
+    }
+    .gcb-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .gcb-status-dot {
+      position: absolute; bottom: 0; right: 0;
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #22c55e; border: 2px solid var(--surface);
+    }
+    .gcb-status-dot.offline { background: #666; }
+    .gcb-status-dot.idle { background: #fbbf24; }
+    .gcb-info { flex: 1; min-width: 0; }
+    .gcb-name { font-weight: 700; font-size: 0.92rem; line-height: 1.2; }
+    .gcb-status { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
+    .gcb-actions { display: flex; gap: 4px; align-items: center; }
+    .gcb-action-btn {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      width: 34px; height: 34px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      transition: color 0.2s, background 0.2s;
+    }
+    .gcb-action-btn:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+
+    /* ── Message Reactions (guest) ────────────────────────── */
+    .msg-reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+    .msg-row.self .msg-reactions { justify-content: flex-end; }
+    .reaction-chip {
+      background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+      border-radius: 9999px; padding: 3px 9px;
+      font-size: 0.78rem; cursor: pointer;
+      transition: all 0.15s; display: flex; align-items: center; gap: 3px;
+      user-select: none;
+    }
+    .reaction-chip:hover { background: rgba(255,255,255,0.12); transform: scale(1.06); }
+    .reaction-chip.mine { border-color: var(--accent); background: rgba(200,150,122,0.15); }
+    .msg-quick-react {
+      position: absolute; top: -44px; z-index: 25;
+      display: flex; align-items: center; gap: 3px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px; padding: 5px 6px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      backdrop-filter: blur(12px);
+      animation: reactBarIn 0.15s ease;
+    }
+    .msg-row.self .msg-quick-react { right: 0; }
+    .msg-row.other .msg-quick-react { left: 40px; }
+    @keyframes reactBarIn { from { opacity:0; transform:translateY(6px) scale(0.9); } to { opacity:1; transform:translateY(0) scale(1); } }
+    .msg-quick-react button {
+      background: none; border: none; font-size: 1.15rem;
+      cursor: pointer; padding: 3px; border-radius: 6px;
+      transition: transform 0.1s; line-height: 1;
+    }
+    .msg-quick-react button:hover { transform: scale(1.4); }
+    .msg-react-btn {
+      position: absolute; top: 2px; opacity: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; width: 26px; height: 26px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 0.8rem; transition: opacity 0.15s;
+      z-index: 10;
+    }
+    .msg-row.self .msg-react-btn { left: -30px; }
+    .msg-row.other .msg-react-btn { right: -30px; }
+    .msg-content-wrap:hover .msg-react-btn { opacity: 1; }
+    .msg-content-wrap { position: relative; }
+
+    /* ── Mobile responsive ───────────────────────────────── */
+    @media (max-width: 600px) {
+      header { padding: 0 12px; height: 50px; }
+      .header-brand { font-size: 0.72rem; letter-spacing: 0.05em; }
+      .guest-badge { font-size: 0.62rem; padding: 3px 10px; }
+      .leave-btn { font-size: 0.7rem; padding: 4px 8px; }
+      .channel-bar { padding: 8px 10px; gap: 4px; }
+      .channel-tab { padding: 6px 10px; font-size: 0.72rem; }
+      .guest-chat-bar { padding: 8px 12px; gap: 10px; }
+      .gcb-avatar { width: 32px; height: 32px; font-size: 0.75rem; }
+      .gcb-name { font-size: 0.82rem; }
+      .gcb-status { font-size: 0.65rem; }
+      .gcb-action-btn { width: 30px; height: 30px; }
+      .gcb-action-btn svg { width: 16px; height: 16px; }
+      .messages-area { padding: 12px 10px 8px; }
+      .msg-content-wrap { max-width: 80%; }
+      .msg-bubble { padding: 8px 11px; font-size: 0.82rem; }
+      .msg-avatar { width: 26px; height: 26px; font-size: 0.6rem; }
+      .msg-sender { font-size: 0.62rem; }
+      .msg-time { font-size: 0.58rem; }
+      .input-area { padding: 8px 10px 10px; }
+      .input-wrap { padding: 6px 10px 5px; }
+      .emoji-row { gap: 0; margin-bottom: 4px; }
+      .eq { font-size: 0.95rem; padding: 2px 4px; }
+      textarea { font-size: 0.82rem; min-height: 28px; }
+      .send-btn { width: 34px; height: 34px; font-size: 0.8rem; }
+      .vault-watermark { font-size: 0.62rem; padding: 5px; }
+      .settings-panel { width: 95vw; border-radius: 14px; }
+      .settings-body { padding: 14px 16px; }
+      .msg-row.other .msg-quick-react { left: 0; }
+      .msg-react-btn { opacity: 1; }
+    }
+
     /* ── Light theme overrides ────────────────────────────── */
     body.light-theme {
       --bg: #f5f3f0; --surface: #ffffff; --border: rgba(0,0,0,0.1);
@@ -354,6 +467,37 @@
       --bg: #060d10; --surface: #0a1418; --border: rgba(20,184,166,0.2);
       --accent: #14b8a6; --accent2: #2dd4bf; --text: #e0f2f1; --muted: rgba(224,242,241,0.45);
       --glow: rgba(20,184,166,0.22); --msg-self: linear-gradient(135deg,#0d9488,#2dd4bf);
+    }
+    body.host-theme-neon {
+      --bg: #0a0a12; --surface: #0e0e1a; --border: rgba(255,45,123,0.2);
+      --accent: #ff2d7b; --accent2: #00f0ff; --text: #e8e8f0; --muted: rgba(232,232,240,0.45);
+      --glow: rgba(255,45,123,0.25); --msg-self: linear-gradient(135deg,#ff2d7b,#ff1493);
+    }
+    body.host-theme-noir {
+      --bg: #1a1a2e; --surface: #16162a; --border: rgba(212,175,55,0.2);
+      --accent: #d4af37; --accent2: #5c2a3e; --text: #e8e0d0; --muted: rgba(232,224,208,0.45);
+      --glow: rgba(212,175,55,0.15); --msg-self: linear-gradient(135deg,#d4af37,#c9a227);
+    }
+    body.host-theme-dark {
+      --bg: #1a1a1a; --surface: #242424; --border: #303030;
+      --accent: #ececec; --accent2: #a0a0a0; --text: #ececec; --muted: rgba(236,236,236,0.45);
+      --glow: rgba(255,255,255,0.06); --msg-self: #e8e8e8; --msg-other: #242424;
+    }
+    body.host-theme-dark header { background: #171717; }
+    body.host-theme-dark .channel-bar { background: #171717; }
+    body.host-theme-dark .input-area { background: #171717; }
+    body.host-theme-light {
+      --bg: #f9f9f9; --surface: #ffffff; --border: #e5e5e5;
+      --accent: #0d0d0d; --accent2: #4a4a4a; --text: #0d0d0d; --muted: rgba(13,13,13,0.45);
+      --glow: rgba(0,0,0,0.06); --msg-self: #1a1a1a; --msg-other: rgba(0,0,0,0.04);
+    }
+    body.host-theme-light header { background: rgba(255,255,255,0.97); }
+    body.host-theme-light .channel-bar { background: #fafaf8; }
+    body.host-theme-light .input-area { background: #fafaf8; }
+    body.host-theme-forest {
+      --bg: #0f1a14; --surface: #0d1a12; --border: rgba(92,184,138,0.18);
+      --accent: #52b788; --accent2: #95d5b2; --text: #e8ead3; --muted: rgba(232,234,211,0.45);
+      --glow: rgba(92,184,138,0.22); --msg-self: linear-gradient(135deg,#2d6a4f,#52b788);
     }
 
     /* ── Guest Profile Viewer ──────────────────────────────── */
@@ -430,6 +574,28 @@
     <div class="channel-tab" data-target="kathrine" onclick="switchChannel('kathrine',this)">Message Kathrine</div>
   </div>
 
+  <!-- Chat Header Bar (like main chat) -->
+  <div class="guest-chat-bar" id="guest-chat-bar">
+    <div class="gcb-left">
+      <div class="gcb-avatar" id="gcb-avatar">
+        <span id="gcb-initial">K</span>
+      </div>
+      <div class="gcb-status-dot" id="gcb-status-dot"></div>
+    </div>
+    <div class="gcb-info">
+      <div class="gcb-name" id="gcb-name">Group Chat</div>
+      <div class="gcb-status" id="gcb-status">Kaliph & Kathrine</div>
+    </div>
+    <div class="gcb-actions">
+      <button class="gcb-action-btn" onclick="startGuestCall('audio')" title="Voice Call">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </button>
+      <button class="gcb-action-btn" onclick="startGuestCall('video')" title="Video Call">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      </button>
+    </div>
+  </div>
+
   <!-- Messages -->
   <div class="messages-area" id="messages-area">
     <!-- Welcome banner -->
@@ -504,6 +670,18 @@
       </div>
       <div class="settings-body">
         <div class="settings-group">
+          <label class="settings-label">Profile Picture</label>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+            <div id="guest-avatar-preview" style="width:48px;height:48px;border-radius:50%;overflow:hidden;border:2px solid var(--border);background:linear-gradient(135deg,var(--accent),var(--accent2,var(--accent)));display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;color:#fff;flex-shrink:0"></div>
+            <div style="display:flex;flex-direction:column;gap:6px;flex:1">
+              <button class="settings-save-btn" onclick="document.getElementById('guest-avatar-input').click()" style="font-size:0.78rem;padding:5px 14px">Upload Photo</button>
+              <button class="settings-save-btn" onclick="removeGuestAvatar()" id="guest-avatar-remove-btn" style="font-size:0.72rem;padding:4px 10px;background:transparent;border:1px solid var(--border);color:var(--muted);display:none">Remove</button>
+            </div>
+            <input type="file" id="guest-avatar-input" accept="image/*" style="display:none" onchange="uploadGuestAvatar(this)">
+          </div>
+        </div>
+        <div class="settings-divider"></div>
+        <div class="settings-group">
           <label class="settings-label">Display Name</label>
           <div class="settings-input-row">
             <input type="text" id="guest-display-name" class="settings-input" placeholder="Enter your name..." maxlength="20">
@@ -572,8 +750,10 @@
       if (guestData.messages) channelMessages = guestData.messages;
       if (guestData.channels) allowedChannels = guestData.channels;
       if (guestData.createdBy) creatorTheme = guestData.createdBy;
+      if (guestData.avatar) guestAvatar = guestData.avatar;
       applyChannelPermissions();
       renderChannel();
+      updateAvatarPreview();
       // Load creator's theme info for guest settings
       loadCreatorTheme();
       // Load host user data for profile viewing
@@ -600,6 +780,71 @@
     });
     socket.on('force-logout', () => {
       window.location.href = '/';
+    });
+
+    // Reaction updates
+    socket.on(`guest-msg-reaction-${guestId}`, ({ msgId, reactions }) => {
+      // Update stored message
+      for (const ch of Object.keys(channelMessages)) {
+        const msg = (channelMessages[ch] || []).find(m => m.id === msgId);
+        if (msg) { msg.reactions = reactions; break; }
+      }
+      // Update DOM
+      const el = document.getElementById('guest-msg-' + msgId);
+      if (!el) return;
+      let reactRow = el.querySelector('.msg-reactions');
+      if (!reactRow) {
+        reactRow = document.createElement('div');
+        reactRow.className = 'msg-reactions';
+        const timeEl = el.querySelector('.msg-time');
+        if (timeEl) el.insertBefore(reactRow, timeEl);
+        else el.appendChild(reactRow);
+      }
+      reactRow.innerHTML = Object.entries(reactions).filter(([,u]) => u.length > 0).map(([emoji, users]) =>
+        `<div class="reaction-chip ${users.includes(guestName)?'mine':''}" onclick="reactToGuestMessage('${msgId}','${emoji}')" title="${users.join(', ')}">${emoji} ${users.length}</div>`
+      ).join('');
+    });
+
+    // Status updates for chat header bar
+    socket.on('status-changed', ({ user, status }) => {
+      if (window._hostUsers?.[user]) {
+        window._hostUsers[user]._presence = status === 'invisible' ? 'offline' : status;
+        if (user === channel) updateChatBar();
+      }
+    });
+
+    // Live permission/name update from host
+    socket.on('guest-updated', ({ guestId: updatedId, name, channels }) => {
+      if (updatedId === guestId) {
+        if (channels) { allowedChannels = channels; applyChannelPermissions(); }
+      }
+    });
+
+    // Live theme sync — if guest is using host's theme, update immediately when host changes it
+    socket.on('user-updated', ({ user, data }) => {
+      if (user === creatorTheme && data.theme && currentGuestTheme === 'host') {
+        // Update the host theme button's stored theme ID
+        const hostBtn = document.getElementById('host-theme-btn');
+        if (hostBtn) hostBtn.setAttribute('data-theme', data.theme);
+        // Update the preview gradient
+        const hostPreview = document.getElementById('host-theme-preview');
+        const themePreviewColors = {
+          kaliph: 'linear-gradient(135deg,#08051a,#7c3aed,#3b82f6)',
+          kathrine: 'linear-gradient(135deg,#0d0716,#8b5cf6,#e9d5ff)',
+          royal: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)',
+          heaven: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)',
+          neon: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)',
+          noir: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)',
+          dark: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)',
+          light: 'linear-gradient(135deg,#f9f9f9,#d4d4d4,#e8e8e8)',
+          rosewood: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)',
+          ocean: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)',
+          forest: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)',
+        };
+        if (hostPreview) hostPreview.style.background = themePreviewColors[data.theme] || 'var(--accent)';
+        // Re-apply the host theme with updated colors
+        setGuestTheme('host');
+      }
     });
   }
 
@@ -640,6 +885,13 @@
             kathrine: 'linear-gradient(135deg,#0d0716,#8b5cf6,#e9d5ff)',
             royal: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)',
             heaven: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)',
+            neon: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)',
+            noir: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)',
+            dark: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)',
+            light: 'linear-gradient(135deg,#f9f9f9,#d4d4d4,#e8e8e8)',
+            rosewood: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)',
+            ocean: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)',
+            forest: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)',
           };
           if (hostPreview) hostPreview.style.background = themePreviewColors[creator.theme] || 'var(--accent)';
           if (hostName) hostName.textContent = capitalize(creatorTheme) + "'s Theme";
@@ -660,6 +912,7 @@
     el.classList.add('active');
     clearBadge(ch);
     renderChannel();
+    updateChatBar();
   }
 
   function dismissWelcome() {
@@ -721,11 +974,21 @@
     if (isHost) avatar.onclick = () => showGuestProfile(msg.sender);
     const content = document.createElement('div');
     content.className = 'msg-content-wrap';
+    if (msg.id) content.id = 'guest-msg-' + msg.id;
     const senderLabel = isSelf ? 'You' : capitalize(msg.sender);
+    let reactionsHtml = '';
+    if (msg.reactions && Object.keys(msg.reactions).length > 0) {
+      reactionsHtml = '<div class="msg-reactions">' + Object.entries(msg.reactions).filter(([,u]) => u.length > 0).map(([emoji, users]) =>
+        `<div class="reaction-chip ${users.includes(guestName) ? 'mine' : ''}" onclick="reactToGuestMessage('${msg.id}','${emoji}')" title="${users.join(', ')}">${emoji} ${users.length}</div>`
+      ).join('') + '</div>';
+    }
+    const reactBtn = msg.id ? `<button class="msg-react-btn" onclick="showGuestQuickReact('${msg.id}',this)" title="React">😊</button>` : '';
     content.innerHTML = `
       <div class="msg-sender"${isHost ? ` style="cursor:pointer" onclick="showGuestProfile('${msg.sender}')"` : ''}>${senderLabel}</div>
       <div class="msg-bubble ${isSelf ? 'self' : 'other'}">${escHtml(msg.text)}</div>
-      <div class="msg-time">${formatTime(msg.timestamp)}</div>`;
+      ${reactionsHtml}
+      <div class="msg-time">${formatTime(msg.timestamp)}</div>
+      ${reactBtn}`;
     if (isSelf) { row.appendChild(content); row.appendChild(avatar); }
     else { row.appendChild(avatar); row.appendChild(content); }
     return row;
@@ -821,7 +1084,7 @@
   function setGuestTheme(theme) {
     currentGuestTheme = theme;
     sessionStorage.setItem('guestTheme', theme);
-    document.body.classList.remove('light-theme', 'host-theme-kaliph', 'host-theme-kathrine', 'host-theme-royal', 'host-theme-heaven');
+    document.body.classList.remove('light-theme', 'host-theme-kaliph', 'host-theme-kathrine', 'host-theme-royal', 'host-theme-heaven', 'host-theme-neon', 'host-theme-noir', 'host-theme-dark', 'host-theme-light', 'host-theme-rosewood', 'host-theme-ocean', 'host-theme-forest');
     if (theme === 'light') {
       document.body.classList.add('light-theme');
     } else if (theme === 'host') {
@@ -841,6 +1104,124 @@
     sessionStorage.setItem('guestSound', soundEnabled ? 'true' : 'false');
   }
 
+  // ── Chat Header Bar ─────────────────────────────────────────────
+  function updateChatBar() {
+    const nameEl = document.getElementById('gcb-name');
+    const statusEl = document.getElementById('gcb-status');
+    const avatarEl = document.getElementById('gcb-avatar');
+    const dotEl = document.getElementById('gcb-status-dot');
+    if (!nameEl) return;
+
+    if (channel === 'group') {
+      nameEl.textContent = 'Group Chat';
+      statusEl.textContent = 'Kaliph & Kathrine';
+      avatarEl.innerHTML = '<span style="font-size:0.7rem">👥</span>';
+      avatarEl.onclick = null;
+      dotEl.style.display = 'none';
+    } else {
+      const host = (window._hostUsers || {})[channel];
+      const displayName = host?.displayName || capitalize(channel);
+      nameEl.textContent = displayName;
+      if (host?.avatar) {
+        avatarEl.innerHTML = `<img src="${host.avatar}">`;
+      } else {
+        avatarEl.innerHTML = `<span>${displayName[0].toUpperCase()}</span>`;
+      }
+      avatarEl.onclick = () => showGuestProfile(channel);
+      avatarEl.style.cursor = 'pointer';
+      // Status
+      const presence = host?._presence || 'offline';
+      dotEl.style.display = '';
+      if (presence === 'online') {
+        dotEl.className = 'gcb-status-dot';
+        statusEl.textContent = 'Online';
+      } else if (presence === 'idle') {
+        dotEl.className = 'gcb-status-dot idle';
+        statusEl.textContent = 'Idle';
+      } else {
+        dotEl.className = 'gcb-status-dot offline';
+        statusEl.textContent = host?.lastSeen ? formatLastSeen(host.lastSeen) : 'Offline';
+      }
+    }
+  }
+
+  function formatLastSeen(ts) {
+    const d = new Date(ts);
+    const now = new Date();
+    const diff = now - d;
+    if (diff < 60000) return 'Last seen just now';
+    if (diff < 3600000) return `Last seen ${Math.floor(diff/60000)}m ago`;
+    if (diff < 86400000) return `Last seen ${Math.floor(diff/3600000)}h ago`;
+    return `Last seen ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  }
+
+  function startGuestCall(type) {
+    showToast('Calling is not available for guest accounts');
+  }
+
+  // ── Quick Reactions ────────────────────────────────────────────
+  async function reactToGuestMessage(msgId, emoji) {
+    await fetch(`/api/guests/${guestId}/messages/${msgId}/react`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji, sender: guestName })
+    });
+  }
+
+  function showGuestQuickReact(msgId, btnEl) {
+    document.querySelectorAll('.msg-quick-react').forEach(el => el.remove());
+    const content = btnEl.closest('.msg-content-wrap');
+    const bar = document.createElement('div');
+    bar.className = 'msg-quick-react';
+    bar.innerHTML = ['❤️','😂','👍','😮','😭','🔥','💜','✨'].map(e =>
+      `<button onclick="reactToGuestMessage('${msgId}','${e}');this.parentElement.remove()">${e}</button>`
+    ).join('');
+    content.appendChild(bar);
+    const close = (e) => { if (!bar.contains(e.target) && e.target !== btnEl) { bar.remove(); document.removeEventListener('click', close); } };
+    setTimeout(() => document.addEventListener('click', close), 10);
+  }
+
+  // ── Guest Avatar ────────────────────────────────────────────────
+  let guestAvatar = null;
+
+  function updateAvatarPreview() {
+    const preview = document.getElementById('guest-avatar-preview');
+    const removeBtn = document.getElementById('guest-avatar-remove-btn');
+    if (!preview) return;
+    if (guestAvatar) {
+      preview.innerHTML = `<img src="${guestAvatar}" style="width:100%;height:100%;object-fit:cover">`;
+      if (removeBtn) removeBtn.style.display = '';
+    } else {
+      preview.innerHTML = guestName ? guestName[0].toUpperCase() : 'G';
+      if (removeBtn) removeBtn.style.display = 'none';
+    }
+  }
+
+  async function uploadGuestAvatar(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('avatar', file);
+    try {
+      const res = await fetch(`/api/guests/${guestId}/avatar`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.avatar) {
+        guestAvatar = data.avatar;
+        updateAvatarPreview();
+        showToast('Profile picture updated');
+      }
+    } catch { showToast('Upload failed'); }
+    input.value = '';
+  }
+
+  async function removeGuestAvatar() {
+    try {
+      await fetch(`/api/guests/${guestId}/avatar`, { method: 'POST', body: new FormData() });
+    } catch {}
+    guestAvatar = null;
+    updateAvatarPreview();
+    showToast('Profile picture removed');
+  }
+
   // ── Guest Profile Viewer ─────────────────────────────────────────
   window._hostUsers = {};
 
@@ -848,6 +1229,7 @@
     try {
       const users = await fetch('/api/users').then(r => r.json());
       window._hostUsers = users || {};
+      updateChatBar();
     } catch {}
   }
 
