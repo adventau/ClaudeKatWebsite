@@ -262,9 +262,10 @@ const sessionStore = db.pool
 
 app.use(session({
   store: sessionStore,
-  secret: process.env.SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || 'fallback-dev-secret',
   resave: false,
   saveUninitialized: false,
+  proxy: true,
   cookie: { secure: false, sameSite: 'lax', maxAge: 2 * 60 * 60 * 1000 }
 }));
 
