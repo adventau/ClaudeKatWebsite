@@ -7886,7 +7886,7 @@ function handleTotpQrUpload(input) {
   parseTotpQrImage(file);
 }
 
-// Set up drag & drop for QR dropzone
+// Set up drag & drop and paste for QR dropzone
 document.addEventListener('DOMContentLoaded', () => {
   const dropzone = document.getElementById('totp-qr-dropzone');
   if (!dropzone) return;
@@ -7897,6 +7897,25 @@ document.addEventListener('DOMContentLoaded', () => {
     dropzone.classList.remove('dragover');
     const file = e.dataTransfer?.files?.[0];
     if (file && file.type.startsWith('image/')) parseTotpQrImage(file);
+  });
+
+  // Paste support — listen on the whole document, only act when QR tab is visible
+  document.addEventListener('paste', e => {
+    const qrTab = document.getElementById('totp-add-qr');
+    if (!qrTab || qrTab.style.display === 'none') return;
+    // Also check the modal is open
+    const modal = document.getElementById('totp-add-modal');
+    if (!modal || !modal.classList.contains('open')) return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) parseTotpQrImage(file);
+        return;
+      }
+    }
   });
 });
 
