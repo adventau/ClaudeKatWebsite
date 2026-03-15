@@ -4109,7 +4109,11 @@ function setupGuestSocketListeners() {
           const chLabel = channel === 'group' ? 'Group' : 'DM';
           sendDesktopNotif(`${msg.sender} (${chLabel})`, msg.text?.substring(0, 80) || 'New message');
           SoundSystem.receive();
-          showMsgNotif(`${msg.sender} · ${chLabel}`, msg.text?.substring(0, 80) || 'New message', guest?.avatar);
+          const gId = g.id, gCh = channel;
+          showMsgNotif(`${msg.sender} · ${chLabel}`, msg.text?.substring(0, 80) || 'New message', guest?.avatar, () => {
+            showSection('guest-messages', document.querySelector('.nav-item[data-section="guest-messages"]'));
+            selectGuest(gId, gCh);
+          });
         }
       }
     };
@@ -4147,42 +4151,48 @@ function renderGuestList() {
     return;
   }
 
-  // Build separate entries per channel
-  let html = '';
+  // Build separate entries per channel, then sort by most recent message
+  const entries = [];
   guestData.forEach(g => {
     const channels = g.channels || {};
-    // Determine which channels to show — show any channel that has messages, plus 'group' always
     const channelIds = ['group', currentUser].filter(ch => {
       const msgs = channels[ch];
       return msgs && msgs.length > 0;
     });
-    // If no channels have messages, show a single entry for the guest
     if (!channelIds.length) channelIds.push('group');
 
     channelIds.forEach(ch => {
       const msgs = channels[ch] || [];
       const lastMsg = msgs[msgs.length - 1];
-      const preview = lastMsg ? (lastMsg.text.length > 30 ? lastMsg.text.slice(0, 30) + '…' : lastMsg.text) : 'No messages yet';
-      const time = lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
-      const unreadKey = g.id + ':' + ch;
-      const unread = guestUnread[unreadKey] || 0;
-      const isActive = activeGuestId === g.id && activeGuestChannel === ch;
-      const chLabel = ch === 'group' ? 'Group' : 'DM';
-      const chIcon = ch === 'group' ? 'users' : 'message-circle';
-      html += `<div class="guest-list-item ${isActive ? 'active' : ''}" onclick="selectGuest('${g.id}','${ch}')">
-        <div class="guest-item-avatar">${g.avatar ? `<img src="${g.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : g.name[0].toUpperCase()}</div>
-        <div class="guest-item-info">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div class="guest-item-name">${escapeHtml(g.name)} <span style="font-size:0.65rem;color:var(--text-muted);font-weight:400">· ${chLabel}</span></div>
-            ${time ? `<span style="font-size:0.65rem;color:var(--text-muted);flex-shrink:0">${time}</span>` : ''}
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
-            <div class="guest-item-meta">${escapeHtml(preview)}</div>
-            ${unread ? `<span class="guest-unread-badge">${unread}</span>` : ''}
-          </div>
-        </div>
-      </div>`;
+      const lastTs = lastMsg ? lastMsg.timestamp : 0;
+      entries.push({ g, ch, lastMsg, lastTs });
     });
+  });
+
+  // Sort by most recent message first
+  entries.sort((a, b) => b.lastTs - a.lastTs);
+
+  let html = '';
+  entries.forEach(({ g, ch, lastMsg }) => {
+    const preview = lastMsg ? (lastMsg.text.length > 30 ? lastMsg.text.slice(0, 30) + '…' : lastMsg.text) : 'No messages yet';
+    const time = lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    const unreadKey = g.id + ':' + ch;
+    const unread = guestUnread[unreadKey] || 0;
+    const isActive = activeGuestId === g.id && activeGuestChannel === ch;
+    const chLabel = ch === 'group' ? 'Group' : 'DM';
+    html += `<div class="guest-list-item ${isActive ? 'active' : ''}" onclick="selectGuest('${g.id}','${ch}')">
+      <div class="guest-item-avatar">${g.avatar ? `<img src="${g.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : g.name[0].toUpperCase()}</div>
+      <div class="guest-item-info">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="guest-item-name">${escapeHtml(g.name)} <span style="font-size:0.65rem;color:var(--text-muted);font-weight:400">· ${chLabel}</span></div>
+          ${time ? `<span style="font-size:0.65rem;color:var(--text-muted);flex-shrink:0">${time}</span>` : ''}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+          <div class="guest-item-meta">${escapeHtml(preview)}</div>
+          ${unread ? `<span class="guest-unread-badge">${unread}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
   });
   list.innerHTML = html;
   if (window.lucide) lucide.createIcons();
@@ -5895,8 +5905,10 @@ async function handleIceCandidate({ candidate }) {
 function declineCall() {
   SoundSystem.stopRingtone();
   document.getElementById('incoming-call').style.display = 'none';
-  // Post missed call to chat
-  postCallEvent('missed', callPeer, callType);
+  // Post missed call to chat (skip for guest calls)
+  if (!callPeer || !callPeer.startsWith('guest:')) {
+    postCallEvent('missed', callPeer, callType);
+  }
   callPeer = null;
   window._pendingOffer = null;
   iceCandidateQueue = [];
@@ -5907,14 +5919,17 @@ function endCall(remote = false) {
   SoundSystem.stopRingtone();
   SoundSystem.callSound('hangup');
   if (!remote) socket.emit('call-end', { callId: window._activeCallId });
-  // Post call event to chat
+  // Post call event to chat (skip for guest calls)
   const peer = callPeer;
   const cType = callType;
-  if (callAnswered) {
-    postCallEvent('ended', peer, cType);
-  } else if (remote && !callAnswered) {
-    // Other person ended before we answered = missed call
-    postCallEvent('missed', peer, cType);
+  const isGuestCall = peer && peer.startsWith('guest:');
+  if (!isGuestCall) {
+    if (callAnswered) {
+      postCallEvent('ended', peer, cType);
+    } else if (remote && !callAnswered) {
+      // Other person ended before we answered = missed call
+      postCallEvent('missed', peer, cType);
+    }
   }
   if (peerConnection) { peerConnection.close(); peerConnection = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
@@ -6113,7 +6128,7 @@ function stopCallControlsAutoHide() {
 }
 
 // ── Message Notification Popup ───────────────────────────────────────
-function showMsgNotif(sender, text, overrideAvatar) {
+function showMsgNotif(sender, text, overrideAvatar, onClick) {
   const container = document.getElementById('msg-notif-container');
   const users = window._users || {};
   const senderData = users[sender];
@@ -6132,7 +6147,11 @@ function showMsgNotif(sender, text, overrideAvatar) {
   el.onclick = () => {
     el.classList.add('out');
     setTimeout(() => el.remove(), 300);
-    showSection('chat', document.querySelector('.nav-item[data-section=chat]'));
+    if (onClick) {
+      onClick();
+    } else {
+      showSection('chat', document.querySelector('.nav-item[data-section=chat]'));
+    }
   };
   container.appendChild(el);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 4000);
