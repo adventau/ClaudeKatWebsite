@@ -1082,6 +1082,7 @@
 
       const r = await fetch('/api/auth/password', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ password: pw })
       });
       const data = await r.json();
@@ -1171,7 +1172,8 @@
 
     async function loadUserPreviews() {
       try {
-        const r = await fetch('/api/users');
+        const r = await fetch('/api/users', { credentials: 'include' });
+        if (!r.ok) { console.warn('loadUserPreviews: server returned', r.status); return; }
         const users = await r.json();
         window._cachedUsers = users;
 
@@ -1250,7 +1252,7 @@
 
     async function loadProfileLocks() {
       try {
-        const data = await fetch('/api/auth/profile-locks').then(r => r.json());
+        const data = await fetch('/api/auth/profile-locks', { credentials: 'include' }).then(r => r.json());
         profileLocks = data;
         profileNeedsReset = data.needsReset || {};
         profileResetHints = data.resetHints || {};
@@ -1434,6 +1436,7 @@
       }
       const r = await fetch('/api/auth/profile-reset', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ profile: pendingProfile, newPasscode: newCode })
       });
       const data = await r.json();
@@ -1476,6 +1479,7 @@
       }
       const r = await fetch('/api/auth/profile', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ profile: pendingProfile, passcode: code })
       });
       const data = await r.json();
@@ -1524,6 +1528,7 @@
         try {
           const r = await fetch('/api/auth/profile', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ profile })
           });
           const data = await r.json();
