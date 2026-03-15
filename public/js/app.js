@@ -630,8 +630,8 @@ function closeMobileSidebar() {
 // ── Messages ──────────────────────────────────────────────────────────
 async function loadMessages() {
   const data = await fetch(`/api/messages?limit=${MSG_PAGE_SIZE}`).then(r => r.json());
-  allMessages = Array.isArray(data) ? data : [];
-  hasMoreMessages = allMessages.length >= MSG_PAGE_SIZE;
+  allMessages = Array.isArray(data) ? data.filter(m => !(m.type === 'call-event' && m.callPeer && guestData.some(g => g.name === m.callPeer))) : [];
+  hasMoreMessages = (Array.isArray(data) ? data.length : 0) >= MSG_PAGE_SIZE;
   renderMessages();
 }
 
@@ -2098,7 +2098,7 @@ function setupSocketEvents() {
     // Skip if we already have this message (e.g. added from HTTP response)
     if (allMessages.some(m => m.id === msg.id)) return;
     // Skip guest call events from main chat entirely
-    if (msg.type === 'call-event' && msg.callPeer && msg.callPeer.startsWith('guest:')) return;
+    if (msg.type === 'call-event' && msg.callPeer && guestData.some(g => g.name === msg.callPeer)) return;
     allMessages.push(msg);
     const area = document.getElementById('messages-area');
     const empty = document.getElementById('chat-empty');
@@ -5718,11 +5718,12 @@ let callTimer = null;
 let callSeconds = 0;
 let inCall = false;
 let callAnswered = false;      // track if call was answered
+let callIsGuest = false;       // track if current call is with a guest
 
 // Post a call event (missed/ended) as a system message in chat
-async function postCallEvent(type, peer, cType) {
+async function postCallEvent(type, peer, cType, isGuestCall) {
   // Never post call events for guest calls to main chat
-  if (peer && peer.startsWith('guest:')) return;
+  if (isGuestCall) return;
   const icon = cType === 'video' ? '📹' : '📞';
   let text;
   if (type === 'missed') {
@@ -5830,6 +5831,7 @@ async function handleCallOffer({ offer, type, from, to, callId, isGuest }) {
   if (inCall) return; // already in a call
   callType = type;
   callPeer = from;
+  callIsGuest = !!isGuest;
   window._activeCallId = callId || null;
   iceCandidateQueue = [];
   document.getElementById('incoming-call').style.display = 'block';
@@ -5915,11 +5917,9 @@ async function handleIceCandidate({ candidate }) {
 function declineCall() {
   SoundSystem.stopRingtone();
   document.getElementById('incoming-call').style.display = 'none';
-  // Post missed call to chat (skip for guest calls)
-  if (!callPeer || !callPeer.startsWith('guest:')) {
-    postCallEvent('missed', callPeer, callType);
-  }
+  postCallEvent('missed', callPeer, callType, callIsGuest);
   callPeer = null;
+  callIsGuest = false;
   window._pendingOffer = null;
   iceCandidateQueue = [];
   socket.emit('call-end', { callId: window._activeCallId });
@@ -5932,14 +5932,11 @@ function endCall(remote = false) {
   // Post call event to chat (skip for guest calls)
   const peer = callPeer;
   const cType = callType;
-  const isGuestCall = peer && peer.startsWith('guest:');
-  if (!isGuestCall) {
-    if (callAnswered) {
-      postCallEvent('ended', peer, cType);
-    } else if (remote && !callAnswered) {
-      // Other person ended before we answered = missed call
-      postCallEvent('missed', peer, cType);
-    }
+  const wasGuestCall = callIsGuest;
+  if (callAnswered) {
+    postCallEvent('ended', peer, cType, wasGuestCall);
+  } else if (remote && !callAnswered) {
+    postCallEvent('missed', peer, cType, wasGuestCall);
   }
   if (peerConnection) { peerConnection.close(); peerConnection = null; }
   if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
@@ -5948,6 +5945,7 @@ function endCall(remote = false) {
   stopCallControlsAutoHide();
   inCall = false;
   callAnswered = false;
+  callIsGuest = false;
   callPeer = null;
   window._pendingOffer = null;
   iceCandidateQueue = [];
