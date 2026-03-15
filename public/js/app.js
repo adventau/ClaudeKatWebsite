@@ -7741,19 +7741,23 @@ async function renderTotpGrid() {
     card.className = 'totp-card';
     card.dataset.id = account.id;
 
+    const issuerHtml = account.issuer
+      ? `<a class="totp-card-issuer" href="https://${encodeURI(account.issuer)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${escapeHtml(account.issuer)}</a>`
+      : '';
+
     card.innerHTML = `
       <div class="totp-card-top">
         <div class="totp-card-info">
           <div class="totp-card-name">${escapeHtml(account.name)}</div>
-          ${account.issuer ? `<div class="totp-card-issuer">${escapeHtml(account.issuer)}</div>` : ''}
+          ${issuerHtml}
         </div>
         <div class="totp-card-actions">
-          <button class="totp-card-btn" onclick="openTotpEdit('${account.id}')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
-          <button class="totp-card-btn totp-card-btn-danger" onclick="openTotpDelete('${account.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+          <button class="totp-card-btn" onclick="event.stopPropagation(); openTotpEdit('${account.id}')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+          <button class="totp-card-btn totp-card-btn-danger" onclick="event.stopPropagation(); openTotpDelete('${account.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
         </div>
       </div>
       <div class="totp-card-bottom">
-        <div class="totp-card-code" onclick="totpCopyCode(this, '${code}')" title="Click to copy">
+        <div class="totp-card-code">
           <span class="totp-code-digits">${formattedCode}</span>
           <span class="totp-code-copied" style="display:none">Copied!</span>
         </div>
@@ -7768,6 +7772,13 @@ async function renderTotpGrid() {
         </div>
       </div>
     `;
+
+    card.style.cursor = 'pointer';
+    card.title = 'Click to copy code';
+    card.addEventListener('click', () => {
+      const codeEl = card.querySelector('.totp-card-code');
+      totpCopyCode(codeEl, code);
+    });
     grid.appendChild(card);
   }
   if (window.lucide) lucide.createIcons();
