@@ -263,7 +263,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: true, sameSite: 'none', maxAge: 2 * 60 * 60 * 1000 }
+  cookie: { secure: false, sameSite: 'lax', maxAge: 2 * 60 * 60 * 1000 }
 }));
 
 // ── File upload ───────────────────────────────────────────────────────────────
