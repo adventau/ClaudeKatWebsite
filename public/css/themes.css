@@ -2733,6 +2733,58 @@ input:focus, textarea:focus, select:focus {
 input::placeholder, textarea::placeholder { color: var(--text-muted); }
 select option { background: var(--bg-modal, #1e293b); color: var(--text-primary); }
 
+/* ── TOTP Authenticator dark theme tweaks ──────────────────────────── */
+.theme-dark .totp-card {
+  background: #1e1e1e;
+  border-color: #2a2a2a;
+}
+.theme-dark .totp-card:hover {
+  border-color: #444;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+.theme-dark .totp-card-code {
+  background: #262626;
+  color: #ececec;
+}
+.theme-dark .totp-card-code:hover {
+  background: #333;
+}
+.theme-dark .totp-login-card {
+  background: #1e1e1e;
+  border-color: #2a2a2a;
+}
+.theme-dark .totp-add-tabs {
+  background: #262626;
+}
+.theme-dark .totp-add-tab.active {
+  background: #444;
+  color: #fff;
+}
+.theme-dark .totp-btn-primary {
+  background: #e8e8e8;
+  color: #0d0d0d;
+}
+.theme-dark .totp-btn-primary:hover {
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.15);
+}
+.theme-dark .totp-ring-progress {
+  stroke: #ececec !important;
+}
+.totp-card-ring.urgent .totp-ring-progress {
+  stroke: #ef4444 !important;
+}
+
+/* Light theme */
+.theme-light .totp-card { background: #fff; border-color: #e5e5e5; }
+.theme-light .totp-card:hover { border-color: #999; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.theme-light .totp-card-code { background: #f3f4f6; color: #1a1a1a; }
+.theme-light .totp-login-card { background: #fff; border-color: #e5e5e5; }
+
+/* Neon theme */
+.theme-neon .totp-card-code { text-shadow: 0 0 8px var(--accent); }
+.theme-neon .totp-card:hover { box-shadow: 0 0 20px rgba(255,45,123,0.2); }
+
 /* ── Theme transition ───────────────────────────────────────────────── */
 * {
   transition-property: background-color, border-color, color, box-shadow;

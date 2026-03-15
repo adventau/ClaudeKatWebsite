@@ -233,6 +233,13 @@ async function init() {
   // Load reminders and start checker
   loadReminders().then(() => startReminderChecker());
 
+  // Show/hide authenticator nav based on user preference
+  const totpNav = document.getElementById('nav-authenticator');
+  const totpToggle = document.getElementById('toggle-totp');
+  const totpEnabled = usersRes[currentUser]?.totpEnabled !== false;
+  if (totpNav) totpNav.style.display = totpEnabled ? '' : 'none';
+  if (totpToggle) totpToggle.checked = totpEnabled;
+
   // Set up drag & drop and paste for message input
   setupDragDropPaste();
 
@@ -554,6 +561,7 @@ function showSection(name, el) {
   if (name === 'vault')     { if (!vaultPasscode) resetVault(); else refreshVault(); }
   if (name === 'announcements') loadAnnouncements();
   if (name === 'reminders') loadReminders();
+  if (name === 'authenticator') initTotpSection();
   if (name === 'guest-messages') {
     loadGuestMessages();
     // Clear unread for active guest
@@ -7434,6 +7442,502 @@ function dismissUpdateLog() {
     localStorage.setItem('rkk-changelog-dismissed-' + currentUser, latest.version);
   }
   closeModal('update-log-modal');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TOTP AUTHENTICATOR
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let totpAccounts = [];
+let totpTimerInterval = null;
+let totpQrParsedData = null; // { name, secret, issuer } from QR scan
+
+// ── Base32 decode ──
+function base32Decode(str) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  str = str.replace(/=+$/, '').toUpperCase();
+  let bits = '';
+  for (const c of str) {
+    const val = alphabet.indexOf(c);
+    if (val === -1) continue;
+    bits += val.toString(2).padStart(5, '0');
+  }
+  const bytes = new Uint8Array(Math.floor(bits.length / 8));
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  }
+  return bytes;
+}
+
+// ── HMAC-SHA1 (Web Crypto) ──
+async function hmacSha1(keyBytes, msgBytes) {
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, msgBytes);
+  return new Uint8Array(sig);
+}
+
+// ── Generate TOTP code ──
+async function generateTOTP(secret, timeStep = 30, digits = 6) {
+  const keyBytes = base32Decode(secret);
+  const epoch = Math.floor(Date.now() / 1000);
+  const counter = Math.floor(epoch / timeStep);
+  const counterBytes = new Uint8Array(8);
+  let tmp = counter;
+  for (let i = 7; i >= 0; i--) {
+    counterBytes[i] = tmp & 0xff;
+    tmp = Math.floor(tmp / 256);
+  }
+  const hmac = await hmacSha1(keyBytes, counterBytes);
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const code = ((hmac[offset] & 0x7f) << 24 | hmac[offset + 1] << 16 | hmac[offset + 2] << 8 | hmac[offset + 3]) % (10 ** digits);
+  return code.toString().padStart(digits, '0');
+}
+
+function getTotpTimeRemaining() {
+  return 30 - (Math.floor(Date.now() / 1000) % 30);
+}
+
+// ── Settings toggle ──
+function toggleTotpFeature(el) {
+  const enabled = el.checked;
+  const nav = document.getElementById('nav-authenticator');
+  if (nav) nav.style.display = enabled ? '' : 'none';
+  fetch(`/api/users/${currentUser}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ totpEnabled: enabled })
+  });
+  if (!enabled && currentSection === 'authenticator') {
+    showSection('chat', document.querySelector('[data-section="chat"]'));
+  }
+}
+
+// ── Init TOTP when section is shown ──
+async function initTotpSection() {
+  const res = await fetch('/api/totp/status').then(r => r.json());
+  const loginScreen = document.getElementById('totp-login-screen');
+  const mainUI = document.getElementById('totp-main');
+
+  if (res.unlocked) {
+    loginScreen.style.display = 'none';
+    mainUI.style.display = '';
+    await loadTotpAccounts();
+    startTotpTimer();
+  } else {
+    loginScreen.style.display = '';
+    mainUI.style.display = 'none';
+    // Show setup or login
+    const loginFields = document.getElementById('totp-login-fields');
+    const setupFields = document.getElementById('totp-setup-fields');
+    const sub = document.getElementById('totp-login-sub');
+    if (res.hasPassword) {
+      loginFields.style.display = '';
+      setupFields.style.display = 'none';
+      sub.textContent = 'Enter your authenticator password to unlock';
+      document.getElementById('totp-password-input').value = '';
+      setTimeout(() => document.getElementById('totp-password-input').focus(), 100);
+    } else {
+      loginFields.style.display = 'none';
+      setupFields.style.display = '';
+      sub.textContent = 'First time? Set up your authenticator password';
+      document.getElementById('totp-new-password').value = '';
+      document.getElementById('totp-confirm-password').value = '';
+      setTimeout(() => document.getElementById('totp-new-password').focus(), 100);
+    }
+  }
+}
+
+async function totpLogin() {
+  const pw = document.getElementById('totp-password-input').value;
+  if (!pw) return;
+  try {
+    const res = await fetch('/api/totp/auth', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Incorrect password'); return; }
+    document.getElementById('totp-login-screen').style.display = 'none';
+    document.getElementById('totp-main').style.display = '';
+    await loadTotpAccounts();
+    startTotpTimer();
+  } catch { showToast('Failed to authenticate'); }
+}
+
+async function totpSetPassword() {
+  const pw = document.getElementById('totp-new-password').value;
+  const confirm = document.getElementById('totp-confirm-password').value;
+  if (pw.length < 4) { showToast('Password must be at least 4 characters'); return; }
+  if (pw !== confirm) { showToast('Passwords do not match'); return; }
+  try {
+    const res = await fetch('/api/totp/set-password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Failed to set password'); return; }
+    showToast('Authenticator password set!');
+    document.getElementById('totp-login-screen').style.display = 'none';
+    document.getElementById('totp-main').style.display = '';
+    await loadTotpAccounts();
+    startTotpTimer();
+  } catch { showToast('Failed to set password'); }
+}
+
+async function totpLock() {
+  await fetch('/api/totp/lock', { method: 'POST' });
+  stopTotpTimer();
+  totpAccounts = [];
+  document.getElementById('totp-main').style.display = 'none';
+  document.getElementById('totp-login-screen').style.display = '';
+  initTotpSection();
+  showToast('Authenticator locked');
+}
+
+async function loadTotpAccounts() {
+  try {
+    const res = await fetch('/api/totp/accounts');
+    if (!res.ok) { totpAccounts = []; renderTotpGrid(); return; }
+    totpAccounts = await res.json();
+    renderTotpGrid();
+  } catch { totpAccounts = []; renderTotpGrid(); }
+}
+
+async function renderTotpGrid() {
+  const grid = document.getElementById('totp-grid');
+  const empty = document.getElementById('totp-empty');
+  const countEl = document.getElementById('totp-account-count');
+  countEl.textContent = totpAccounts.length + ' account' + (totpAccounts.length !== 1 ? 's' : '');
+
+  if (!totpAccounts.length) {
+    grid.innerHTML = '';
+    grid.appendChild(empty.cloneNode ? createTotpEmpty() : empty);
+    // Ensure empty state is visible
+    const emptyState = grid.querySelector('.totp-empty-state');
+    if (emptyState) emptyState.style.display = '';
+    return;
+  }
+
+  grid.innerHTML = '';
+  const remaining = getTotpTimeRemaining();
+
+  for (const account of totpAccounts) {
+    const code = await generateTOTP(account.secret);
+    const formattedCode = code.slice(0, 3) + ' ' + code.slice(3);
+
+    const card = document.createElement('div');
+    card.className = 'totp-card';
+    card.dataset.id = account.id;
+
+    const progressPercent = (remaining / 30) * 100;
+    const isUrgent = remaining <= 5;
+
+    card.innerHTML = `
+      <div class="totp-card-ring${isUrgent ? ' urgent' : ''}">
+        <svg viewBox="0 0 40 40" class="totp-ring-svg">
+          <circle cx="20" cy="20" r="17" fill="none" stroke="var(--border)" stroke-width="3" opacity="0.2"/>
+          <circle cx="20" cy="20" r="17" fill="none" stroke="${isUrgent ? '#ef4444' : 'var(--accent)'}" stroke-width="3"
+            stroke-dasharray="${2 * Math.PI * 17}" stroke-dashoffset="${2 * Math.PI * 17 * (1 - remaining / 30)}"
+            stroke-linecap="round" class="totp-ring-progress" style="transition:stroke-dashoffset 1s linear"/>
+        </svg>
+        <span class="totp-ring-time">${remaining}s</span>
+      </div>
+      <div class="totp-card-info">
+        <div class="totp-card-name">${escapeHtml(account.name)}</div>
+        ${account.issuer ? `<div class="totp-card-issuer">${escapeHtml(account.issuer)}</div>` : ''}
+      </div>
+      <div class="totp-card-code" onclick="totpCopyCode(this, '${code}')" title="Click to copy">
+        <span class="totp-code-digits">${formattedCode}</span>
+        <span class="totp-code-copied" style="display:none">Copied!</span>
+      </div>
+      <div class="totp-card-actions">
+        <button class="totp-card-btn" onclick="openTotpEdit('${account.id}')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
+        <button class="totp-card-btn totp-card-btn-danger" onclick="openTotpDelete('${account.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function createTotpEmpty() {
+  const div = document.createElement('div');
+  div.className = 'totp-empty-state';
+  div.innerHTML = `
+    <div class="totp-empty-icon"><i data-lucide="shield-check" style="width:56px;height:56px;opacity:0.3"></i></div>
+    <div class="totp-empty-text">No accounts yet</div>
+    <div class="totp-empty-sub">Add your first 2FA account to get started</div>
+    <button class="totp-btn totp-btn-primary" onclick="openTotpAddModal()" style="margin-top:12px"><i data-lucide="plus" style="width:16px;height:16px"></i> Add Account</button>
+  `;
+  return div;
+}
+
+function startTotpTimer() {
+  stopTotpTimer();
+  updateTotpTimerBar();
+  totpTimerInterval = setInterval(async () => {
+    const remaining = getTotpTimeRemaining();
+    updateTotpTimerBar();
+    // Update ring timers
+    document.querySelectorAll('.totp-ring-progress').forEach(ring => {
+      ring.setAttribute('stroke-dashoffset', 2 * Math.PI * 17 * (1 - remaining / 30));
+      ring.setAttribute('stroke', remaining <= 5 ? '#ef4444' : 'var(--accent)');
+    });
+    document.querySelectorAll('.totp-ring-time').forEach(el => {
+      el.textContent = remaining + 's';
+    });
+    document.querySelectorAll('.totp-card-ring').forEach(el => {
+      el.classList.toggle('urgent', remaining <= 5);
+    });
+    // Refresh codes when they rotate
+    if (remaining === 30 || remaining === 29) {
+      await renderTotpGrid();
+    }
+  }, 1000);
+}
+
+function stopTotpTimer() {
+  if (totpTimerInterval) { clearInterval(totpTimerInterval); totpTimerInterval = null; }
+}
+
+function updateTotpTimerBar() {
+  const remaining = getTotpTimeRemaining();
+  const fill = document.getElementById('totp-timer-fill');
+  if (fill) {
+    fill.style.width = (remaining / 30 * 100) + '%';
+    fill.style.background = remaining <= 5 ? '#ef4444' : 'var(--accent)';
+  }
+}
+
+// ── Copy code to clipboard ──
+function totpCopyCode(el, code) {
+  navigator.clipboard.writeText(code).then(() => {
+    const digits = el.querySelector('.totp-code-digits');
+    const copied = el.querySelector('.totp-code-copied');
+    digits.style.display = 'none';
+    copied.style.display = '';
+    el.classList.add('copied');
+    setTimeout(() => {
+      digits.style.display = '';
+      copied.style.display = 'none';
+      el.classList.remove('copied');
+    }, 1500);
+  });
+}
+
+// ── Add Account Modal ──
+function openTotpAddModal() {
+  totpQrParsedData = null;
+  document.getElementById('totp-add-name').value = '';
+  document.getElementById('totp-add-issuer').value = '';
+  document.getElementById('totp-add-secret').value = '';
+  resetTotpQr();
+  switchTotpAddTab('manual', document.querySelector('.totp-add-tab'));
+  openModal('totp-add-modal');
+  setTimeout(() => document.getElementById('totp-add-name').focus(), 100);
+}
+
+function switchTotpAddTab(tab, btn) {
+  document.querySelectorAll('.totp-add-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('totp-add-manual').style.display = tab === 'manual' ? '' : 'none';
+  document.getElementById('totp-add-qr').style.display = tab === 'qr' ? '' : 'none';
+}
+
+async function totpAddAccount() {
+  let name, secret, issuer;
+  if (totpQrParsedData) {
+    name = totpQrParsedData.name || document.getElementById('totp-add-name').value;
+    secret = totpQrParsedData.secret;
+    issuer = totpQrParsedData.issuer || '';
+  } else {
+    name = document.getElementById('totp-add-name').value.trim();
+    secret = document.getElementById('totp-add-secret').value.trim().replace(/\s+/g, '');
+    issuer = document.getElementById('totp-add-issuer').value.trim();
+  }
+  if (!name) { showToast('Please enter an account name'); return; }
+  if (!secret) { showToast('Please enter a secret key'); return; }
+  try {
+    const res = await fetch('/api/totp/accounts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, secret, issuer })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Failed to add account'); return; }
+    closeModal('totp-add-modal');
+    showToast('2FA account added!');
+    await loadTotpAccounts();
+  } catch { showToast('Failed to add account'); }
+}
+
+// ── QR Code Upload & Parse ──
+function handleTotpQrUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  parseTotpQrImage(file);
+}
+
+// Set up drag & drop for QR dropzone
+document.addEventListener('DOMContentLoaded', () => {
+  const dropzone = document.getElementById('totp-qr-dropzone');
+  if (!dropzone) return;
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) parseTotpQrImage(file);
+  });
+});
+
+async function parseTotpQrImage(file) {
+  const statusEl = document.getElementById('totp-qr-result-status');
+  const previewEl = document.getElementById('totp-qr-preview');
+  const dropzone = document.getElementById('totp-qr-dropzone');
+  const imgEl = document.getElementById('totp-qr-preview-img');
+  const nameEl = document.getElementById('totp-qr-result-name');
+  const issuerEl = document.getElementById('totp-qr-result-issuer');
+
+  // Show image preview
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    imgEl.src = e.target.result;
+    dropzone.style.display = 'none';
+    previewEl.style.display = '';
+    statusEl.textContent = 'Scanning QR code...';
+
+    try {
+      // Use jsQR library (loaded dynamically)
+      await loadJsQR();
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+        if (qrCode && qrCode.data) {
+          const parsed = parseTotpUri(qrCode.data);
+          if (parsed) {
+            totpQrParsedData = parsed;
+            nameEl.textContent = parsed.name || 'Unknown';
+            issuerEl.textContent = parsed.issuer || '';
+            statusEl.textContent = 'QR code scanned successfully!';
+            statusEl.style.color = '#22c55e';
+            // Pre-fill manual fields too
+            document.getElementById('totp-add-name').value = parsed.name || '';
+            document.getElementById('totp-add-issuer').value = parsed.issuer || '';
+            document.getElementById('totp-add-secret').value = parsed.secret || '';
+          } else {
+            statusEl.textContent = 'QR code found but not a valid TOTP URI';
+            statusEl.style.color = '#ef4444';
+          }
+        } else {
+          statusEl.textContent = 'Could not detect a QR code in the image';
+          statusEl.style.color = '#ef4444';
+        }
+      };
+      img.src = e.target.result;
+    } catch (err) {
+      statusEl.textContent = 'Failed to scan QR code';
+      statusEl.style.color = '#ef4444';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function parseTotpUri(uri) {
+  // otpauth://totp/Label?secret=XXX&issuer=YYY
+  try {
+    const url = new URL(uri);
+    if (url.protocol !== 'otpauth:') return null;
+    const type = url.hostname; // 'totp' or 'hotp'
+    if (type !== 'totp') return null;
+    const label = decodeURIComponent(url.pathname.replace(/^\//, ''));
+    const secret = url.searchParams.get('secret');
+    const issuer = url.searchParams.get('issuer') || '';
+    if (!secret) return null;
+    // Label might be "Issuer:account" or just "account"
+    let name = label;
+    let parsedIssuer = issuer;
+    if (label.includes(':')) {
+      const parts = label.split(':');
+      parsedIssuer = parsedIssuer || parts[0].trim();
+      name = parts.slice(1).join(':').trim();
+    }
+    return { name, secret: secret.toUpperCase(), issuer: parsedIssuer };
+  } catch { return null; }
+}
+
+let jsQRLoaded = false;
+function loadJsQR() {
+  if (jsQRLoaded) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+    script.onload = () => { jsQRLoaded = true; resolve(); };
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+function resetTotpQr() {
+  totpQrParsedData = null;
+  document.getElementById('totp-qr-dropzone').style.display = '';
+  document.getElementById('totp-qr-preview').style.display = 'none';
+  document.getElementById('totp-qr-result-status').style.color = 'var(--accent)';
+  document.getElementById('totp-qr-file').value = '';
+}
+
+// ── Edit Account ──
+function openTotpEdit(id) {
+  const account = totpAccounts.find(a => a.id === id);
+  if (!account) return;
+  document.getElementById('totp-edit-id').value = id;
+  document.getElementById('totp-edit-name').value = account.name;
+  document.getElementById('totp-edit-issuer').value = account.issuer || '';
+  openModal('totp-edit-modal');
+}
+
+async function totpSaveEdit() {
+  const id = document.getElementById('totp-edit-id').value;
+  const name = document.getElementById('totp-edit-name').value.trim();
+  const issuer = document.getElementById('totp-edit-issuer').value.trim();
+  if (!name) { showToast('Name cannot be empty'); return; }
+  try {
+    const res = await fetch(`/api/totp/accounts/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, issuer })
+    });
+    if (!res.ok) { showToast('Failed to update'); return; }
+    closeModal('totp-edit-modal');
+    showToast('Account updated!');
+    await loadTotpAccounts();
+  } catch { showToast('Failed to update'); }
+}
+
+// ── Delete Account ──
+let totpDeleteId = null;
+function openTotpDelete(id) {
+  const account = totpAccounts.find(a => a.id === id);
+  if (!account) return;
+  totpDeleteId = id;
+  document.getElementById('totp-delete-name').textContent = account.name;
+  openModal('totp-delete-modal');
+}
+
+async function totpConfirmDelete() {
+  if (!totpDeleteId) return;
+  try {
+    const res = await fetch(`/api/totp/accounts/${totpDeleteId}`, { method: 'DELETE' });
+    if (!res.ok) { showToast('Failed to delete'); return; }
+    closeModal('totp-delete-modal');
+    showToast('Account deleted');
+    totpDeleteId = null;
+    await loadTotpAccounts();
+  } catch { showToast('Failed to delete'); }
 }
 
 // ── Start ─────────────────────────────────────────────────────────────
