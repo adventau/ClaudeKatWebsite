@@ -1238,11 +1238,9 @@
 }
 /* Icons in nav — slightly smaller for horizontal */
 .theme-dark .nav-item .nav-icon svg { width: 14px; height: 14px; }
-/* Reminders + Settings are icon-only in the top bar (bell/gear are universally recognized) */
-.theme-dark .nav-item[data-section="reminders"] .nav-label,
-.theme-dark .nav-item[data-section="authenticator"] .nav-label,
+/* Only Settings stays icon-only (gear is universally recognized) */
 .theme-dark .nav-item:not([data-section]) .nav-label { display: none; }
-/* Push the icon-only utility group to the far right */
+/* Push utility group to the far right */
 .theme-dark .nav-item[data-section="reminders"] {
   margin-left: auto;
   padding-left: 14px;
