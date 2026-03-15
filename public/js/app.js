@@ -7552,6 +7552,23 @@ async function initTotpSection() {
         setTimeout(function() { document.getElementById('totp-new-password').focus(); }, 100);
       }
     }
+    // Wire up button handlers (use addEventListener to survive DOM changes)
+    const unlockBtn = document.getElementById('totp-unlock-btn');
+    if (unlockBtn) {
+      unlockBtn.onclick = function(e) { e.preventDefault(); totpLogin(); };
+    }
+    const setPwBtn = document.getElementById('totp-setpw-btn');
+    if (setPwBtn) {
+      setPwBtn.onclick = function(e) { e.preventDefault(); totpSetPassword(); };
+    }
+    const pwInput = document.getElementById('totp-password-input');
+    if (pwInput) {
+      pwInput.onkeydown = function(e) { if (e.key === 'Enter') { e.preventDefault(); totpLogin(); } };
+    }
+    const confirmInput = document.getElementById('totp-confirm-password');
+    if (confirmInput) {
+      confirmInput.onkeydown = function(e) { if (e.key === 'Enter') { e.preventDefault(); totpSetPassword(); } };
+    }
     // Re-init icons after showing the section
     if (window.lucide) lucide.createIcons();
   } catch(e) {

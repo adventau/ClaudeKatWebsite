@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/themes.css">
-  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/themes.css?v=totp2">
+  <link rel="stylesheet" href="/css/app.css?v=totp2">
   <script src="/js/lucide.min.js" defer></script>
 </head>
 <body class="theme-dark">
@@ -522,14 +522,14 @@
           <h2 style="font-family:var(--font-heading);color:var(--text-primary);font-size:1.4rem;margin-bottom:0.5rem">Authenticator</h2>
           <p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:1.25rem" id="totp-login-sub">Enter your authenticator password to unlock</p>
           <div id="totp-login-fields" style="display:flex;flex-direction:column;gap:10px">
-            <input type="password" id="totp-password-input" placeholder="Password" autocomplete="off" onkeydown="if(event.key==='Enter')totpLogin()" style="width:100%;box-sizing:border-box">
-            <button class="btn-primary" onclick="totpLogin()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px"><i data-lucide="unlock" style="width:16px;height:16px"></i> Unlock</button>
+            <input type="password" id="totp-password-input" placeholder="Password" autocomplete="off" style="width:100%;box-sizing:border-box">
+            <button type="button" class="btn-primary" id="totp-unlock-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px"><i data-lucide="unlock" style="width:16px;height:16px"></i> Unlock</button>
           </div>
           <div id="totp-setup-fields" style="display:none;flex-direction:column;gap:10px">
             <p style="color:var(--text-secondary);font-size:0.82rem;margin-bottom:4px">Create a password to protect your authenticator</p>
             <input type="password" id="totp-new-password" placeholder="New password (min 4 chars)" autocomplete="off" style="width:100%;box-sizing:border-box">
-            <input type="password" id="totp-confirm-password" placeholder="Confirm password" autocomplete="off" onkeydown="if(event.key==='Enter')totpSetPassword()" style="width:100%;box-sizing:border-box">
-            <button class="btn-primary" onclick="totpSetPassword()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px"><i data-lucide="shield-check" style="width:16px;height:16px"></i> Set Password</button>
+            <input type="password" id="totp-confirm-password" placeholder="Confirm password" autocomplete="off" style="width:100%;box-sizing:border-box">
+            <button type="button" class="btn-primary" id="totp-setpw-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px"><i data-lucide="shield-check" style="width:16px;height:16px"></i> Set Password</button>
           </div>
         </div>
       </div>
@@ -1847,6 +1847,6 @@
 <!-- Scripts -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js"></script>
-<script src="/js/app.js"></script>
+<script src="/js/app.js?v=totp2"></script>
 </body>
 </html>
