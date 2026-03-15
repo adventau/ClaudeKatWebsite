@@ -309,7 +309,7 @@
         <span class="section-title">Notes & Todos</span>
         <div style="display:flex;gap:8px">
           <button class="btn-primary" onclick="createBlankNote()">+ New Note</button>
-          <button class="btn-ghost" onclick="openModal('new-todo-modal')">+ Todo List</button>
+          <button class="btn-ghost" onclick="createBlankTodo()">+ Todo List</button>
         </div>
       </div>
       <div class="section-tabs">
@@ -1022,27 +1022,6 @@
 ══════════════════════════════════════════════════════════ -->
 
 
-<!-- New Todo -->
-<div class="modal-overlay" id="new-todo-modal">
-  <div class="modal modal-sm">
-    <div class="modal-header">
-      <span class="modal-title"><i data-lucide="list-checks" style="width:16px;height:16px"></i> New Todo List</span>
-      <button class="btn-icon" onclick="closeModal('new-todo-modal')">✕</button>
-    </div>
-    <div class="form-row"><label>List Title</label><input type="text" id="todo-title" placeholder="Todo list title"></div>
-    <div id="todo-items-container">
-      <div class="form-row"><label>Items</label></div>
-      <div id="todo-items-list">
-        <div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" class="todo-new-item" placeholder="Item 1" style="flex:1"><button class="btn-icon" onclick="addTodoItem()">+</button></div>
-      </div>
-      <button class="btn-ghost" onclick="addTodoItem()" style="width:100%;margin-top:4px">+ Add Item</button>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:1rem">
-      <button class="btn-primary" onclick="saveTodo()">Save List</button>
-      <button class="btn-ghost" onclick="closeModal('new-todo-modal')">Cancel</button>
-    </div>
-  </div>
-</div>
 
 <!-- New Calendar Event -->
 <div class="modal-overlay" id="new-event-modal">

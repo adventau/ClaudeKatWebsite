@@ -2636,16 +2636,14 @@ async function createBlankNote() {
   if (data.note) openNote(data.note.id);
 }
 
-async function saveTodo() {
-  const title = document.getElementById('todo-title').value.trim() || 'My Todo List';
-  const items = Array.from(document.querySelectorAll('.todo-new-item')).map(i => ({ text: i.value, done: false })).filter(i => i.text);
-  await fetch('/api/notes', {
+async function createBlankTodo() {
+  const res = await fetch('/api/notes', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, todos: items, type: 'todo' })
+    body: JSON.stringify({ title: 'Untitled', todos: [], type: 'todo' })
   });
-  closeModal('new-todo-modal');
+  const data = await res.json();
   await loadNotes();
-  showToast('✅ Todo list saved!');
+  if (data.note) openNote(data.note.id);
 }
 
 function addTodoItem() {
