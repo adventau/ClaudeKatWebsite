@@ -132,42 +132,45 @@
 
     /* ── Input area ────────────────────────────────────────── */
     .input-area {
-      padding: 10px 16px 14px; background: var(--surface);
-      border-top: 1px solid var(--border); display: flex; gap: 8px;
-      align-items: flex-end; flex-shrink: 0;
+      padding: 10px 20px 14px; background: var(--surface);
+      border-top: 1px solid var(--border); flex-shrink: 0;
+      position: relative;
     }
+    .input-row { display: flex; gap: 8px; align-items: flex-end; }
     .input-wrap {
-      flex: 1; background: rgba(255,255,255,0.04);
-      border: 1.5px solid var(--border); border-radius: 13px;
-      display: flex; flex-direction: column;
-      padding: 8px 12px 6px; transition: border-color 0.2s, box-shadow 0.2s;
+      flex: 1; position: relative;
+      background: rgba(255,255,255,0.04);
+      border: 1.5px solid var(--border); border-radius: 22px;
+      display: flex; align-items: flex-end; gap: 4px;
+      padding: 8px 8px 8px 16px; transition: border-color 0.2s, box-shadow 0.2s;
     }
     .input-wrap:focus-within {
       border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow);
     }
     textarea {
       flex: 1; background: transparent; border: none; outline: none;
-      color: var(--text); font-size: 0.88rem; font-family: 'Inter', sans-serif;
-      resize: none; max-height: 110px; min-height: 32px; line-height: 1.55; padding: 0;
+      color: var(--text); font-size: 0.92rem; font-family: 'Inter', sans-serif;
+      resize: none; max-height: 140px; min-height: 36px; line-height: 1.55;
+      padding: 6px 0;
     }
     textarea::placeholder { color: var(--muted); }
-    .input-row { display: flex; gap: 8px; align-items: flex-end; }
     .guest-input-actions {
-      display: flex; gap: 2px; align-items: center;
-      padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 4px;
+      display: flex; align-items: center; gap: 2px;
+      flex-shrink: 0; padding-bottom: 2px;
     }
     .gia-btn {
       background: none; border: none; color: var(--muted); cursor: pointer;
-      width: 32px; height: 28px; border-radius: 6px;
+      min-width: 28px; height: 28px; border-radius: 7px;
       display: flex; align-items: center; justify-content: center;
-      transition: color 0.15s, background 0.15s;
+      transition: color 0.15s, background 0.15s; padding: 5px;
     }
-    .gia-btn:hover { color: var(--accent); background: rgba(255,255,255,0.06); }
-    .gia-btn.active { color: var(--accent); }
+    .gia-btn svg { width: 15px; height: 15px; stroke-width: 1.75; flex-shrink: 0; }
+    .gia-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .gia-btn.active { color: var(--accent); background: rgba(124,58,237,0.12); }
     /* File preview bar */
     .guest-file-bar {
       display: flex; gap: 8px; padding: 8px 12px; flex-wrap: wrap;
-      border-bottom: 1px solid var(--border);
+      margin-bottom: 6px;
     }
     .guest-file-chip {
       display: flex; align-items: center; gap: 6px;
@@ -182,13 +185,15 @@
     /* Priority row */
     .guest-priority-row {
       display: flex; align-items: center; gap: 8px;
-      padding: 6px 12px; border-bottom: 1px solid var(--border);
-      border-left: 3px solid var(--accent);
+      padding: 6px 16px; margin-bottom: 6px;
+      border-left: 3px solid var(--accent); border-radius: 4px;
+      background: rgba(124,58,237,0.06);
     }
     /* Voice recording */
     .guest-voice-bar {
       display: flex; align-items: center; gap: 10px;
-      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      padding: 10px 16px; margin-bottom: 6px;
+      background: rgba(239,68,68,0.06); border-radius: 8px;
     }
     .guest-rec-dot {
       width: 8px; height: 8px; border-radius: 50%; background: #ef4444;
@@ -206,8 +211,9 @@
     }
     /* GIF panel */
     .guest-gif-panel, .guest-emoji-panel {
-      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px; border: 1px solid var(--border); border-radius: 12px;
       max-height: 280px; display: flex; flex-direction: column;
+      background: var(--surface); overflow: hidden;
     }
     .guest-gif-header {
       display: flex; gap: 8px; padding: 8px 12px;
@@ -239,7 +245,7 @@
     .guest-emoji-grid button:hover { background: rgba(255,255,255,0.08); transform: scale(1.15); }
 
     .send-btn {
-      width: 38px; height: 38px; border-radius: 11px;
+      width: 40px; height: 40px; border-radius: 50%;
       background: linear-gradient(135deg, var(--accent), #a85580);
       border: none; color: #fff; font-size: 0.9rem; cursor: pointer;
       flex-shrink: 0; display: flex; align-items: center; justify-content: center;
@@ -512,9 +518,12 @@
       .settings-body { padding: 14px 16px; }
       .msg-row.other .msg-quick-react { left: 0; }
       .msg-row.other .msg-actions { left: 0; }
-      .guest-input-actions { flex-wrap: wrap; }
-      .gia-btn { width: 28px; height: 26px; }
-      .gia-btn svg { width: 16px; height: 16px; }
+      .input-area { padding: 10px 12px 14px; }
+      .input-wrap { padding: 6px 6px 6px 12px; }
+      textarea { font-size: 16px !important; min-height: 32px; }
+      .gia-btn { min-width: 26px; height: 26px; padding: 4px; }
+      .gia-btn svg { width: 14px; height: 14px; }
+      .send-btn { width: 44px; height: 44px; }
       .guest-gif-grid { grid-template-columns: repeat(2, 1fr); }
       .guest-emoji-grid { grid-template-columns: repeat(7, 1fr); }
       .guest-gif-panel, .guest-emoji-panel { max-height: 220px; }
@@ -943,10 +952,19 @@
       ).join('');
     });
 
-    // Status updates for chat header bar
+    // Presence updates (online/idle/offline activity-based)
+    socket.on('user-presence', ({ user, state }) => {
+      if (window._hostUsers?.[user]) {
+        window._hostUsers[user]._presence = state;
+        if (state === 'offline') window._hostUsers[user].lastSeen = Date.now();
+        if (user === channel) updateChatBar();
+      }
+    });
+    // Manual status updates (custom status, emoji, etc.)
     socket.on('status-changed', ({ user, status }) => {
       if (window._hostUsers?.[user]) {
         window._hostUsers[user]._presence = status === 'invisible' ? 'offline' : status;
+        if (status === 'invisible') window._hostUsers[user].lastSeen = Date.now();
         if (user === channel) updateChatBar();
       }
     });
