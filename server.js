@@ -1711,9 +1711,10 @@ app.put('/api/guests/:id', mainAuth, (req, res) => {
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
-  const { name, channels } = req.body;
+  const { name, channels, password } = req.body;
   if (name) g.name = name;
   if (Array.isArray(channels) && channels.length) g.channels = channels;
+  if (password) g.passwordHash = require('bcryptjs').hashSync(password, 10);
   wd(F.guests, guests);
   io.emit('guest-updated', { guestId: req.params.id, name: g.name, channels: g.channels });
   res.json({ success: true });
@@ -1755,7 +1756,7 @@ app.get('/api/guest-messages', mainAuth, (req, res) => {
   Object.values(guests).forEach(g => {
     if (!g.active) return;
     const channels = { group: g.messages?.group || [], [user]: g.messages?.[user] || [] };
-    result.push({ id: g.id, name: g.name, channels });
+    result.push({ id: g.id, name: g.name, avatar: g.avatar || null, channels });
   });
   res.json(result);
 });
@@ -1814,7 +1815,7 @@ app.post('/api/guests/:id/message', upload.array('files', 10), (req, res) => {
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
-  const { text, target, sender: clientSender, type, gifUrl, priority } = req.body;
+  const { text, target, sender: clientSender, type, gifUrl, priority, replyTo } = req.body;
   // Validate channel access for guests
   if (isGuestRequest) {
     const allowed = g.channels || ['kaliph','kathrine','group'];
@@ -1823,7 +1824,7 @@ app.post('/api/guests/:id/message', upload.array('files', 10), (req, res) => {
   // Guest portal sends X-Guest-Id header → use client-sent name (supports renames);
   // Main users never send that header → always use their authenticated profile name.
   const sender = isGuestRequest ? (clientSender || g.name) : req.session.user;
-  const msg = { id: uuidv4(), sender, text: text || '', timestamp: Date.now() };
+  const msg = { id: uuidv4(), sender, text: text || '', timestamp: Date.now(), replyTo: replyTo || null };
   // Handle different message types
   if (type === 'gif' && gifUrl) { msg.type = 'gif'; msg.gifUrl = gifUrl; }
   if (type === 'voice' && req.files?.length) {

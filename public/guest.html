@@ -167,6 +167,20 @@
     .gia-btn svg { width: 15px; height: 15px; stroke-width: 1.75; flex-shrink: 0; }
     .gia-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
     .gia-btn.active { color: var(--accent); background: rgba(124,58,237,0.12); }
+    /* Reply bar */
+    .guest-reply-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 16px; margin-bottom: 6px;
+      border-left: 3px solid var(--accent); border-radius: 4px;
+      background: rgba(124,58,237,0.06);
+    }
+    .guest-reply-preview {
+      font-size: 0.72rem; color: var(--muted); padding: 4px 8px;
+      border-left: 2px solid var(--accent); margin-bottom: 2px;
+      border-radius: 2px; background: rgba(124,58,237,0.06);
+      cursor: pointer; max-width: 220px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
     /* File preview bar */
     .guest-file-bar {
       display: flex; gap: 8px; padding: 8px 12px; flex-wrap: wrap;
@@ -418,6 +432,7 @@
     }
     .gcb-status-dot.offline { background: #666; }
     .gcb-status-dot.idle { background: #fbbf24; }
+    .gcb-status-dot.dnd { background: #ef4444; }
     .gcb-info { flex: 1; min-width: 0; }
     .gcb-name { font-weight: 700; font-size: 0.92rem; line-height: 1.2; }
     .gcb-status { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
@@ -723,6 +738,11 @@
 
   <!-- Input -->
   <div class="input-area">
+    <!-- Reply preview bar -->
+    <div id="guest-reply-bar" class="guest-reply-bar" style="display:none">
+      <span id="guest-reply-text" style="flex:1;font-size:0.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Replying to…</span>
+      <button onclick="cancelGuestReply()" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:2px;font-size:0.85rem">&times;</button>
+    </div>
     <!-- File attachment preview -->
     <div id="guest-file-bar" class="guest-file-bar" style="display:none"></div>
     <!-- Priority row -->
@@ -774,6 +794,45 @@
         </div>
       </div>
       <button class="send-btn" onclick="sendMsg()">➤</button>
+    </div>
+  </div>
+
+  <!-- Call Overlay -->
+  <div id="gcall-overlay" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.92);flex-direction:column;align-items:center;justify-content:center;gap:16px">
+    <video id="gcall-remote-video" autoplay playsinline style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0"></video>
+    <video id="gcall-local-video" autoplay playsinline muted style="display:none;position:absolute;bottom:90px;right:16px;width:120px;height:90px;object-fit:cover;border-radius:12px;border:2px solid var(--border);z-index:10"></video>
+    <div id="gcall-info" style="display:flex;flex-direction:column;align-items:center;gap:10px;z-index:5">
+      <div id="gcall-avatar" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#a85580);display:flex;align-items:center;justify-content:center;font-size:2rem;color:#fff;overflow:hidden"></div>
+      <div id="gcall-name" style="font-size:1.2rem;font-weight:700;color:#fff"></div>
+      <div id="gcall-status" style="font-size:0.8rem;color:rgba(255,255,255,0.6)">Calling…</div>
+    </div>
+    <div style="position:absolute;bottom:32px;display:flex;gap:16px;z-index:10">
+      <button id="gcall-mute-btn" onclick="toggleGuestMute()" style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,0.12);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Mute">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+      </button>
+      <button onclick="endGuestCall()" style="width:56px;height:56px;border-radius:50%;background:#ef4444;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center" title="End Call">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </button>
+      <button id="gcall-cam-btn" onclick="toggleGuestCam()" style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,0.12);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center" title="Camera">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2" ry="2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Incoming Call Modal -->
+  <div id="gcall-incoming" style="display:none;position:fixed;inset:0;z-index:2100;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);align-items:center;justify-content:center;flex-direction:column;gap:16px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2rem;text-align:center;max-width:300px;width:90%">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      <div id="gcall-incoming-name" style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:4px"></div>
+      <div id="gcall-incoming-type" style="font-size:0.8rem;color:var(--muted);margin-bottom:1.5rem"></div>
+      <div style="display:flex;gap:16px;justify-content:center">
+        <button onclick="acceptGuestCall()" style="width:52px;height:52px;border-radius:50%;background:#22c55e;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </button>
+        <button onclick="declineGuestCall()" style="width:52px;height:52px;border-radius:50%;background:#ef4444;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -961,13 +1020,27 @@
       }
     });
     // Manual status updates (custom status, emoji, etc.)
-    socket.on('status-changed', ({ user, status }) => {
+    socket.on('status-changed', ({ user, status, customStatus, statusEmoji }) => {
       if (window._hostUsers?.[user]) {
-        window._hostUsers[user]._presence = status === 'invisible' ? 'offline' : status;
-        if (status === 'invisible') window._hostUsers[user].lastSeen = Date.now();
+        // Map status to presence: dnd stays as 'dnd', invisible → 'offline'
+        if (status === 'invisible') {
+          window._hostUsers[user]._presence = 'offline';
+          window._hostUsers[user].lastSeen = Date.now();
+        } else if (status) {
+          window._hostUsers[user]._presence = status; // 'online', 'idle', 'dnd'
+        }
+        if (customStatus !== undefined) window._hostUsers[user].customStatus = customStatus;
+        if (statusEmoji !== undefined) window._hostUsers[user].statusEmoji = statusEmoji;
+        if (status !== undefined) window._hostUsers[user].status = status;
         if (user === channel) updateChatBar();
       }
     });
+
+    // Call signaling
+    socket.on('call-offer', data => handleGuestCallOffer(data));
+    socket.on('call-answer', data => handleGuestCallAnswer(data));
+    socket.on('call-ice-candidate', data => handleGuestIce(data));
+    socket.on('call-ended', () => endGuestCall(true));
 
     // Live permission/name update from host
     socket.on('guest-updated', ({ guestId: updatedId, name, channels }) => {
@@ -1117,10 +1190,12 @@
     row.className = `msg-row ${isSelf ? 'self' : 'other'}`;
     const avatar = document.createElement('div');
     avatar.className = 'msg-avatar' + (isHost ? ' clickable' : '');
-    // Use host avatar if available
+    // Use avatar if available (host or guest's own)
     const hostData = (window._hostUsers || {})[msg.sender];
     if (isHost && hostData?.avatar) {
       avatar.innerHTML = `<img src="${hostData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    } else if (isSelf && guestAvatar) {
+      avatar.innerHTML = `<img src="${guestAvatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
     } else {
       avatar.textContent = (msg.sender || 'G')[0].toUpperCase();
     }
@@ -1162,8 +1237,18 @@
       <button class="msg-action-btn" onclick="guestReply('${msg.id}','${escHtml(senderLabel)}')" title="Reply"><svg ${_s}><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></button>
       <button class="msg-action-btn" onclick="copyGuestMsg('${msg.id}')" title="Copy"><svg ${_s}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
     </div>` : '';
+    // Reply preview
+    let replyHtml = '';
+    if (msg.replyTo) {
+      const allMsgs = channelMessages[channel] || [];
+      const orig = allMsgs.find(m => m.id === msg.replyTo);
+      if (orig) {
+        replyHtml = `<div class="guest-reply-preview" onclick="document.getElementById('guest-msg-${msg.replyTo}')?.scrollIntoView({behavior:'smooth',block:'center'})">${escHtml((orig.text || 'file').substring(0, 60))}</div>`;
+      }
+    }
     content.innerHTML = `
       <div class="msg-sender"${isHost ? ` style="cursor:pointer" onclick="showGuestProfile('${msg.sender}')"` : ''}>${senderLabel}</div>
+      ${replyHtml}
       ${msgBody}
       ${filesHtml}
       ${reactionsHtml}
@@ -1199,6 +1284,7 @@
 
   // ── Send ─────────────────────────────────────────────────────────
   let isSending = false;
+  let guestReplyToId = null;
   window._guestPendingFiles = null;
 
   async function sendMsg() {
@@ -1218,6 +1304,7 @@
     formData.append('sender', guestName);
     formData.append('type', 'text');
     if (priority) formData.append('priority', 'true');
+    if (guestReplyToId) { formData.append('replyTo', guestReplyToId); cancelGuestReply(); }
     if (window._guestPendingFiles) {
       window._guestPendingFiles.forEach(f => formData.append('files', f));
       window._guestPendingFiles = null;
@@ -1404,13 +1491,21 @@
     for (const ch of Object.keys(channelMessages)) {
       const msg = (channelMessages[ch] || []).find(m => m.id === msgId);
       if (msg) {
-        const input = document.getElementById('msg-input');
-        const preview = msg.text?.substring(0, 40) || '';
-        input.placeholder = `Replying to ${senderLabel}: "${preview}…"`;
-        input.focus();
+        guestReplyToId = msgId;
+        const bar = document.getElementById('guest-reply-bar');
+        const text = document.getElementById('guest-reply-text');
+        text.textContent = `Replying to ${senderLabel}: ${(msg.text || 'file').substring(0, 60)}`;
+        bar.style.display = 'flex';
+        document.getElementById('msg-input').focus();
         return;
       }
     }
+  }
+
+  function cancelGuestReply() {
+    guestReplyToId = null;
+    const bar = document.getElementById('guest-reply-bar');
+    if (bar) bar.style.display = 'none';
   }
 
   // Mobile touch: tap to show/hide actions bar
@@ -1509,16 +1604,25 @@
       // Status
       const presence = host?._presence || 'offline';
       dotEl.style.display = '';
+      let statusText = '';
       if (presence === 'online') {
         dotEl.className = 'gcb-status-dot';
-        statusEl.textContent = 'Online';
+        statusText = 'Online';
       } else if (presence === 'idle') {
         dotEl.className = 'gcb-status-dot idle';
-        statusEl.textContent = 'Idle';
+        statusText = 'Idle';
+      } else if (presence === 'dnd') {
+        dotEl.className = 'gcb-status-dot dnd';
+        statusText = 'Do Not Disturb';
       } else {
         dotEl.className = 'gcb-status-dot offline';
-        statusEl.textContent = host?.lastSeen ? formatLastSeen(host.lastSeen) : 'Offline';
+        statusText = host?.lastSeen ? formatLastSeen(host.lastSeen) : 'Offline';
       }
+      // Append custom status if set
+      if (host?.customStatus) {
+        statusText += ` — ${host.statusEmoji || ''} ${host.customStatus}`.trim();
+      }
+      statusEl.textContent = statusText;
     }
   }
 
@@ -1532,8 +1636,154 @@
     return `Last seen ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
   }
 
-  function startGuestCall(type) {
-    showToast('Calling is not available for guest accounts');
+  // ── Calling (WebRTC) ─────────────────────────────────────────────
+  const GUEST_ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+  let guestPeer = null, guestLocalStream = null, guestCallType = null;
+  let guestCallPeer = null, guestInCall = false, guestCallAnswered = false;
+  let guestIceQueue = [], guestCallTimer = null, guestCallSecs = 0;
+
+  async function startGuestCall(type) {
+    if (guestInCall) { showToast('Already in a call'); return; }
+    if (channel === 'group') { showToast('Select a DM channel to call'); return; }
+    guestCallType = type;
+    guestCallPeer = channel;
+    guestCallAnswered = false;
+    const vidC = type === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false;
+    guestLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: vidC }).catch(() => null);
+    if (!guestLocalStream) { showToast('Media access denied'); return; }
+    guestPeer = new RTCPeerConnection(GUEST_ICE);
+    guestLocalStream.getTracks().forEach(t => guestPeer.addTrack(t, guestLocalStream));
+    guestPeer.onicecandidate = e => { if (e.candidate) socket.emit('call-ice-candidate', { candidate: e.candidate, from: 'guest:' + guestId }); };
+    guestPeer.ontrack = e => {
+      const rv = document.getElementById('gcall-remote-video');
+      rv.srcObject = e.streams[0];
+      if (type === 'video') { rv.style.display = 'block'; document.getElementById('gcall-info').style.display = 'none'; }
+    };
+    guestPeer.oniceconnectionstatechange = () => {
+      const st = guestPeer?.iceConnectionState;
+      if (st === 'failed') endGuestCall(true);
+      else if (st === 'disconnected') { clearTimeout(window._gIceTimer); window._gIceTimer = setTimeout(() => { if (guestPeer?.iceConnectionState === 'disconnected') endGuestCall(true); }, 5000); }
+      else if (st === 'connected' || st === 'completed') clearTimeout(window._gIceTimer);
+    };
+    if (type === 'video') { const lv = document.getElementById('gcall-local-video'); lv.srcObject = guestLocalStream; lv.style.display = 'block'; lv.play().catch(() => {}); }
+    const offer = await guestPeer.createOffer();
+    await guestPeer.setLocalDescription(offer);
+    socket.emit('call-offer', { offer, type, from: 'guest:' + guestId + ':' + guestName });
+    guestInCall = true;
+    showGuestCallOverlay('Calling…', type);
+  }
+
+  function handleGuestCallOffer({ offer, type, from }) {
+    if (guestInCall) return;
+    guestCallType = type;
+    guestCallPeer = from;
+    guestIceQueue = [];
+    window._guestPendingOffer = offer;
+    const modal = document.getElementById('gcall-incoming');
+    modal.style.display = 'flex';
+    document.getElementById('gcall-incoming-name').textContent = capitalize(from);
+    document.getElementById('gcall-incoming-type').textContent = type === 'video' ? 'Video Call' : 'Voice Call';
+  }
+
+  async function acceptGuestCall() {
+    document.getElementById('gcall-incoming').style.display = 'none';
+    guestCallAnswered = true;
+    const vidC = guestCallType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false;
+    guestLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: vidC }).catch(() => null);
+    if (!guestLocalStream) { showToast('Media access denied'); return; }
+    guestPeer = new RTCPeerConnection(GUEST_ICE);
+    guestLocalStream.getTracks().forEach(t => guestPeer.addTrack(t, guestLocalStream));
+    guestPeer.onicecandidate = e => { if (e.candidate) socket.emit('call-ice-candidate', { candidate: e.candidate, from: 'guest:' + guestId }); };
+    guestPeer.ontrack = e => {
+      const rv = document.getElementById('gcall-remote-video');
+      rv.srcObject = e.streams[0];
+      if (guestCallType === 'video') { rv.style.display = 'block'; document.getElementById('gcall-info').style.display = 'none'; }
+    };
+    guestPeer.oniceconnectionstatechange = () => {
+      const st = guestPeer?.iceConnectionState;
+      if (st === 'failed') endGuestCall(true);
+      else if (st === 'disconnected') { clearTimeout(window._gIceTimer); window._gIceTimer = setTimeout(() => { if (guestPeer?.iceConnectionState === 'disconnected') endGuestCall(true); }, 5000); }
+      else if (st === 'connected' || st === 'completed') clearTimeout(window._gIceTimer);
+    };
+    if (guestCallType === 'video') { const lv = document.getElementById('gcall-local-video'); lv.srcObject = guestLocalStream; lv.style.display = 'block'; lv.play().catch(() => {}); }
+    await guestPeer.setRemoteDescription(window._guestPendingOffer);
+    for (const c of guestIceQueue) await guestPeer.addIceCandidate(c);
+    guestIceQueue = [];
+    const answer = await guestPeer.createAnswer();
+    await guestPeer.setLocalDescription(answer);
+    socket.emit('call-answer', { answer, from: 'guest:' + guestId });
+    guestInCall = true;
+    startGuestCallTimer();
+    showGuestCallOverlay('Connected', guestCallType);
+  }
+
+  function handleGuestCallAnswer({ answer }) {
+    guestCallAnswered = true;
+    if (guestPeer) {
+      guestPeer.setRemoteDescription(answer);
+      document.getElementById('gcall-status').textContent = 'Connected';
+      startGuestCallTimer();
+    }
+  }
+
+  function handleGuestIce({ candidate }) {
+    if (!candidate) return;
+    if (guestPeer && guestPeer.remoteDescription) guestPeer.addIceCandidate(candidate);
+    else guestIceQueue.push(candidate);
+  }
+
+  function declineGuestCall() {
+    document.getElementById('gcall-incoming').style.display = 'none';
+    guestCallPeer = null; window._guestPendingOffer = null; guestIceQueue = [];
+    socket.emit('call-end', { from: 'guest:' + guestId });
+  }
+
+  function endGuestCall(remote = false) {
+    if (!remote) socket.emit('call-end', { from: 'guest:' + guestId });
+    if (guestPeer) { guestPeer.close(); guestPeer = null; }
+    if (guestLocalStream) { guestLocalStream.getTracks().forEach(t => t.stop()); guestLocalStream = null; }
+    clearInterval(guestCallTimer);
+    guestInCall = false; guestCallAnswered = false; guestCallPeer = null;
+    window._guestPendingOffer = null; guestIceQueue = []; guestCallSecs = 0;
+    document.getElementById('gcall-overlay').style.display = 'none';
+    document.getElementById('gcall-remote-video').style.display = 'none';
+    document.getElementById('gcall-local-video').style.display = 'none';
+    document.getElementById('gcall-incoming').style.display = 'none';
+    document.getElementById('gcall-info').style.display = '';
+  }
+
+  function toggleGuestMute() {
+    if (!guestLocalStream) return;
+    const track = guestLocalStream.getAudioTracks()[0];
+    if (track) { track.enabled = !track.enabled; document.getElementById('gcall-mute-btn').classList.toggle('active', !track.enabled); }
+  }
+
+  function toggleGuestCam() {
+    if (!guestLocalStream) return;
+    const track = guestLocalStream.getVideoTracks()[0];
+    if (track) { track.enabled = !track.enabled; document.getElementById('gcall-cam-btn').classList.toggle('active', !track.enabled); }
+  }
+
+  function showGuestCallOverlay(status, type) {
+    const overlay = document.getElementById('gcall-overlay');
+    overlay.style.display = 'flex';
+    const name = guestCallPeer || channel;
+    document.getElementById('gcall-name').textContent = capitalize(name.replace('guest:', ''));
+    document.getElementById('gcall-status').textContent = status;
+    const host = (window._hostUsers || {})[channel];
+    const avatarEl = document.getElementById('gcall-avatar');
+    if (host?.avatar) avatarEl.innerHTML = `<img src="${host.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    else avatarEl.textContent = (name[0] || 'K').toUpperCase();
+  }
+
+  function startGuestCallTimer() {
+    guestCallSecs = 0;
+    clearInterval(guestCallTimer);
+    guestCallTimer = setInterval(() => {
+      guestCallSecs++;
+      const m = Math.floor(guestCallSecs / 60), s = guestCallSecs % 60;
+      document.getElementById('gcall-status').textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    }, 1000);
   }
 
   // ── Quick Reactions ────────────────────────────────────────────
@@ -1635,7 +1885,7 @@
     // Status dot
     const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
     const presence = u._presence || 'offline';
-    document.getElementById('gp-status-dot').style.background = statusColors[presence === 'online' ? 'online' : presence === 'idle' ? 'idle' : 'invisible'] || '#6b7280';
+    document.getElementById('gp-status-dot').style.background = statusColors[presence] || statusColors['invisible'];
     // Name
     const nameEl = document.getElementById('gp-name');
     nameEl.textContent = u.displayName || capitalize(u.name);

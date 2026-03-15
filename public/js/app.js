@@ -4170,7 +4170,7 @@ function renderGuestList() {
       const chLabel = ch === 'group' ? 'Group' : 'DM';
       const chIcon = ch === 'group' ? 'users' : 'message-circle';
       html += `<div class="guest-list-item ${isActive ? 'active' : ''}" onclick="selectGuest('${g.id}','${ch}')">
-        <div class="guest-item-avatar">${g.name[0].toUpperCase()}</div>
+        <div class="guest-item-avatar">${g.avatar ? `<img src="${g.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : g.name[0].toUpperCase()}</div>
         <div class="guest-item-info">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div class="guest-item-name">${escapeHtml(g.name)} <span style="font-size:0.65rem;color:var(--text-muted);font-weight:400">· ${chLabel}</span></div>
@@ -4212,7 +4212,9 @@ function renderGuestChat() {
 
   const chLabel = activeGuestChannel === 'group' ? 'Group Chat' : 'Direct Message';
   document.getElementById('guest-chat-name').textContent = guest.name;
-  document.getElementById('guest-chat-initial').textContent = guest.name[0].toUpperCase();
+  const gciEl = document.getElementById('guest-chat-initial');
+  if (guest.avatar) gciEl.innerHTML = `<img src="${guest.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+  else gciEl.textContent = guest.name[0].toUpperCase();
   const statusEl = document.getElementById('guest-chat-status');
   if (statusEl) statusEl.textContent = chLabel;
 
@@ -4234,11 +4236,14 @@ function renderGuestChat() {
     const prev = msgs[i - 1];
     const sameSender = prev && prev.sender === m.sender && (m.timestamp - prev.timestamp < 120000);
     const chatColor = m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : m.sender === 'kathrine' ? 'var(--kathrine-color, #c084fc)' : 'var(--accent)';
-    // Use profile picture for host users, initial letter for guests
+    // Use profile picture for host users or guest avatar
     const userData = isHost && window._users ? window._users[m.sender] : null;
+    const gAvatar = !isHost && !isSelf && guest?.avatar ? guest.avatar : null;
     const avatarInner = userData?.avatar
       ? `<img src="${userData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
-      : (m.sender || 'G')[0].toUpperCase();
+      : gAvatar
+        ? `<img src="${gAvatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+        : (m.sender || 'G')[0].toUpperCase();
 
     return `<div class="guest-msg-row ${isSelf ? 'self' : ''}${sameSender ? ' same-sender' : ''}">
       ${!isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${avatarInner}</div>` : ''}
@@ -5408,6 +5413,7 @@ async function editGuest(guestId) {
         <button onclick="this.closest('#edit-guest-overlay').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem">&times;</button>
       </div>
       <div class="form-row" style="margin-bottom:1rem"><label style="font-size:0.78rem;color:var(--text-secondary,#aaa);margin-bottom:4px;display:block">Guest Name</label><input type="text" id="edit-guest-name" value="${escapeHtml(g.name)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input,rgba(255,255,255,0.06));color:var(--text-primary,#fff);font-size:0.85rem"></div>
+      <div class="form-row" style="margin-bottom:1rem"><label style="font-size:0.78rem;color:var(--text-secondary,#aaa);margin-bottom:4px;display:block">New Password <span style="opacity:0.5">(leave blank to keep current)</span></label><input type="password" id="edit-guest-pw" placeholder="••••••••" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input,rgba(255,255,255,0.06));color:var(--text-primary,#fff);font-size:0.85rem"></div>
       <div style="margin-bottom:1rem">
         <label style="font-size:0.78rem;color:var(--text-secondary,#aaa);margin-bottom:8px;display:block">Channel Permissions</label>
         <div style="display:flex;flex-direction:column;gap:8px">
@@ -5427,14 +5433,17 @@ async function editGuest(guestId) {
 async function saveGuestEdit(guestId) {
   const name = document.getElementById('edit-guest-name').value.trim();
   if (!name) return showToast('Name is required');
+  const password = document.getElementById('edit-guest-pw').value;
   const channels = [];
   if (document.getElementById('edit-perm-kaliph').checked) channels.push('kaliph');
   if (document.getElementById('edit-perm-kathrine').checked) channels.push('kathrine');
   if (document.getElementById('edit-perm-group').checked) channels.push('group');
   if (!channels.length) return showToast('Select at least one channel');
+  const body = { name, channels };
+  if (password) body.password = password;
   await fetch(`/api/guests/${guestId}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, channels })
+    body: JSON.stringify(body)
   });
   document.getElementById('edit-guest-overlay')?.remove();
   await loadGuests();
