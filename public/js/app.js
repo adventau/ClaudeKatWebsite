@@ -564,8 +564,11 @@ function showSection(name, el) {
   if (name === 'authenticator') initTotpSection();
   if (name === 'guest-messages') {
     loadGuestMessages();
-    // Clear unread for active guest
-    if (activeGuestId) { delete guestUnread[activeGuestId]; updateGuestNavBadge(); renderGuestList(); }
+    // Clear unread for active guest (keys are 'guestId:channel')
+    if (activeGuestId) {
+      Object.keys(guestUnread).forEach(k => { if (k.startsWith(activeGuestId + ':')) delete guestUnread[k]; });
+      updateGuestNavBadge(); renderGuestList();
+    }
   }
 
   // Close mobile sidebar when navigating on tablet

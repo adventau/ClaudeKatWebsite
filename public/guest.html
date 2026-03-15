@@ -70,6 +70,19 @@
       font-size: 0.82rem; color: var(--muted); white-space: nowrap;
       transition: background 0.18s, color 0.18s;
       border: 1px solid transparent; font-weight: 500; letter-spacing: 0.01em;
+      position: relative;
+    }
+    .channel-tab .unread-badge {
+      position: absolute; top: -5px; right: -5px;
+      min-width: 16px; height: 16px; padding: 0 4px;
+      border-radius: 8px; background: var(--accent);
+      color: #fff; font-size: 0.65rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1; box-shadow: 0 0 6px rgba(200,150,122,0.4);
+      animation: badgePop 0.25s ease;
+    }
+    @keyframes badgePop {
+      0% { transform: scale(0); } 60% { transform: scale(1.2); } 100% { transform: scale(1); }
     }
     .channel-tab:hover { color: var(--text); background: rgba(255,255,255,0.06); }
     .channel-tab.active {
@@ -645,7 +658,7 @@
     channel = ch;
     document.querySelectorAll('.channel-tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
-    el.style.removeProperty('background'); // clear badge color
+    clearBadge(ch);
     renderChannel();
   }
 
@@ -718,9 +731,27 @@
     return row;
   }
 
+  const unreadCounts = { group: 0, kaliph: 0, kathrine: 0 };
+
   function showBadge(ch) {
+    unreadCounts[ch] = (unreadCounts[ch] || 0) + 1;
     const tab = document.querySelector(`[data-target="${ch}"]`);
-    if (tab) tab.style.borderColor = 'var(--accent)';
+    if (!tab) return;
+    let badge = tab.querySelector('.unread-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'unread-badge';
+      tab.appendChild(badge);
+    }
+    badge.textContent = unreadCounts[ch] > 99 ? '99+' : unreadCounts[ch];
+  }
+
+  function clearBadge(ch) {
+    unreadCounts[ch] = 0;
+    const tab = document.querySelector(`[data-target="${ch}"]`);
+    if (!tab) return;
+    const badge = tab.querySelector('.unread-badge');
+    if (badge) badge.remove();
   }
 
   // ── Send ─────────────────────────────────────────────────────────
