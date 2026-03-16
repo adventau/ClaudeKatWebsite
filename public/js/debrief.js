@@ -140,7 +140,7 @@
       const slide = document.createElement('div');
       slide.className = 'slide slide-month';
       slide.dataset.slideIndex = String(i + 1);
-      slide.dataset.totalReveals = '7';
+      slide.dataset.totalReveals = '6';
       slide.dataset.monthId = m.id;
       slide.style.background = accentBg(m.accentColor);
       slide.style.setProperty('--accent', m.accentColor);
@@ -174,8 +174,7 @@
           </div>
         </div>
         <div class="month-right">
-          <div class="reveal-item" data-reveal="6">
-            <div class="month-right-player-row">
+          <div class="month-right-player-row">
               <div class="vinyl-player" data-month="${m.id}" style="--player-accent:${m.accentColor}">
                 <div class="vinyl-player-disc ${m.audioFile ? 'has-audio' : ''}" id="disc-${m.id}">
                   <svg class="vinyl-player-svg" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">
@@ -213,7 +212,6 @@
                 <div class="song-caption editable" data-field="songCaption" data-month="${m.id}">${m.songCaption}</div>
               </div>
             </div>
-          </div>
           <div class="editor-only-fields">
             <div class="editor-upload-row">
               <div class="editor-upload-box">
@@ -228,7 +226,7 @@
               </div>
             </div>
           </div>
-          <div class="reveal-item" data-reveal="7">
+          <div class="reveal-item" data-reveal="6">
             <div class="photo-filmstrip" id="filmstrip-${m.id}">
               ${buildFilmstrip(m)}
             </div>
@@ -502,7 +500,7 @@
       item.classList.toggle('revealed', step <= revealStep);
     });
 
-    if (revealStep >= 6) loadSpotifyEmbed(slide);
+    loadSpotifyEmbed(slide);
     updateRevealCounter(slide);
   }
 
