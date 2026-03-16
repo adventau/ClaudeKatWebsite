@@ -931,60 +931,77 @@
     // Audio file upload
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('.audio-upload-btn');
-      if (btn) {
-        const input = btn.parentElement.querySelector('.audio-file-input');
-        if (input) input.click();
-      }
+      if (!btn || role !== 'editor') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const box = btn.closest('.editor-upload-box');
+      const input = box ? box.querySelector('.audio-file-input') : null;
+      if (input) input.click();
     });
     document.addEventListener('change', async (e) => {
       if (!e.target.classList.contains('audio-file-input')) return;
       const monthId = e.target.dataset.month;
       const file = e.target.files[0];
       if (!file) return;
+      const box = e.target.closest('.editor-upload-box');
+      const btn = box ? box.querySelector('.audio-upload-btn') : null;
+      if (btn) { btn.textContent = 'Uploading...'; btn.style.opacity = '0.5'; }
       const formData = new FormData();
       formData.append('audio', file);
       try {
         const res = await fetch(`/api/debrief/upload-audio/${monthId}`, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
         if (data.ok) {
-          const btn = e.target.parentElement.querySelector('.audio-upload-btn');
-          btn.textContent = '✓ ' + data.filename;
-          btn.classList.add('has-file');
+          if (btn) { btn.textContent = '✓ ' + data.filename; btn.classList.add('has-file'); btn.style.opacity = '1'; }
           await loadContent();
           mergeData();
+        } else {
+          throw new Error(data.error || 'Upload failed');
         }
-      } catch (err) { console.error('Audio upload failed:', err); }
+      } catch (err) {
+        console.error('Audio upload failed:', err);
+        if (btn) { btn.textContent = '✗ Error — try again'; btn.style.opacity = '1'; }
+      }
       e.target.value = '';
     });
 
     // Cover art upload
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('.cover-upload-btn');
-      if (btn) {
-        const input = btn.parentElement.querySelector('.cover-file-input');
-        if (input) input.click();
-      }
+      if (!btn || role !== 'editor') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const box = btn.closest('.editor-upload-box');
+      const input = box ? box.querySelector('.cover-file-input') : null;
+      if (input) input.click();
     });
     document.addEventListener('change', async (e) => {
       if (!e.target.classList.contains('cover-file-input')) return;
       const monthId = e.target.dataset.month;
       const file = e.target.files[0];
       if (!file) return;
+      const box = e.target.closest('.editor-upload-box');
+      const btn = box ? box.querySelector('.cover-upload-btn') : null;
+      if (btn) { btn.textContent = 'Uploading...'; btn.style.opacity = '0.5'; }
       const formData = new FormData();
       formData.append('cover', file);
       try {
         const res = await fetch(`/api/debrief/upload-cover/${monthId}`, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
         if (data.ok) {
-          const btn = e.target.parentElement.querySelector('.cover-upload-btn');
-          btn.textContent = '✓ ' + data.filename;
-          btn.classList.add('has-file');
+          if (btn) { btn.textContent = '✓ ' + data.filename; btn.classList.add('has-file'); btn.style.opacity = '1'; }
           await loadContent();
           mergeData();
-          // Rebuild the vinyl disc SVG to show new cover
           rebuildVinylDisc(monthId);
+        } else {
+          throw new Error(data.error || 'Upload failed');
         }
-      } catch (err) { console.error('Cover upload failed:', err); }
+      } catch (err) {
+        console.error('Cover upload failed:', err);
+        if (btn) { btn.textContent = '✗ Error — try again'; btn.style.opacity = '1'; }
+      }
       e.target.value = '';
     });
 
