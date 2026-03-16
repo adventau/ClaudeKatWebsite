@@ -3608,6 +3608,69 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), (req
   res.json({ ok: true, files: newFiles });
 });
 
+// POST /api/debrief/upload-audio/:monthId — upload audio file for a month
+const debriefAudioStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const audioDir = path.join(DEBRIEF_UPLOADS_DIR, 'audio');
+    fs.ensureDirSync(audioDir);
+    cb(null, audioDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${req.params.monthId}${ext}`);
+  }
+});
+const debriefAudioUpload = multer({
+  storage: debriefAudioStorage,
+  fileFilter: (_req, file, cb) => {
+    const allowed = /mp3|m4a|ogg|wav|aac|webm/i;
+    cb(null, allowed.test(path.extname(file.originalname)));
+  },
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB max
+});
+
+app.post('/api/debrief/upload-audio/:monthId', debriefAudioUpload.single('audio'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No audio file' });
+  const { monthId } = req.params;
+  const content = readDebriefContent();
+  if (!content.months) content.months = {};
+  if (!content.months[monthId]) content.months[monthId] = {};
+  content.months[monthId].audioFile = req.file.filename;
+  writeDebriefContent(content);
+  res.json({ ok: true, filename: req.file.filename });
+});
+
+// POST /api/debrief/upload-cover/:monthId — upload cover art for a month
+const debriefCoverStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const coverDir = path.join(DEBRIEF_UPLOADS_DIR, 'covers');
+    fs.ensureDirSync(coverDir);
+    cb(null, coverDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${req.params.monthId}${ext}`);
+  }
+});
+const debriefCoverUpload = multer({
+  storage: debriefCoverStorage,
+  fileFilter: (_req, file, cb) => {
+    const allowed = /jpeg|jpg|png|webp/i;
+    cb(null, allowed.test(path.extname(file.originalname)));
+  }
+});
+
+app.post('/api/debrief/upload-cover/:monthId', debriefCoverUpload.single('cover'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No cover file' });
+  const { monthId } = req.params;
+  const content = readDebriefContent();
+  if (!content.months) content.months = {};
+  if (!content.months[monthId]) content.months[monthId] = {};
+  content.months[monthId].coverFile = req.file.filename;
+  writeDebriefContent(content);
+  res.json({ ok: true, filename: req.file.filename });
+});
+
 // DELETE /api/debrief/photo — delete a specific photo
 app.delete('/api/debrief/photo', (req, res) => {
   const { monthId, filename } = req.body;
