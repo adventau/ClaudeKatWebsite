@@ -3507,7 +3507,127 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
   return lines(`Unknown command: "${raw}". Type "help" for commands.`, 'error');
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEBRIEF — "My Year: A Debrief" presentation
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const DEBRIEF_CONTENT_FILE = path.join(DATA_DIR, 'debrief-content.json');
+const DEBRIEF_CONFIG_FILE  = path.join(DATA_DIR, 'debrief-config.json');
+const DEBRIEF_UPLOADS_DIR  = path.join(__dirname, 'uploads', 'debrief');
+fs.ensureDirSync(DEBRIEF_UPLOADS_DIR);
+
+// Serve uploaded debrief photos
+app.use('/uploads/debrief', express.static(DEBRIEF_UPLOADS_DIR));
+
+// Debrief multer setup
+const debriefStorage = multer.diskStorage({
+  destination: (req, _file, cb) => {
+    const monthDir = path.join(DEBRIEF_UPLOADS_DIR, req.params.monthId);
+    fs.ensureDirSync(monthDir);
+    cb(null, monthDir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${uuidv4()}${ext}`);
+  }
+});
+const debriefUpload = multer({
+  storage: debriefStorage,
+  fileFilter: (_req, file, cb) => {
+    const allowed = /jpeg|jpg|png|webp|heic/i;
+    cb(null, allowed.test(path.extname(file.originalname)));
+  }
+});
+
+function readDebriefContent() {
+  try { return fs.existsSync(DEBRIEF_CONTENT_FILE) ? JSON.parse(fs.readFileSync(DEBRIEF_CONTENT_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function writeDebriefContent(data) {
+  try { fs.writeFileSync(DEBRIEF_CONTENT_FILE, JSON.stringify(data, null, 2)); } catch (e) { console.error('[debrief] write content error:', e.message); }
+}
+function readDebriefConfig() {
+  try { return fs.existsSync(DEBRIEF_CONFIG_FILE) ? JSON.parse(fs.readFileSync(DEBRIEF_CONFIG_FILE, 'utf8')) : {}; } catch { return {}; }
+}
+function writeDebriefConfig(data) {
+  try { fs.writeFileSync(DEBRIEF_CONFIG_FILE, JSON.stringify(data, null, 2)); } catch (e) { console.error('[debrief] write config error:', e.message); }
+}
+
+// Debrief passwords (env vars with hard-coded defaults)
+const DEBRIEF_PASSWORDS = {
+  presenter: process.env.DEBRIEF_PRESENTER_PASSWORD || 'kaliph-presents',
+  viewer:    process.env.DEBRIEF_VIEWER_PASSWORD    || 'kathrine-watches',
+  editor:    process.env.DEBRIEF_EDITOR_PASSWORD    || 'debrief-edit-2025'
+};
+
+// Debrief presenter state (in-memory)
+let debriefPresenterState = { slideIndex: 0, revealStep: 0, connected: false, socketId: null };
+
+// POST /api/debrief/auth — password check
+app.post('/api/debrief/auth', (req, res) => {
+  const { password } = req.body;
+  if (!password) return res.json({ role: null });
+  if (password === DEBRIEF_PASSWORDS.presenter) return res.json({ role: 'presenter' });
+  if (password === DEBRIEF_PASSWORDS.viewer)    return res.json({ role: 'viewer' });
+  if (password === DEBRIEF_PASSWORDS.editor)    return res.json({ role: 'editor' });
+  return res.json({ role: null });
+});
+
+// GET /api/debrief/content — load saved content
+app.get('/api/debrief/content', (_req, res) => {
+  res.json(readDebriefContent());
+});
+
+// POST /api/debrief/content — save edited content
+app.post('/api/debrief/content', (req, res) => {
+  writeDebriefContent(req.body);
+  res.json({ ok: true });
+});
+
+// GET /api/debrief/config — load config
+app.get('/api/debrief/config', (_req, res) => {
+  res.json(readDebriefConfig());
+});
+
+// POST /api/debrief/config — save config
+app.post('/api/debrief/config', (req, res) => {
+  writeDebriefConfig(req.body);
+  res.json({ ok: true });
+});
+
+// POST /api/debrief/upload/:monthId — upload photos
+app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), (req, res) => {
+  const { monthId } = req.params;
+  const content = readDebriefContent();
+  if (!content.months) content.months = {};
+  if (!content.months[monthId]) content.months[monthId] = {};
+  if (!content.months[monthId].photos) content.months[monthId].photos = [];
+
+  const newFiles = (req.files || []).map(f => f.filename);
+  content.months[monthId].photos.push(...newFiles);
+  writeDebriefContent(content);
+  res.json({ ok: true, files: newFiles });
+});
+
+// DELETE /api/debrief/photo — delete a specific photo
+app.delete('/api/debrief/photo', (req, res) => {
+  const { monthId, filename } = req.body;
+  if (!monthId || !filename) return res.status(400).json({ error: 'Missing monthId or filename' });
+
+  // Delete file
+  const filePath = path.join(DEBRIEF_UPLOADS_DIR, monthId, filename);
+  try { fs.removeSync(filePath); } catch {}
+
+  // Remove from content JSON
+  const content = readDebriefContent();
+  if (content.months && content.months[monthId] && content.months[monthId].photos) {
+    content.months[monthId].photos = content.months[monthId].photos.filter(p => p !== filename);
+    writeDebriefContent(content);
+  }
+  res.json({ ok: true });
+});
+
 // ── Serve HTML pages ──────────────────────────────────────────────────────────
+app.get('/debrief',  (_, res) => res.sendFile(path.join(__dirname, 'public', 'debrief.html')));
 app.get('/app',      (_, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
 app.get('/guest',    (_, res) => res.sendFile(path.join(__dirname, 'public', 'guest.html')));
 app.get('/backdoor', (_, res) => res.sendFile(path.join(__dirname, 'public', 'backdoor.html')));
@@ -3561,7 +3681,41 @@ io.on('connection', socket => {
       wd(F.users, users);
     }
   });
+  // ── Debrief presentation sync ──
+  socket.on('debrief:presenter-join', () => {
+    debriefPresenterState.connected = true;
+    debriefPresenterState.socketId = socket.id;
+    debriefPresenterState.slideIndex = 0;
+    debriefPresenterState.revealStep = 0;
+    socket.broadcast.emit('debrief:presenter-join');
+  });
+  socket.on('debrief:slide-change', (data) => {
+    debriefPresenterState.slideIndex = data.slideIndex;
+    debriefPresenterState.revealStep = 0;
+    socket.broadcast.emit('debrief:slide-change', data);
+  });
+  socket.on('debrief:reveal', (data) => {
+    debriefPresenterState.slideIndex = data.slideIndex;
+    debriefPresenterState.revealStep = data.revealStep;
+    socket.broadcast.emit('debrief:reveal', data);
+  });
+  socket.on('debrief:request-state', () => {
+    if (debriefPresenterState.connected) {
+      socket.emit('debrief:state', {
+        slideIndex: debriefPresenterState.slideIndex,
+        revealStep: debriefPresenterState.revealStep
+      });
+    }
+  });
+
   socket.on('disconnect', () => {
+    // Check if disconnected socket was debrief presenter
+    if (debriefPresenterState.socketId === socket.id) {
+      debriefPresenterState.connected = false;
+      debriefPresenterState.socketId = null;
+      io.emit('debrief:presenter-leave');
+    }
+
     const user = Object.keys(onlineUsers).find(u => onlineUsers[u]?.socketId === socket.id);
     if (user) {
       // Save lastSeen timestamp on disconnect — user is truly offline now
