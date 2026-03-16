@@ -224,16 +224,16 @@
               <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic" data-month="${m.id}">
             </div>
           </div>
-          <div class="editor-only-fields" style="display:none; margin-top:16px; max-width:480px;">
+          <div class="editor-only-fields" style="max-width:480px;">
             <div class="editor-upload-row">
               <div class="editor-upload-box">
-                <div class="settings-label">Audio File</div>
-                <button class="editor-upload-btn audio-upload-btn" data-month="${m.id}">${m.audioFile ? '✓ ' + m.audioFile : 'Upload MP3'}</button>
+                <div class="settings-label">Song Audio</div>
+                <button class="editor-upload-btn audio-upload-btn ${m.audioFile ? 'has-file' : ''}" data-month="${m.id}">${m.audioFile ? '✓ ' + m.audioFile : '↑ Upload MP3'}</button>
                 <input type="file" class="audio-file-input" data-month="${m.id}" accept=".mp3,.m4a,.ogg,.wav,.aac" style="display:none">
               </div>
               <div class="editor-upload-box">
                 <div class="settings-label">Cover Art</div>
-                <button class="editor-upload-btn cover-upload-btn" data-month="${m.id}">${m.coverFile ? '✓ ' + m.coverFile : 'Upload Cover'}</button>
+                <button class="editor-upload-btn cover-upload-btn ${m.coverFile ? 'has-file' : ''}" data-month="${m.id}">${m.coverFile ? '✓ ' + m.coverFile : '↑ Upload Image'}</button>
                 <input type="file" class="cover-file-input" data-month="${m.id}" accept=".jpg,.jpeg,.png,.webp" style="display:none">
               </div>
             </div>
@@ -325,12 +325,7 @@
     credits.querySelector('.credits-vinyl').appendChild(createVinyl());
     slidesContainer.appendChild(credits);
 
-    // Show editor-only fields if editor
-    if (role === 'editor') {
-      slidesContainer.querySelectorAll('.editor-only-fields').forEach(el => {
-        el.style.display = 'block';
-      });
-    }
+    // Editor-only fields visibility is handled by CSS (.editor-mode .editor-only-fields)
 
     buildDotNav();
   }
@@ -517,6 +512,19 @@
     updateDotNav();
     const slides = slidesContainer.querySelectorAll('.slide');
     updateRevealCounter(slides[slideIndex]);
+
+    // Update editor toolbar slide label
+    if (role === 'editor') {
+      const label = document.getElementById('edit-slide-label');
+      if (label) {
+        let name = `Slide ${slideIndex + 1}`;
+        if (slideIndex === 0) name = 'Intro';
+        else if (slideIndex >= 1 && slideIndex <= 16) name = months[slideIndex - 1].name + ' ' + months[slideIndex - 1].year;
+        else if (slideIndex === 17) name = 'The Debrief';
+        else if (slideIndex === 18) name = 'Credits';
+        label.textContent = `${name} · ${slideIndex + 1}/${totalSlides}`;
+      }
+    }
   }
 
   function updateRevealCounter(slide) {
@@ -942,6 +950,7 @@
         if (data.ok) {
           const btn = e.target.parentElement.querySelector('.audio-upload-btn');
           btn.textContent = '✓ ' + data.filename;
+          btn.classList.add('has-file');
           await loadContent();
           mergeData();
         }
@@ -970,6 +979,7 @@
         if (data.ok) {
           const btn = e.target.parentElement.querySelector('.cover-upload-btn');
           btn.textContent = '✓ ' + data.filename;
+          btn.classList.add('has-file');
           await loadContent();
           mergeData();
           // Rebuild the vinyl disc SVG to show new cover
