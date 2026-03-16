@@ -3552,6 +3552,13 @@ function writeDebriefConfig(data) {
   try { fs.writeFileSync(DEBRIEF_CONFIG_FILE, JSON.stringify(data, null, 2)); } catch (e) { console.error('[debrief] write config error:', e.message); }
 }
 
+// Debrief passwords (env vars with hard-coded defaults)
+const DEBRIEF_PASSWORDS = {
+  presenter: process.env.DEBRIEF_PRESENTER_PASSWORD || 'kaliph-presents',
+  viewer:    process.env.DEBRIEF_VIEWER_PASSWORD    || 'kathrine-watches',
+  editor:    process.env.DEBRIEF_EDITOR_PASSWORD    || 'debrief-edit-2025'
+};
+
 // Debrief presenter state (in-memory)
 let debriefPresenterState = { slideIndex: 0, revealStep: 0, connected: false, socketId: null };
 
@@ -3559,9 +3566,9 @@ let debriefPresenterState = { slideIndex: 0, revealStep: 0, connected: false, so
 app.post('/api/debrief/auth', (req, res) => {
   const { password } = req.body;
   if (!password) return res.json({ role: null });
-  if (process.env.DEBRIEF_PRESENTER_PASSWORD && password === process.env.DEBRIEF_PRESENTER_PASSWORD) return res.json({ role: 'presenter' });
-  if (process.env.DEBRIEF_VIEWER_PASSWORD    && password === process.env.DEBRIEF_VIEWER_PASSWORD)    return res.json({ role: 'viewer' });
-  if (process.env.DEBRIEF_EDITOR_PASSWORD    && password === process.env.DEBRIEF_EDITOR_PASSWORD)    return res.json({ role: 'editor' });
+  if (password === DEBRIEF_PASSWORDS.presenter) return res.json({ role: 'presenter' });
+  if (password === DEBRIEF_PASSWORDS.viewer)    return res.json({ role: 'viewer' });
+  if (password === DEBRIEF_PASSWORDS.editor)    return res.json({ role: 'editor' });
   return res.json({ role: null });
 });
 
