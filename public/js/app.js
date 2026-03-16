@@ -126,6 +126,8 @@ const THEMES = [
   { id: 'rosewood', name: 'Rose & Ember',       preview: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)' },
   { id: 'ocean',    name: 'Deep Tide',          preview: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)' },
   { id: 'forest',   name: 'Enchanted Forest',   preview: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)' },
+  { id: 'arctic',   name: 'Arctic Aurora',      preview: 'linear-gradient(135deg,#070e1a,#43e8b1,#a48efa)' },
+  { id: 'sandstone',name: 'Sandstone Dusk',     preview: 'linear-gradient(135deg,#1a1410,#c4632a,#d4a843)' },
 ];
 
 // ── Socket ────────────────────────────────────────────────────────────
@@ -7215,6 +7217,29 @@ function startReminderChecker() {
 
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
+  {
+    version: '3.8.0',
+    date: 'Mar 16 2026',
+    intro: 'Two brand-new premium themes — Arctic Aurora and Sandstone Dusk. Each brings unique animations, layout changes, and a full sound profile.',
+    sections: [
+      { icon: '🧊', title: 'Arctic Aurora', items: [
+        { name: 'Living Aurora Borealis', desc: 'The sidebar has a slow-moving gradient animation that shifts through green, teal, and violet — like real northern lights.' },
+        { name: 'Frosted Crystal Cards', desc: 'Cards and modals use heavy glass blur with a pulsing ice-refraction border that shifts between aurora colors.' },
+        { name: 'Centered Chat Layout', desc: 'Messages are displayed in a focused 720px column centered in the chat area — a unique layout no other theme has.' },
+        { name: 'Ice-Crack Nav Borders', desc: 'Active nav items have a segmented multi-color border that looks like fracturing ice.' },
+        { name: 'Breathing Input Glow', desc: 'The message input pulses with a soft teal glow when focused, like breath in cold air.' },
+        { name: 'Crystalline Sound Profile', desc: 'High-pitched sine tones that shimmer like tapping crystal glasses — clean, precise, and icy.' },
+      ]},
+      { icon: '🏜️', title: 'Sandstone Dusk', items: [
+        { name: 'Heat Shimmer Effect', desc: 'A subtle mirage-like distortion at the top of the chat area, like desert heat haze rising off warm sand.' },
+        { name: 'Moroccan Pattern Borders', desc: 'Cards and profile cards have ornamental geometric borders built from repeating diagonal CSS gradients — rich and ornate.' },
+        { name: 'Golden Hour Header', desc: 'The app header has a warm animated gradient that slowly shifts from amber to sienna, like a frozen desert sunset.' },
+        { name: 'Warm Firelight Sidebar', desc: 'A faint warm radial glow emanates from the bottom of the sidebar, like ambient firelight.' },
+        { name: 'Carved Stone Bubbles', desc: 'Message bubbles have warm inset shadows and asymmetric rounding for a hand-carved sandstone feel.' },
+        { name: 'Singing Bowl Sounds', desc: 'Deep, warm triangle waves with rich resonance — like distant singing bowls in a desert courtyard.' },
+      ]},
+    ],
+  },
   {
     version: '3.7.0',
     date: 'Mar 13 2026',
