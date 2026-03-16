@@ -83,6 +83,8 @@
         songTitle: saved.songTitle || m.songTitle,
         songArtist: saved.songArtist || m.songArtist,
         spotifyTrackId: saved.spotifyTrackId || m.spotifyTrackId,
+        audioFile: saved.audioFile || '',
+        coverFile: saved.coverFile || '',
         photos: saved.photos || m.photos
       };
     });
@@ -173,15 +175,44 @@
         </div>
         <div class="month-right">
           <div class="reveal-item" data-reveal="6">
-            <div class="spotify-card" style="border:1px solid ${m.accentColor}66;box-shadow:0 0 20px ${m.accentColor}33">
-              <div class="spotify-embed" data-track-id="${m.spotifyTrackId}"></div>
+            <div class="vinyl-player" data-month="${m.id}" style="--player-accent:${m.accentColor}">
+              <div class="vinyl-player-disc ${m.audioFile ? 'has-audio' : ''}" id="disc-${m.id}">
+                <svg class="vinyl-player-svg" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="140" cy="140" r="138" fill="#111" stroke="${m.accentColor}44" stroke-width="1"/>
+                  <circle cx="140" cy="140" r="120" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
+                  <circle cx="140" cy="140" r="105" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
+                  <circle cx="140" cy="140" r="90" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
+                  <circle cx="140" cy="140" r="75" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
+                  <!-- Cover art clipped circle -->
+                  <defs>
+                    <clipPath id="cover-clip-${m.id}">
+                      <circle cx="140" cy="140" r="52"/>
+                    </clipPath>
+                  </defs>
+                  ${m.coverFile
+                    ? `<image href="/uploads/debrief/covers/${m.coverFile}" x="88" y="88" width="104" height="104" clip-path="url(#cover-clip-${m.id})" preserveAspectRatio="xMidYMid slice"/>`
+                    : `<circle cx="140" cy="140" r="52" fill="#1a1a1a"/>`
+                  }
+                  <circle cx="140" cy="140" r="6" fill="#0a0a0a"/>
+                  ${!m.coverFile ? `
+                  <text x="140" y="135" text-anchor="middle" font-family="Space Mono, monospace" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1.5">NOW PLAYING</text>
+                  <text x="140" y="148" text-anchor="middle" font-family="Space Mono, monospace" font-size="6" fill="rgba(255,255,255,0.25)">${m.trackNumber}</text>
+                  ` : ''}
+                </svg>
+                <button class="vinyl-play-btn" data-month="${m.id}" title="Play/Pause">
+                  <svg viewBox="0 0 24 24" class="play-icon"><polygon points="5,3 19,12 5,21" fill="white"/></svg>
+                  <svg viewBox="0 0 24 24" class="pause-icon" style="display:none"><rect x="5" y="3" width="4" height="18" fill="white"/><rect x="15" y="3" width="4" height="18" fill="white"/></svg>
+                </button>
+              </div>
+              <div class="vinyl-player-glow" style="background:radial-gradient(circle, ${m.accentColor}15 0%, transparent 70%)"></div>
             </div>
           </div>
           <div class="reveal-item" data-reveal="7">
-            <div class="spotify-song-info">
-              <div class="spotify-song-title editable" data-field="songTitle" data-month="${m.id}">${m.songTitle}</div>
-              <div class="spotify-song-artist editable" data-field="songArtist" data-month="${m.id}">${m.songArtist}</div>
-              <div class="spotify-song-caption editable" data-field="songCaption" data-month="${m.id}">${m.songCaption}</div>
+            <div class="song-info">
+              <div class="song-now-playing">NOW PLAYING</div>
+              <div class="song-title editable" data-field="songTitle" data-month="${m.id}">${m.songTitle}</div>
+              <div class="song-artist editable" data-field="songArtist" data-month="${m.id}">${m.songArtist}</div>
+              <div class="song-caption editable" data-field="songCaption" data-month="${m.id}">${m.songCaption}</div>
             </div>
           </div>
           <div class="reveal-item" data-reveal="8">
@@ -193,14 +224,18 @@
               <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic" data-month="${m.id}">
             </div>
           </div>
-          <div class="editor-only-fields" style="display:none; margin-top:12px; max-width:480px;">
-            <div class="settings-section">
-              <div class="settings-label">Spotify Track ID</div>
-              <input type="text" class="settings-input editable-input" data-field="spotifyTrackId" data-month="${m.id}" value="${m.spotifyTrackId}" placeholder="Spotify Track ID">
-            </div>
-            <div class="settings-section" style="margin-top:8px">
-              <div class="settings-label">BG Audio URL (auto-plays on this slide)</div>
-              <input type="text" class="settings-input editable-input bg-audio-input" data-month="${m.id}" value="${(config.months && config.months[m.id] && config.months[m.id].bgAudioUrl) || ''}" placeholder="https://example.com/song.mp3">
+          <div class="editor-only-fields" style="display:none; margin-top:16px; max-width:480px;">
+            <div class="editor-upload-row">
+              <div class="editor-upload-box">
+                <div class="settings-label">Audio File</div>
+                <button class="editor-upload-btn audio-upload-btn" data-month="${m.id}">${m.audioFile ? '✓ ' + m.audioFile : 'Upload MP3'}</button>
+                <input type="file" class="audio-file-input" data-month="${m.id}" accept=".mp3,.m4a,.ogg,.wav,.aac" style="display:none">
+              </div>
+              <div class="editor-upload-box">
+                <div class="settings-label">Cover Art</div>
+                <button class="editor-upload-btn cover-upload-btn" data-month="${m.id}">${m.coverFile ? '✓ ' + m.coverFile : 'Upload Cover'}</button>
+                <input type="file" class="cover-file-input" data-month="${m.id}" accept=".jpg,.jpeg,.png,.webp" style="display:none">
+              </div>
             </div>
           </div>
         </div>
@@ -490,27 +525,8 @@
     revealCounter.textContent = total > 0 ? `Step ${revealStep} / ${total}` : '';
   }
 
-  function loadSpotifyEmbed(slide) {
-    if (!slide) {
-      const slides = slidesContainer.querySelectorAll('.slide');
-      slide = slides[slideIndex];
-    }
-    if (!slide) return;
-    const embedContainer = slide.querySelector('.spotify-embed');
-    if (!embedContainer) return;
-    const trackId = embedContainer.dataset.trackId;
-    if (!trackId || embedContainer.querySelector('iframe')) return;
-
-    const iframe = document.createElement('iframe');
-    iframe.src = `https://open.spotify.com/embed/track/${trackId}?utm_source=generator&theme=0`;
-    iframe.width = '100%';
-    iframe.height = '152';
-    iframe.frameBorder = '0';
-    iframe.allow = 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture';
-    iframe.loading = 'lazy';
-    iframe.style.borderRadius = '8px';
-    embedContainer.appendChild(iframe);
-  }
+  // Spotify embed removed — using uploaded audio files with vinyl player instead
+  function loadSpotifyEmbed() { /* no-op */ }
 
   // --- Audio System ---
   function initGateAudio() {
@@ -580,27 +596,55 @@
     const monthIdx = slideIndex - 1;
     let bgUrl = '';
 
-    if (monthIdx >= 0 && monthIdx < 16 && config.months) {
+    // Check for uploaded audio file first
+    if (monthIdx >= 0 && monthIdx < 16) {
+      const m = months[monthIdx];
+      if (m.audioFile) {
+        bgUrl = `/uploads/debrief/audio/${m.audioFile}`;
+      }
+    }
+
+    // Fallback to config bg audio URL
+    if (!bgUrl && monthIdx >= 0 && monthIdx < 16 && config.months) {
       const mCfg = config.months[months[monthIdx].id];
       if (mCfg) bgUrl = mCfg.bgAudioUrl || '';
     }
 
     if (!bgUrl) {
       fadeAudioOut(slideAudio, 1000);
+      updateDiscSpinState(false);
       return;
     }
 
     // Don't restart same audio
-    if (slideAudio.src && slideAudio.src === bgUrl) return;
-    // Also check if src ends with bgUrl (relative vs absolute)
-    if (slideAudio.src && slideAudio.src.endsWith(bgUrl)) return;
+    if (slideAudio.src && slideAudio.src.endsWith(bgUrl.split('/').pop())) return;
 
     fadeAudioOut(slideAudio, 1000).then(() => {
       slideAudio.src = bgUrl;
       slideAudio.play().then(() => {
         fadeAudioIn(slideAudio, 0.35, 1000);
-      }).catch(() => {});
+        updateDiscSpinState(true);
+      }).catch(() => {
+        updateDiscSpinState(false);
+      });
     });
+  }
+
+  function updateDiscSpinState(playing) {
+    // Update vinyl disc spin for current slide
+    const monthIdx = slideIndex - 1;
+    if (monthIdx < 0 || monthIdx >= 16) return;
+    const monthId = months[monthIdx].id;
+    const disc = document.getElementById(`disc-${monthId}`);
+    if (disc) {
+      disc.classList.toggle('spinning', playing);
+    }
+    // Update play/pause button icons
+    const btn = disc && disc.querySelector('.vinyl-play-btn');
+    if (btn) {
+      btn.querySelector('.play-icon').style.display = playing ? 'none' : 'block';
+      btn.querySelector('.pause-icon').style.display = playing ? 'block' : 'none';
+    }
   }
 
   audioToggle.addEventListener('click', () => {
@@ -877,6 +921,64 @@
       refreshFilmstrip(monthId);
     });
 
+    // Audio file upload
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.audio-upload-btn');
+      if (btn) {
+        const input = btn.parentElement.querySelector('.audio-file-input');
+        if (input) input.click();
+      }
+    });
+    document.addEventListener('change', async (e) => {
+      if (!e.target.classList.contains('audio-file-input')) return;
+      const monthId = e.target.dataset.month;
+      const file = e.target.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('audio', file);
+      try {
+        const res = await fetch(`/api/debrief/upload-audio/${monthId}`, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.ok) {
+          const btn = e.target.parentElement.querySelector('.audio-upload-btn');
+          btn.textContent = '✓ ' + data.filename;
+          await loadContent();
+          mergeData();
+        }
+      } catch (err) { console.error('Audio upload failed:', err); }
+      e.target.value = '';
+    });
+
+    // Cover art upload
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.cover-upload-btn');
+      if (btn) {
+        const input = btn.parentElement.querySelector('.cover-file-input');
+        if (input) input.click();
+      }
+    });
+    document.addEventListener('change', async (e) => {
+      if (!e.target.classList.contains('cover-file-input')) return;
+      const monthId = e.target.dataset.month;
+      const file = e.target.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('cover', file);
+      try {
+        const res = await fetch(`/api/debrief/upload-cover/${monthId}`, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.ok) {
+          const btn = e.target.parentElement.querySelector('.cover-upload-btn');
+          btn.textContent = '✓ ' + data.filename;
+          await loadContent();
+          mergeData();
+          // Rebuild the vinyl disc SVG to show new cover
+          rebuildVinylDisc(monthId);
+        }
+      } catch (err) { console.error('Cover upload failed:', err); }
+      e.target.value = '';
+    });
+
     // Drag-and-drop
     document.addEventListener('dragover', (e) => {
       const zone = e.target.closest('.photo-upload-zone');
@@ -1030,6 +1132,65 @@
       console.error('Upload failed:', e);
     }
   }
+
+  function rebuildVinylDisc(monthId) {
+    const m = months.find(x => x.id === monthId);
+    if (!m) return;
+    const disc = document.getElementById(`disc-${monthId}`);
+    if (!disc) return;
+    const svg = disc.querySelector('.vinyl-player-svg');
+    if (!svg) return;
+    // Update the cover image in the SVG
+    const existingImg = svg.querySelector('image');
+    const existingPlaceholder = svg.querySelectorAll('text');
+    if (m.coverFile) {
+      if (existingImg) {
+        existingImg.setAttribute('href', `/uploads/debrief/covers/${m.coverFile}`);
+      } else {
+        // Remove placeholder circle and text, add image
+        const placeholderCircle = svg.querySelector('circle[r="52"][fill="#1a1a1a"]');
+        if (placeholderCircle) placeholderCircle.remove();
+        existingPlaceholder.forEach(t => t.remove());
+        const ns = 'http://www.w3.org/2000/svg';
+        const img = document.createElementNS(ns, 'image');
+        img.setAttribute('href', `/uploads/debrief/covers/${m.coverFile}`);
+        img.setAttribute('x', '88');
+        img.setAttribute('y', '88');
+        img.setAttribute('width', '104');
+        img.setAttribute('height', '104');
+        img.setAttribute('clip-path', `url(#cover-clip-${m.id})`);
+        img.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+        // Insert before the center hole circle
+        const hole = svg.querySelector('circle[r="6"]');
+        svg.insertBefore(img, hole);
+      }
+    }
+  }
+
+  // Play/pause button click handler (works for all roles)
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.vinyl-play-btn');
+    if (!btn) return;
+    const monthId = btn.dataset.month;
+    const m = months.find(x => x.id === monthId);
+    if (!m || !m.audioFile) return;
+
+    const audioUrl = `/uploads/debrief/audio/${m.audioFile}`;
+    if (!slideAudio.paused && slideAudio.src.endsWith(m.audioFile)) {
+      // Pause
+      slideAudio.pause();
+      updateDiscSpinState(false);
+    } else {
+      // Play
+      if (!slideAudio.src.endsWith(m.audioFile)) {
+        slideAudio.src = audioUrl;
+      }
+      slideAudio.play().then(() => {
+        fadeAudioIn(slideAudio, 0.35, 500);
+        updateDiscSpinState(true);
+      }).catch(() => {});
+    }
+  });
 
   function refreshFilmstrip(monthId) {
     const m = months.find(x => x.id === monthId);

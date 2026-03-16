@@ -344,28 +344,97 @@ html, body {
   flex-shrink: 0;
 }
 
-/* Spotify Card */
-.spotify-card {
-  background: #111111; border-radius: 12px;
-  padding: 16px; margin-bottom: 16px;
-  max-width: 480px;
+/* Vinyl Player */
+.vinyl-player {
+  position: relative;
+  max-width: 300px;
+  margin-bottom: 20px;
 }
-.spotify-card iframe {
-  width: 100%; height: 152px; border: 0; border-radius: 8px;
+.vinyl-player-disc {
+  position: relative;
+  width: 280px; height: 280px;
 }
-.spotify-song-info { margin-top: 12px; }
-.spotify-song-title {
-  font-family: 'DM Sans', sans-serif; font-weight: 500;
-  font-size: 15px; color: #fff;
+.vinyl-player-svg {
+  width: 100%; height: 100%;
+  filter: drop-shadow(0 0 30px var(--player-accent, rgba(255,255,255,0.1)));
 }
-.spotify-song-artist {
-  font-family: 'DM Sans', sans-serif; font-weight: 400;
-  font-size: 13px; color: rgba(255,255,255,0.5);
+.vinyl-player-disc.spinning .vinyl-player-svg {
+  animation: vinyl-spin 3s linear infinite;
 }
-.spotify-song-caption {
-  font-family: 'DM Sans', sans-serif; font-style: italic;
-  font-size: 13px; color: rgba(255,255,255,0.45);
+.vinyl-player-glow {
+  position: absolute; inset: -40px;
+  border-radius: 50%;
+  pointer-events: none; z-index: -1;
+}
+
+/* Play/Pause button overlay */
+.vinyl-play-btn {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px; height: 40px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s, background 0.2s;
+  z-index: 5;
+}
+.vinyl-player-disc:hover .vinyl-play-btn { opacity: 1; }
+.vinyl-play-btn:hover { background: rgba(0,0,0,0.7); }
+.vinyl-play-btn svg { width: 16px; height: 16px; }
+.vinyl-play-btn .play-icon { margin-left: 2px; }
+
+/* Song Info */
+.song-info {
+  max-width: 300px;
   margin-top: 4px;
+}
+.song-now-playing {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px; letter-spacing: 2px;
+  color: var(--accent, rgba(255,255,255,0.3));
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.song-title {
+  font-family: 'DM Sans', sans-serif; font-weight: 500;
+  font-size: 18px; color: #fff;
+  margin-bottom: 2px;
+}
+.song-artist {
+  font-family: 'DM Sans', sans-serif; font-weight: 400;
+  font-size: 14px; color: rgba(255,255,255,0.5);
+}
+.song-caption {
+  font-family: 'DM Sans', sans-serif; font-style: italic;
+  font-size: 13px; color: rgba(255,255,255,0.4);
+  margin-top: 6px;
+}
+
+/* Editor upload row */
+.editor-upload-row {
+  display: flex; gap: 12px;
+}
+.editor-upload-box {
+  flex: 1;
+}
+.editor-upload-btn {
+  width: 100%; padding: 8px 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px dashed rgba(255,200,100,0.25);
+  border-radius: 6px;
+  color: rgba(255,255,255,0.5);
+  font-family: 'Space Mono', monospace; font-size: 11px;
+  cursor: pointer; transition: all 0.2s;
+  text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+}
+.editor-upload-btn:hover {
+  background: rgba(255,200,100,0.08);
+  border-color: rgba(255,200,100,0.4);
+  color: rgba(255,255,255,0.7);
 }
 
 /* Photo Filmstrip */
