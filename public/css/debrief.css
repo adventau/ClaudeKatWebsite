@@ -157,42 +157,49 @@ html, body {
 
 .slide {
   position: absolute; inset: 0;
-  display: flex;
-  opacity: 0; pointer-events: none;
+  display: none;
+  opacity: 1;
+  transform: translateX(0);
   will-change: transform, opacity;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .slide.active {
-  opacity: 1; pointer-events: auto;
+  display: flex;
   z-index: 2;
 }
 
 /* Slide transitions */
 .slide.slide-enter-right {
+  display: flex;
   animation: slideEnterRight 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 .slide.slide-exit-left {
+  display: flex;
   animation: slideExitLeft 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  pointer-events: none;
+  pointer-events: none; z-index: 1;
 }
 .slide.slide-enter-left {
+  display: flex;
   animation: slideEnterLeft 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 .slide.slide-exit-right {
+  display: flex;
   animation: slideExitRight 0.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  pointer-events: none;
+  pointer-events: none; z-index: 1;
 }
 
 @keyframes slideEnterRight {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
 }
 @keyframes slideExitLeft {
   from { transform: translateX(0) scale(1); opacity: 1; }
   to { transform: translateX(-100%) scale(0.96); opacity: 0; }
 }
 @keyframes slideEnterLeft {
-  from { transform: translateX(-100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
 }
 @keyframes slideExitRight {
   from { transform: translateX(0) scale(1); opacity: 1; }
@@ -269,10 +276,12 @@ html, body {
 }
 
 .month-left {
-  width: 40%; height: 100%;
+  width: 40%; min-height: 100%;
   padding: 60px 40px 40px 48px;
   display: flex; flex-direction: column; justify-content: center;
   position: relative; z-index: 2;
+  overflow-y: auto; overflow-x: hidden;
+  flex-shrink: 0;
 }
 
 .month-track-label {
@@ -327,10 +336,12 @@ html, body {
 }
 
 .month-right {
-  width: 60%; height: 100%;
+  width: 60%; min-height: 100%;
   padding: 60px 48px 40px 40px;
   display: flex; flex-direction: column; justify-content: center;
   position: relative; z-index: 2;
+  overflow-y: auto; overflow-x: hidden;
+  flex-shrink: 0;
 }
 
 /* Spotify Card */
@@ -411,7 +422,8 @@ html, body {
   flex-direction: column; align-items: center;
   background: #000000;
   padding: 60px 80px;
-  overflow-y: auto;
+  overflow-y: auto !important;
+  overflow-x: hidden;
 }
 
 .debrief-particles {
@@ -649,6 +661,8 @@ html, body {
   backdrop-filter: blur(8px);
 }
 .editor-mode .edit-toolbar { display: flex; }
+.editor-mode .slides-container { top: 44px; }
+.editor-mode .slide { top: 0; }
 
 .edit-toolbar-badge {
   font-family: 'Space Mono', monospace; font-size: 10px;
