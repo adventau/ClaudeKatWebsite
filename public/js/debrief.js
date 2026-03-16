@@ -140,7 +140,7 @@
       const slide = document.createElement('div');
       slide.className = 'slide slide-month';
       slide.dataset.slideIndex = String(i + 1);
-      slide.dataset.totalReveals = '8';
+      slide.dataset.totalReveals = '7';
       slide.dataset.monthId = m.id;
       slide.style.background = accentBg(m.accentColor);
       slide.style.setProperty('--accent', m.accentColor);
@@ -175,56 +175,46 @@
         </div>
         <div class="month-right">
           <div class="reveal-item" data-reveal="6">
-            <div class="vinyl-player" data-month="${m.id}" style="--player-accent:${m.accentColor}">
-              <div class="vinyl-player-disc ${m.audioFile ? 'has-audio' : ''}" id="disc-${m.id}">
-                <svg class="vinyl-player-svg" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="140" cy="140" r="138" fill="#111" stroke="${m.accentColor}44" stroke-width="1"/>
-                  <circle cx="140" cy="140" r="120" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
-                  <circle cx="140" cy="140" r="105" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
-                  <circle cx="140" cy="140" r="90" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
-                  <circle cx="140" cy="140" r="75" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
-                  <!-- Cover art clipped circle -->
-                  <defs>
-                    <clipPath id="cover-clip-${m.id}">
-                      <circle cx="140" cy="140" r="52"/>
-                    </clipPath>
-                  </defs>
-                  ${m.coverFile
-                    ? `<image href="/uploads/debrief/covers/${m.coverFile}" x="88" y="88" width="104" height="104" clip-path="url(#cover-clip-${m.id})" preserveAspectRatio="xMidYMid slice"/>`
-                    : `<circle cx="140" cy="140" r="52" fill="#1a1a1a"/>`
-                  }
-                  <circle cx="140" cy="140" r="6" fill="#0a0a0a"/>
-                  ${!m.coverFile ? `
-                  <text x="140" y="135" text-anchor="middle" font-family="Space Mono, monospace" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1.5">NOW PLAYING</text>
-                  <text x="140" y="148" text-anchor="middle" font-family="Space Mono, monospace" font-size="6" fill="rgba(255,255,255,0.25)">${m.trackNumber}</text>
-                  ` : ''}
-                </svg>
-                <button class="vinyl-play-btn" data-month="${m.id}" title="Play/Pause">
-                  <svg viewBox="0 0 24 24" class="play-icon"><polygon points="5,3 19,12 5,21" fill="white"/></svg>
-                  <svg viewBox="0 0 24 24" class="pause-icon" style="display:none"><rect x="5" y="3" width="4" height="18" fill="white"/><rect x="15" y="3" width="4" height="18" fill="white"/></svg>
-                </button>
+            <div class="month-right-player-row">
+              <div class="vinyl-player" data-month="${m.id}" style="--player-accent:${m.accentColor}">
+                <div class="vinyl-player-disc ${m.audioFile ? 'has-audio' : ''}" id="disc-${m.id}">
+                  <svg class="vinyl-player-svg" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="140" cy="140" r="138" fill="#111" stroke="${m.accentColor}44" stroke-width="1"/>
+                    <circle cx="140" cy="140" r="120" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
+                    <circle cx="140" cy="140" r="105" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
+                    <circle cx="140" cy="140" r="90" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
+                    <circle cx="140" cy="140" r="75" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
+                    <defs>
+                      <clipPath id="cover-clip-${m.id}">
+                        <circle cx="140" cy="140" r="52"/>
+                      </clipPath>
+                    </defs>
+                    ${m.coverFile
+                      ? `<image href="/uploads/debrief/covers/${m.coverFile}" x="88" y="88" width="104" height="104" clip-path="url(#cover-clip-${m.id})" preserveAspectRatio="xMidYMid slice"/>`
+                      : `<circle cx="140" cy="140" r="52" fill="#1a1a1a"/>`
+                    }
+                    <circle cx="140" cy="140" r="6" fill="#0a0a0a"/>
+                    ${!m.coverFile ? `
+                    <text x="140" y="135" text-anchor="middle" font-family="Space Mono, monospace" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1.5">NOW PLAYING</text>
+                    <text x="140" y="148" text-anchor="middle" font-family="Space Mono, monospace" font-size="6" fill="rgba(255,255,255,0.25)">${m.trackNumber}</text>
+                    ` : ''}
+                  </svg>
+                  <button class="vinyl-play-btn" data-month="${m.id}" title="Play/Pause">
+                    <svg viewBox="0 0 24 24" class="play-icon"><polygon points="5,3 19,12 5,21" fill="white"/></svg>
+                    <svg viewBox="0 0 24 24" class="pause-icon" style="display:none"><rect x="5" y="3" width="4" height="18" fill="white"/><rect x="15" y="3" width="4" height="18" fill="white"/></svg>
+                  </button>
+                </div>
+                <div class="vinyl-player-glow" style="background:radial-gradient(circle, ${m.accentColor}15 0%, transparent 70%)"></div>
               </div>
-              <div class="vinyl-player-glow" style="background:radial-gradient(circle, ${m.accentColor}15 0%, transparent 70%)"></div>
+              <div class="song-info">
+                <div class="song-now-playing">NOW PLAYING</div>
+                <div class="song-title editable" data-field="songTitle" data-month="${m.id}">${m.songTitle}</div>
+                <div class="song-artist editable" data-field="songArtist" data-month="${m.id}">${m.songArtist}</div>
+                <div class="song-caption editable" data-field="songCaption" data-month="${m.id}">${m.songCaption}</div>
+              </div>
             </div>
           </div>
-          <div class="reveal-item" data-reveal="7">
-            <div class="song-info">
-              <div class="song-now-playing">NOW PLAYING</div>
-              <div class="song-title editable" data-field="songTitle" data-month="${m.id}">${m.songTitle}</div>
-              <div class="song-artist editable" data-field="songArtist" data-month="${m.id}">${m.songArtist}</div>
-              <div class="song-caption editable" data-field="songCaption" data-month="${m.id}">${m.songCaption}</div>
-            </div>
-          </div>
-          <div class="reveal-item" data-reveal="8">
-            <div class="photo-filmstrip" id="filmstrip-${m.id}">
-              ${buildFilmstrip(m)}
-            </div>
-            <div class="photo-upload-zone" id="upload-zone-${m.id}">
-              <p>Drop photos here or click to upload</p>
-              <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic" data-month="${m.id}">
-            </div>
-          </div>
-          <div class="editor-only-fields" style="max-width:480px;">
+          <div class="editor-only-fields">
             <div class="editor-upload-row">
               <div class="editor-upload-box">
                 <div class="settings-label">Song Audio</div>
@@ -236,6 +226,15 @@
                 <button class="editor-upload-btn cover-upload-btn ${m.coverFile ? 'has-file' : ''}" data-month="${m.id}">${m.coverFile ? '✓ ' + m.coverFile : '↑ Upload Image'}</button>
                 <input type="file" class="cover-file-input" data-month="${m.id}" accept=".jpg,.jpeg,.png,.webp" style="display:none">
               </div>
+            </div>
+          </div>
+          <div class="reveal-item" data-reveal="7">
+            <div class="photo-filmstrip" id="filmstrip-${m.id}">
+              ${buildFilmstrip(m)}
+            </div>
+            <div class="photo-upload-zone" id="upload-zone-${m.id}">
+              <p>Drop photos here or click to upload</p>
+              <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic" data-month="${m.id}">
             </div>
           </div>
         </div>
