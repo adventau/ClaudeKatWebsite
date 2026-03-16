@@ -622,6 +622,16 @@
       --accent: #52b788; --accent2: #95d5b2; --text: #e8ead3; --muted: rgba(232,234,211,0.45);
       --glow: rgba(92,184,138,0.22); --msg-self: linear-gradient(135deg,#2d6a4f,#52b788);
     }
+    body.host-theme-arctic {
+      --bg: #070e1a; --surface: #0a1225; --border: rgba(67,232,177,0.15);
+      --accent: #43e8b1; --accent2: #7bc8f6; --text: #d8e8f4; --muted: rgba(216,232,244,0.45);
+      --glow: rgba(67,232,177,0.2); --msg-self: linear-gradient(135deg,#1a6b5a,#145848);
+    }
+    body.host-theme-sandstone {
+      --bg: #1a1410; --surface: #161110; --border: rgba(212,168,67,0.18);
+      --accent: #c4632a; --accent2: #d4a843; --text: #e8ddd0; --muted: rgba(232,221,208,0.45);
+      --glow: rgba(196,99,42,0.2); --msg-self: linear-gradient(135deg,#c4632a,#a8522a);
+    }
 
     /* ── Guest Profile Viewer ──────────────────────────────── */
     .guest-profile-overlay {
@@ -1556,7 +1566,7 @@
   function setGuestTheme(theme) {
     currentGuestTheme = theme;
     sessionStorage.setItem('guestTheme', theme);
-    document.body.classList.remove('light-theme', 'host-theme-kaliph', 'host-theme-kathrine', 'host-theme-royal', 'host-theme-heaven', 'host-theme-neon', 'host-theme-noir', 'host-theme-dark', 'host-theme-light', 'host-theme-rosewood', 'host-theme-ocean', 'host-theme-forest');
+    document.body.classList.remove('light-theme', 'host-theme-kaliph', 'host-theme-kathrine', 'host-theme-royal', 'host-theme-heaven', 'host-theme-neon', 'host-theme-noir', 'host-theme-dark', 'host-theme-light', 'host-theme-rosewood', 'host-theme-ocean', 'host-theme-forest', 'host-theme-arctic', 'host-theme-sandstone');
     if (theme === 'light') {
       document.body.classList.add('light-theme');
     } else if (theme === 'host') {

@@ -126,6 +126,8 @@ const THEMES = [
   { id: 'rosewood', name: 'Rose & Ember',       preview: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)' },
   { id: 'ocean',    name: 'Deep Tide',          preview: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)' },
   { id: 'forest',   name: 'Enchanted Forest',   preview: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)' },
+  { id: 'arctic',   name: 'Arctic Aurora',      preview: 'linear-gradient(135deg,#070e1a,#43e8b1,#a48efa)' },
+  { id: 'sandstone',name: 'Sandstone Dusk',     preview: 'linear-gradient(135deg,#1a1410,#c4632a,#d4a843)' },
 ];
 
 // ── Socket ────────────────────────────────────────────────────────────
