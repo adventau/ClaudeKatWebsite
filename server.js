@@ -3550,18 +3550,70 @@ const debriefUpload = multer({
   }
 });
 
-function readDebriefContent() {
-  try { return fs.existsSync(DEBRIEF_CONTENT_FILE) ? JSON.parse(fs.readFileSync(DEBRIEF_CONTENT_FILE, 'utf8')) : {}; } catch { return {}; }
-}
+// In-memory cache for debrief data (loaded from DB on startup)
+let _debriefContent = {};
+let _debriefConfig = {};
+let _debriefFilesCache = {}; // { 'audio/sep-2024.mp3': Buffer, ... }
+
+function readDebriefContent() { return _debriefContent; }
 function writeDebriefContent(data) {
-  try { fs.writeFileSync(DEBRIEF_CONTENT_FILE, JSON.stringify(data, null, 2)); } catch (e) { console.error('[debrief] write content error:', e.message); }
+  _debriefContent = data;
+  // Persist to file (local dev) + DB (production)
+  try { fs.writeFileSync(DEBRIEF_CONTENT_FILE, JSON.stringify(data, null, 2)); } catch {}
+  db.write('debrief-content', data).catch(e => console.error('[debrief] db write content:', e.message));
 }
-function readDebriefConfig() {
-  try { return fs.existsSync(DEBRIEF_CONFIG_FILE) ? JSON.parse(fs.readFileSync(DEBRIEF_CONFIG_FILE, 'utf8')) : {}; } catch { return {}; }
-}
+function readDebriefConfig() { return _debriefConfig; }
 function writeDebriefConfig(data) {
-  try { fs.writeFileSync(DEBRIEF_CONFIG_FILE, JSON.stringify(data, null, 2)); } catch (e) { console.error('[debrief] write config error:', e.message); }
+  _debriefConfig = data;
+  try { fs.writeFileSync(DEBRIEF_CONFIG_FILE, JSON.stringify(data, null, 2)); } catch {}
+  db.write('debrief-config', data).catch(e => console.error('[debrief] db write config:', e.message));
 }
+
+// Store a file in DB as base64 for persistence across deploys
+async function storeDebriefFile(filePath, buffer) {
+  const base64 = buffer.toString('base64');
+  await db.write(`debrief-file:${filePath}`, { data: base64, size: buffer.length });
+  _debriefFilesCache[filePath] = buffer;
+}
+
+// Restore all debrief files from DB to disk on startup
+async function restoreDebriefFiles() {
+  try {
+    if (!db.pool) return;
+    const result = await db.query("SELECT key, value FROM data_store WHERE key LIKE 'debrief-file:%'");
+    for (const row of result.rows) {
+      const filePath = row.key.replace('debrief-file:', '');
+      const { data } = JSON.parse(row.value);
+      const fullPath = path.join(DEBRIEF_UPLOADS_DIR, filePath);
+      fs.ensureDirSync(path.dirname(fullPath));
+      fs.writeFileSync(fullPath, Buffer.from(data, 'base64'));
+      console.log(`[debrief] Restored file: ${filePath}`);
+    }
+  } catch (e) {
+    console.error('[debrief] Error restoring files:', e.message);
+  }
+}
+
+// Load debrief data from DB on startup
+async function initDebriefData() {
+  try {
+    if (db.pool) {
+      const content = await db.read('debrief-content');
+      if (content) _debriefContent = content;
+      const config = await db.read('debrief-config');
+      if (config) _debriefConfig = config;
+      await restoreDebriefFiles();
+      console.log('[debrief] Data loaded from database');
+    } else {
+      // Fallback to file
+      _debriefContent = fs.existsSync(DEBRIEF_CONTENT_FILE) ? JSON.parse(fs.readFileSync(DEBRIEF_CONTENT_FILE, 'utf8')) : {};
+      _debriefConfig = fs.existsSync(DEBRIEF_CONFIG_FILE) ? JSON.parse(fs.readFileSync(DEBRIEF_CONFIG_FILE, 'utf8')) : {};
+    }
+  } catch (e) {
+    console.error('[debrief] Init error:', e.message);
+  }
+}
+initDebriefData();
 
 // Debrief passwords (env vars with hard-coded defaults)
 const DEBRIEF_PASSWORDS = {
@@ -3616,6 +3668,11 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), (req
   const newFiles = (req.files || []).map(f => f.filename);
   content.months[monthId].photos.push(...newFiles);
   writeDebriefContent(content);
+  // Persist photos to DB
+  for (const f of (req.files || [])) {
+    const buf = fs.readFileSync(f.path);
+    storeDebriefFile(`${monthId}/${f.filename}`, buf).catch(e => console.error('[debrief] DB store photo:', e.message));
+  }
   res.json({ ok: true, files: newFiles });
 });
 
@@ -3650,6 +3707,9 @@ app.post('/api/debrief/upload-audio/:monthId', (req, res) => {
         if (!content.months[monthId]) content.months[monthId] = {};
         content.months[monthId].audioFile = req.file.filename;
         writeDebriefContent(content);
+        // Persist file to DB so it survives deploys
+        const fileBuffer = fs.readFileSync(req.file.path);
+        storeDebriefFile(`audio/${req.file.filename}`, fileBuffer).catch(e => console.error('[debrief] DB store audio:', e.message));
         res.json({ ok: true, filename: req.file.filename });
       } catch (innerErr) {
         console.error('Audio upload handler error:', innerErr);
@@ -3693,6 +3753,9 @@ app.post('/api/debrief/upload-cover/:monthId', (req, res) => {
         if (!content.months[monthId]) content.months[monthId] = {};
         content.months[monthId].coverFile = req.file.filename;
         writeDebriefContent(content);
+        // Persist file to DB so it survives deploys
+        const fileBuffer = fs.readFileSync(req.file.path);
+        storeDebriefFile(`covers/${req.file.filename}`, fileBuffer).catch(e => console.error('[debrief] DB store cover:', e.message));
         res.json({ ok: true, filename: req.file.filename });
       } catch (innerErr) {
         console.error('Cover upload handler error:', innerErr);
@@ -3710,9 +3773,12 @@ app.delete('/api/debrief/photo', (req, res) => {
   const { monthId, filename } = req.body;
   if (!monthId || !filename) return res.status(400).json({ error: 'Missing monthId or filename' });
 
-  // Delete file
+  // Delete file from disk
   const filePath = path.join(DEBRIEF_UPLOADS_DIR, monthId, filename);
   try { fs.removeSync(filePath); } catch {}
+
+  // Delete from DB
+  db.query("DELETE FROM data_store WHERE key = $1", [`debrief-file:${monthId}/${filename}`]).catch(() => {});
 
   // Remove from content JSON
   const content = readDebriefContent();

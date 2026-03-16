@@ -303,13 +303,15 @@ html, body {
   white-space: nowrap;
 }
 
-/* Reveal items */
+/* Reveal items — collapse when not revealed so they don't create gaps */
 .reveal-item {
   opacity: 0; transform: translateY(12px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
+  max-height: 0; overflow: hidden;
+  transition: opacity 0.5s ease, transform 0.5s ease, max-height 0.5s ease;
 }
 .reveal-item.revealed {
   opacity: 1; transform: translateY(0);
+  max-height: 800px; overflow: visible;
 }
 
 .month-vibe {
@@ -320,10 +322,13 @@ html, body {
 
 .month-mood-tag {
   display: inline-block;
-  align-self: flex-start;
   font-family: 'Space Mono', monospace; font-size: 11px;
   padding: 4px 12px; border-radius: 20px;
   margin-bottom: 24px;
+}
+/* Keep mood tag left-aligned inside its reveal-item wrapper */
+.reveal-item:has(.month-mood-tag) {
+  text-align: left;
 }
 
 .month-section-label {
