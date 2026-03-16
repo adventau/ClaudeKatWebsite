@@ -1,4 +1,13 @@
 require('dotenv').config();
+
+// Prevent server crashes from unhandled errors
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err.message, err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -3515,6 +3524,8 @@ const DEBRIEF_CONTENT_FILE = path.join(DATA_DIR, 'debrief-content.json');
 const DEBRIEF_CONFIG_FILE  = path.join(DATA_DIR, 'debrief-config.json');
 const DEBRIEF_UPLOADS_DIR  = path.join(__dirname, 'uploads', 'debrief');
 fs.ensureDirSync(DEBRIEF_UPLOADS_DIR);
+fs.ensureDirSync(path.join(DEBRIEF_UPLOADS_DIR, 'audio'));
+fs.ensureDirSync(path.join(DEBRIEF_UPLOADS_DIR, 'covers'));
 
 // Serve uploaded debrief photos
 app.use('/uploads/debrief', express.static(DEBRIEF_UPLOADS_DIR));
@@ -3611,76 +3622,87 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), (req
 // POST /api/debrief/upload-audio/:monthId — upload audio file for a month
 const debriefAudioStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    const audioDir = path.join(DEBRIEF_UPLOADS_DIR, 'audio');
-    fs.ensureDirSync(audioDir);
-    cb(null, audioDir);
+    cb(null, path.join(DEBRIEF_UPLOADS_DIR, 'audio'));
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `${req.params.monthId}${ext}`);
   }
 });
 const debriefAudioUpload = multer({
   storage: debriefAudioStorage,
-  fileFilter: (_req, file, cb) => {
-    const allowed = /mp3|m4a|ogg|wav|aac|webm/i;
-    cb(null, allowed.test(path.extname(file.originalname)));
-  },
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB max
+  limits: { fileSize: 20 * 1024 * 1024 } // 20MB max
 });
 
 app.post('/api/debrief/upload-audio/:monthId', (req, res) => {
-  debriefAudioUpload.single('audio')(req, res, (err) => {
-    if (err) {
-      console.error('Audio upload multer error:', err);
-      return res.status(400).json({ error: err.message || 'Upload failed' });
-    }
-    if (!req.file) return res.status(400).json({ error: 'No audio file received' });
-    const { monthId } = req.params;
-    const content = readDebriefContent();
-    if (!content.months) content.months = {};
-    if (!content.months[monthId]) content.months[monthId] = {};
-    content.months[monthId].audioFile = req.file.filename;
-    writeDebriefContent(content);
-    res.json({ ok: true, filename: req.file.filename });
-  });
+  try {
+    debriefAudioUpload.single('audio')(req, res, (err) => {
+      try {
+        if (err) {
+          console.error('Audio upload multer error:', err.message);
+          return res.status(400).json({ error: err.message || 'Upload failed' });
+        }
+        if (!req.file) return res.status(400).json({ error: 'No audio file received. Supported: mp3, m4a, ogg, wav' });
+        const { monthId } = req.params;
+        console.log(`Audio uploaded: ${req.file.filename} for ${monthId} (${req.file.size} bytes)`);
+        const content = readDebriefContent();
+        if (!content.months) content.months = {};
+        if (!content.months[monthId]) content.months[monthId] = {};
+        content.months[monthId].audioFile = req.file.filename;
+        writeDebriefContent(content);
+        res.json({ ok: true, filename: req.file.filename });
+      } catch (innerErr) {
+        console.error('Audio upload handler error:', innerErr);
+        if (!res.headersSent) res.status(500).json({ error: 'Server error during upload' });
+      }
+    });
+  } catch (outerErr) {
+    console.error('Audio upload outer error:', outerErr);
+    if (!res.headersSent) res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // POST /api/debrief/upload-cover/:monthId — upload cover art for a month
 const debriefCoverStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    const coverDir = path.join(DEBRIEF_UPLOADS_DIR, 'covers');
-    fs.ensureDirSync(coverDir);
-    cb(null, coverDir);
+    cb(null, path.join(DEBRIEF_UPLOADS_DIR, 'covers'));
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `${req.params.monthId}${ext}`);
   }
 });
 const debriefCoverUpload = multer({
   storage: debriefCoverStorage,
-  fileFilter: (_req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp/i;
-    cb(null, allowed.test(path.extname(file.originalname)));
-  }
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB max
 });
 
 app.post('/api/debrief/upload-cover/:monthId', (req, res) => {
-  debriefCoverUpload.single('cover')(req, res, (err) => {
-    if (err) {
-      console.error('Cover upload multer error:', err);
-      return res.status(400).json({ error: err.message || 'Upload failed' });
-    }
-    if (!req.file) return res.status(400).json({ error: 'No cover file received' });
-    const { monthId } = req.params;
-    const content = readDebriefContent();
-    if (!content.months) content.months = {};
-    if (!content.months[monthId]) content.months[monthId] = {};
-    content.months[monthId].coverFile = req.file.filename;
-    writeDebriefContent(content);
-    res.json({ ok: true, filename: req.file.filename });
-  });
+  try {
+    debriefCoverUpload.single('cover')(req, res, (err) => {
+      try {
+        if (err) {
+          console.error('Cover upload multer error:', err.message);
+          return res.status(400).json({ error: err.message || 'Upload failed' });
+        }
+        if (!req.file) return res.status(400).json({ error: 'No cover file received' });
+        const { monthId } = req.params;
+        console.log(`Cover uploaded: ${req.file.filename} for ${monthId} (${req.file.size} bytes)`);
+        const content = readDebriefContent();
+        if (!content.months) content.months = {};
+        if (!content.months[monthId]) content.months[monthId] = {};
+        content.months[monthId].coverFile = req.file.filename;
+        writeDebriefContent(content);
+        res.json({ ok: true, filename: req.file.filename });
+      } catch (innerErr) {
+        console.error('Cover upload handler error:', innerErr);
+        if (!res.headersSent) res.status(500).json({ error: 'Server error during upload' });
+      }
+    });
+  } catch (outerErr) {
+    console.error('Cover upload outer error:', outerErr);
+    if (!res.headersSent) res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // DELETE /api/debrief/photo — delete a specific photo
