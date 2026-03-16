@@ -808,21 +808,21 @@ html, body {
 }
 .edit-toolbar-spacer { flex: 1; }
 
-/* Editable fields */
+/* Editable fields — subtle until hovered */
 .editor-mode .editable {
   cursor: text; position: relative;
-  border: 1px dashed rgba(255,200,100,0.15);
-  padding: 4px 6px; margin: -4px -6px;
-  border-radius: 4px;
+  border: none;
+  border-bottom: 1px solid transparent;
+  padding: 2px 4px; margin: -2px -4px;
+  border-radius: 2px;
   transition: border-color 0.2s, background 0.2s;
 }
 .editor-mode .editable:hover {
-  border-color: rgba(255,200,100,0.4);
-  background: rgba(255,200,100,0.03);
+  border-bottom-color: rgba(255,200,100,0.3);
 }
 .editor-mode .editable:focus {
-  border-color: rgba(255,200,100,0.6);
-  outline: none; background: rgba(255,200,100,0.06);
+  border-bottom-color: rgba(255,200,100,0.6);
+  outline: none; background: rgba(255,200,100,0.04);
 }
 /* Editor section labels for upload areas */
 .editor-only-fields .settings-label {

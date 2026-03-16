@@ -3629,15 +3629,21 @@ const debriefAudioUpload = multer({
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB max
 });
 
-app.post('/api/debrief/upload-audio/:monthId', debriefAudioUpload.single('audio'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No audio file' });
-  const { monthId } = req.params;
-  const content = readDebriefContent();
-  if (!content.months) content.months = {};
-  if (!content.months[monthId]) content.months[monthId] = {};
-  content.months[monthId].audioFile = req.file.filename;
-  writeDebriefContent(content);
-  res.json({ ok: true, filename: req.file.filename });
+app.post('/api/debrief/upload-audio/:monthId', (req, res) => {
+  debriefAudioUpload.single('audio')(req, res, (err) => {
+    if (err) {
+      console.error('Audio upload multer error:', err);
+      return res.status(400).json({ error: err.message || 'Upload failed' });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No audio file received' });
+    const { monthId } = req.params;
+    const content = readDebriefContent();
+    if (!content.months) content.months = {};
+    if (!content.months[monthId]) content.months[monthId] = {};
+    content.months[monthId].audioFile = req.file.filename;
+    writeDebriefContent(content);
+    res.json({ ok: true, filename: req.file.filename });
+  });
 });
 
 // POST /api/debrief/upload-cover/:monthId — upload cover art for a month
@@ -3660,15 +3666,21 @@ const debriefCoverUpload = multer({
   }
 });
 
-app.post('/api/debrief/upload-cover/:monthId', debriefCoverUpload.single('cover'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No cover file' });
-  const { monthId } = req.params;
-  const content = readDebriefContent();
-  if (!content.months) content.months = {};
-  if (!content.months[monthId]) content.months[monthId] = {};
-  content.months[monthId].coverFile = req.file.filename;
-  writeDebriefContent(content);
-  res.json({ ok: true, filename: req.file.filename });
+app.post('/api/debrief/upload-cover/:monthId', (req, res) => {
+  debriefCoverUpload.single('cover')(req, res, (err) => {
+    if (err) {
+      console.error('Cover upload multer error:', err);
+      return res.status(400).json({ error: err.message || 'Upload failed' });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No cover file received' });
+    const { monthId } = req.params;
+    const content = readDebriefContent();
+    if (!content.months) content.months = {};
+    if (!content.months[monthId]) content.months[monthId] = {};
+    content.months[monthId].coverFile = req.file.filename;
+    writeDebriefContent(content);
+    res.json({ ok: true, filename: req.file.filename });
+  });
 });
 
 // DELETE /api/debrief/photo — delete a specific photo
