@@ -792,6 +792,173 @@
         transparent 90%, rgba(212,175,55,0.1) 90%, rgba(212,175,55,0.1) 90.5%, transparent 90.5%);
     }
 
+    /* ── T12: Arctic Aurora — Glacial navy, aurora borealis green/violet, frosted glass ── */
+    .theme-arctic {
+      background: linear-gradient(160deg, #0a1628 0%, #0d1f3a 35%, #0b1830 65%, #071020 100%);
+      border-color: rgba(67,232,177,0.2);
+    }
+    .theme-arctic:hover {
+      transform: translateY(-12px) scale(1.04);
+      box-shadow:
+        0 20px 60px rgba(67,232,177,0.3),
+        0 0 80px rgba(164,142,250,0.15),
+        0 0 120px rgba(67,232,177,0.08),
+        inset 0 1px 0 rgba(67,232,177,0.2);
+      border-color: rgba(67,232,177,0.5);
+    }
+    /* Aurora gradient sweep */
+    .theme-arctic::before {
+      background: linear-gradient(
+        135deg,
+        transparent 20%,
+        rgba(67,232,177,0.15) 35%,
+        rgba(164,142,250,0.12) 50%,
+        rgba(67,232,177,0.1) 65%,
+        transparent 80%
+      );
+      background-size: 300% 300%;
+    }
+    .theme-arctic:hover::before { opacity: 1; animation: arctic-card-aurora 3s ease-in-out infinite; }
+    /* Frosted ice particle dots */
+    .theme-arctic::after {
+      background-image:
+        radial-gradient(1.5px 1.5px at 20% 25%, rgba(67,232,177,0.6), transparent),
+        radial-gradient(1px 1px at 70% 18%, rgba(164,142,250,0.5), transparent),
+        radial-gradient(2px 2px at 45% 65%, rgba(109,213,192,0.5), transparent),
+        radial-gradient(1px 1px at 80% 50%, rgba(67,232,177,0.4), transparent),
+        radial-gradient(1.5px 1.5px at 30% 80%, rgba(164,142,250,0.45), transparent),
+        radial-gradient(1px 1px at 60% 85%, rgba(67,232,177,0.35), transparent);
+      background-size: 100% 100%;
+    }
+    .theme-arctic:hover::after { opacity: 1; animation: sparkle-drift 4s ease-in-out infinite; }
+    .theme-arctic .card-glow { background: radial-gradient(circle, rgba(67,232,177,0.5) 0%, rgba(164,142,250,0.2) 40%, transparent 70%); filter: blur(50px); }
+    .theme-arctic .card-avatar {
+      background: linear-gradient(135deg, #43e8b1, #a48efa);
+      border-color: rgba(67,232,177,0.5);
+      box-shadow: 0 0 20px rgba(67,232,177,0.5), 0 0 40px rgba(164,142,250,0.15);
+    }
+    .theme-arctic:hover .card-avatar {
+      transform: scale(1.12);
+      box-shadow: 0 0 30px rgba(67,232,177,0.7), 0 0 60px rgba(164,142,250,0.3), 0 0 80px rgba(67,232,177,0.15);
+    }
+    .theme-arctic .card-name {
+      font-family: 'Rajdhani', sans-serif; font-size: 1.7rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      background: linear-gradient(135deg, #43e8b1, #6dd5c0, #a48efa);
+      -webkit-background-clip: text; background-clip: text;
+    }
+    .theme-arctic:hover .card-name { letter-spacing: 0.14em; transform: scale(1.05); }
+    .theme-arctic .card-theme-label { color: rgba(67,232,177,0.6); font-family: 'Rajdhani', sans-serif; letter-spacing: 0.1em; }
+    .theme-arctic .card-enter-hint { font-family: 'Rajdhani', sans-serif; color: rgba(67,232,177,0.5); letter-spacing: 0.15em; }
+    .theme-arctic .card-badge { font-family: 'Rajdhani', sans-serif; font-size: 0.6rem; letter-spacing: 0.12em; color: rgba(67,232,177,0.7); border: 1px solid rgba(67,232,177,0.25); }
+    .theme-arctic:hover .card-badge { box-shadow: 0 0 12px rgba(67,232,177,0.3); }
+    .theme-arctic .card-circuit {
+      background: linear-gradient(90deg,
+        transparent 10%, rgba(67,232,177,0.1) 10%, rgba(67,232,177,0.1) 10.5%, transparent 10.5%,
+        transparent 35%, rgba(164,142,250,0.08) 35%, rgba(164,142,250,0.08) 35.5%, transparent 35.5%,
+        transparent 60%, rgba(67,232,177,0.08) 60%, rgba(67,232,177,0.08) 60.5%, transparent 60.5%,
+        transparent 85%, rgba(164,142,250,0.06) 85%, rgba(164,142,250,0.06) 85.5%, transparent 85.5%);
+    }
+    .theme-arctic .ripple { background: rgba(67,232,177,0.2); }
+    /* Arctic card hover: ice crystal + aurora wisp particles */
+    .theme-arctic .card-bg-particles { overflow: visible; }
+    .theme-arctic .card-bg-particles::before {
+      content: '';
+      position: absolute;
+      width: 8px; height: 8px;
+      top: 45%; left: 25%;
+      background: rgba(67,232,177,0.8);
+      clip-path: polygon(50% 0%, 61% 35%, 100% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 0% 35%, 39% 35%);
+      opacity: 0; pointer-events: none; z-index: 5;
+      filter: drop-shadow(0 0 4px rgba(67,232,177,0.6));
+      transition: opacity 0.3s;
+    }
+    .theme-arctic:hover .card-bg-particles::before {
+      opacity: 1;
+      animation: forest-sparkle-up 3s ease-out infinite;
+    }
+    .theme-arctic .card-bg-particles::after {
+      content: '';
+      position: absolute;
+      width: 10px; height: 10px;
+      top: 35%; right: 20%;
+      background: rgba(164,142,250,0.8);
+      clip-path: polygon(50% 0%, 61% 35%, 100% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 0% 35%, 39% 35%);
+      opacity: 0; pointer-events: none; z-index: 5;
+      filter: drop-shadow(0 0 4px rgba(164,142,250,0.5));
+      transition: opacity 0.3s;
+    }
+    .theme-arctic:hover .card-bg-particles::after {
+      opacity: 1;
+      animation: forest-leaf-rise-2 3.5s ease-out infinite 0.5s;
+    }
+    @keyframes arctic-card-aurora {
+      0%   { background-position: 0% 0%; opacity: 0.7; }
+      33%  { background-position: 50% 100%; opacity: 1; }
+      66%  { background-position: 100% 50%; opacity: 0.8; }
+      100% { background-position: 0% 0%; opacity: 0.7; }
+    }
+
+    /* ── T13: Sandstone Dusk — Moroccan riad, terracotta, warm amber, carved stone ── */
+    .theme-sandstone {
+      background: linear-gradient(160deg, #1a1410 0%, #261e16 30%, #1e1812 60%, #141008 100%);
+      border-color: rgba(196,99,42,0.2);
+    }
+    .theme-sandstone:hover {
+      transform: translateY(-10px) scale(1.03);
+      box-shadow:
+        0 20px 60px rgba(196,99,42,0.3),
+        0 0 80px rgba(212,168,67,0.12),
+        inset 0 1px 0 rgba(212,168,67,0.15);
+      border-color: rgba(196,99,42,0.5);
+    }
+    /* Warm golden shimmer sweep */
+    .theme-sandstone::before {
+      background: linear-gradient(45deg, transparent 30%, rgba(212,168,67,0.12) 50%, transparent 70%);
+      transform: translateX(-100%) rotate(45deg); transition: none;
+    }
+    .theme-sandstone:hover::before { animation: shimmer-sweep 0.8s ease; }
+    /* Warm ember particles */
+    .theme-sandstone::after {
+      background-image:
+        radial-gradient(1.5px 1.5px at 22% 28%, rgba(196,99,42,0.5), transparent),
+        radial-gradient(1px 1px at 65% 20%, rgba(212,168,67,0.45), transparent),
+        radial-gradient(1.5px 1.5px at 78% 55%, rgba(196,99,42,0.4), transparent),
+        radial-gradient(1px 1px at 40% 72%, rgba(212,168,67,0.35), transparent),
+        radial-gradient(1px 1px at 85% 78%, rgba(196,99,42,0.3), transparent),
+        radial-gradient(1px 1px at 18% 82%, rgba(212,168,67,0.28), transparent);
+      background-size: 100% 100%;
+    }
+    .theme-sandstone:hover::after { opacity: 1; animation: sparkle-drift 4s ease-in-out infinite; }
+    .theme-sandstone .card-glow { background: radial-gradient(circle, rgba(196,99,42,0.4) 0%, rgba(212,168,67,0.2) 35%, transparent 70%); filter: blur(45px); }
+    .theme-sandstone .card-avatar {
+      background: linear-gradient(135deg, #a84e1e, #c4632a);
+      border-color: rgba(196,99,42,0.5);
+      box-shadow: 0 0 20px rgba(196,99,42,0.45), 0 0 40px rgba(212,168,67,0.1);
+    }
+    .theme-sandstone:hover .card-avatar {
+      transform: scale(1.1);
+      box-shadow: 0 0 30px rgba(196,99,42,0.65), 0 0 55px rgba(212,168,67,0.25);
+    }
+    .theme-sandstone .card-name {
+      font-family: 'Crimson Pro', serif; font-size: 2rem; font-weight: 600; font-style: italic;
+      background: linear-gradient(135deg, #d4a843, #c4632a, #e8c080);
+      -webkit-background-clip: text; background-clip: text;
+    }
+    .theme-sandstone:hover .card-name { transform: scale(1.06); }
+    .theme-sandstone .card-theme-label { color: rgba(212,168,67,0.6); font-family: 'Crimson Pro', serif; font-style: italic; letter-spacing: 0.08em; }
+    .theme-sandstone .card-enter-hint { font-family: 'Crimson Pro', serif; font-style: italic; color: rgba(212,168,67,0.5); }
+    .theme-sandstone .card-badge { font-family: 'Crimson Pro', serif; font-style: italic; font-size: 0.65rem; color: rgba(212,168,67,0.7); border: 1px solid rgba(196,99,42,0.25); }
+    .theme-sandstone:hover .card-badge { box-shadow: 0 0 10px rgba(196,99,42,0.2); }
+    .theme-sandstone .card-circuit {
+      background: linear-gradient(90deg,
+        transparent 12%, rgba(196,99,42,0.1) 12%, rgba(196,99,42,0.1) 12.5%, transparent 12.5%,
+        transparent 38%, rgba(212,168,67,0.08) 38%, rgba(212,168,67,0.08) 38.5%, transparent 38.5%,
+        transparent 62%, rgba(196,99,42,0.07) 62%, rgba(196,99,42,0.07) 62.5%, transparent 62.5%,
+        transparent 88%, rgba(212,168,67,0.06) 88%, rgba(212,168,67,0.06) 88.5%, transparent 88.5%);
+    }
+    .theme-sandstone .ripple { background: rgba(196,99,42,0.2); }
+
     /* ── Select header ───────────────────────────────────────────────── */
     .select-header {
       text-align: center; margin-bottom: 1.5rem;
@@ -1154,6 +1321,8 @@
       forest:   '🍄 Enchanted',
       neon:     '⚡ NEON',
       noir:     '◈ Noir',
+      arctic:   '❄ Aurora',
+      sandstone:'◈ Dusk',
     };
     // Theme colors — used for passcode overlay styling
     const themeColors = {
@@ -1168,6 +1337,8 @@
       forest:   { bg: '#0f1a14', accent: '#52b788', accent2: '#c8a84e', glow: 'rgba(92,184,138,0.25)', border: 'rgba(92,184,138,0.2)' },
       neon:     { bg: '#06060e', accent: '#ff2d7b', accent2: '#00f0ff', glow: 'rgba(255,45,123,0.3)', border: 'rgba(0,240,255,0.3)' },
       noir:     { bg: '#0e0e1a', accent: '#d4af37', accent2: '#f0d060', glow: 'rgba(212,175,55,0.25)', border: 'rgba(212,175,55,0.28)' },
+      arctic:   { bg: '#0a1628', accent: '#43e8b1', accent2: '#a48efa', glow: 'rgba(67,232,177,0.3)', border: 'rgba(67,232,177,0.25)' },
+      sandstone:{ bg: '#1a1410', accent: '#c4632a', accent2: '#d4a843', glow: 'rgba(196,99,42,0.25)', border: 'rgba(196,99,42,0.25)' },
     };
 
     async function loadUserPreviews() {
