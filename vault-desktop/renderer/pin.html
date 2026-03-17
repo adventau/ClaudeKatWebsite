@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Royal Vault</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Space Grotesk', -apple-system, sans-serif;
+      background: #0a0612;
+      color: #e2d9f3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+
+    /* Starfield background */
+    .stars {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      z-index: 0;
+    }
+    .stars span {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: rgba(124, 58, 237, 0.6);
+      border-radius: 50%;
+      animation: twinkle var(--dur) ease-in-out infinite;
+      animation-delay: var(--delay);
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.2; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+
+    /* Glow orbs */
+    .glow-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.15;
+      z-index: 0;
+    }
+    .glow-orb.purple {
+      width: 400px; height: 400px;
+      background: #7c3aed;
+      top: -100px; right: -100px;
+    }
+    .glow-orb.blue {
+      width: 300px; height: 300px;
+      background: #3b82f6;
+      bottom: -80px; left: -80px;
+    }
+
+    .pin-container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      -webkit-app-region: no-drag;
+    }
+
+    .crown { font-size: 56px; }
+
+    .user-avatar {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      border: 3px solid rgba(124, 58, 237, 0.5);
+      overflow: hidden;
+      background: rgba(124, 58, 237, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      font-weight: 700;
+      color: #c4b5fd;
+      box-shadow: 0 0 40px rgba(124, 58, 237, 0.25);
+    }
+    .user-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .greeting {
+      text-align: center;
+    }
+    .greeting h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 26px;
+      font-weight: 600;
+      color: #f1f0ff;
+      margin-bottom: 6px;
+      letter-spacing: 0.03em;
+    }
+    .greeting p {
+      font-size: 14px;
+      color: rgba(226, 217, 243, 0.5);
+    }
+
+    .pin-inputs {
+      display: flex;
+      gap: 14px;
+    }
+    .pin-digit {
+      width: 54px;
+      height: 62px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: 700;
+      font-family: 'Space Grotesk', sans-serif;
+      background: rgba(124, 58, 237, 0.08);
+      border: 2px solid rgba(124, 58, 237, 0.3);
+      border-radius: 14px;
+      color: #e2d9f3;
+      outline: none;
+      transition: all 200ms ease;
+      -webkit-app-region: no-drag;
+    }
+    .pin-digit:focus {
+      border-color: #7c3aed;
+      box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+      background: rgba(124, 58, 237, 0.12);
+    }
+    .pin-digit.error {
+      border-color: #ef4444;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+    }
+
+    .error-msg {
+      font-size: 13px;
+      color: #ef4444;
+      min-height: 20px;
+      text-align: center;
+    }
+
+    .unlock-btn {
+      width: 220px;
+      padding: 12px;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      background: linear-gradient(135deg, #7c3aed, #6d28d9);
+      color: #fff;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      transition: all 200ms ease;
+      -webkit-app-region: no-drag;
+    }
+    .unlock-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 30px rgba(124, 58, 237, 0.4);
+    }
+    .unlock-btn:active { transform: scale(0.98); }
+    .unlock-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .switch-link {
+      font-size: 13px;
+      color: rgba(226, 217, 243, 0.4);
+      cursor: pointer;
+      transition: color 200ms ease;
+      -webkit-app-region: no-drag;
+    }
+    .switch-link:hover { color: #7c3aed; }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(8px); }
+      60% { transform: translateX(-6px); }
+      80% { transform: translateX(6px); }
+    }
+    .shake { animation: shake 0.4s ease; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="stars" id="stars"></div>
+  <div class="glow-orb purple"></div>
+  <div class="glow-orb blue"></div>
+
+  <div class="pin-container">
+    <div class="crown">👑</div>
+    <div class="user-avatar" id="user-avatar"></div>
+    <div class="greeting">
+      <h1 id="greeting-name">Welcome back</h1>
+      <p>Enter your PIN to unlock</p>
+    </div>
+    <div class="pin-inputs" id="pin-inputs">
+      <input type="password" class="pin-digit" maxlength="1" data-idx="0" inputmode="numeric" autofocus>
+      <input type="password" class="pin-digit" maxlength="1" data-idx="1" inputmode="numeric">
+      <input type="password" class="pin-digit" maxlength="1" data-idx="2" inputmode="numeric">
+      <input type="password" class="pin-digit" maxlength="1" data-idx="3" inputmode="numeric">
+    </div>
+    <div class="error-msg" id="error-msg"></div>
+    <button class="unlock-btn" id="unlock-btn" onclick="submitPin()">Unlock</button>
+    <div class="switch-link" id="switch-link" onclick="switchUser()">Not you? Switch profile</div>
+  </div>
+
+  <script>
+    // Generate starfield
+    const starsEl = document.getElementById('stars');
+    for (let i = 0; i < 60; i++) {
+      const s = document.createElement('span');
+      s.style.left = Math.random() * 100 + '%';
+      s.style.top = Math.random() * 100 + '%';
+      s.style.setProperty('--dur', (3 + Math.random() * 4) + 's');
+      s.style.setProperty('--delay', (Math.random() * -5) + 's');
+      if (Math.random() > 0.7) {
+        s.style.width = '3px';
+        s.style.height = '3px';
+        s.style.background = 'rgba(59, 130, 246, 0.5)';
+      }
+      starsEl.appendChild(s);
+    }
+
+    const digits = document.querySelectorAll('.pin-digit');
+    const errorMsg = document.getElementById('error-msg');
+    const unlockBtn = document.getElementById('unlock-btn');
+    const greetingName = document.getElementById('greeting-name');
+    const userAvatar = document.getElementById('user-avatar');
+
+    // Load stored profile info
+    async function init() {
+      const profile = await window.electron.store.get('lastProfile');
+      const avatarUrl = await window.electron.store.get('profileAvatar');
+
+      if (profile) {
+        const name = profile.charAt(0).toUpperCase() + profile.slice(1);
+        greetingName.textContent = `Welcome back, ${name}`;
+        userAvatar.textContent = name.charAt(0);
+      }
+
+      if (avatarUrl) {
+        userAvatar.innerHTML = `<img src="${avatarUrl}" onerror="this.remove()">`;
+      }
+
+      // Focus first digit
+      setTimeout(() => digits[0].focus(), 200);
+    }
+
+    // PIN input logic
+    digits.forEach((input, idx) => {
+      input.addEventListener('input', e => {
+        const val = e.target.value.replace(/\D/g, '');
+        e.target.value = val ? val[0] : '';
+        errorMsg.textContent = '';
+        digits.forEach(d => d.classList.remove('error'));
+
+        if (val && idx < 3) digits[idx + 1].focus();
+        if ([...digits].every(d => d.value)) submitPin();
+      });
+
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Backspace' && !e.target.value && idx > 0) {
+          digits[idx - 1].focus();
+        }
+      });
+
+      input.addEventListener('paste', e => {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
+        digits.forEach((d, i) => { d.value = text[i] || ''; });
+        if (text.length >= 4) submitPin();
+      });
+    });
+
+    async function submitPin() {
+      const pin = [...digits].map(d => d.value).join('');
+      if (pin.length !== 4) return;
+
+      unlockBtn.disabled = true;
+      unlockBtn.innerHTML = '<span class="spinner"></span>Unlocking…';
+      errorMsg.textContent = '';
+
+      try {
+        const result = await window.electron.submitPin(pin);
+        if (result.success) {
+          // main.js will handle navigation to the website
+          unlockBtn.innerHTML = 'Welcome ✓';
+        } else {
+          errorMsg.textContent = result.error || 'Incorrect PIN';
+          digits.forEach(d => { d.value = ''; d.classList.add('error'); });
+          digits[0].focus();
+          document.getElementById('pin-inputs').classList.add('shake');
+          setTimeout(() => document.getElementById('pin-inputs').classList.remove('shake'), 500);
+          unlockBtn.disabled = false;
+          unlockBtn.innerHTML = 'Unlock';
+        }
+      } catch (err) {
+        errorMsg.textContent = 'Connection error. Try again.';
+        unlockBtn.disabled = false;
+        unlockBtn.innerHTML = 'Unlock';
+      }
+    }
+
+    function switchUser() {
+      window.electron.resetStoredUser();
+    }
+
+    init();
+  </script>
+</body>
+</html>
