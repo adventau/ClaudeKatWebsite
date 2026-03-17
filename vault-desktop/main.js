@@ -89,18 +89,27 @@ function createWindow() {
   mainWindow.on('resize', saveBounds);
   mainWindow.on('move', saveBounds);
 
-  // Lock app on close (red X) — go back to PIN screen instead of hiding
+  // Red X — hide the window completely. When reopened, it shows PIN.
   mainWindow.on('close', (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
+      mainWindow.hide();
+      // Pre-load PIN screen so it's ready when they reopen
       if (hasStoredCredentials()) {
-        // Re-lock: show PIN screen
         mainWindow.webContents.removeAllListeners('did-finish-load');
         mainWindow.webContents.removeAllListeners('did-navigate');
         mainWindow.loadFile(path.join(__dirname, 'renderer', 'pin.html'));
-      } else {
-        mainWindow.hide();
       }
+    }
+  });
+
+  // Yellow minimize — when restored, show PIN screen (lock on minimize)
+  mainWindow.on('restore', () => {
+    const currentURL = mainWindow.webContents.getURL();
+    if (hasStoredCredentials() && currentURL.includes(APP_URL)) {
+      mainWindow.webContents.removeAllListeners('did-finish-load');
+      mainWindow.webContents.removeAllListeners('did-navigate');
+      mainWindow.loadFile(path.join(__dirname, 'renderer', 'pin.html'));
     }
   });
 
@@ -168,8 +177,6 @@ function loadWebsite() {
 }
 
 function injectDesktopCSS() {
-  const currentURL = mainWindow.webContents.getURL();
-
   // Insert drag bar for window movement
   mainWindow.webContents.executeJavaScript(`
     if (!document.getElementById('electron-drag-bar')) {
@@ -195,6 +202,49 @@ function injectDesktopCSS() {
     #sidebar { padding-top: 32px !important; }
     #sidebar .sidebar-user { margin-top: 4px !important; }
   `);
+
+  // Override browser Notification API with native Electron notifications
+  injectNativeNotifications();
+}
+
+function injectNativeNotifications() {
+  mainWindow.webContents.executeJavaScript(`
+    (function() {
+      if (window._electronNotifHooked) return;
+      window._electronNotifHooked = true;
+
+      // Override browser Notification with native Electron notifications via IPC
+      const OrigNotification = window.Notification;
+
+      class ElectronNotification {
+        constructor(title, options = {}) {
+          this.title = title;
+          this.body = options.body || '';
+          // Send to main process for native notification
+          if (window.electron) {
+            window.electron.showNotification({ title, body: this.body, urgent: false });
+          }
+        }
+        static get permission() { return 'granted'; }
+        static requestPermission(cb) {
+          if (cb) cb('granted');
+          return Promise.resolve('granted');
+        }
+        addEventListener() {}
+        removeEventListener() {}
+        close() {}
+      }
+
+      window.Notification = ElectronNotification;
+
+      // Also override the requestNotificationPermission function if it exists
+      if (typeof window.requestNotificationPermission === 'function') {
+        window.requestNotificationPermission = async function() {
+          if (typeof showToast === 'function') showToast('🔔 Desktop notifications enabled!');
+        };
+      }
+    })();
+  `).catch(() => {});
 }
 
 function injectCredentialCapture() {

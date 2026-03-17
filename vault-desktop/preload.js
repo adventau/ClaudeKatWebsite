@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('electron', {
   // Native notifications
   notify: (title, body, opts = {}) =>
     ipcRenderer.invoke('show-notification', { title, body, ...opts }),
+  showNotification: ({ title, body, urgent }) =>
+    ipcRenderer.invoke('show-notification', { title, body, urgent }),
 
   // Shell
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
