@@ -1622,39 +1622,54 @@ function startReminderChecker() {
 }
 
 // ── Guests ────────────────────────────────────────────────────────────────────
+// Cached guest data from /api/guest-messages
+let guestDataCache = [];
+
 async function loadGuests() {
-  const data = await api('GET', '/api/guests');
-  const guests = data ? Object.values(data) : [];
+  // /api/guest-messages returns array of guests with embedded channel messages
+  const data = await api('GET', '/api/guest-messages');
+  guestDataCache = Array.isArray(data) ? data : [];
   const list = el('guests-list');
 
-  if (!guests.length) {
-    list.innerHTML = '<div class="empty-state"><div class="empty-icon">🚪</div><p>No guests</p></div>';
+  if (!guestDataCache.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">🚪</div><p>No guest messages</p></div>';
     return;
   }
 
-  list.innerHTML = '<div class="guests-list">' + guests.map(g => {
+  list.innerHTML = '<div class="guests-list">' + guestDataCache.map(g => {
     const avatarHtml = g.avatar ?
       `<div class="guest-avatar"><img src="${esc(API_BASE + g.avatar)}" onerror="this.remove()"></div>` :
       `<div class="guest-avatar">${(g.name || '?').charAt(0).toUpperCase()}</div>`;
-    return `<div class="guest-item" onclick="openGuest(${JSON.stringify(JSON.stringify(g))})" data-guest-id="${esc(g.id)}">
+    // Count total messages across all channels
+    const channels = g.channels || {};
+    const channelNames = Object.keys(channels);
+    const totalMsgs = channelNames.reduce((n, ch) => n + (channels[ch]?.length || 0), 0);
+    const subText = channelNames.length ? channelNames.join(', ') : 'Guest';
+    return `<div class="guest-item" onclick="openGuest('${esc(g.id)}')" data-guest-id="${esc(g.id)}">
       ${avatarHtml}
       <div class="guest-info">
         <div class="guest-name">${esc(g.name)}</div>
-        <div class="guest-sub">${esc(g.channels?.join(', ') || 'Guest')}</div>
+        <div class="guest-sub">${esc(subText)} · ${totalMsgs} msg${totalMsgs !== 1 ? 's' : ''}</div>
       </div>
     </div>`;
   }).join('') + '</div>';
 }
 
-async function openGuest(gJson) {
-  const guest = JSON.parse(gJson);
+async function openGuest(guestId) {
+  const guest = guestDataCache.find(g => g.id === guestId);
+  if (!guest) return;
   $$('.guest-item').forEach(i => i.classList.remove('active'));
-  document.querySelector(`[data-guest-id="${guest.id}"]`)?.classList.add('active');
+  document.querySelector(`[data-guest-id="${guestId}"]`)?.classList.add('active');
 
-  // Load guest messages
-  const msgs = await api('GET', '/api/guest-messages');
-  const guestMsgs = Array.isArray(msgs) ? msgs.filter(m => m.guestId === guest.id || m.sender === guest.id) : [];
-  openRightPanel('guest-thread', { guest, messages: guestMsgs });
+  // Flatten all channel messages into a single sorted thread
+  const channels = guest.channels || {};
+  const allMsgs = [];
+  for (const [channel, msgs] of Object.entries(channels)) {
+    (msgs || []).forEach(m => allMsgs.push({ ...m, _channel: channel }));
+  }
+  allMsgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+  openRightPanel('guest-thread', { guest, messages: allMsgs });
 }
 
 // ── Right Panel ───────────────────────────────────────────────────────────────
@@ -1851,10 +1866,9 @@ async function sendGuestReply(guestId) {
   if (!text) return;
   await api('POST', `/api/guests/${guestId}/message`, { text, sender: S.user });
   input.value = '';
-  // Reload guest thread
-  const gData = await api('GET', '/api/guests');
-  const guest = gData?.[guestId];
-  if (guest) openGuest(JSON.stringify(guest));
+  // Reload guest data then reopen thread
+  await loadGuests();
+  openGuest(guestId);
 }
 
 async function deleteVaultItem(id) {

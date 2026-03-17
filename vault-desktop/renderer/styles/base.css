@@ -186,6 +186,9 @@ textarea { resize: vertical; min-height: 80px; }
   margin: 12px 0;
 }
 
+/* ── Visibility helpers ───────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+
 /* ── Screen system ────────────────────────────────────────────────────────── */
 .screen { display: flex; flex-direction: column; height: 100%; }
 .screen.hidden { display: none !important; }

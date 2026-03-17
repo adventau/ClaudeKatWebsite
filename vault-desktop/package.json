@@ -48,7 +48,14 @@
     },
     "dmg": {
       "title": "Royal Vault",
-      "backgroundColor": "#0a0a1a"
+      "background": "build/dmg-background.png",
+      "iconSize": 100,
+      "iconTextSize": 13,
+      "window": { "width": 600, "height": 400 },
+      "contents": [
+        { "x": 150, "y": 200, "type": "file" },
+        { "x": 450, "y": 200, "type": "link", "path": "/Applications" }
+      ]
     },
     "publish": null
   }
