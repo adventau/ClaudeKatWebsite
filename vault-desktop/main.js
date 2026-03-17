@@ -89,11 +89,18 @@ function createWindow() {
   mainWindow.on('resize', saveBounds);
   mainWindow.on('move', saveBounds);
 
-  // Hide instead of close (app stays in tray — keeps socket.io alive for notifications)
+  // Lock app on close (red X) — go back to PIN screen instead of hiding
   mainWindow.on('close', (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
-      mainWindow.hide();
+      if (hasStoredCredentials()) {
+        // Re-lock: show PIN screen
+        mainWindow.webContents.removeAllListeners('did-finish-load');
+        mainWindow.webContents.removeAllListeners('did-navigate');
+        mainWindow.loadFile(path.join(__dirname, 'renderer', 'pin.html'));
+      } else {
+        mainWindow.hide();
+      }
     }
   });
 
@@ -253,7 +260,8 @@ function createTray() {
 
   tray.on('click', () => {
     if (mainWindow) {
-      mainWindow.isVisible() ? mainWindow.focus() : mainWindow.show();
+      mainWindow.show();
+      mainWindow.focus();
     }
   });
 }
