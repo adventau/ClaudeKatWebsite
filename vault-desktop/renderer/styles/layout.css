@@ -1,0 +1,418 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ROYAL VAULT — THREE-PANEL LAYOUT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --nav-collapsed:  56px;
+  --nav-expanded:   220px;
+  --titlebar-h:     40px;
+  --right-panel-w:  380px;
+}
+
+/* ── Auth Screen ──────────────────────────────────────────────────────────── */
+#auth-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  z-index: 100;
+  padding-top: var(--titlebar-h);
+}
+
+#auth-screen.hidden { display: none; }
+
+/* ── Title Bar ────────────────────────────────────────────────────────────── */
+#title-bar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--titlebar-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 0 8px;
+  background: var(--title-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--nav-border);
+  z-index: 200;
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+#title-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: drag;
+}
+
+/* macOS traffic lights space */
+#title-bar-left::before {
+  content: '';
+  display: block;
+  width: 60px;
+  flex-shrink: 0;
+}
+
+#title-bar-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: drag;
+  pointer-events: none;
+}
+
+#app-name {
+  font-family: var(--font-heading);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+#title-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  -webkit-app-region: no-drag;
+}
+
+#title-user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 6px;
+  border-radius: 20px;
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+#title-user-info:hover { background: var(--nav-active); }
+
+#title-user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-primary);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+#title-user-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+#title-presence {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+/* Window controls — hidden by default (macOS uses native traffic lights) */
+#window-controls { display: none; }
+
+/* ── App Shell ────────────────────────────────────────────────────────────── */
+#app {
+  display: flex;
+  height: 100vh;
+  padding-top: var(--titlebar-h);
+  overflow: hidden;
+  transition: none;
+}
+
+/* ── Left Panel (nav sidebar) ─────────────────────────────────────────────── */
+#left-panel {
+  width: var(--nav-collapsed);
+  display: flex;
+  flex-direction: column;
+  background: var(--nav-bg);
+  border-right: 1px solid var(--nav-border);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+}
+
+#left-panel:hover {
+  width: var(--nav-expanded);
+}
+
+/* Nav section */
+#nav-items {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin: 0 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all var(--transition);
+  white-space: nowrap;
+  overflow: hidden;
+  min-height: 40px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.nav-item:hover {
+  background: var(--nav-active);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: var(--nav-active);
+  color: var(--nav-icon-active);
+}
+
+.nav-icon {
+  font-size: 20px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 200ms ease;
+}
+
+.nav-item:hover .nav-icon,
+.nav-item.active .nav-icon {
+  transform: scale(1.1);
+}
+
+.nav-label {
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 150ms ease 80ms;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#left-panel:hover .nav-label { opacity: 1; }
+
+/* Nav footer */
+#nav-footer {
+  padding: 12px 6px;
+  border-top: 1px solid var(--nav-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#nav-user-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background var(--transition);
+  -webkit-app-region: no-drag;
+}
+#nav-user-card:hover { background: var(--nav-active); }
+
+#nav-user-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+#nav-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+#nav-user-presence {
+  position: absolute;
+  bottom: 0; right: 0;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid var(--nav-bg);
+}
+
+#nav-user-info {
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 150ms ease 80ms;
+}
+#left-panel:hover #nav-user-info { opacity: 1; }
+
+#nav-user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#nav-user-status {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Switch profile button */
+#nav-switch-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition);
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0;
+}
+#left-panel:hover #nav-switch-btn { opacity: 1; }
+#nav-switch-btn:hover { background: var(--nav-active); color: var(--text-primary); }
+
+/* ── Center Panel ─────────────────────────────────────────────────────────── */
+#center-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg-primary);
+}
+
+/* Section containers */
+.section {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+}
+.section.active { display: flex; }
+
+/* Section header */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-header);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+.section-header h2 {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ── Right Panel ──────────────────────────────────────────────────────────── */
+#right-panel {
+  width: 0;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+  transition: width 280ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#right-panel.open {
+  width: var(--right-panel-w);
+}
+
+#right-panel-inner {
+  width: var(--right-panel-w);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#right-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--panel-header);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+#right-panel-title {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+#right-panel-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+#right-panel-close:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+#right-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}

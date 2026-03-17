@@ -1,0 +1,55 @@
+{
+  "name": "royal-vault",
+  "version": "1.0.0",
+  "description": "The Royal Kat & Kai Vault — Private Desktop App",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "npm run create-icons && electron-builder",
+    "build:mac": "npm run create-icons && electron-builder --mac",
+    "create-icons": "node scripts/create-icons.js",
+    "postinstall": "node scripts/vendor-setup.js"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3",
+    "electron-updater": "^6.3.9",
+    "socket.io-client": "^4.7.5"
+  },
+  "build": {
+    "appId": "com.royalvault.app",
+    "productName": "Royal Vault",
+    "copyright": "© 2024 Royal Vault",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "node_modules/**/*",
+      "!node_modules/.cache",
+      "!node_modules/electron-builder",
+      "!node_modules/electron"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "target": [
+        { "target": "dmg", "arch": ["universal"] },
+        { "target": "zip", "arch": ["universal"] }
+      ]
+    },
+    "dmg": {
+      "title": "Royal Vault",
+      "backgroundColor": "#0a0a1a"
+    },
+    "publish": null
+  }
+}

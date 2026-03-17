@@ -1,0 +1,388 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ROYAL VAULT — THEME DEFINITIONS
+   Each theme sets all CSS custom properties on [data-theme="..."]
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Kaliph — AVNT Purple (cyber, Orbitron) ─────────────────────────────── */
+[data-theme="kaliph"] {
+  --bg-primary:    #060612;
+  --bg-secondary:  #0c0c22;
+  --bg-surface:    rgba(124, 58, 237, 0.07);
+  --bg-overlay:    rgba(6, 6, 18, 0.95);
+  --accent:        #7c3aed;
+  --accent-light:  #a78bfa;
+  --accent-dark:   #5b21b6;
+  --accent-rgb:    124, 58, 237;
+  --text-primary:  #f1f0ff;
+  --text-secondary:#c4b5fd;
+  --text-muted:    #6d6d8a;
+  --border:        rgba(124, 58, 237, 0.25);
+  --border-strong: rgba(124, 58, 237, 0.5);
+  --shadow:        0 4px 20px rgba(124, 58, 237, 0.3);
+  --bubble-self:   linear-gradient(135deg, #7c3aed, #5b21b6);
+  --bubble-other:  rgba(255, 255, 255, 0.06);
+  --bubble-self-text: #fff;
+  --bubble-other-text: var(--text-primary);
+  --font-heading:  'Orbitron', monospace;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --nav-bg:        rgba(4, 4, 14, 0.85);
+  --nav-border:    rgba(124, 58, 237, 0.2);
+  --nav-active:    rgba(124, 58, 237, 0.25);
+  --nav-icon-active: #a78bfa;
+  --title-bg:      rgba(4, 4, 14, 0.9);
+  --input-bg:      rgba(124, 58, 237, 0.06);
+  --priority-color:#ef4444;
+  --panel-header:  rgba(10, 10, 30, 0.7);
+}
+
+/* ── Kathrine — Royal Violet (Cormorant Garamond) ───────────────────────── */
+[data-theme="kathrine"] {
+  --bg-primary:    #0d0810;
+  --bg-secondary:  #160d1c;
+  --bg-surface:    rgba(186, 48, 141, 0.07);
+  --bg-overlay:    rgba(13, 8, 16, 0.96);
+  --accent:        #ba308d;
+  --accent-light:  #e879b8;
+  --accent-dark:   #8b1f6b;
+  --accent-rgb:    186, 48, 141;
+  --text-primary:  #fdf2f8;
+  --text-secondary:#f0abce;
+  --text-muted:    #7a5471;
+  --border:        rgba(186, 48, 141, 0.25);
+  --border-strong: rgba(186, 48, 141, 0.5);
+  --shadow:        0 4px 20px rgba(186, 48, 141, 0.3);
+  --bubble-self:   linear-gradient(135deg, #ba308d, #8b1f6b);
+  --bubble-other:  rgba(255, 255, 255, 0.06);
+  --bubble-self-text: #fff;
+  --bubble-other-text: var(--text-primary);
+  --font-heading:  'Cormorant Garamond', Georgia, serif;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --nav-bg:        rgba(8, 4, 10, 0.85);
+  --nav-border:    rgba(186, 48, 141, 0.2);
+  --nav-active:    rgba(186, 48, 141, 0.2);
+  --nav-icon-active: #e879b8;
+  --title-bg:      rgba(8, 4, 10, 0.9);
+  --input-bg:      rgba(186, 48, 141, 0.06);
+  --priority-color:#ef4444;
+  --panel-header:  rgba(16, 10, 20, 0.7);
+}
+
+/* ── Royal — Crimson Throne ─────────────────────────────────────────────── */
+[data-theme="royal"] {
+  --bg-primary:    #0a0407;
+  --bg-secondary:  #130610;
+  --bg-surface:    rgba(185, 18, 60, 0.07);
+  --bg-overlay:    rgba(10, 4, 7, 0.96);
+  --accent:        #b9123c;
+  --accent-light:  #f43f6e;
+  --accent-dark:   #880e2d;
+  --accent-rgb:    185, 18, 60;
+  --text-primary:  #fff0f3;
+  --text-secondary:#fca5b8;
+  --text-muted:    #7a4055;
+  --border:        rgba(185, 18, 60, 0.25);
+  --border-strong: rgba(185, 18, 60, 0.5);
+  --shadow:        0 4px 20px rgba(185, 18, 60, 0.3);
+  --bubble-self:   linear-gradient(135deg, #b9123c, #880e2d);
+  --bubble-other:  rgba(255, 255, 255, 0.06);
+  --bubble-self-text: #fff;
+  --bubble-other-text: var(--text-primary);
+  --font-heading:  'Cormorant Garamond', Georgia, serif;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --nav-bg:        rgba(8, 3, 5, 0.88);
+  --nav-border:    rgba(185, 18, 60, 0.2);
+  --nav-active:    rgba(185, 18, 60, 0.2);
+  --nav-icon-active: #f43f6e;
+  --title-bg:      rgba(8, 3, 5, 0.92);
+  --input-bg:      rgba(185, 18, 60, 0.06);
+  --priority-color:#ef4444;
+  --panel-header:  rgba(12, 5, 8, 0.7);
+}
+
+/* ── Dark — Midnight Dark ───────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg-primary:    #0d0d0f;
+  --bg-secondary:  #161618;
+  --bg-surface:    rgba(255, 255, 255, 0.05);
+  --bg-overlay:    rgba(13, 13, 15, 0.97);
+  --accent:        #6366f1;
+  --accent-light:  #818cf8;
+  --accent-dark:   #4f46e5;
+  --accent-rgb:    99, 102, 241;
+  --text-primary:  #f4f4f5;
+  --text-secondary:#a1a1aa;
+  --text-muted:    #52525b;
+  --border:        rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --shadow:        0 4px 20px rgba(0, 0, 0, 0.5);
+  --bubble-self:   linear-gradient(135deg, #6366f1, #4f46e5);
+  --bubble-other:  rgba(255, 255, 255, 0.07);
+  --bubble-self-text: #fff;
+  --bubble-other-text: var(--text-primary);
+  --font-heading:  'Inter', -apple-system, sans-serif;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --nav-bg:        rgba(10, 10, 12, 0.9);
+  --nav-border:    rgba(255, 255, 255, 0.07);
+  --nav-active:    rgba(99, 102, 241, 0.2);
+  --nav-icon-active: #818cf8;
+  --title-bg:      rgba(10, 10, 12, 0.92);
+  --input-bg:      rgba(255, 255, 255, 0.05);
+  --priority-color:#ef4444;
+  --panel-header:  rgba(14, 14, 16, 0.7);
+}
+
+/* ── Light — Pristine Light ─────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-primary:    #f8f8fc;
+  --bg-secondary:  #ffffff;
+  --bg-surface:    rgba(0, 0, 0, 0.04);
+  --bg-overlay:    rgba(248, 248, 252, 0.97);
+  --accent:        #6366f1;
+  --accent-light:  #818cf8;
+  --accent-dark:   #4f46e5;
+  --accent-rgb:    99, 102, 241;
+  --text-primary:  #111113;
+  --text-secondary:#52525b;
+  --text-muted:    #a1a1aa;
+  --border:        rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.2);
+  --shadow:        0 4px 20px rgba(0, 0, 0, 0.1);
+  --bubble-self:   linear-gradient(135deg, #6366f1, #4f46e5);
+  --bubble-other:  #e5e7eb;
+  --bubble-self-text: #fff;
+  --bubble-other-text: #111;
+  --font-heading:  'Inter', -apple-system, sans-serif;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --nav-bg:        rgba(240, 240, 248, 0.92);
+  --nav-border:    rgba(0, 0, 0, 0.08);
+  --nav-active:    rgba(99, 102, 241, 0.12);
+  --nav-icon-active: #6366f1;
+  --title-bg:      rgba(240, 240, 248, 0.94);
+  --input-bg:      rgba(0, 0, 0, 0.04);
+  --priority-color:#dc2626;
+  --panel-header:  rgba(240, 240, 248, 0.85);
+}
+
+/* ── Neon — Neon Tokyo ──────────────────────────────────────────────────── */
+[data-theme="neon"] {
+  --bg-primary:    #050510;
+  --bg-secondary:  #0a0a1e;
+  --bg-surface:    rgba(0, 240, 255, 0.05);
+  --bg-overlay:    rgba(5, 5, 16, 0.97);
+  --accent:        #00f0ff;
+  --accent-light:  #7ffeff;
+  --accent-dark:   #00b8c8;
+  --accent-rgb:    0, 240, 255;
+  --text-primary:  #e0f8ff;
+  --text-secondary:#7ffeff;
+  --text-muted:    #3a7d87;
+  --border:        rgba(0, 240, 255, 0.2);
+  --border-strong: rgba(0, 240, 255, 0.4);
+  --shadow:        0 4px 20px rgba(0, 240, 255, 0.2);
+  --bubble-self:   linear-gradient(135deg, #00b8c8, #0047b0);
+  --bubble-other:  rgba(255, 255, 255, 0.06);
+  --bubble-self-text: #fff;
+  --bubble-other-text: var(--text-primary);
+  --font-heading:  'Orbitron', monospace;
+  --font-body:     'JetBrains Mono', monospace;
+  --nav-bg:        rgba(3, 3, 12, 0.9);
+  --nav-border:    rgba(0, 240, 255, 0.15);
+  --nav-active:    rgba(0, 240, 255, 0.12);
+  --nav-icon-active: #00f0ff;
+  --title-bg:      rgba(3, 3, 12, 0.92);
+  --input-bg:      rgba(0, 240, 255, 0.05);
+  --priority-color:#ff2d55;
+  --panel-header:  rgba(5, 5, 16, 0.8);
+}
+
+/* ── Noir — Velvet Noir ─────────────────────────────────────────────────── */
+[data-theme="noir"] {
+  --bg-primary:    #080808;
+  --bg-secondary:  #101010;
+  --bg-surface:    rgba(255, 255, 255, 0.04);
+  --bg-overlay:    rgba(8, 8, 8, 0.98);
+  --accent:        #d4b483;
+  --accent-light:  #f0d9ac;
+  --accent-dark:   #a88a5e;
+  --accent-rgb:    212, 180, 131;
+  --text-primary:  #f5f0e8;
+  --text-secondary:#c0b49a;
+  --text-muted:    #5a5248;
+  --border:        rgba(212, 180, 131, 0.18);
+  --border-strong: rgba(212, 180, 131, 0.35);
+  --shadow:        0 4px 20px rgba(0, 0, 0, 0.6);
+  --bubble-self:   linear-gradient(135deg, #a88a5e, #7a6040);
+  --bubble-other:  rgba(255, 255, 255, 0.05);
+  --bubble-self-text: #fff;
+  --bubble-other-text: var(--text-primary);
+  --font-heading:  'Cormorant Garamond', Georgia, serif;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --nav-bg:        rgba(5, 5, 5, 0.92);
+  --nav-border:    rgba(212, 180, 131, 0.12);
+  --nav-active:    rgba(212, 180, 131, 0.1);
+  --nav-icon-active: #d4b483;
+  --title-bg:      rgba(5, 5, 5, 0.94);
+  --input-bg:      rgba(212, 180, 131, 0.04);
+  --priority-color:#d4b483;
+  --panel-header:  rgba(8, 8, 8, 0.8);
+}
+
+/* ── Rosewood — Rose & Ember ────────────────────────────────────────────── */
+[data-theme="rosewood"] {
+  --bg-primary:    #0e080a;
+  --bg-secondary:  #180d10;
+  --bg-surface:    rgba(220, 80, 100, 0.07);
+  --bg-overlay:    rgba(14, 8, 10, 0.97);
+  --accent:        #dc5064;
+  --accent-light:  #f87b8a;
+  --accent-dark:   #ab3a4c;
+  --accent-rgb:    220, 80, 100;
+  --text-primary:  #fff0f2;
+  --text-secondary:#f9a8b6;
+  --text-muted:    #7a4852;
+  --border:        rgba(220, 80, 100, 0.22);
+  --border-strong: rgba(220, 80, 100, 0.45);
+  --shadow:        0 4px 20px rgba(220, 80, 100, 0.25);
+  --bubble-self:   linear-gradient(135deg, #dc5064, #ab3a4c);
+  --bubble-other:  rgba(255, 255, 255, 0.06);
+  --bubble-self-text: #fff;
+  --bubble-other-text: var(--text-primary);
+  --font-heading:  'Cormorant Garamond', Georgia, serif;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --nav-bg:        rgba(10, 5, 6, 0.88);
+  --nav-border:    rgba(220, 80, 100, 0.18);
+  --nav-active:    rgba(220, 80, 100, 0.15);
+  --nav-icon-active: #f87b8a;
+  --title-bg:      rgba(10, 5, 6, 0.92);
+  --input-bg:      rgba(220, 80, 100, 0.06);
+  --priority-color:#ef4444;
+  --panel-header:  rgba(14, 8, 10, 0.75);
+}
+
+/* ── Ocean — Deep Tide ──────────────────────────────────────────────────── */
+[data-theme="ocean"] {
+  --bg-primary:    #030e1a;
+  --bg-secondary:  #061525;
+  --bg-surface:    rgba(14, 165, 233, 0.07);
+  --bg-overlay:    rgba(3, 14, 26, 0.97);
+  --accent:        #0ea5e9;
+  --accent-light:  #38bdf8;
+  --accent-dark:   #0369a1;
+  --accent-rgb:    14, 165, 233;
+  --text-primary:  #e0f2fe;
+  --text-secondary:#7dd3fc;
+  --text-muted:    #2a5a78;
+  --border:        rgba(14, 165, 233, 0.2);
+  --border-strong: rgba(14, 165, 233, 0.4);
+  --shadow:        0 4px 20px rgba(14, 165, 233, 0.2);
+  --bubble-self:   linear-gradient(135deg, #0369a1, #0c4a6e);
+  --bubble-other:  rgba(255, 255, 255, 0.06);
+  --bubble-self-text: #fff;
+  --bubble-other-text: var(--text-primary);
+  --font-heading:  'Inter', -apple-system, sans-serif;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --nav-bg:        rgba(2, 9, 16, 0.9);
+  --nav-border:    rgba(14, 165, 233, 0.15);
+  --nav-active:    rgba(14, 165, 233, 0.12);
+  --nav-icon-active: #38bdf8;
+  --title-bg:      rgba(2, 9, 16, 0.92);
+  --input-bg:      rgba(14, 165, 233, 0.06);
+  --priority-color:#ef4444;
+  --panel-header:  rgba(3, 12, 22, 0.8);
+}
+
+/* ── Forest — Enchanted Forest ──────────────────────────────────────────── */
+[data-theme="forest"] {
+  --bg-primary:    #060e09;
+  --bg-secondary:  #0b1610;
+  --bg-surface:    rgba(34, 197, 94, 0.06);
+  --bg-overlay:    rgba(6, 14, 9, 0.97);
+  --accent:        #22c55e;
+  --accent-light:  #4ade80;
+  --accent-dark:   #15803d;
+  --accent-rgb:    34, 197, 94;
+  --text-primary:  #f0fdf4;
+  --text-secondary:#86efac;
+  --text-muted:    #2d6a3e;
+  --border:        rgba(34, 197, 94, 0.2);
+  --border-strong: rgba(34, 197, 94, 0.4);
+  --shadow:        0 4px 20px rgba(34, 197, 94, 0.2);
+  --bubble-self:   linear-gradient(135deg, #15803d, #0f6031);
+  --bubble-other:  rgba(255, 255, 255, 0.06);
+  --bubble-self-text: #fff;
+  --bubble-other-text: var(--text-primary);
+  --font-heading:  'Inter', -apple-system, sans-serif;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --nav-bg:        rgba(4, 9, 6, 0.9);
+  --nav-border:    rgba(34, 197, 94, 0.15);
+  --nav-active:    rgba(34, 197, 94, 0.12);
+  --nav-icon-active: #4ade80;
+  --title-bg:      rgba(4, 9, 6, 0.92);
+  --input-bg:      rgba(34, 197, 94, 0.05);
+  --priority-color:#ef4444;
+  --panel-header:  rgba(6, 12, 8, 0.8);
+}
+
+/* ── Arctic — Arctic Aurora ─────────────────────────────────────────────── */
+[data-theme="arctic"] {
+  --bg-primary:    #040c14;
+  --bg-secondary:  #071524;
+  --bg-surface:    rgba(56, 189, 248, 0.06);
+  --bg-overlay:    rgba(4, 12, 20, 0.97);
+  --accent:        #38bdf8;
+  --accent-light:  #7dd3fc;
+  --accent-dark:   #0284c7;
+  --accent-rgb:    56, 189, 248;
+  --text-primary:  #e0f7ff;
+  --text-secondary:#7dd3fc;
+  --text-muted:    #285e7a;
+  --border:        rgba(56, 189, 248, 0.18);
+  --border-strong: rgba(56, 189, 248, 0.38);
+  --shadow:        0 4px 20px rgba(56, 189, 248, 0.18);
+  --bubble-self:   linear-gradient(135deg, #0284c7, #01507a);
+  --bubble-other:  rgba(255, 255, 255, 0.06);
+  --bubble-self-text: #fff;
+  --bubble-other-text: var(--text-primary);
+  --font-heading:  'Inter', -apple-system, sans-serif;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --nav-bg:        rgba(3, 8, 14, 0.9);
+  --nav-border:    rgba(56, 189, 248, 0.13);
+  --nav-active:    rgba(56, 189, 248, 0.1);
+  --nav-icon-active: #7dd3fc;
+  --title-bg:      rgba(3, 8, 14, 0.92);
+  --input-bg:      rgba(56, 189, 248, 0.05);
+  --priority-color:#ef4444;
+  --panel-header:  rgba(4, 10, 18, 0.8);
+}
+
+/* ── Sandstone — Sandstone Dusk ─────────────────────────────────────────── */
+[data-theme="sandstone"] {
+  --bg-primary:    #120e08;
+  --bg-secondary:  #1c1710;
+  --bg-surface:    rgba(214, 162, 84, 0.07);
+  --bg-overlay:    rgba(18, 14, 8, 0.97);
+  --accent:        #d6a254;
+  --accent-light:  #f0c984;
+  --accent-dark:   #a87a30;
+  --accent-rgb:    214, 162, 84;
+  --text-primary:  #fdf6e8;
+  --text-secondary:#e8ca8e;
+  --text-muted:    #7a6238;
+  --border:        rgba(214, 162, 84, 0.2);
+  --border-strong: rgba(214, 162, 84, 0.4);
+  --shadow:        0 4px 20px rgba(214, 162, 84, 0.2);
+  --bubble-self:   linear-gradient(135deg, #a87a30, #7a5820);
+  --bubble-other:  rgba(255, 255, 255, 0.06);
+  --bubble-self-text: #fff;
+  --bubble-other-text: var(--text-primary);
+  --font-heading:  'Cormorant Garamond', Georgia, serif;
+  --font-body:     'Inter', -apple-system, sans-serif;
+  --nav-bg:        rgba(10, 8, 4, 0.9);
+  --nav-border:    rgba(214, 162, 84, 0.15);
+  --nav-active:    rgba(214, 162, 84, 0.12);
+  --nav-icon-active: #f0c984;
+  --title-bg:      rgba(10, 8, 4, 0.92);
+  --input-bg:      rgba(214, 162, 84, 0.05);
+  --priority-color:#ef4444;
+  --panel-header:  rgba(14, 10, 6, 0.8);
+}

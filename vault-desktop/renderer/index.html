@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' https://royalkvault.up.railway.app wss://royalkvault.up.railway.app https://media.tenor.com https://fonts.googleapis.com https://fonts.gstatic.com;
+             script-src 'self' 'unsafe-inline';
+             style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+             img-src 'self' https://royalkvault.up.railway.app https://media.tenor.com data: blob:;
+             media-src 'self' https://royalkvault.up.railway.app blob:;
+             connect-src 'self' https://royalkvault.up.railway.app wss://royalkvault.up.railway.app https://media.tenor.com;
+             font-src 'self' https://fonts.gstatic.com data:;">
+  <title>Royal Vault</title>
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/themes.css">
+  <link rel="stylesheet" href="styles/layout.css">
+  <link rel="stylesheet" href="styles/components.css">
+</head>
+<body data-theme="dark">
+
+<!-- ── Title Bar ──────────────────────────────────────────────────────────── -->
+<div id="title-bar">
+  <div id="title-bar-left"></div>
+  <div id="title-bar-center">
+    <span id="app-name">Royal Vault</span>
+  </div>
+  <div id="title-bar-right">
+    <div id="title-user-info" onclick="showSwitchUserMenu()" style="display:none">
+      <div id="title-user-avatar"></div>
+      <span id="title-user-name"></span>
+      <div id="title-presence"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     AUTH SCREEN
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div id="auth-screen">
+  <!-- Step 1: Site password (first-time only) -->
+  <div id="auth-site-pass" class="hidden">
+    <div class="auth-logo">👑</div>
+    <h1 class="auth-title">Royal Vault</h1>
+    <p class="auth-subtitle">Enter the vault access password to connect</p>
+    <div class="site-pass-box">
+      <input type="password" id="site-pass-input" placeholder="Vault password" autofocus>
+      <p class="auth-error" id="site-pass-error"></p>
+      <button class="primary" id="site-pass-btn" onclick="submitSitePassword()">Connect</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Profile select -->
+  <div id="auth-profile-select" class="hidden">
+    <div class="auth-logo">👑</div>
+    <h1 class="auth-title">Who's there?</h1>
+    <p class="auth-subtitle">Select your profile to continue</p>
+    <div class="profile-cards">
+      <div class="profile-card" id="card-kaliph" onclick="selectProfile('kaliph')">
+        <div class="profile-card-avatar" id="avatar-kaliph">K</div>
+        <span class="profile-card-name">Kaliph</span>
+      </div>
+      <div class="profile-card" id="card-kathrine" onclick="selectProfile('kathrine')">
+        <div class="profile-card-avatar" id="avatar-kathrine">K</div>
+        <span class="profile-card-name">Kathrine</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: PIN entry -->
+  <div id="auth-pin" class="pin-section hidden">
+    <button class="pin-back" onclick="backToProfileSelect()">← Back</button>
+    <div class="auth-logo" id="pin-profile-emoji">🔑</div>
+    <h1 class="auth-title" id="pin-profile-name">Enter PIN</h1>
+    <p class="auth-subtitle">Enter your 4-digit PIN</p>
+    <div class="pin-inputs">
+      <input type="password" class="pin-digit" maxlength="1" data-index="0" inputmode="numeric">
+      <input type="password" class="pin-digit" maxlength="1" data-index="1" inputmode="numeric">
+      <input type="password" class="pin-digit" maxlength="1" data-index="2" inputmode="numeric">
+      <input type="password" class="pin-digit" maxlength="1" data-index="3" inputmode="numeric">
+    </div>
+    <p class="auth-error" id="pin-error"></p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MAIN APP
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div id="app" class="hidden">
+
+  <!-- ── Left Panel ─────────────────────────────────────────────────────── -->
+  <nav id="left-panel">
+    <div id="nav-items">
+      <div class="nav-item active" data-section="chat" onclick="navigate('chat')" data-tip="Chat">
+        <span class="nav-icon">💬</span>
+        <span class="nav-label">Chat</span>
+      </div>
+      <div class="nav-item" data-section="notes" onclick="navigate('notes')" data-tip="Notes">
+        <span class="nav-icon">📝</span>
+        <span class="nav-label">Notes</span>
+      </div>
+      <div class="nav-item" data-section="calendar" onclick="navigate('calendar')" data-tip="Calendar">
+        <span class="nav-icon">📅</span>
+        <span class="nav-label">Calendar</span>
+      </div>
+      <div class="nav-item" data-section="vault" onclick="navigate('vault')" data-tip="Vault">
+        <span class="nav-icon">🔒</span>
+        <span class="nav-label">Vault</span>
+      </div>
+      <div class="nav-item" data-section="contacts" onclick="navigate('contacts')" data-tip="Contacts">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">Contacts</span>
+      </div>
+      <div class="nav-item" data-section="reminders" onclick="navigate('reminders')" data-tip="Reminders">
+        <span class="nav-icon">🔔</span>
+        <span class="nav-label">Reminders</span>
+      </div>
+      <div class="nav-item" data-section="guests" onclick="navigate('guests')" data-tip="Guests">
+        <span class="nav-icon">🚪</span>
+        <span class="nav-label">Guests</span>
+      </div>
+    </div>
+
+    <div id="nav-footer">
+      <div id="nav-user-card" onclick="showSwitchUserMenu()">
+        <div id="nav-user-avatar-wrap">
+          <div id="nav-user-avatar"></div>
+          <div id="nav-user-presence" class="online"></div>
+        </div>
+        <div id="nav-user-info">
+          <div id="nav-user-name">—</div>
+          <div id="nav-user-status">online</div>
+        </div>
+        <button id="nav-switch-btn" title="Switch profile">⇄</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Center Panel ───────────────────────────────────────────────────── -->
+  <main id="center-panel">
+
+    <!-- ── Chat ─────────────────────────────────────────────────────────── -->
+    <div id="chat-section" class="section active">
+      <div id="chat-header">
+        <div id="chat-other-avatar" class="avatar"></div>
+        <div class="chat-header-info">
+          <div id="chat-other-name" class="chat-header-name">—</div>
+          <div class="chat-header-status">
+            <div id="chat-other-presence" class="presence-dot offline"></div>
+            <span id="chat-other-status">offline</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="icon-btn" onclick="loadPinnedMessages()" title="Pinned messages">📌</button>
+          <button class="icon-btn" onclick="toggleSearch()" title="Search messages">🔍</button>
+        </div>
+      </div>
+
+      <div id="pinned-banner">
+        <span class="pin-icon">📌</span>
+        <span id="pinned-banner-text"></span>
+        <button class="icon-btn" onclick="closePinnedBanner()" style="font-size:12px;margin-left:auto">✕</button>
+      </div>
+
+      <div id="messages-container" onscroll="handleChatScroll()">
+        <div id="load-older-btn" style="display:none;text-align:center;padding:8px">
+          <button class="ghost" onclick="loadOlderMessages()">Load older messages</button>
+        </div>
+      </div>
+
+      <div id="typing-indicator"></div>
+
+      <button id="scroll-to-bottom" onclick="scrollToBottom()" title="Scroll to bottom">↓</button>
+
+      <!-- Drop overlay for file drag -->
+      <div id="drop-overlay">
+        <div class="drop-icon">📎</div>
+        <div class="drop-text">Drop files to send</div>
+      </div>
+
+      <!-- Reply bar -->
+      <div id="reply-bar">
+        <span style="color:var(--accent-light);font-size:16px">↩</span>
+        <div class="reply-bar-content">
+          <div class="reply-bar-label" id="reply-label">Replying to</div>
+          <div class="reply-bar-preview" id="reply-preview"></div>
+        </div>
+        <button class="icon-btn" onclick="cancelReply()">✕</button>
+      </div>
+
+      <!-- Input area -->
+      <div id="input-area">
+        <div style="position:relative">
+          <!-- GIF picker -->
+          <div id="gif-picker">
+            <input type="text" id="gif-search-input" placeholder="Search GIFs…" oninput="searchGifs(this.value)">
+            <div id="gif-grid"></div>
+          </div>
+          <!-- Emoji picker -->
+          <div id="emoji-picker"></div>
+        </div>
+
+        <div class="input-toolbar">
+          <button class="icon-btn" onclick="toggleEmojiPicker()" title="Emoji" style="font-size:18px">😊</button>
+          <button class="icon-btn" onclick="toggleGifPicker()" title="GIF" style="font-size:12px;font-weight:700;color:var(--accent)">GIF</button>
+          <button class="icon-btn" id="voice-btn" onclick="toggleVoiceRecording()" title="Voice message">🎙️</button>
+          <label class="icon-btn" for="file-picker" title="Attach file" style="cursor:pointer">📎</label>
+          <div class="toolbar-divider"></div>
+          <button id="priority-toggle" onclick="togglePriority()" title="Priority message">🔴 Priority</button>
+        </div>
+
+        <div class="input-wrap">
+          <textarea
+            id="message-input"
+            placeholder="Message…"
+            rows="1"
+            oninput="autoResizeInput(this); handleTyping()"
+            onkeydown="handleInputKeydown(event)"
+          ></textarea>
+          <button class="icon-btn" id="send-btn" onclick="sendMessage()" style="color:var(--accent);font-size:18px;flex-shrink:0">➤</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Notes ──────────────────────────────────────────────────────── -->
+    <div id="notes-section" class="section">
+      <div class="section-header">
+        <h2>Notes</h2>
+        <button class="primary" onclick="createNote()" style="padding:6px 14px;font-size:13px">+ New</button>
+      </div>
+      <div id="notes-list" style="flex:1;overflow-y:auto"></div>
+    </div>
+
+    <!-- ── Calendar ──────────────────────────────────────────────────── -->
+    <div id="calendar-section" class="section">
+      <div class="section-header">
+        <h2>Calendar</h2>
+        <button class="primary" onclick="createEvent()" style="padding:6px 14px;font-size:13px">+ Event</button>
+      </div>
+      <div id="calendar-body" style="flex:1;overflow-y:auto"></div>
+    </div>
+
+    <!-- ── Vault ─────────────────────────────────────────────────────── -->
+    <div id="vault-section" class="section">
+      <div class="section-header">
+        <h2>🔒 Vault</h2>
+        <button class="primary" id="vault-upload-btn" onclick="vaultUpload()" style="padding:6px 14px;font-size:13px;display:none">+ Upload</button>
+      </div>
+      <div id="vault-body" style="flex:1;overflow-y:auto"></div>
+    </div>
+
+    <!-- ── Contacts ───────────────────────────────────────────────────── -->
+    <div id="contacts-section" class="section">
+      <div class="section-header">
+        <h2>Contacts</h2>
+        <button class="primary" onclick="createContact()" style="padding:6px 14px;font-size:13px">+ Add</button>
+      </div>
+      <div id="contacts-list" style="flex:1;overflow-y:auto"></div>
+    </div>
+
+    <!-- ── Reminders ─────────────────────────────────────────────────── -->
+    <div id="reminders-section" class="section">
+      <div class="section-header">
+        <h2>Reminders</h2>
+        <button class="primary" onclick="createReminder()" style="padding:6px 14px;font-size:13px">+ Add</button>
+      </div>
+      <div id="reminders-list" style="flex:1;overflow-y:auto"></div>
+    </div>
+
+    <!-- ── Guests ─────────────────────────────────────────────────────── -->
+    <div id="guests-section" class="section">
+      <div class="section-header">
+        <h2>Guest Messages</h2>
+      </div>
+      <div id="guests-list" style="flex:1;overflow-y:auto"></div>
+    </div>
+
+  </main>
+
+  <!-- ── Right Panel ────────────────────────────────────────────────────── -->
+  <aside id="right-panel">
+    <div id="right-panel-inner">
+      <div id="right-panel-header">
+        <span id="right-panel-title">Detail</span>
+        <button id="right-panel-close" onclick="closeRightPanel()">✕</button>
+      </div>
+      <div id="right-panel-content"></div>
+    </div>
+  </aside>
+
+</div><!-- #app -->
+
+<!-- Hidden file input -->
+<input type="file" id="file-picker" multiple style="display:none" onchange="handleFilePicker(this.files)">
+
+<!-- Image lightbox -->
+<div id="image-lightbox" style="display:none" onclick="closeLightbox()"></div>
+
+<script src="vendor/socket.io.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
