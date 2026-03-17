@@ -28,15 +28,19 @@ let tray = null;
 
 // ── Tray icon ─────────────────────────────────────────────────────────────────
 function buildTrayIcon() {
-  const iconPath = path.join(__dirname, 'build', 'tray.png');
-  try {
-    const img = nativeImage.createFromPath(iconPath);
-    if (!img.isEmpty()) {
-      const resized = img.resize({ width: 16, height: 16 });
-      resized.setTemplateImage(true);
-      return resized;
-    }
-  } catch (_) { /* fall through */ }
+  // Try colored crown emoji icon first, then fall back to template
+  const colorPath = path.join(__dirname, 'build', 'tray_color.png');
+  const templatePath = path.join(__dirname, 'build', 'tray.png');
+  for (const p of [colorPath, templatePath]) {
+    try {
+      const img = nativeImage.createFromPath(p);
+      if (!img.isEmpty()) {
+        const resized = img.resize({ width: 18, height: 18 });
+        // Don't set as template — show the crown emoji in color
+        return resized;
+      }
+    } catch (_) { /* try next */ }
+  }
   return nativeImage.createFromDataURL(
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
   );
