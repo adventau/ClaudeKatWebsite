@@ -137,10 +137,25 @@ function loadWebsite() {
     injectCredentialCapture();
   });
 
-  // After successful login on website, capture credentials for next launch
+  // Re-inject desktop CSS when navigating to /app + capture avatar
   mainWindow.webContents.on('did-navigate', (_, url) => {
     if (url.includes('/app')) {
-      captureCredentials();
+      injectDesktopCSS();
+      // Capture avatar after a short delay to let the app initialize
+      setTimeout(() => {
+        mainWindow.webContents.executeJavaScript(`
+          (function() {
+            try {
+              const users = window._cachedUsers || {};
+              const profile = '${store.get('lastProfile') || ''}';
+              const u = users[profile];
+              if (u && u.avatar && window.electron) {
+                window.electron.store.set('profileAvatar', '${APP_URL}' + u.avatar);
+              }
+            } catch {}
+          })()
+        `).catch(() => {});
+      }, 3000);
     }
   });
 }
@@ -176,59 +191,53 @@ function injectDesktopCSS() {
 }
 
 function injectCredentialCapture() {
-  // Hook into the website's auth to capture the site password on successful login
+  // Hook into the website's fetch to capture credentials on successful auth
   mainWindow.webContents.executeJavaScript(`
     (function() {
       if (window._electronAuthHooked) return;
       window._electronAuthHooked = true;
 
-      // Intercept fetch to capture successful password auth
       const origFetch = window.fetch;
       window.fetch = async function(...args) {
         const res = await origFetch.apply(this, args);
         const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
 
-        // Clone response so we can read it without consuming
-        if (url.includes('/api/auth/password') && res.ok) {
-          try {
+        try {
+          // Capture site password on successful auth
+          if (url.includes('/api/auth/password') && res.ok) {
             const clone = res.clone();
             const data = await clone.json();
             if (data.success && !data.isGuest && window.electron) {
-              // Get the password that was submitted
               const pwInput = document.getElementById('pw-input');
               if (pwInput && pwInput.value) {
                 window.electron.storeSitePassword(pwInput.value);
               }
             }
-          } catch {}
-        }
+          }
+
+          // Capture profile on successful profile auth
+          if (url.includes('/api/auth/profile') && res.ok) {
+            const clone = res.clone();
+            const data = await clone.json();
+            if (data.success && window.electron) {
+              // Get profile from the request body
+              const reqBody = args[1]?.body;
+              if (reqBody) {
+                try {
+                  const parsed = JSON.parse(reqBody);
+                  if (parsed.profile) {
+                    window.electron.store.set('lastProfile', parsed.profile);
+                  }
+                } catch {}
+              }
+            }
+          }
+        } catch {}
+
         return res;
       };
     })();
   `);
-}
-
-async function captureCredentials() {
-  try {
-    // Extract the current profile from the website's JS state
-    const profile = await mainWindow.webContents.executeJavaScript(`
-      window.currentUser || null
-    `);
-    const avatar = await mainWindow.webContents.executeJavaScript(`
-      (function() {
-        try {
-          const users = window._cachedUsers || {};
-          const u = users[window.currentUser];
-          return u && u.avatar ? '${APP_URL}' + u.avatar : null;
-        } catch { return null; }
-      })()
-    `);
-
-    if (profile) {
-      store.set('lastProfile', profile);
-      if (avatar) store.set('profileAvatar', avatar);
-    }
-  } catch (_) { /* ignore */ }
 }
 
 function saveBounds() {
