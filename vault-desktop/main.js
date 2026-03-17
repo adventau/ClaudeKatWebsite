@@ -146,7 +146,7 @@ function loadWebsite() {
         mainWindow.webContents.executeJavaScript(`
           (function() {
             try {
-              const users = window._cachedUsers || {};
+              const users = window._users || {};
               const profile = '${store.get('lastProfile') || ''}';
               const u = users[profile];
               if (u && u.avatar && window.electron) {
@@ -389,6 +389,20 @@ ipcMain.handle('submit-pin', async (_, pin) => {
     const pinData = await pinRes.json();
 
     if (pinData.success) {
+      // Fetch avatar for next PIN screen
+      try {
+        const usersRes = await electronNet.fetch(APP_URL + '/api/users', {
+          session: ses
+        });
+        const usersData = await usersRes.json();
+        const u = Array.isArray(usersData)
+          ? usersData.find(u => u.name?.toLowerCase() === profile)
+          : usersData[profile];
+        if (u && u.avatar) {
+          store.set('profileAvatar', APP_URL + u.avatar);
+        }
+      } catch (_) { /* not critical */ }
+
       // Navigate to the website app page
       mainWindow.webContents.removeAllListeners('did-finish-load');
       mainWindow.webContents.on('did-finish-load', injectDesktopCSS);
