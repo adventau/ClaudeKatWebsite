@@ -198,9 +198,26 @@ function injectDesktopCSS() {
       z-index: 99999;
       pointer-events: auto;
     }
-    /* Nudge sidebar down so traffic lights don't overlap content */
+    /* Desktop app: push content below the drag bar */
     #sidebar { padding-top: 32px !important; }
     #sidebar .sidebar-user { margin-top: 4px !important; }
+    #app-header { padding-top: 28px !important; }
+
+    /* Force desktop layout — always show vertical sidebar, never tablet/mobile mode */
+    @media (max-width: 834px) {
+      #app {
+        grid-template-columns: 260px 1fr !important;
+        grid-template-areas: "sidebar header" "sidebar main" !important;
+      }
+      #sidebar {
+        position: relative !important;
+        transform: none !important;
+        width: auto !important;
+        box-shadow: var(--sidebar-glow, none) !important;
+      }
+      .header-hamburger { display: none !important; }
+      .sidebar-backdrop { display: none !important; }
+    }
   `);
 
   // Override browser Notification API with native Electron notifications
