@@ -6,15 +6,15 @@
   <title>My Year: A Debrief</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Space+Mono:ital@0;1&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/debrief.css">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Space+Mono:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/debrief.css?v=18">
 </head>
 <body>
 
   <!-- Grain Overlay -->
   <svg class="grain-overlay" xmlns="http://www.w3.org/2000/svg">
     <filter id="grain-filter">
-      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="3" stitchTiles="stitch"/>
     </filter>
     <rect width="100%" height="100%" filter="url(#grain-filter)"/>
   </svg>
@@ -22,28 +22,32 @@
   <!-- Vinyl SVG Template -->
   <template id="vinyl-template">
     <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="98" fill="#0a0a0a" stroke="#222" stroke-width="1"/>
-      <circle cx="100" cy="100" r="85" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
-      <circle cx="100" cy="100" r="75" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
-      <circle cx="100" cy="100" r="65" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
-      <circle cx="100" cy="100" r="55" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
-      <circle cx="100" cy="100" r="28" fill="#1a1a1a"/>
-      <circle cx="100" cy="100" r="4" fill="#0a0a0a"/>
-      <text x="100" y="97" text-anchor="middle" font-family="Space Mono, monospace" font-size="7" fill="rgba(255,255,255,0.5)" letter-spacing="2">MY YEAR</text>
-      <text x="100" y="107" text-anchor="middle" font-family="Space Mono, monospace" font-size="5" fill="rgba(255,255,255,0.25)">2024–2025</text>
+      <circle cx="100" cy="100" r="98" fill="#111" stroke="#333" stroke-width="1"/>
+      <circle cx="100" cy="100" r="85" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+      <circle cx="100" cy="100" r="75" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+      <circle cx="100" cy="100" r="65" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+      <circle cx="100" cy="100" r="55" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+      <circle cx="100" cy="100" r="28" fill="#222"/>
+      <circle cx="100" cy="100" r="4" fill="#111"/>
+      <text x="100" y="95" text-anchor="middle" font-family="Space Mono, monospace" font-size="6" fill="rgba(255,255,255,0.5)" letter-spacing="1.5">YEAR DEBRIEF</text>
+      <text x="100" y="104" text-anchor="middle" font-family="Space Mono, monospace" font-size="5" fill="rgba(255,255,255,0.3)">FT. KALIPH &amp; KATHRINE</text>
+      <text x="100" y="113" text-anchor="middle" font-family="Space Mono, monospace" font-size="4" fill="rgba(255,255,255,0.2)">2024–2025</text>
     </svg>
   </template>
 
   <!-- ==================== GATE SCREEN ==================== -->
   <div class="gate-screen" id="gate-screen">
-    <div class="gate-vinyl vinyl-wrap vinyl-spinning" id="gate-vinyl"></div>
-    <h1 class="gate-title">My Year: A Debrief</h1>
-    <p class="gate-subtitle">Enter your access code</p>
-    <form class="gate-form" id="gate-form">
-      <input type="password" class="gate-input" id="gate-password" placeholder="••••••••" autocomplete="off">
-      <button type="submit" class="gate-submit">Enter</button>
-      <div class="gate-error" id="gate-error">Incorrect.</div>
-    </form>
+    <div class="gate-bg"></div>
+    <div class="gate-content">
+      <div class="gate-vinyl vinyl-wrap vinyl-spinning" id="gate-vinyl"></div>
+      <h1 class="gate-title">My Year: A Debrief</h1>
+      <p class="gate-subtitle">ft. Kaliph & Kathrine · 2024–2025</p>
+      <form class="gate-form" id="gate-form">
+        <input type="password" class="gate-input" id="gate-password" placeholder="Enter access code" autocomplete="off">
+        <button type="submit" class="gate-submit">Enter</button>
+        <div class="gate-error" id="gate-error">Incorrect code.</div>
+      </form>
+    </div>
   </div>
 
   <!-- Gate Audio -->
@@ -99,6 +103,7 @@
     <button class="edit-toolbar-btn" id="edit-prev">← Prev</button>
     <span class="edit-toolbar-slide-label" id="edit-slide-label">Slide 1 / 19</span>
     <button class="edit-toolbar-btn" id="edit-next">Next →</button>
+    <button class="edit-toolbar-btn add-event-btn" id="add-event-btn" title="Add event slide to this month">+ Event Slide</button>
     <span class="edit-toolbar-spacer"></span>
     <button class="edit-toolbar-btn save-btn" id="edit-save">Save All</button>
     <button class="edit-toolbar-btn" id="edit-settings-btn">Settings</button>
@@ -107,12 +112,15 @@
   <!-- Settings Drawer -->
   <div class="settings-drawer" id="settings-drawer">
     <div class="settings-section">
-      <div class="settings-label">Gate Screen Song URL</div>
-      <input type="text" class="settings-input" id="setting-gate-song" placeholder="https://example.com/song.mp3">
-    </div>
-    <div class="settings-section">
-      <div class="settings-label">Current Slide BG Audio URL</div>
-      <input type="text" class="settings-input" id="setting-bg-audio" placeholder="https://example.com/ambient.mp3">
+      <div class="settings-label">Gate Screen Song</div>
+      <div class="settings-upload-row">
+        <input type="text" class="settings-input" id="setting-gate-song-name" placeholder="Song name (e.g. Intro Theme)">
+        <label class="settings-upload-btn">
+          Upload Audio
+          <input type="file" id="setting-gate-song-file" accept="audio/*" hidden>
+        </label>
+      </div>
+      <div class="settings-upload-status" id="gate-song-status"></div>
     </div>
     <div class="settings-section">
       <label class="settings-toggle">
@@ -125,9 +133,20 @@
     </div>
   </div>
 
+  <!-- Confirm Modal -->
+  <div class="confirm-modal-overlay" id="confirm-modal">
+    <div class="confirm-modal">
+      <p class="confirm-modal-text" id="confirm-modal-text">Are you sure?</p>
+      <div class="confirm-modal-actions">
+        <button class="confirm-modal-btn confirm-cancel" id="confirm-cancel">Cancel</button>
+        <button class="confirm-modal-btn confirm-delete" id="confirm-delete">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/debrief-data.js"></script>
-  <script src="/js/debrief.js"></script>
+  <script src="/js/debrief-data.js?v=18"></script>
+  <script src="/js/debrief.js?v=18"></script>
 </body>
 </html>

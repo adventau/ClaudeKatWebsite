@@ -3617,9 +3617,9 @@ initDebriefData();
 
 // Debrief passwords (env vars with hard-coded defaults)
 const DEBRIEF_PASSWORDS = {
-  presenter: process.env.DEBRIEF_PRESENTER_PASSWORD || 'kaliph-presents',
-  viewer:    process.env.DEBRIEF_VIEWER_PASSWORD    || 'kathrine-watches',
-  editor:    process.env.DEBRIEF_EDITOR_PASSWORD    || 'debrief-edit-2025'
+  presenter: process.env.DEBRIEF_PRESENTER_PASSWORD || 'presenting',
+  viewer:    process.env.DEBRIEF_VIEWER_PASSWORD    || 'kat',
+  editor:    process.env.DEBRIEF_EDITOR_PASSWORD    || 'editing'
 };
 
 // Debrief presenter state (in-memory)
@@ -3718,6 +3718,40 @@ app.post('/api/debrief/upload-audio/:monthId', (req, res) => {
     });
   } catch (outerErr) {
     console.error('Audio upload outer error:', outerErr);
+    if (!res.headersSent) res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/debrief/upload-gate-audio — upload gate screen song
+app.post('/api/debrief/upload-gate-audio', (req, res) => {
+  try {
+    debriefAudioUpload.single('audio')(req, res, (err) => {
+      try {
+        // Override the filename to always be gate-song.*
+        if (err) {
+          console.error('Gate audio upload error:', err.message);
+          return res.status(400).json({ error: err.message || 'Upload failed' });
+        }
+        if (!req.file) return res.status(400).json({ error: 'No audio file received' });
+        // Rename file to gate-song.ext
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        const newName = `gate-song${ext}`;
+        const oldPath = req.file.path;
+        const newPath = path.join(path.dirname(oldPath), newName);
+        fs.renameSync(oldPath, newPath);
+        console.log(`Gate audio uploaded: ${newName} (${req.file.size} bytes)`);
+        const cfg = readDebriefConfig();
+        cfg.gateSongFile = newName;
+        writeDebriefConfig(cfg);
+        storeDebriefFile(`audio/${newName}`, fs.readFileSync(newPath)).catch(e => console.error('[debrief] DB store gate audio:', e.message));
+        res.json({ ok: true, filename: newName });
+      } catch (innerErr) {
+        console.error('Gate audio upload handler error:', innerErr);
+        if (!res.headersSent) res.status(500).json({ error: 'Server error during upload' });
+      }
+    });
+  } catch (outerErr) {
+    console.error('Gate audio upload outer error:', outerErr);
     if (!res.headersSent) res.status(500).json({ error: 'Server error' });
   }
 });

@@ -1,6 +1,7 @@
 /* ============================================
    debrief.js — Slide Engine, Socket Sync, Edit Mode
    "My Year: A Debrief" by Kaliph
+   v2 — Warm theme, event sub-slides, perf fixes
    ============================================ */
 
 (function () {
@@ -10,7 +11,6 @@
   let role = null;           // 'presenter' | 'viewer' | 'editor'
   let slideIndex = 0;
   let revealStep = 0;
-  let totalSlides = 19;
   let presenterConnected = false;
   let audioMuted = false;
   let config = {};
@@ -18,6 +18,7 @@
   let months = [];           // merged month data
   let debriefData = {};      // merged debrief data
   let transitioning = false;
+  let slideList = [];        // flat array of slide descriptors
 
   const socket = io();
 
@@ -40,6 +41,55 @@
   const slideCounter = document.getElementById('slide-counter');
   const revealCounter = document.getElementById('reveal-counter');
   const settingsDrawer = document.getElementById('settings-drawer');
+  const addEventBtn = document.getElementById('add-event-btn');
+
+  // --- Helpers ---
+  function hexToTint(hex, opacity) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  }
+
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function getAudioStartTime(monthId) {
+    if (config.months && config.months[monthId] && config.months[monthId].audioStartTime !== undefined) {
+      return config.months[monthId].audioStartTime;
+    }
+    return 0;
+  }
+
+  // --- Confirm Modal helper ---
+  function showConfirmModal(message, onConfirm) {
+    const overlay = document.getElementById('confirm-modal');
+    const text = document.getElementById('confirm-modal-text');
+    const cancelBtn = document.getElementById('confirm-cancel');
+    const deleteBtn = document.getElementById('confirm-delete');
+    text.textContent = message;
+    overlay.classList.add('visible');
+
+    function cleanup() {
+      overlay.classList.remove('visible');
+      cancelBtn.removeEventListener('click', handleCancel);
+      deleteBtn.removeEventListener('click', handleConfirm);
+      overlay.removeEventListener('click', handleOverlay);
+      document.removeEventListener('keydown', handleKey);
+    }
+    function handleCancel() { cleanup(); }
+    function handleConfirm() { cleanup(); onConfirm(); }
+    function handleOverlay(e) { if (e.target === overlay) cleanup(); }
+    function handleKey(e) { if (e.key === 'Escape') cleanup(); }
+
+    cancelBtn.addEventListener('click', handleCancel);
+    deleteBtn.addEventListener('click', handleConfirm);
+    overlay.addEventListener('click', handleOverlay);
+    document.addEventListener('keydown', handleKey);
+  }
 
   // --- Vinyl helper ---
   function createVinyl() {
@@ -75,17 +125,15 @@
       return {
         ...m,
         vibe: saved.vibe || m.vibe,
-        moodTag: saved.moodTag || m.moodTag,
+        description: saved.description || m.description,
         songCaption: saved.songCaption || m.songCaption,
-        howIFelt: saved.howIFelt || m.howIFelt,
-        keyMoment: saved.keyMoment || m.keyMoment,
-        kathrineMemory: saved.kathrineMemory || m.kathrineMemory,
         songTitle: saved.songTitle || m.songTitle,
         songArtist: saved.songArtist || m.songArtist,
         spotifyTrackId: saved.spotifyTrackId || m.spotifyTrackId,
         audioFile: saved.audioFile || '',
         coverFile: saved.coverFile || '',
-        photos: saved.photos || m.photos
+        photos: saved.photos || m.photos,
+        events: saved.events || []
       };
     });
 
@@ -107,144 +155,237 @@
     };
   }
 
-  // --- Accent helpers ---
-  function accentBg(hex) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgb(${Math.round(r * 0.05)},${Math.round(g * 0.05)},${Math.round(b * 0.05)})`;
+  // --- Build Slide List (flat array with events interleaved) ---
+  function buildSlideList() {
+    slideList = [];
+    // Intro
+    slideList.push({ type: 'intro' });
+    // Months + events
+    months.forEach((m, mi) => {
+      slideList.push({ type: 'month', monthIndex: mi });
+      if (m.events && m.events.length) {
+        m.events.forEach((evt, ei) => {
+          slideList.push({ type: 'event', monthIndex: mi, eventIndex: ei });
+        });
+      }
+    });
+    // Debrief
+    slideList.push({ type: 'debrief' });
+    // Credits
+    slideList.push({ type: 'credits' });
+  }
+
+  function getTotalSlides() {
+    return slideList.length;
+  }
+
+  // Find the slide list index for a given month
+  function findMonthSlideIndex(monthIndex) {
+    return slideList.findIndex(s => s.type === 'month' && s.monthIndex === monthIndex);
+  }
+
+  // Get the month data for the current slide (if applicable)
+  function getCurrentMonthData() {
+    const desc = slideList[slideIndex];
+    if (!desc) return null;
+    if (desc.type === 'month') return months[desc.monthIndex];
+    if (desc.type === 'event') return months[desc.monthIndex];
+    return null;
+  }
+
+  function getCurrentMonthId() {
+    const m = getCurrentMonthData();
+    return m ? m.id : null;
   }
 
   // --- Build Slides ---
   function buildSlides() {
     slidesContainer.innerHTML = '';
+    const frag = document.createDocumentFragment();
 
-    // Slide 1: Intro
-    const intro = document.createElement('div');
-    intro.className = 'slide slide-intro';
-    intro.dataset.slideIndex = '0';
-    intro.dataset.totalReveals = '0';
-    intro.innerHTML = `
+    slideList.forEach((desc, idx) => {
+      let slide;
+      switch (desc.type) {
+        case 'intro': slide = buildIntroSlide(idx); break;
+        case 'month': slide = buildMonthSlide(idx, desc.monthIndex); break;
+        case 'event': slide = buildEventSlide(idx, desc.monthIndex, desc.eventIndex); break;
+        case 'debrief': slide = buildDebriefSlide(idx); break;
+        case 'credits': slide = buildCreditsSlide(idx); break;
+      }
+      if (slide) frag.appendChild(slide);
+    });
+
+    slidesContainer.appendChild(frag);
+    buildDotNav();
+  }
+
+  function buildIntroSlide(idx) {
+    const slide = document.createElement('div');
+    slide.className = 'slide slide-intro';
+    slide.dataset.slideIndex = String(idx);
+    slide.dataset.totalReveals = '0';
+    const songName = config.gateSongName || '';
+    const nowPlaying = songName ? `<p class="intro-now-playing">Now Playing: ${songName}...</p>` : '';
+    slide.innerHTML = `
       <div class="intro-radial-glow"></div>
       <div class="intro-vinyl vinyl-wrap vinyl-spinning"></div>
       <h1 class="intro-title">My Year</h1>
       <p class="intro-subtitle">A Debrief by Kaliph</p>
       <p class="intro-date">September 2024 – December 2025</p>
+      ${nowPlaying}
       <span class="intro-vol">Vol. I</span>
     `;
-    intro.querySelector('.intro-vinyl').appendChild(createVinyl());
-    slidesContainer.appendChild(intro);
+    slide.querySelector('.intro-vinyl').appendChild(createVinyl());
+    return slide;
+  }
 
-    // Slides 2-17: Months
-    months.forEach((m, i) => {
-      const slide = document.createElement('div');
-      slide.className = 'slide slide-month';
-      slide.dataset.slideIndex = String(i + 1);
-      slide.dataset.totalReveals = '6';
-      slide.dataset.monthId = m.id;
-      slide.style.background = accentBg(m.accentColor);
-      slide.style.setProperty('--accent', m.accentColor);
-      slide.style.setProperty('--accent-glow', m.accentColor + '30');
+  function buildMonthSlide(idx, monthIndex) {
+    const m = months[monthIndex];
+    const slide = document.createElement('div');
+    slide.className = 'slide slide-month' + (m.darkMode ? ' slide-dark' : '');
+    slide.dataset.slideIndex = String(idx);
+    slide.dataset.totalReveals = '3';
+    slide.dataset.monthId = m.id;
+    slide.dataset.monthIndex = String(monthIndex);
+    slide.style.setProperty('--accent', m.accentColor);
+    if (m.bgGradient) slide.style.background = m.bgGradient;
 
-      const moodBg = m.accentColor + '26';
-      const moodBorder = m.accentColor + '4D';
-
-      slide.innerHTML = `
-        <div class="month-left">
-          <div class="month-track-label">TRACK ${m.trackNumber}</div>
-          <div class="month-year-label">${m.year}</div>
-          <div class="month-name">${m.name}</div>
-          <div class="reveal-item" data-reveal="1">
-            <div class="month-vibe editable" data-field="vibe" data-month="${m.id}">${m.vibe}</div>
-          </div>
-          <div class="reveal-item" data-reveal="2">
-            <span class="month-mood-tag editable" data-field="moodTag" data-month="${m.id}" style="background:${moodBg};color:${m.accentColor};border:1px solid ${moodBorder}">${m.moodTag}</span>
-          </div>
-          <div class="reveal-item" data-reveal="3">
-            <div class="month-section-label">HOW I FELT</div>
-            <div class="month-section-text editable" data-field="howIFelt" data-month="${m.id}">${m.howIFelt}</div>
-          </div>
-          <div class="reveal-item" data-reveal="4">
-            <div class="month-section-label">KEY MOMENT</div>
-            <div class="month-section-text editable" data-field="keyMoment" data-month="${m.id}">${m.keyMoment}</div>
-          </div>
-          <div class="reveal-item" data-reveal="5">
-            <div class="month-section-label">KATHRINE &amp; I</div>
-            <div class="month-section-text editable" data-field="kathrineMemory" data-month="${m.id}">${m.kathrineMemory}</div>
-          </div>
+    slide.innerHTML = `
+      <div class="month-left">
+        <div class="month-track-label">TRACK ${m.trackNumber}</div>
+        <div class="month-year-label">${m.year}</div>
+        <div class="month-name">${m.name}</div>
+        <div class="reveal-item" data-reveal="1">
+          <div class="month-vibe editable" data-field="vibe" data-month="${m.id}">${m.vibe}</div>
         </div>
-        <div class="month-right">
-          <div class="month-right-player-row">
-              <div class="vinyl-player" data-month="${m.id}" style="--player-accent:${m.accentColor}">
-                <div class="vinyl-player-disc ${m.audioFile ? 'has-audio' : ''}" id="disc-${m.id}">
-                  <svg class="vinyl-player-svg" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="140" cy="140" r="138" fill="#111" stroke="${m.accentColor}44" stroke-width="1"/>
-                    <circle cx="140" cy="140" r="120" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
-                    <circle cx="140" cy="140" r="105" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
-                    <circle cx="140" cy="140" r="90" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
-                    <circle cx="140" cy="140" r="75" fill="none" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>
-                    <defs>
-                      <clipPath id="cover-clip-${m.id}">
-                        <circle cx="140" cy="140" r="52"/>
-                      </clipPath>
-                    </defs>
-                    ${m.coverFile
-                      ? `<image href="/uploads/debrief/covers/${m.coverFile}" x="88" y="88" width="104" height="104" clip-path="url(#cover-clip-${m.id})" preserveAspectRatio="xMidYMid slice"/>`
-                      : `<circle cx="140" cy="140" r="52" fill="#1a1a1a"/>`
-                    }
-                    <circle cx="140" cy="140" r="6" fill="#0a0a0a"/>
-                    ${!m.coverFile ? `
-                    <text x="140" y="135" text-anchor="middle" font-family="Space Mono, monospace" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1.5">NOW PLAYING</text>
-                    <text x="140" y="148" text-anchor="middle" font-family="Space Mono, monospace" font-size="6" fill="rgba(255,255,255,0.25)">${m.trackNumber}</text>
-                    ` : ''}
-                  </svg>
-                  <button class="vinyl-play-btn" data-month="${m.id}" title="Play/Pause">
-                    <svg viewBox="0 0 24 24" class="play-icon"><polygon points="5,3 19,12 5,21" fill="white"/></svg>
-                    <svg viewBox="0 0 24 24" class="pause-icon" style="display:none"><rect x="5" y="3" width="4" height="18" fill="white"/><rect x="15" y="3" width="4" height="18" fill="white"/></svg>
-                  </button>
-                </div>
-                <div class="vinyl-player-glow" style="background:radial-gradient(circle, ${m.accentColor}15 0%, transparent 70%)"></div>
+        <div class="reveal-item" data-reveal="2">
+          <div class="month-section-label">ABOUT THIS MONTH</div>
+          <div class="month-section-text month-description editable" data-field="description" data-month="${m.id}">${m.description}</div>
+        </div>
+      </div>
+      <div class="month-right">
+        ${m.darkMode ? `<div class="month-glow" style="background:radial-gradient(ellipse at 30% 40%, ${m.accentColor}22 0%, transparent 60%)"></div>` : ''}
+        <div class="month-right-player-row">
+            <div class="vinyl-player" data-month="${m.id}" style="--player-accent:${m.accentColor}">
+              <div class="vinyl-player-disc ${m.audioFile ? 'has-audio' : ''}" id="disc-${m.id}">
+                <svg class="vinyl-player-svg" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="140" cy="140" r="138" fill="#111" stroke="${m.accentColor}44" stroke-width="1"/>
+                  <circle cx="140" cy="140" r="120" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+                  <circle cx="140" cy="140" r="105" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+                  <circle cx="140" cy="140" r="90" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+                  <circle cx="140" cy="140" r="75" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>
+                  <defs>
+                    <clipPath id="cover-clip-${m.id}">
+                      <circle cx="140" cy="140" r="52"/>
+                    </clipPath>
+                  </defs>
+                  ${m.coverFile
+                    ? `<image href="/uploads/debrief/covers/${m.coverFile}" x="88" y="88" width="104" height="104" clip-path="url(#cover-clip-${m.id})" preserveAspectRatio="xMidYMid slice"/>`
+                    : `<circle cx="140" cy="140" r="52" fill="#222"/>`
+                  }
+                  <circle cx="140" cy="140" r="6" fill="#111"/>
+                  ${!m.coverFile ? `
+                  <text x="140" y="135" text-anchor="middle" font-family="Space Mono, monospace" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1.5">NOW PLAYING</text>
+                  <text x="140" y="148" text-anchor="middle" font-family="Space Mono, monospace" font-size="6" fill="rgba(255,255,255,0.25)">${m.trackNumber}</text>
+                  ` : ''}
+                </svg>
+                <button class="vinyl-play-btn" data-month="${m.id}" title="Play/Pause">
+                  <svg viewBox="0 0 24 24" class="play-icon"><polygon points="5,3 19,12 5,21" fill="white"/></svg>
+                  <svg viewBox="0 0 24 24" class="pause-icon" style="display:none"><rect x="5" y="3" width="4" height="18" fill="white"/><rect x="15" y="3" width="4" height="18" fill="white"/></svg>
+                </button>
               </div>
-              <div class="song-info">
-                <div class="song-now-playing">NOW PLAYING</div>
-                <div class="song-title editable" data-field="songTitle" data-month="${m.id}">${m.songTitle}</div>
-                <div class="song-artist editable" data-field="songArtist" data-month="${m.id}">${m.songArtist}</div>
-                <div class="song-caption editable" data-field="songCaption" data-month="${m.id}">${m.songCaption}</div>
-              </div>
+              <div class="vinyl-player-glow" style="background:radial-gradient(circle, ${m.accentColor}12 0%, transparent 70%)"></div>
             </div>
-          <div class="editor-only-fields">
-            <div class="editor-upload-row">
-              <div class="editor-upload-box">
-                <div class="settings-label">Song Audio</div>
-                <button class="editor-upload-btn audio-upload-btn ${m.audioFile ? 'has-file' : ''}" data-month="${m.id}">${m.audioFile ? '✓ ' + m.audioFile : '↑ Upload MP3'}</button>
-                <input type="file" class="audio-file-input" data-month="${m.id}" accept=".mp3,.m4a,.ogg,.wav,.aac" style="display:none">
-              </div>
-              <div class="editor-upload-box">
-                <div class="settings-label">Cover Art</div>
-                <button class="editor-upload-btn cover-upload-btn ${m.coverFile ? 'has-file' : ''}" data-month="${m.id}">${m.coverFile ? '✓ ' + m.coverFile : '↑ Upload Image'}</button>
-                <input type="file" class="cover-file-input" data-month="${m.id}" accept=".jpg,.jpeg,.png,.webp" style="display:none">
-              </div>
+            <div class="song-info">
+              <div class="song-now-playing">NOW PLAYING</div>
+              <div class="song-title editable" data-field="songTitle" data-month="${m.id}">${m.songTitle}</div>
+              <div class="song-artist editable" data-field="songArtist" data-month="${m.id}">${m.songArtist}</div>
+              <div class="song-caption editable" data-field="songCaption" data-month="${m.id}">${m.songCaption}</div>
             </div>
           </div>
-          <div class="reveal-item" data-reveal="6">
-            <div class="photo-filmstrip" id="filmstrip-${m.id}">
-              ${buildFilmstrip(m)}
+        <div class="editor-only-fields">
+          <div class="editor-upload-row">
+            <div class="editor-upload-box">
+              <div class="settings-label">Song Audio</div>
+              <button class="editor-upload-btn audio-upload-btn ${m.audioFile ? 'has-file' : ''}" data-month="${m.id}">${m.audioFile ? '✓ ' + m.audioFile : '↑ Upload MP3'}</button>
+              <input type="file" class="audio-file-input" data-month="${m.id}" accept=".mp3,.m4a,.ogg,.wav,.aac" style="display:none">
+              ${m.audioFile ? `
+              <div class="audio-trim-row">
+                <div class="settings-label">Start At <span class="trim-time-display" id="trim-display-${m.id}">${formatTime(getAudioStartTime(m.id))}</span></div>
+                <input type="range" class="audio-trim-slider" id="trim-${m.id}" data-month="${m.id}" min="0" max="300" step="1" value="${getAudioStartTime(m.id)}">
+              </div>
+              ` : ''}
             </div>
-            <div class="photo-upload-zone" id="upload-zone-${m.id}">
-              <p>Drop photos here or click to upload</p>
-              <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic" data-month="${m.id}">
+            <div class="editor-upload-box">
+              <div class="settings-label">Cover Art</div>
+              <button class="editor-upload-btn cover-upload-btn ${m.coverFile ? 'has-file' : ''}" data-month="${m.id}">${m.coverFile ? '✓ ' + m.coverFile : '↑ Upload Image'}</button>
+              <input type="file" class="cover-file-input" data-month="${m.id}" accept=".jpg,.jpeg,.png,.webp" style="display:none">
             </div>
           </div>
         </div>
-      `;
-      slidesContainer.appendChild(slide);
-    });
+        <div class="reveal-item" data-reveal="3">
+          <div class="photo-filmstrip" id="filmstrip-${m.id}">
+            ${buildFilmstrip(m)}
+          </div>
+          <div class="photo-upload-zone" id="upload-zone-${m.id}">
+            <p>Drop photos here or click to upload</p>
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic" data-month="${m.id}">
+          </div>
+        </div>
+      </div>
+    `;
+    return slide;
+  }
 
-    // Slide 18: Grand Debrief
-    const debrief = document.createElement('div');
-    debrief.className = 'slide slide-debrief';
-    debrief.dataset.slideIndex = '17';
-    debrief.dataset.totalReveals = '5';
+  function buildEventSlide(idx, monthIndex, eventIndex) {
+    const m = months[monthIndex];
+    const evt = m.events[eventIndex];
+    const slide = document.createElement('div');
+    slide.className = 'slide slide-event' + (m.darkMode ? ' slide-dark' : '');
+    slide.dataset.slideIndex = String(idx);
+    slide.dataset.totalReveals = '0';
+    slide.dataset.monthId = m.id;
+    slide.dataset.monthIndex = String(monthIndex);
+    slide.dataset.eventIndex = String(eventIndex);
+    slide.dataset.eventId = evt.id;
+    slide.style.setProperty('--accent', m.accentColor);
+    if (m.bgGradient) slide.style.background = m.bgGradient;
+
+    const captions = evt.photoCaptions || {};
+    const photosHtml = (evt.photos && evt.photos.length)
+      ? evt.photos.map((p, pi) =>
+          `<div class="event-photo-wrapper" draggable="true" data-photo="${p}" data-month="${m.id}" data-event-id="${evt.id}" data-photo-index="${pi}">
+            <div class="event-photo-frame" style="position:relative">
+              <img src="/uploads/debrief/${m.id}/${p}" alt="" loading="lazy">
+              <button class="photo-delete-event" data-month="${m.id}" data-event-id="${evt.id}" data-filename="${p}">&times;</button>
+            </div>
+            <div class="event-photo-caption editable" contenteditable="false" data-field="event-photo-caption" data-month="${m.id}" data-event-index="${eventIndex}" data-photo-filename="${p}">${captions[p] || ''}</div>
+          </div>`
+        ).join('')
+      : '';
+
+    slide.innerHTML = `
+      <button class="event-delete-btn" data-month-index="${monthIndex}" data-event-index="${eventIndex}">Delete Event</button>
+      <div class="event-content">
+        <div class="event-breadcrumb">${m.name} ${m.year} · Event</div>
+        <div class="event-date editable" data-field="event-date" data-month="${m.id}" data-event-index="${eventIndex}">${evt.date || 'Date'}</div>
+        <h2 class="event-title editable" data-field="event-title" data-month="${m.id}" data-event-index="${eventIndex}">${evt.title || 'Untitled Event'}</h2>
+        <div class="event-description editable" data-field="event-description" data-month="${m.id}" data-event-index="${eventIndex}">${evt.description || 'Describe what happened...'}</div>
+        ${photosHtml ? `<div class="event-photos" data-month="${m.id}" data-event-id="${evt.id}">${photosHtml}</div>` : `<div class="event-photos" data-month="${m.id}" data-event-id="${evt.id}"></div>`}
+        <div class="photo-upload-zone" id="upload-zone-evt-${evt.id}">
+          <p>Drop event photos here or click to upload</p>
+          <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic" data-month="${m.id}" data-event-id="${evt.id}">
+        </div>
+      </div>
+    `;
+    return slide;
+  }
+
+  function buildDebriefSlide(idx) {
+    const slide = document.createElement('div');
+    slide.className = 'slide slide-debrief';
+    slide.dataset.slideIndex = String(idx);
+    slide.dataset.totalReveals = '5';
 
     const lessonsHtml = debriefData.lessons.map((l, i) =>
       `<li class="editable" data-field="lesson-${i}" data-debrief="true">${l}</li>`
@@ -258,7 +399,7 @@
       </div>`
     ).join('');
 
-    debrief.innerHTML = `
+    slide.innerHTML = `
       <div class="debrief-particles" id="debrief-particles"></div>
       <div class="debrief-content">
         <div class="debrief-vinyl vinyl-wrap vinyl-spinning"></div>
@@ -301,17 +442,18 @@
         </div>
       </div>
     `;
-    debrief.querySelector('.debrief-vinyl').appendChild(createVinyl());
-    debrief.querySelector('.debrief-footer-vinyl').appendChild(createVinyl());
-    slidesContainer.appendChild(debrief);
-    createParticles();
+    slide.querySelector('.debrief-vinyl').appendChild(createVinyl());
+    slide.querySelector('.debrief-footer-vinyl').appendChild(createVinyl());
+    createParticles(slide.querySelector('#debrief-particles'));
+    return slide;
+  }
 
-    // Slide 19: Credits
-    const credits = document.createElement('div');
-    credits.className = 'slide slide-credits';
-    credits.dataset.slideIndex = '18';
-    credits.dataset.totalReveals = '0';
-    credits.innerHTML = `
+  function buildCreditsSlide(idx) {
+    const slide = document.createElement('div');
+    slide.className = 'slide slide-credits';
+    slide.dataset.slideIndex = String(idx);
+    slide.dataset.totalReveals = '0';
+    slide.innerHTML = `
       <h1 class="credits-title">My Year: A Debrief</h1>
       <p class="credits-by">By Kaliph · 2026</p>
       <p class="credits-presented">Presented to Kathrine</p>
@@ -319,39 +461,44 @@
       <div class="credits-vinyl vinyl-wrap vinyl-spinning"></div>
       <p class="credits-vol">Vol. I · Sep 2024 – Dec 2025</p>
     `;
-    credits.querySelector('.credits-vinyl').appendChild(createVinyl());
-    slidesContainer.appendChild(credits);
-
-    // Editor-only fields visibility is handled by CSS (.editor-mode .editor-only-fields)
-
-    buildDotNav();
+    slide.querySelector('.credits-vinyl').appendChild(createVinyl());
+    return slide;
   }
 
   function buildFilmstrip(m) {
     if (!m.photos || m.photos.length === 0) {
       return `<div class="filmstrip-placeholder">+</div><div class="filmstrip-placeholder">+</div>`;
     }
-    return m.photos.map(p =>
+
+    const frameHtml = (p) =>
       `<div class="filmstrip-frame">
         <img src="/uploads/debrief/${m.id}/${p}" alt="Photo" loading="lazy">
         <button class="photo-delete" data-month="${m.id}" data-filename="${p}">&times;</button>
-      </div>`
-    ).join('');
+      </div>`;
+
+    // If 3+ photos and not in editor mode, use infinite marquee
+    if (m.photos.length >= 3 && role !== 'editor') {
+      // Duplicate photos for seamless loop — speed scales with count
+      const duration = Math.max(12, m.photos.length * 4);
+      const track = m.photos.map(frameHtml).join('');
+      return `<div class="filmstrip-marquee-track" style="--marquee-duration:${duration}s">${track}${track}</div>`;
+    }
+
+    return m.photos.map(frameHtml).join('');
   }
 
-  function createParticles() {
-    const container = document.getElementById('debrief-particles');
+  function createParticles(container) {
     if (!container) return;
     container.innerHTML = '';
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 20; i++) {
       const p = document.createElement('div');
       p.className = 'debrief-particle';
       const size = 1 + Math.random() * 2;
       p.style.cssText = `
         width:${size}px; height:${size}px;
         left:${Math.random() * 100}%; top:${Math.random() * 100}%;
-        opacity:${0.1 + Math.random() * 0.15};
-        animation-duration:${15 + Math.random() * 20}s;
+        opacity:${0.05 + Math.random() * 0.1};
+        animation-duration:${18 + Math.random() * 24}s;
         animation-delay:${-Math.random() * 20}s;
       `;
       container.appendChild(p);
@@ -360,9 +507,11 @@
 
   function buildDotNav() {
     dotNav.innerHTML = '';
-    for (let i = 0; i < totalSlides; i++) {
+    const total = getTotalSlides();
+    for (let i = 0; i < total; i++) {
       const dot = document.createElement('div');
       dot.className = 'dot-nav-item';
+      if (slideList[i].type === 'event') dot.classList.add('dot-event');
       dot.dataset.index = i;
       if (role === 'presenter' || role === 'editor') {
         dot.addEventListener('click', () => navigateToSlide(i));
@@ -374,39 +523,40 @@
 
   function updateDotNav() {
     const dots = dotNav.querySelectorAll('.dot-nav-item');
-    let accent = '#fff';
-    if (slideIndex >= 1 && slideIndex <= 16) {
-      accent = months[slideIndex - 1].accentColor;
+    let accent = 'var(--accent-gold)';
+    const desc = slideList[slideIndex];
+    if (desc && (desc.type === 'month' || desc.type === 'event')) {
+      accent = months[desc.monthIndex].accentColor;
     }
     dotNav.style.setProperty('--nav-accent', accent);
     dots.forEach((d, i) => d.classList.toggle('active', i === slideIndex));
   }
 
   // --- Slide Navigation ---
-  // This is the core fix: use a simpler, more reliable approach
   function navigateToSlide(newIndex, direction) {
-    if (newIndex < 0 || newIndex >= totalSlides || newIndex === slideIndex) return;
+    const total = getTotalSlides();
+    if (newIndex < 0 || newIndex >= total || newIndex === slideIndex) return;
     if (transitioning) return;
 
     const slides = slidesContainer.querySelectorAll('.slide');
+    if (!slides.length) return;
     const oldSlide = slides[slideIndex];
     const newSlide = slides[newIndex];
-    const goForward = direction !== undefined ? direction === 'forward' : newIndex > slideIndex;
+    if (!oldSlide || !newSlide) return;
 
+    const goForward = direction !== undefined ? direction === 'forward' : newIndex > slideIndex;
     transitioning = true;
 
-    // Clean ALL animation classes from ALL slides first
+    // Clean ALL animation classes from ALL slides
     slides.forEach(s => {
       s.classList.remove('slide-enter-right', 'slide-exit-left', 'slide-enter-left', 'slide-exit-right');
     });
 
-    // Force browser to acknowledge the class removal before adding new ones
+    // Force reflow
     void newSlide.offsetWidth;
 
-    // Set new slide as active immediately
     newSlide.classList.add('active');
 
-    // Apply transition animations
     if (goForward) {
       oldSlide.classList.add('slide-exit-left');
       newSlide.classList.add('slide-enter-right');
@@ -419,16 +569,26 @@
     slideIndex = newIndex;
     revealStep = 0;
 
-    // After animation completes, clean up
-    setTimeout(() => {
-      // Remove active + animation from old slide
+    // Use animationend for cleanup instead of setTimeout
+    function onAnimEnd(e) {
+      if (e.target !== newSlide) return;
+      newSlide.removeEventListener('animationend', onAnimEnd);
       oldSlide.classList.remove('active', 'slide-exit-left', 'slide-exit-right');
-      // Remove animation classes from new slide (keep active)
       newSlide.classList.remove('slide-enter-right', 'slide-enter-left');
       transitioning = false;
-    }, 480);
+    }
+    newSlide.addEventListener('animationend', onAnimEnd);
 
-    // If editor mode, reveal everything immediately
+    // Fallback in case animationend doesn't fire
+    setTimeout(() => {
+      if (transitioning) {
+        oldSlide.classList.remove('active', 'slide-exit-left', 'slide-exit-right');
+        newSlide.classList.remove('slide-enter-right', 'slide-enter-left');
+        transitioning = false;
+      }
+    }, 800);
+
+    // Editor: reveal everything
     if (role === 'editor') {
       const total = parseInt(newSlide.dataset.totalReveals || '0');
       revealStep = total;
@@ -436,16 +596,9 @@
     }
 
     updateUI();
-    loadSpotifyEmbed(newSlide);
     updateSlideAudio();
-
-    // Broadcast if presenter
-    if (role === 'presenter') {
-      socket.emit('debrief:slide-change', { slideIndex });
-    }
   }
 
-  // Jump to slide without animation (for initial load, viewer sync)
   function jumpToSlide(idx) {
     const slides = slidesContainer.querySelectorAll('.slide');
     slides.forEach(s => {
@@ -455,15 +608,11 @@
     const slide = slides[idx];
     if (slide) {
       slide.classList.add('active');
-
-      // Editor: reveal everything
       if (role === 'editor') {
         const total = parseInt(slide.dataset.totalReveals || '0');
         revealStep = total;
         revealAllItems(slide);
       }
-
-      loadSpotifyEmbed(slide);
     }
     updateUI();
     updateSlideAudio();
@@ -479,6 +628,7 @@
   function revealNext() {
     const slides = slidesContainer.querySelectorAll('.slide');
     const slide = slides[slideIndex];
+    if (!slide) return;
     const totalReveals = parseInt(slide.dataset.totalReveals || '0');
 
     if (revealStep < totalReveals) {
@@ -499,27 +649,42 @@
       const step = parseInt(item.dataset.reveal);
       item.classList.toggle('revealed', step <= revealStep);
     });
-
-    loadSpotifyEmbed(slide);
     updateRevealCounter(slide);
   }
 
   function updateUI() {
-    slideCounter.textContent = `${String(slideIndex + 1).padStart(2, '0')} / ${totalSlides}`;
+    const total = getTotalSlides();
+    slideCounter.textContent = `${String(slideIndex + 1).padStart(2, '0')} / ${total}`;
     updateDotNav();
     const slides = slidesContainer.querySelectorAll('.slide');
     updateRevealCounter(slides[slideIndex]);
 
-    // Update editor toolbar slide label
+    // Update "Add Event" button visibility
+    if (role === 'editor' && addEventBtn) {
+      const desc = slideList[slideIndex];
+      const isMonth = desc && desc.type === 'month';
+      const isEvent = desc && desc.type === 'event';
+      addEventBtn.classList.toggle('visible', isMonth || isEvent);
+    }
+
+    // Update editor toolbar label
     if (role === 'editor') {
       const label = document.getElementById('edit-slide-label');
       if (label) {
+        const desc = slideList[slideIndex];
         let name = `Slide ${slideIndex + 1}`;
-        if (slideIndex === 0) name = 'Intro';
-        else if (slideIndex >= 1 && slideIndex <= 16) name = months[slideIndex - 1].name + ' ' + months[slideIndex - 1].year;
-        else if (slideIndex === 17) name = 'The Debrief';
-        else if (slideIndex === 18) name = 'Credits';
-        label.textContent = `${name} · ${slideIndex + 1}/${totalSlides}`;
+        if (desc) {
+          if (desc.type === 'intro') name = 'Intro';
+          else if (desc.type === 'month') name = months[desc.monthIndex].name + ' ' + months[desc.monthIndex].year;
+          else if (desc.type === 'event') {
+            const m = months[desc.monthIndex];
+            const evt = m.events[desc.eventIndex];
+            name = m.name + ' · ' + (evt.title || 'Event');
+          }
+          else if (desc.type === 'debrief') name = 'The Debrief';
+          else if (desc.type === 'credits') name = 'Credits';
+        }
+        label.textContent = `${name} · ${slideIndex + 1}/${total}`;
       }
     }
   }
@@ -530,37 +695,77 @@
     revealCounter.textContent = total > 0 ? `Step ${revealStep} / ${total}` : '';
   }
 
-  // Spotify embed removed — using uploaded audio files with vinyl player instead
-  function loadSpotifyEmbed() { /* no-op */ }
-
   // --- Audio System ---
+  let audioUnlocked = false;
+  let gateAudioReady = false;
+
   function initGateAudio() {
-    if (!config.gateSongUrl) return;
-    gateAudio.src = config.gateSongUrl;
+    const src = config.gateSongFile
+      ? `/uploads/debrief/audio/${config.gateSongFile}`
+      : config.gateSongUrl || '';
+    if (!src) return;
+    gateAudio.src = src;
     gateAudio.volume = 0;
     gateAudio.muted = true;
+    gateAudio.load(); // Preload the audio
+    gateAudioReady = true;
 
+    // Try autoplay — most browsers will block this
     const playPromise = gateAudio.play();
     if (playPromise) {
       playPromise.then(() => {
+        audioUnlocked = true;
         gateAudio.muted = false;
         fadeAudioIn(gateAudio, config.globalVolume || 0.4, 2000);
+        removeUnlockListeners();
       }).catch(() => {
-        audioPrompt.classList.add('visible');
-        document.addEventListener('click', enableAudioOnce, { once: true });
+        // Autoplay blocked — we'll start on first user interaction
+        gateAudio.pause();
+        gateAudio.currentTime = 0;
       });
     }
   }
 
-  function enableAudioOnce() {
+  function removeUnlockListeners() {
+    document.removeEventListener('click', unlockAudio, true);
+    document.removeEventListener('keydown', unlockAudio, true);
+    document.removeEventListener('touchstart', unlockAudio, true);
+    document.removeEventListener('mousedown', unlockAudio, true);
+    gatePassword.removeEventListener('input', unlockAudio);
+    gatePassword.removeEventListener('focus', unlockAudio);
     audioPrompt.classList.remove('visible');
-    if (gateAudio.src && gateAudio.src !== window.location.href) {
-      gateAudio.muted = false;
-      gateAudio.play().then(() => {
-        fadeAudioIn(gateAudio, config.globalVolume || 0.4, 2000);
-      }).catch(() => {});
-    }
   }
+
+  // Unlock audio on ANY user interaction — uses capture phase to fire first
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    // If audio src isn't loaded yet, don't consume — keep listening
+    if (!gateAudioReady) return;
+    audioUnlocked = true;
+    removeUnlockListeners();
+
+    gateAudio.muted = false;
+    gateAudio.volume = 0;
+    gateAudio.play().then(() => {
+      fadeAudioIn(gateAudio, config.globalVolume || 0.4, 1500);
+    }).catch(() => {
+      // Retry on next interaction if this one failed
+      audioUnlocked = false;
+      addUnlockListeners();
+    });
+  }
+
+  function addUnlockListeners() {
+    // Use capture phase so these fire BEFORE any other handlers
+    document.addEventListener('click', unlockAudio, true);
+    document.addEventListener('keydown', unlockAudio, true);
+    document.addEventListener('touchstart', unlockAudio, true);
+    document.addEventListener('mousedown', unlockAudio, true);
+    // Also listen directly on the password input
+    gatePassword.addEventListener('input', unlockAudio);
+    gatePassword.addEventListener('focus', unlockAudio);
+  }
+  addUnlockListeners();
 
   function fadeAudioIn(el, targetVol, duration) {
     if (audioMuted) { el.volume = 0; return; }
@@ -598,53 +803,62 @@
   }
 
   function updateSlideAudio() {
-    const monthIdx = slideIndex - 1;
+    const desc = slideList[slideIndex];
     let bgUrl = '';
+    let monthData = null;
 
-    // Check for uploaded audio file first
-    if (monthIdx >= 0 && monthIdx < 16) {
-      const m = months[monthIdx];
-      if (m.audioFile) {
-        bgUrl = `/uploads/debrief/audio/${m.audioFile}`;
+    if (desc && (desc.type === 'month' || desc.type === 'event')) {
+      monthData = months[desc.monthIndex];
+      if (monthData && monthData.audioFile) {
+        bgUrl = `/uploads/debrief/audio/${monthData.audioFile}`;
       }
     }
 
-    // Fallback to config bg audio URL
-    if (!bgUrl && monthIdx >= 0 && monthIdx < 16 && config.months) {
-      const mCfg = config.months[months[monthIdx].id];
-      if (mCfg) bgUrl = mCfg.bgAudioUrl || '';
+    // Fade out gate audio when leaving intro to any other slide
+    if (desc && desc.type !== 'intro' && !gateAudio.paused) {
+      fadeAudioOut(gateAudio, 600);
     }
 
     if (!bgUrl) {
-      fadeAudioOut(slideAudio, 1000);
+      // Instantly stop
+      slideAudio.pause();
+      slideAudio.currentTime = 0;
+      slideAudio.volume = 0;
       updateDiscSpinState(false);
       return;
     }
 
-    // Don't restart same audio
-    if (slideAudio.src && slideAudio.src.endsWith(bgUrl.split('/').pop())) return;
+    const isSameSong = slideAudio.src && slideAudio.src.endsWith(bgUrl.split('/').pop());
 
-    fadeAudioOut(slideAudio, 1000).then(() => {
-      slideAudio.src = bgUrl;
-      slideAudio.play().then(() => {
-        fadeAudioIn(slideAudio, 0.35, 1000);
-        updateDiscSpinState(true);
-      }).catch(() => {
-        updateDiscSpinState(false);
-      });
+    // For event sub-slides of the same month, keep playing
+    if (isSameSong && !slideAudio.paused) return;
+
+    // Instantly stop previous audio
+    slideAudio.pause();
+    slideAudio.currentTime = 0;
+    slideAudio.volume = 0;
+
+    // Load and play new audio from the saved start time
+    slideAudio.src = bgUrl;
+    const startTime = monthData ? getAudioStartTime(monthData.id) : 0;
+    slideAudio.currentTime = startTime;
+    slideAudio.volume = audioMuted ? 0 : 0.35;
+    slideAudio.play().then(() => {
+      if (!audioMuted) fadeAudioIn(slideAudio, 0.35, 400);
+      updateDiscSpinState(true);
+    }).catch(() => {
+      updateDiscSpinState(false);
     });
   }
 
   function updateDiscSpinState(playing) {
-    // Update vinyl disc spin for current slide
-    const monthIdx = slideIndex - 1;
-    if (monthIdx < 0 || monthIdx >= 16) return;
-    const monthId = months[monthIdx].id;
+    const desc = slideList[slideIndex];
+    if (!desc || desc.type !== 'month') return;
+    const monthId = months[desc.monthIndex].id;
     const disc = document.getElementById(`disc-${monthId}`);
     if (disc) {
       disc.classList.toggle('spinning', playing);
     }
-    // Update play/pause button icons
     const btn = disc && disc.querySelector('.vinyl-play-btn');
     if (btn) {
       btn.querySelector('.play-icon').style.display = playing ? 'none' : 'block';
@@ -668,6 +882,7 @@
   // --- Gate Screen ---
   gateForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    unlockAudio(); // User interaction — unlock audio now
     const pw = gatePassword.value;
     if (!pw) return;
 
@@ -680,9 +895,9 @@
       const data = await res.json();
       if (data.role) {
         role = data.role;
-        // Reload content fresh before entering
         await Promise.all([loadContent(), loadConfig()]);
         mergeData();
+        buildSlideList();
         enterPresentation();
       } else {
         gatePassword.classList.add('shake');
@@ -699,17 +914,11 @@
   });
 
   function enterPresentation() {
-    // Fade out gate audio
-    fadeAudioOut(gateAudio, 600);
-
-    // Hide gate
+    // Don't stop gate audio — it continues as the intro music
     gateScreen.classList.add('hidden');
     setTimeout(() => { gateScreen.style.display = 'none'; }, 600);
-
-    // Show presentation
     presentation.classList.add('active');
 
-    // Set role classes
     if (role === 'presenter') {
       document.body.classList.add('presenter-mode');
       roleBadge.textContent = 'PRESENTING';
@@ -729,7 +938,6 @@
       initEditorMode();
     }
 
-    // Build and show first slide
     buildSlides();
     jumpToSlide(0);
   }
@@ -816,14 +1024,77 @@
       });
       applyReveals(slides[slideIndex]);
       updateUI();
-      loadSpotifyEmbed(slides[slideIndex]);
       updateSlideAudio();
     }
   });
 
+  // --- Event Sub-Slides ---
+  function addEventSlide() {
+    const desc = slideList[slideIndex];
+    if (!desc) return;
+
+    let monthIndex;
+    if (desc.type === 'month') monthIndex = desc.monthIndex;
+    else if (desc.type === 'event') monthIndex = desc.monthIndex;
+    else return;
+
+    const m = months[monthIndex];
+    const newEvt = {
+      id: 'evt-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      title: 'New Event',
+      date: '',
+      description: '',
+      photos: []
+    };
+
+    if (!m.events) m.events = [];
+    m.events.push(newEvt);
+
+    // Save to contentData
+    if (!contentData.months) contentData.months = {};
+    if (!contentData.months[m.id]) contentData.months[m.id] = {};
+    contentData.months[m.id].events = m.events;
+
+    saveAllContent().then(() => {
+      // Rebuild
+      buildSlideList();
+      buildSlides();
+      // Navigate to the new event slide
+      const newIdx = slideList.findIndex(s => s.type === 'event' && s.monthIndex === monthIndex && s.eventIndex === m.events.length - 1);
+      if (newIdx >= 0) jumpToSlide(newIdx);
+      else jumpToSlide(slideIndex);
+    });
+  }
+
+  function deleteEventSlide(monthIndex, eventIndex) {
+    const m = months[monthIndex];
+    if (!m.events || !m.events[eventIndex]) return;
+
+    m.events.splice(eventIndex, 1);
+
+    if (!contentData.months) contentData.months = {};
+    if (!contentData.months[m.id]) contentData.months[m.id] = {};
+    contentData.months[m.id].events = m.events;
+
+    saveAllContent().then(() => {
+      buildSlideList();
+      buildSlides();
+      // Go to the parent month slide
+      const monthIdx = findMonthSlideIndex(monthIndex);
+      jumpToSlide(monthIdx >= 0 ? monthIdx : 0);
+    });
+  }
+
+  // Add event button
+  if (addEventBtn) {
+    addEventBtn.addEventListener('click', addEventSlide);
+  }
+
   // --- Editor Mode ---
   function initEditorMode() {
-    // Click to edit any .editable element
+    // Use event delegation on document for all editor interactions
+
+    // Click to edit .editable
     document.addEventListener('click', (e) => {
       if (role !== 'editor') return;
       const el = e.target.closest('.editable');
@@ -843,17 +1114,16 @@
       }
     });
 
-    // Input fields (spotify track ID, bg audio)
-    document.addEventListener('change', (e) => {
+    // Rich text: Cmd/Ctrl + B, I, U
+    document.addEventListener('keydown', (e) => {
       if (role !== 'editor') return;
-      const el = e.target.closest('.editable-input');
-      if (el) {
-        if (el.classList.contains('bg-audio-input')) {
-          saveBgAudioField(el);
-        } else {
-          saveInputField(el);
-        }
-      }
+      const el = document.activeElement?.closest?.('.editable');
+      if (!el || !el.isContentEditable) return;
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === 'b') { e.preventDefault(); document.execCommand('bold'); }
+      else if (key === 'i') { e.preventDefault(); document.execCommand('italic'); }
+      else if (key === 'u') { e.preventDefault(); document.execCommand('underline'); }
     });
 
     // Settings drawer
@@ -862,18 +1132,30 @@
       if (settingsDrawer.classList.contains('open')) populateSettings();
     });
 
-    document.getElementById('setting-gate-song').addEventListener('change', async (e) => {
-      config.gateSongUrl = e.target.value;
+    document.getElementById('setting-gate-song-name').addEventListener('change', async (e) => {
+      config.gateSongName = e.target.value;
       await saveConfig();
     });
 
-    document.getElementById('setting-bg-audio').addEventListener('change', async (e) => {
-      const monthId = getCurrentMonthId();
-      if (monthId) {
-        if (!config.months) config.months = {};
-        if (!config.months[monthId]) config.months[monthId] = {};
-        config.months[monthId].bgAudioUrl = e.target.value;
-        await saveConfig();
+    document.getElementById('setting-gate-song-file').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const status = document.getElementById('gate-song-status');
+      status.textContent = 'Uploading...';
+      const form = new FormData();
+      form.append('audio', file);
+      try {
+        const res = await fetch('/api/debrief/upload-gate-audio', { method: 'POST', body: form });
+        const data = await res.json();
+        if (data.ok) {
+          config.gateSongFile = data.filename;
+          await saveConfig();
+          status.textContent = 'Uploaded: ' + file.name;
+        } else {
+          status.textContent = 'Error: ' + (data.error || 'Upload failed');
+        }
+      } catch (err) {
+        status.textContent = 'Upload failed';
       }
     });
 
@@ -885,16 +1167,16 @@
     document.getElementById('edit-save').addEventListener('click', async () => {
       await saveAllContent();
       await saveConfig();
-      // Brief visual feedback
       const btn = document.getElementById('edit-save');
       const orig = btn.textContent;
       btn.textContent = 'Saved!';
       setTimeout(() => { btn.textContent = orig; }, 1500);
     });
 
-    // Photo uploads
+    // Photo uploads (delegated)
     document.addEventListener('click', (e) => {
-      if (e.target.closest('.photo-delete')) return; // don't trigger upload on delete click
+      if (e.target.closest('.photo-delete')) return;
+      if (e.target.closest('.event-delete-btn')) return;
       const zone = e.target.closest('.photo-upload-zone');
       if (zone) {
         const input = zone.querySelector('input[type="file"]');
@@ -904,8 +1186,14 @@
 
     document.addEventListener('change', (e) => {
       if (e.target.matches('.photo-upload-zone input[type="file"]')) {
-        uploadPhotos(e.target.dataset.month, e.target.files);
-        e.target.value = ''; // reset so same file can be re-uploaded
+        const monthId = e.target.dataset.month;
+        const eventId = e.target.dataset.eventId;
+        if (eventId) {
+          uploadEventPhotos(monthId, eventId, e.target.files);
+        } else {
+          uploadPhotos(monthId, e.target.files);
+        }
+        e.target.value = '';
       }
     });
 
@@ -924,6 +1212,18 @@
       await loadContent();
       mergeData();
       refreshFilmstrip(monthId);
+    });
+
+    // Event delete — custom modal instead of browser confirm()
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.event-delete-btn');
+      if (!btn || role !== 'editor') return;
+      e.stopPropagation();
+      const mi = parseInt(btn.dataset.monthIndex);
+      const ei = parseInt(btn.dataset.eventIndex);
+      showConfirmModal('Delete this event slide?', () => {
+        deleteEventSlide(mi, ei);
+      });
     });
 
     // Audio file upload
@@ -962,6 +1262,38 @@
         if (btn) { btn.textContent = '✗ Error — try again'; btn.style.opacity = '1'; }
       }
       e.target.value = '';
+    });
+
+    // Audio trim slider
+    document.addEventListener('input', (e) => {
+      if (!e.target.classList.contains('audio-trim-slider')) return;
+      const monthId = e.target.dataset.month;
+      const val = parseInt(e.target.value);
+      const display = document.getElementById(`trim-display-${monthId}`);
+      if (display) display.textContent = formatTime(val);
+    });
+    document.addEventListener('change', async (e) => {
+      if (!e.target.classList.contains('audio-trim-slider')) return;
+      const monthId = e.target.dataset.month;
+      const val = parseInt(e.target.value);
+      if (!config.months) config.months = {};
+      if (!config.months[monthId]) config.months[monthId] = {};
+      config.months[monthId].audioStartTime = val;
+      await saveConfig();
+    });
+
+    // Trim slider: update max duration when audio metadata loads
+    document.addEventListener('click', (e) => {
+      const slider = e.target.closest('.audio-trim-slider');
+      if (!slider) return;
+      const monthId = slider.dataset.month;
+      const m = months.find(x => x.id === monthId);
+      if (!m || !m.audioFile) return;
+      // Load audio to get duration
+      const tempAudio = new Audio(`/uploads/debrief/audio/${m.audioFile}`);
+      tempAudio.addEventListener('loadedmetadata', () => {
+        slider.max = Math.floor(tempAudio.duration);
+      });
     });
 
     // Cover art upload
@@ -1003,10 +1335,10 @@
       e.target.value = '';
     });
 
-    // Drag-and-drop
+    // Drag-and-drop for file uploads onto zones
     document.addEventListener('dragover', (e) => {
       const zone = e.target.closest('.photo-upload-zone');
-      if (zone) { e.preventDefault(); zone.style.borderColor = 'rgba(255,200,100,0.5)'; }
+      if (zone) { e.preventDefault(); zone.style.borderColor = 'var(--accent-gold)'; }
     });
     document.addEventListener('dragleave', (e) => {
       const zone = e.target.closest('.photo-upload-zone');
@@ -1017,36 +1349,189 @@
       if (!zone) return;
       e.preventDefault();
       zone.style.borderColor = '';
-      const monthId = zone.querySelector('input[type="file"]').dataset.month;
-      uploadPhotos(monthId, e.dataTransfer.files);
+      const input = zone.querySelector('input[type="file"]');
+      const monthId = input.dataset.month;
+      const eventId = input.dataset.eventId;
+      if (eventId) {
+        uploadEventPhotos(monthId, eventId, e.dataTransfer.files);
+      } else {
+        uploadPhotos(monthId, e.dataTransfer.files);
+      }
+    });
+
+    // --- Photo reorder within event slides ---
+    let dragSrcWrapper = null;
+
+    // Prevent native image drag from hijacking our custom drag
+    document.addEventListener('dragstart', (e) => {
+      if (e.target.tagName === 'IMG' && e.target.closest('.event-photo-wrapper')) {
+        // Let it bubble to the wrapper's handler but set the drag data from the wrapper
+        const wrapper = e.target.closest('.event-photo-wrapper');
+        if (!wrapper || role !== 'editor') return;
+        dragSrcWrapper = wrapper;
+        wrapper.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', wrapper.dataset.photoIndex);
+        // Set a small drag image
+        e.dataTransfer.setDragImage(wrapper, wrapper.offsetWidth / 2, wrapper.offsetHeight / 2);
+        return;
+      }
+      const wrapper = e.target.closest('.event-photo-wrapper');
+      if (!wrapper || role !== 'editor') return;
+      dragSrcWrapper = wrapper;
+      wrapper.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', wrapper.dataset.photoIndex);
+    }, true);
+
+    document.addEventListener('dragover', (e) => {
+      if (!dragSrcWrapper) return;
+      const wrapper = e.target.closest('.event-photo-wrapper');
+      if (!wrapper || wrapper === dragSrcWrapper) {
+        // Still need to allow drop on event-photos container area
+        if (dragSrcWrapper) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+        return;
+      }
+      // Only allow reorder within same event
+      if (wrapper.dataset.eventId !== dragSrcWrapper.dataset.eventId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      // Show drop indicator
+      const rect = wrapper.getBoundingClientRect();
+      const midX = rect.left + rect.width / 2;
+      if (e.clientX < midX) {
+        wrapper.style.transform = 'translateX(8px)';
+        wrapper.dataset.dropSide = 'before';
+      } else {
+        wrapper.style.transform = 'translateX(-8px)';
+        wrapper.dataset.dropSide = 'after';
+      }
+    }, true);
+
+    document.addEventListener('dragleave', (e) => {
+      const wrapper = e.target.closest('.event-photo-wrapper');
+      if (wrapper && wrapper !== dragSrcWrapper) {
+        wrapper.style.transform = '';
+        delete wrapper.dataset.dropSide;
+      }
+    }, true);
+
+    document.addEventListener('drop', (e) => {
+      if (!dragSrcWrapper) return;
+      const wrapper = e.target.closest('.event-photo-wrapper');
+      if (!wrapper || wrapper === dragSrcWrapper) {
+        // Not dropping on a different photo — clean up
+        if (dragSrcWrapper) {
+          dragSrcWrapper.classList.remove('dragging');
+          dragSrcWrapper = null;
+        }
+        return;
+      }
+      if (wrapper.dataset.eventId !== dragSrcWrapper.dataset.eventId) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const monthId = wrapper.dataset.month;
+      const eventId = wrapper.dataset.eventId;
+      const fromIdx = parseInt(dragSrcWrapper.dataset.photoIndex);
+      let toIdx = parseInt(wrapper.dataset.photoIndex);
+      const dropSide = wrapper.dataset.dropSide || 'after';
+
+      // Clean up styles
+      wrapper.style.transform = '';
+      delete wrapper.dataset.dropSide;
+      dragSrcWrapper.classList.remove('dragging');
+      dragSrcWrapper = null;
+
+      reorderEventPhoto(monthId, eventId, fromIdx, toIdx, dropSide);
+    }, true);
+
+    document.addEventListener('dragend', (e) => {
+      if (dragSrcWrapper) {
+        dragSrcWrapper.classList.remove('dragging');
+        dragSrcWrapper = null;
+      }
+      // Clean up any leftover transforms
+      document.querySelectorAll('.event-photo-wrapper').forEach(w => {
+        w.style.transform = '';
+        delete w.dataset.dropSide;
+      });
+    });
+
+    // Event photo delete
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.photo-delete-event');
+      if (!btn || role !== 'editor') return;
+      e.stopPropagation();
+      const monthId = btn.dataset.month;
+      const eventId = btn.dataset.eventId;
+      const filename = btn.dataset.filename;
+      // Remove from event data
+      const m = months.find(x => x.id === monthId);
+      if (!m) return;
+      const evt = m.events.find(ev => ev.id === eventId);
+      if (!evt || !evt.photos) return;
+      evt.photos = evt.photos.filter(p => p !== filename);
+      if (!contentData.months) contentData.months = {};
+      if (!contentData.months[monthId]) contentData.months[monthId] = {};
+      if (!contentData.months[monthId].events) contentData.months[monthId].events = [];
+      const savedEvt = contentData.months[monthId].events.find(ev => ev.id === eventId);
+      if (savedEvt) savedEvt.photos = evt.photos;
+      await saveAllContent();
+      buildSlideList();
+      buildSlides();
+      jumpToSlide(slideIndex);
     });
   }
 
-  function getCurrentMonthId() {
-    if (slideIndex >= 1 && slideIndex <= 16) {
-      return months[slideIndex - 1].id;
-    }
-    return null;
-  }
-
   function populateSettings() {
-    document.getElementById('setting-gate-song').value = config.gateSongUrl || '';
-    const monthId = getCurrentMonthId();
-    const bgAudioEl = document.getElementById('setting-bg-audio');
-    if (monthId && config.months && config.months[monthId]) {
-      bgAudioEl.value = config.months[monthId].bgAudioUrl || '';
-    } else {
-      bgAudioEl.value = '';
-    }
+    document.getElementById('setting-gate-song-name').value = config.gateSongName || '';
+    const status = document.getElementById('gate-song-status');
+    status.textContent = config.gateSongFile ? 'Current: ' + config.gateSongFile : '';
   }
 
   async function saveField(el) {
     const field = el.dataset.field;
     const monthId = el.dataset.month;
     const isDebrief = el.dataset.debrief === 'true';
-    const value = el.textContent.trim();
+    const eventIndex = el.dataset.eventIndex;
+    const value = el.innerHTML.trim();
 
-    if (monthId) {
+    if (monthId && eventIndex !== undefined && eventIndex !== null) {
+      // Event field
+      const ei = parseInt(eventIndex);
+      if (!contentData.months) contentData.months = {};
+      if (!contentData.months[monthId]) contentData.months[monthId] = {};
+      if (!contentData.months[monthId].events) contentData.months[monthId].events = [];
+      const evt = contentData.months[monthId].events[ei];
+      if (evt) {
+        if (field === 'event-title') evt.title = value;
+        else if (field === 'event-date') evt.date = value;
+        else if (field === 'event-description') evt.description = value;
+        else if (field === 'event-photo-caption') {
+          const photoFilename = el.dataset.photoFilename;
+          if (photoFilename) {
+            if (!evt.photoCaptions) evt.photoCaptions = {};
+            evt.photoCaptions[photoFilename] = value;
+          }
+        }
+      }
+      // Also update in-memory
+      const m = months.find(x => x.id === monthId);
+      if (m && m.events[ei]) {
+        if (field === 'event-title') m.events[ei].title = value;
+        else if (field === 'event-date') m.events[ei].date = value;
+        else if (field === 'event-description') m.events[ei].description = value;
+        else if (field === 'event-photo-caption') {
+          const photoFilename = el.dataset.photoFilename;
+          if (photoFilename) {
+            if (!m.events[ei].photoCaptions) m.events[ei].photoCaptions = {};
+            m.events[ei].photoCaptions[photoFilename] = value;
+          }
+        }
+      }
+    } else if (monthId) {
       if (!contentData.months) contentData.months = {};
       if (!contentData.months[monthId]) contentData.months[monthId] = {};
       contentData.months[monthId][field] = value;
@@ -1082,39 +1567,6 @@
     await saveAllContent();
   }
 
-  async function saveInputField(el) {
-    const field = el.dataset.field;
-    const monthId = el.dataset.month;
-    const value = el.value.trim();
-
-    if (monthId) {
-      if (!contentData.months) contentData.months = {};
-      if (!contentData.months[monthId]) contentData.months[monthId] = {};
-      contentData.months[monthId][field] = value;
-
-      if (field === 'spotifyTrackId') {
-        const embed = el.closest('.slide').querySelector('.spotify-embed');
-        if (embed) {
-          embed.dataset.trackId = value;
-          embed.innerHTML = '';
-          loadSpotifyEmbed(el.closest('.slide'));
-        }
-      }
-    }
-
-    await saveAllContent();
-  }
-
-  async function saveBgAudioField(el) {
-    const monthId = el.dataset.month;
-    const value = el.value.trim();
-    if (!monthId) return;
-    if (!config.months) config.months = {};
-    if (!config.months[monthId]) config.months[monthId] = {};
-    config.months[monthId].bgAudioUrl = value;
-    await saveConfig();
-  }
-
   async function saveAllContent() {
     try {
       await fetch('/api/debrief/content', {
@@ -1143,17 +1595,43 @@
     if (!files || !files.length) return;
     const formData = new FormData();
     for (const f of files) formData.append('photos', f);
-
     try {
-      await fetch(`/api/debrief/upload/${monthId}`, {
-        method: 'POST',
-        body: formData
-      });
+      await fetch(`/api/debrief/upload/${monthId}`, { method: 'POST', body: formData });
       await loadContent();
       mergeData();
       refreshFilmstrip(monthId);
     } catch (e) {
       console.error('Upload failed:', e);
+    }
+  }
+
+  async function uploadEventPhotos(monthId, eventId, files) {
+    if (!files || !files.length) return;
+    const formData = new FormData();
+    for (const f of files) formData.append('photos', f);
+    try {
+      const res = await fetch(`/api/debrief/upload/${monthId}`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.ok && data.files) {
+        // Add photo filenames to the event
+        if (!contentData.months) contentData.months = {};
+        if (!contentData.months[monthId]) contentData.months[monthId] = {};
+        if (!contentData.months[monthId].events) contentData.months[monthId].events = [];
+        const evt = contentData.months[monthId].events.find(e => e.id === eventId);
+        if (evt) {
+          if (!evt.photos) evt.photos = [];
+          evt.photos.push(...data.files);
+          await saveAllContent();
+          await loadContent();
+          mergeData();
+          // Rebuild the event slide
+          buildSlideList();
+          buildSlides();
+          jumpToSlide(slideIndex);
+        }
+      }
+    } catch (e) {
+      console.error('Event photo upload failed:', e);
     }
   }
 
@@ -1164,15 +1642,13 @@
     if (!disc) return;
     const svg = disc.querySelector('.vinyl-player-svg');
     if (!svg) return;
-    // Update the cover image in the SVG
     const existingImg = svg.querySelector('image');
     const existingPlaceholder = svg.querySelectorAll('text');
     if (m.coverFile) {
       if (existingImg) {
         existingImg.setAttribute('href', `/uploads/debrief/covers/${m.coverFile}`);
       } else {
-        // Remove placeholder circle and text, add image
-        const placeholderCircle = svg.querySelector('circle[r="52"][fill="#1a1a1a"]');
+        const placeholderCircle = svg.querySelector('circle[r="52"][fill="#222"]');
         if (placeholderCircle) placeholderCircle.remove();
         existingPlaceholder.forEach(t => t.remove());
         const ns = 'http://www.w3.org/2000/svg';
@@ -1184,14 +1660,13 @@
         img.setAttribute('height', '104');
         img.setAttribute('clip-path', `url(#cover-clip-${m.id})`);
         img.setAttribute('preserveAspectRatio', 'xMidYMid slice');
-        // Insert before the center hole circle
         const hole = svg.querySelector('circle[r="6"]');
         svg.insertBefore(img, hole);
       }
     }
   }
 
-  // Play/pause button click handler (works for all roles)
+  // Play/pause button click handler
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.vinyl-play-btn');
     if (!btn) return;
@@ -1201,16 +1676,16 @@
 
     const audioUrl = `/uploads/debrief/audio/${m.audioFile}`;
     if (!slideAudio.paused && slideAudio.src.endsWith(m.audioFile)) {
-      // Pause
       slideAudio.pause();
       updateDiscSpinState(false);
     } else {
-      // Play
       if (!slideAudio.src.endsWith(m.audioFile)) {
         slideAudio.src = audioUrl;
+        slideAudio.currentTime = getAudioStartTime(monthId);
       }
+      slideAudio.volume = audioMuted ? 0 : 0.35;
       slideAudio.play().then(() => {
-        fadeAudioIn(slideAudio, 0.35, 500);
+        if (!audioMuted) fadeAudioIn(slideAudio, 0.35, 500);
         updateDiscSpinState(true);
       }).catch(() => {});
     }
@@ -1223,11 +1698,43 @@
     if (strip) strip.innerHTML = buildFilmstrip(m);
   }
 
+  // --- Reorder photos within an event slide ---
+  async function reorderEventPhoto(monthId, eventId, fromIdx, toIdx, dropSide) {
+    const m = months.find(x => x.id === monthId);
+    if (!m || !m.events) return;
+    const evt = m.events.find(ev => ev.id === eventId);
+    if (!evt || !evt.photos || fromIdx < 0 || fromIdx >= evt.photos.length) return;
+
+    // Remove photo from original position
+    const [movedPhoto] = evt.photos.splice(fromIdx, 1);
+
+    // Calculate insertion index (adjust for the removal)
+    let insertIdx = toIdx;
+    if (fromIdx < toIdx) insertIdx--; // shifted after removal
+    if (dropSide === 'after') insertIdx++;
+    insertIdx = Math.max(0, Math.min(insertIdx, evt.photos.length));
+
+    evt.photos.splice(insertIdx, 0, movedPhoto);
+
+    // Sync to contentData
+    if (!contentData.months) contentData.months = {};
+    if (!contentData.months[monthId]) contentData.months[monthId] = {};
+    if (!contentData.months[monthId].events) contentData.months[monthId].events = [];
+    const savedEvt = contentData.months[monthId].events.find(ev => ev.id === eventId);
+    if (savedEvt) savedEvt.photos = [...evt.photos];
+
+    await saveAllContent();
+    buildSlideList();
+    buildSlides();
+    jumpToSlide(slideIndex);
+  }
+
   // --- Init ---
   async function init() {
     injectVinyls();
     await Promise.all([loadContent(), loadConfig()]);
     mergeData();
+    buildSlideList();
     initGateAudio();
   }
 
