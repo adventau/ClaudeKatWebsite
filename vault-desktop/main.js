@@ -380,19 +380,49 @@ ipcMain.handle('store-get', (_, key) => store.get(key));
 ipcMain.handle('store-set', (_, key, val) => { store.set(key, val); });
 ipcMain.handle('store-delete', (_, key) => { store.delete(key); });
 
-// Native notifications
-ipcMain.handle('show-notification', (_, { title, body, urgent }) => {
+// Native notifications with inline reply support (macOS)
+ipcMain.handle('show-notification', (_, { title, body, urgent, hasReply: wantsReply }) => {
   if (!Notification.isSupported()) return;
   const n = new Notification({
     title,
     body,
     silent: false,
-    urgency: urgent ? 'critical' : 'normal'
+    urgency: urgent ? 'critical' : 'normal',
+    hasReply: wantsReply !== false, // Enable reply by default for message notifications
+    replyPlaceholder: 'Reply…'
   });
   n.on('click', () => {
     if (mainWindow) {
       mainWindow.show();
       mainWindow.focus();
+    }
+  });
+  n.on('reply', (event, reply) => {
+    // Send the reply through the website's chat
+    if (mainWindow && reply.trim()) {
+      mainWindow.webContents.executeJavaScript(`
+        (async function() {
+          try {
+            const reply = ${JSON.stringify(reply.trim())};
+            // Use the website's sendMessage function if available
+            if (typeof window.sendMessage === 'function') {
+              const msgInput = document.getElementById('msg-input');
+              if (msgInput) {
+                msgInput.value = reply;
+                msgInput.dispatchEvent(new Event('input'));
+                window.sendMessage();
+              }
+            } else {
+              // Fallback: POST directly to the API
+              await fetch('/api/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: reply })
+              });
+            }
+          } catch(e) { console.error('Reply failed:', e); }
+        })();
+      `).catch(() => {});
     }
   });
   n.show();
