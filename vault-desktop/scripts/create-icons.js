@@ -210,9 +210,15 @@ function dmgBgPixel(x, y, w, h) {
 const buildDir = path.join(__dirname, '..', 'build');
 fs.mkdirSync(buildDir, { recursive: true });
 
-console.log('Generating app icon  (1024×1024)…');
-fs.writeFileSync(path.join(buildDir, 'icon.png'),           makePNG(1024, 1024, appIconPixel));
-console.log('✓ build/icon.png');
+// Skip icon.png if a custom one already exists (user-provided vault logo)
+const iconPath = path.join(buildDir, 'icon.png');
+if (!fs.existsSync(iconPath) || fs.statSync(iconPath).size < 10000) {
+  console.log('Generating app icon  (1024×1024)…');
+  fs.writeFileSync(iconPath, makePNG(1024, 1024, appIconPixel));
+  console.log('✓ build/icon.png');
+} else {
+  console.log('Skipping icon.png (custom icon exists)');
+}
 
 console.log('Generating tray icon (32×32)…');
 fs.writeFileSync(path.join(buildDir, 'tray.png'),           makePNG(32, 32, trayPixel));
