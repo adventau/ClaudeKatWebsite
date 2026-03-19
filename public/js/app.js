@@ -211,7 +211,8 @@ async function init() {
     updateUnreadBadge();
   }
   // Mark as read since chat is the default section (skip in stealth)
-  if (currentSection === 'chat' && !stealthMode) clearUnreadBadge();
+  // Pass false to skip server-side flush on initial load — messages loaded fresh are already in DB state
+  if (currentSection === 'chat' && !stealthMode) clearUnreadBadge(false);
 
   // Reveal chat immediately — don't wait for secondary data
   document.body.classList.add('app-loaded');
@@ -593,7 +594,7 @@ function updateUnreadBadge() {
   document.title = unreadCount > 0 ? `(${unreadCount}) Royal K&K Vault` : 'Royal K&K Vault';
 }
 
-function clearUnreadBadge() {
+function clearUnreadBadge(flushToServer = true) {
   unreadCount = 0;
   chatLastReadTs = Date.now();
   if (!stealthMode) localStorage.setItem('chatLastReadTs_' + currentUser, chatLastReadTs);
@@ -601,6 +602,15 @@ function clearUnreadBadge() {
   // Remove the NEW marker if present
   const marker = document.querySelector('.new-msg-marker');
   if (marker) marker.remove();
+  // Mark all pending unread messages as actually read on the server
+  // (skipped on initial page load to avoid bulk-firing historical messages)
+  if (flushToServer && !stealthMode) {
+    allMessages.forEach(msg => {
+      if (!msg.read && msg.sender !== currentUser && msg.sender !== 'ai') {
+        markMessageRead(msg.id);
+      }
+    });
+  }
 }
 
 function toggleSidebar() {
@@ -2111,14 +2121,15 @@ function setupSocketEvents() {
     area.scrollTop = area.scrollHeight;
     if (msg.sender !== currentUser && msg.sender !== 'ai' && msg.type !== 'call-event') {
       SoundSystem.receive();
-      markMessageRead(msg.id);
-      sendDesktopNotif(`New message from ${capitalize(msg.sender)}`, msg.text?.substring(0, 80) || 'New file');
-      // Track unread & show popup when chat isn't active
-      if (currentSection !== 'chat') {
+      // Only mark read if the user is actively looking at chat (tab visible + chat section open)
+      if (currentSection === 'chat' && !document.hidden) {
+        markMessageRead(msg.id);
+      } else {
         unreadCount++;
         updateUnreadBadge();
         showMsgNotif(msg.sender, msg.text?.substring(0, 80) || 'Sent a file');
       }
+      sendDesktopNotif(`New message from ${capitalize(msg.sender)}`, msg.text?.substring(0, 80) || 'New file');
     }
   });
 
@@ -6777,7 +6788,10 @@ document.addEventListener('visibilitychange', () => {
       updateStatusText('online');
     }
     // Sync messages we may have missed while tab was hidden
-    syncMissedMessages();
+    syncMissedMessages().then(() => {
+      // If user is on chat, mark all pending unread as read now that they're back
+      if (currentSection === 'chat' && !stealthMode) clearUnreadBadge();
+    });
   }
 });
 
