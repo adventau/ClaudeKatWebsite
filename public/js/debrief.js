@@ -351,11 +351,15 @@
     if (m.bgGradient) slide.style.background = m.bgGradient;
 
     const captions = evt.photoCaptions || {};
+    const isVideo = (p) => /\.(mp4|mov|webm|m4v|avi)$/i.test(p);
     const photosHtml = (evt.photos && evt.photos.length)
       ? evt.photos.map((p, pi) =>
           `<div class="event-photo-wrapper" draggable="true" data-photo="${p}" data-month="${m.id}" data-event-id="${evt.id}" data-photo-index="${pi}">
-            <div class="event-photo-frame" style="position:relative">
-              <img src="/uploads/debrief/${m.id}/${p}" alt="" loading="lazy">
+            <div class="event-photo-frame event-media-frame" style="position:relative" data-src="/uploads/debrief/${m.id}/${p}" data-type="${isVideo(p) ? 'video' : 'image'}">
+              ${isVideo(p)
+                ? `<video src="/uploads/debrief/${m.id}/${p}" preload="metadata" muted loop playsinline></video>`
+                : `<img src="/uploads/debrief/${m.id}/${p}" alt="" loading="lazy">`
+              }
               <button class="photo-delete-event" data-month="${m.id}" data-event-id="${evt.id}" data-filename="${p}">&times;</button>
             </div>
             <div class="event-photo-caption editable" contenteditable="false" data-field="event-photo-caption" data-month="${m.id}" data-event-index="${eventIndex}" data-photo-filename="${p}">${captions[p] || ''}</div>
@@ -366,14 +370,18 @@
     slide.innerHTML = `
       <button class="event-delete-btn" data-month-index="${monthIndex}" data-event-index="${eventIndex}">Delete Event</button>
       <div class="event-content">
-        <div class="event-breadcrumb">${m.name} ${m.year} · Event</div>
-        <div class="event-date editable" data-field="event-date" data-month="${m.id}" data-event-index="${eventIndex}">${evt.date || 'Date'}</div>
-        <h2 class="event-title editable" data-field="event-title" data-month="${m.id}" data-event-index="${eventIndex}">${evt.title || 'Untitled Event'}</h2>
-        <div class="event-description editable" data-field="event-description" data-month="${m.id}" data-event-index="${eventIndex}">${evt.description || 'Describe what happened...'}</div>
-        ${photosHtml ? `<div class="event-photos" data-month="${m.id}" data-event-id="${evt.id}">${photosHtml}</div>` : `<div class="event-photos" data-month="${m.id}" data-event-id="${evt.id}"></div>`}
-        <div class="photo-upload-zone" id="upload-zone-evt-${evt.id}">
-          <p>Drop event photos here or click to upload</p>
-          <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic" data-month="${m.id}" data-event-id="${evt.id}">
+        <div class="event-text-col">
+          <div class="event-breadcrumb">${m.name} ${m.year} · Event</div>
+          <div class="event-date editable" data-field="event-date" data-month="${m.id}" data-event-index="${eventIndex}">${evt.date || 'Date'}</div>
+          <h2 class="event-title editable" data-field="event-title" data-month="${m.id}" data-event-index="${eventIndex}">${evt.title || 'Untitled Event'}</h2>
+          <div class="event-description editable" data-field="event-description" data-month="${m.id}" data-event-index="${eventIndex}">${evt.description || 'Describe what happened...'}</div>
+        </div>
+        <div class="event-media-col">
+          <div class="event-photos" data-month="${m.id}" data-event-id="${evt.id}">${photosHtml}</div>
+          <div class="photo-upload-zone" id="upload-zone-evt-${evt.id}">
+            <p>Drop photos &amp; videos here or click to upload</p>
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm" data-month="${m.id}" data-event-id="${evt.id}">
+          </div>
         </div>
       </div>
     `;
@@ -1744,12 +1752,68 @@
   }
 
   // --- Init ---
+  function initLightbox() {
+    const lb = document.createElement('div');
+    lb.id = 'debrief-lightbox';
+    lb.innerHTML = `
+      <div class="lightbox-backdrop"></div>
+      <div class="lightbox-inner">
+        <button class="lightbox-close">&times;</button>
+        <img class="lightbox-img" src="" alt="">
+        <video class="lightbox-video" src="" controls autoplay loop playsinline></video>
+      </div>`;
+    document.body.appendChild(lb);
+
+    document.addEventListener('click', (e) => {
+      // Open lightbox on media frame click
+      const frame = e.target.closest('.event-media-frame');
+      if (frame && !e.target.closest('.photo-delete-event')) {
+        const src = frame.dataset.src;
+        const type = frame.dataset.type;
+        const lbImg = lb.querySelector('.lightbox-img');
+        const lbVideo = lb.querySelector('.lightbox-video');
+        if (type === 'video') {
+          lbImg.style.display = 'none';
+          lbVideo.style.display = 'block';
+          lbVideo.src = src;
+          lbVideo.play().catch(() => {});
+        } else {
+          lbVideo.style.display = 'none';
+          lbVideo.pause();
+          lbVideo.src = '';
+          lbImg.style.display = 'block';
+          lbImg.src = src;
+        }
+        lb.classList.add('active');
+        return;
+      }
+      // Close lightbox
+      if (e.target.closest('.lightbox-backdrop') || e.target.closest('.lightbox-close')) {
+        lb.classList.remove('active');
+        const lbVideo = lb.querySelector('.lightbox-video');
+        lbVideo.pause();
+        lbVideo.src = '';
+      }
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && lb.classList.contains('active')) {
+        lb.classList.remove('active');
+        const lbVideo = lb.querySelector('.lightbox-video');
+        lbVideo.pause();
+        lbVideo.src = '';
+      }
+    });
+  }
+
   async function init() {
     injectVinyls();
     await Promise.all([loadContent(), loadConfig()]);
     mergeData();
     buildSlideList();
     initGateAudio();
+    initLightbox();
   }
 
   init();
