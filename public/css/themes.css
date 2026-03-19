@@ -3447,9 +3447,6 @@ select option { background: var(--bg-modal, #1e293b); color: var(--text-primary)
 /* ── Arctic: Centered narrow chat column ───────────────────────── */
 .theme-arctic .messages-area {
   background: #0a1628;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   position: relative;
 }
 .theme-arctic .messages-area::after {
