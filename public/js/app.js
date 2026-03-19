@@ -5059,7 +5059,8 @@ async function viewProfile(username) {
     const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
     const statusLucide = { online: 'circle', idle: 'moon', dnd: 'minus-circle', invisible: 'eye-off' };
     const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
-    const userStatus = u.status || pvStatus;
+    // Use live presence unless user explicitly set DND/invisible
+    const userStatus = (u.status === 'dnd' || u.status === 'invisible') ? u.status : pvStatus;
     const sColor = statusColors[userStatus] || '#22c55e';
     const sIcon = statusLucide[userStatus] || 'circle';
     statusSection.innerHTML = `
