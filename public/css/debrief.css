@@ -812,8 +812,17 @@ html, body {
   line-height: 1.4;
 }
 .editor-mode .event-photo-caption {
+  min-height: 22px;
   border-bottom: 1px solid transparent;
   transition: border-color 0.2s;
+  cursor: text;
+}
+.editor-mode .event-photo-caption:empty::before {
+  content: 'Add caption...';
+  color: var(--accent-gold);
+  opacity: 0.45;
+  font-style: italic;
+  pointer-events: none;
 }
 .editor-mode .event-photo-caption:hover {
   border-bottom-color: rgba(201,168,76,0.3);
@@ -822,6 +831,7 @@ html, body {
   border-bottom-color: var(--accent-gold);
   outline: none;
 }
+.editor-mode .event-photo-caption:focus:empty::before { content: ''; }
 .slide-dark .event-photo-caption { color: rgba(255,255,255,0.4); }
 
 /* Photo delete on event photos */
@@ -1272,9 +1282,10 @@ html, body {
   max-width: 500px;
 }
 .editor-mode .photo-upload-zone { display: block; }
-.photo-upload-zone:hover {
+.photo-upload-zone:hover,
+.photo-upload-zone.drag-active {
   border-color: var(--accent-gold);
-  background: rgba(201,168,76,0.03);
+  background: rgba(201,168,76,0.06);
 }
 .photo-upload-zone p {
   font-family: var(--font-mono); font-size: 11px;
@@ -1298,12 +1309,15 @@ html, body {
   position: relative;
   z-index: 1;
   max-width: 92vw;
-  max-height: 90vh;
-  display: flex; align-items: center; justify-content: center;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
 }
 .lightbox-img, .lightbox-video {
   max-width: 90vw;
-  max-height: 88vh;
+  max-height: 82vh;
   border-radius: 12px;
   box-shadow: 0 24px 80px rgba(0,0,0,0.6);
   object-fit: contain;
@@ -1325,15 +1339,13 @@ html, body {
 .lightbox-close:hover { background: rgba(255,255,255,0.3); }
 .lightbox-caption {
   display: none;
-  position: absolute;
-  bottom: -36px;
-  left: 0; right: 0;
   text-align: center;
-  color: rgba(255,255,255,0.75);
+  color: rgba(255,255,255,0.8);
   font-family: var(--font-body);
   font-style: italic;
-  font-size: 14px;
+  font-size: 15px;
   letter-spacing: 0.01em;
+  max-width: 80vw;
 }
 
 /* Audio trim slider */

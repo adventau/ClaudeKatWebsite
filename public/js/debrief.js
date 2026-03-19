@@ -9,6 +9,7 @@
 
   // --- State ---
   let role = null;           // 'presenter' | 'viewer' | 'editor'
+  let initDataLoaded = false;
   let slideIndex = 0;
   let revealStep = 0;
   let presenterConnected = false;
@@ -902,9 +903,11 @@
       const data = await res.json();
       if (data.role) {
         role = data.role;
-        await Promise.all([loadContent(), loadConfig()]);
-        mergeData();
-        buildSlideList();
+        if (!initDataLoaded) {
+          await Promise.all([loadContent(), loadConfig()]);
+          mergeData();
+          buildSlideList();
+        }
         enterPresentation();
       } else {
         gatePassword.classList.add('shake');
@@ -1202,6 +1205,41 @@
         }
         e.target.value = '';
       }
+    });
+
+    // Drag-and-drop support for upload zones (also prevents browser navigation on bad drops)
+    document.addEventListener('dragover', (e) => {
+      if (e.target.closest('.photo-upload-zone')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        e.target.closest('.photo-upload-zone').classList.add('drag-active');
+      }
+    });
+    document.addEventListener('dragleave', (e) => {
+      const zone = e.target.closest('.photo-upload-zone');
+      if (zone && !zone.contains(e.relatedTarget)) zone.classList.remove('drag-active');
+    });
+    document.addEventListener('drop', (e) => {
+      const zone = e.target.closest('.photo-upload-zone');
+      if (!zone) return;
+      e.preventDefault();
+      zone.classList.remove('drag-active');
+      const input = zone.querySelector('input[type="file"]');
+      if (!input) return;
+      const files = Array.from(e.dataTransfer.files);
+      if (!files.length) return;
+      const monthId = input.dataset.month;
+      const eventId = input.dataset.eventId;
+      if (eventId) uploadEventPhotos(monthId, eventId, files);
+      else uploadPhotos(monthId, files);
+    });
+
+    // Prevent browser file-navigation when dropping outside a zone
+    window.addEventListener('dragover', (e) => {
+      if (!e.target.closest('.photo-upload-zone') && !e.target.closest('.event-photo-wrapper')) e.preventDefault();
+    });
+    window.addEventListener('drop', (e) => {
+      if (!e.target.closest('.photo-upload-zone') && !e.target.closest('.event-photo-wrapper')) e.preventDefault();
     });
 
     // Photo delete
@@ -1630,6 +1668,7 @@
 
   async function uploadEventPhotos(monthId, eventId, files) {
     if (!files || !files.length) return;
+    const targetIdx = slideIndex; // capture before any awaits
     const formData = new FormData();
     for (const f of files) formData.append('photos', f);
     try {
@@ -1647,10 +1686,10 @@
           await saveAllContent();
           await loadContent();
           mergeData();
-          // Rebuild the event slide
+          // Rebuild the event slide and return to the same slide
           buildSlideList();
           buildSlides();
-          jumpToSlide(slideIndex);
+          jumpToSlide(targetIdx);
         }
       }
     } catch (e) {
@@ -1794,10 +1833,10 @@
     }
 
     document.addEventListener('click', (e) => {
-      // Open lightbox on media frame click (presenter/editor only — viewer gets it via socket)
+      // Open lightbox on media frame click — presenter only (viewer gets it via socket, editor edits captions)
       const frame = e.target.closest('.event-media-frame');
       if (frame && !e.target.closest('.photo-delete-event')) {
-        if (role === 'viewer') return; // viewer is driven by socket
+        if (role !== 'presenter') return;
         const src = frame.dataset.src;
         const type = frame.dataset.type;
         // Read caption from sibling
@@ -1836,11 +1875,12 @@
 
   async function init() {
     injectVinyls();
+    initGateAudio();
+    initLightbox();
     await Promise.all([loadContent(), loadConfig()]);
     mergeData();
     buildSlideList();
-    initGateAudio();
-    initLightbox();
+    initDataLoaded = true;
   }
 
   init();
