@@ -113,6 +113,10 @@ function createWindow() {
     }
   });
 
+  // Emit idle/active to renderer when window loses/gains focus (user switches apps)
+  mainWindow.on('blur',  () => mainWindow.webContents.send('window-focus-change', false));
+  mainWindow.on('focus', () => mainWindow.webContents.send('window-focus-change', true));
+
   // Open external links in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(APP_URL)) {

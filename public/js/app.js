@@ -6795,6 +6795,30 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// ── Electron: window blur/focus → idle/active (browser visibilitychange doesn't fire when switching apps)
+if (window.electron?.onWindowFocusChange) {
+  window.electron.onWindowFocusChange((focused) => {
+    if (stealthMode) return;
+    if (!focused) {
+      if (!_isAutoIdle) {
+        _isAutoIdle = 'idle';
+        socket.emit('user-idle', { user: currentUser });
+      }
+    } else {
+      if (_isAutoIdle) {
+        _isAutoIdle = false;
+        lastActivity = Date.now();
+        socket.emit('user-active', { user: currentUser });
+        setStatusDot('my-status-dot', 'online');
+        updateStatusText('online');
+      }
+      syncMissedMessages().then(() => {
+        if (currentSection === 'chat' && !stealthMode) clearUnreadBadge();
+      });
+    }
+  });
+}
+
 async function syncMissedMessages() {
   try {
     const latestTs = allMessages.length > 0 ? allMessages[allMessages.length - 1].timestamp : 0;

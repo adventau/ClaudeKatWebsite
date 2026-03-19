@@ -37,5 +37,8 @@ contextBridge.exposeInMainWorld('electron', {
   resetStoredUser: () => ipcRenderer.invoke('reset-stored-user'),
 
   // Store site password (called from website after first auth)
-  storeSitePassword: (pw) => ipcRenderer.invoke('store-site-password', pw)
+  storeSitePassword: (pw) => ipcRenderer.invoke('store-site-password', pw),
+
+  // Window focus events — fires when user switches to/from another app
+  onWindowFocusChange: (cb) => ipcRenderer.on('window-focus-change', (_, focused) => cb(focused))
 });
