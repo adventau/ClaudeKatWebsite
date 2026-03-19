@@ -220,9 +220,14 @@ if (!fs.existsSync(iconPath) || fs.statSync(iconPath).size < 10000) {
   console.log('Skipping icon.png (custom icon exists)');
 }
 
-console.log('Generating tray icon (32×32)…');
-fs.writeFileSync(path.join(buildDir, 'tray.png'),           makePNG(32, 32, trayPixel));
-console.log('✓ build/tray.png');
+const trayPath = path.join(buildDir, 'tray.png');
+if (!fs.existsSync(trayPath) || fs.statSync(trayPath).size < 100) {
+  console.log('Generating tray icon (32×32)…');
+  fs.writeFileSync(trayPath, makePNG(32, 32, trayPixel));
+  console.log('✓ build/tray.png');
+} else {
+  console.log('Skipping tray.png (custom icon exists)');
+}
 
 console.log('Generating DMG background (600×400)…');
 fs.writeFileSync(path.join(buildDir, 'dmg-background.png'), makePNG(600, 400, dmgBgPixel));

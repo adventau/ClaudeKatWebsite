@@ -5726,7 +5726,12 @@ function updateStatusText(status) {
 }
 
 // ── Calls (WebRTC) ────────────────────────────────────────────────────
-const ICE_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+const ICE_CONFIG = { iceServers: [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+] };
 let callPeer = null;          // who we're in a call with
 let iceCandidateQueue = [];   // buffer ICE candidates before peerConnection exists
 let callTimer = null;
@@ -5795,6 +5800,8 @@ async function startCall(type) {
   callType = type;
   callPeer = otherUser;
   callAnswered = false;
+  iceCandidateQueue = [];
+  window._activeCallId = uuidv4();
   const videoConstraints = type === 'video' ? { width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 480 }, frameRate: { ideal: 30, min: 15 }, facingMode: 'user' } : false;
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints }).catch(() => null);
   if (!localStream) { showToast('Media device access denied'); return; }
@@ -5834,7 +5841,7 @@ async function startCall(type) {
 
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
-  socket.emit('call-offer', { offer, type, from: currentUser, to: callPeer });
+  socket.emit('call-offer', { offer, type, from: currentUser, to: callPeer, callId: window._activeCallId });
   inCall = true;
   SoundSystem.startRingtone('outgoing');
   showCallOverlay('Calling ' + capitalize(callPeer) + '...', type);
@@ -5910,11 +5917,15 @@ async function acceptCall() {
   showCallOverlay(capitalize(callPeer), callType);
 }
 
-async function handleCallAnswer({ answer }) {
+async function handleCallAnswer({ answer, callId }) {
   SoundSystem.stopRingtone();
   callAnswered = true;
+  if (callId) window._activeCallId = callId;
   if (peerConnection) {
     await peerConnection.setRemoteDescription(answer);
+    // Drain any ICE candidates that arrived before the answer
+    for (const c of iceCandidateQueue) await peerConnection.addIceCandidate(c);
+    iceCandidateQueue = [];
     document.getElementById('call-status').textContent = 'Connected';
     startCallTimer();
   }
