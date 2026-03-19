@@ -3467,15 +3467,6 @@ select option { background: var(--bg-modal, #1e293b); color: var(--text-primary)
   );
   animation: aurora-pulse 8s ease-in-out infinite;
 }
-.theme-arctic .msg-row {
-  width: 100%;
-  max-width: 720px;
-}
-.theme-arctic .date-sep,
-.theme-arctic .new-msg-marker {
-  width: 100%;
-  max-width: 720px;
-}
 .theme-arctic .chat-header {
   background: rgba(13,27,48,0.95);
   border-bottom: 1px solid rgba(67,232,177,0.08);
