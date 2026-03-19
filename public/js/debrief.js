@@ -283,7 +283,6 @@
                     ? `<image href="/uploads/debrief/covers/${m.coverFile}" x="88" y="88" width="104" height="104" clip-path="url(#cover-clip-${m.id})" preserveAspectRatio="xMidYMid slice"/>`
                     : `<circle cx="140" cy="140" r="52" fill="#222"/>`
                   }
-                  <circle cx="140" cy="140" r="6" fill="#111"/>
                   ${!m.coverFile ? `
                   <text x="140" y="135" text-anchor="middle" font-family="Space Mono, monospace" font-size="8" fill="rgba(255,255,255,0.4)" letter-spacing="1.5">NOW PLAYING</text>
                   <text x="140" y="148" text-anchor="middle" font-family="Space Mono, monospace" font-size="6" fill="rgba(255,255,255,0.25)">${m.trackNumber}</text>
@@ -1264,13 +1263,29 @@
       e.target.value = '';
     });
 
-    // Audio trim slider
+    // Audio trim slider — updates display and seeks audio to preview the start position
     document.addEventListener('input', (e) => {
       if (!e.target.classList.contains('audio-trim-slider')) return;
       const monthId = e.target.dataset.month;
       const val = parseInt(e.target.value);
       const display = document.getElementById(`trim-display-${monthId}`);
       if (display) display.textContent = formatTime(val);
+
+      // Seek audio to this position so the user can hear it
+      const m = months.find(x => x.id === monthId);
+      if (m && m.audioFile) {
+        const audioUrl = `/uploads/debrief/audio/${m.audioFile}`;
+        if (!slideAudio.src || !slideAudio.src.endsWith(m.audioFile)) {
+          slideAudio.src = audioUrl;
+        }
+        slideAudio.currentTime = val;
+        if (slideAudio.paused) {
+          slideAudio.volume = audioMuted ? 0 : 0.35;
+          slideAudio.play().then(() => {
+            updateDiscSpinState(true);
+          }).catch(() => {});
+        }
+      }
     });
     document.addEventListener('change', async (e) => {
       if (!e.target.classList.contains('audio-trim-slider')) return;
@@ -1660,8 +1675,7 @@
         img.setAttribute('height', '104');
         img.setAttribute('clip-path', `url(#cover-clip-${m.id})`);
         img.setAttribute('preserveAspectRatio', 'xMidYMid slice');
-        const hole = svg.querySelector('circle[r="6"]');
-        svg.insertBefore(img, hole);
+        svg.appendChild(img);
       }
     }
   }
