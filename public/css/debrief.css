@@ -648,6 +648,7 @@ html, body {
   position: relative;
   box-shadow: var(--shadow-soft);
 }
+.filmstrip-frame { cursor: pointer; }
 .filmstrip-frame:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
 .filmstrip-frame img {
   width: auto; height: 100%;
@@ -781,6 +782,22 @@ html, body {
 .event-photo-frame video {
   width: 100%; height: 100%;
   object-fit: cover; display: block;
+}
+
+/* Videos size to their natural aspect ratio */
+.event-media-frame[data-type="video"] {
+  width: auto;
+  height: auto;
+  max-height: 220px;
+  max-width: 340px;
+}
+.event-media-frame[data-type="video"] video {
+  width: auto;
+  height: auto;
+  max-height: 220px;
+  max-width: 340px;
+  object-fit: contain;
+  background: #000;
 }
 
 /* Photo captions */
@@ -1340,12 +1357,25 @@ html, body {
 .lightbox-caption {
   display: none;
   text-align: center;
-  color: rgba(255,255,255,0.8);
+  color: rgba(255,255,255,0.85);
   font-family: var(--font-body);
   font-style: italic;
   font-size: 15px;
   letter-spacing: 0.01em;
   max-width: 80vw;
+  min-width: 200px;
+  padding: 4px 8px;
+}
+.lightbox-caption[contenteditable="true"] {
+  border-bottom: 1px solid rgba(255,255,255,0.25);
+  outline: none;
+  cursor: text;
+  min-height: 26px;
+}
+.lightbox-caption[contenteditable="true"]:empty::before {
+  content: 'Add a caption...';
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 /* Audio trim slider */

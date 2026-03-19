@@ -134,6 +134,7 @@
         audioFile: saved.audioFile || '',
         coverFile: saved.coverFile || '',
         photos: saved.photos || m.photos,
+        photoCaptions: saved.photoCaptions || {},
         events: saved.events || []
       };
     });
@@ -478,8 +479,9 @@
       return `<div class="filmstrip-placeholder">+</div><div class="filmstrip-placeholder">+</div>`;
     }
 
+    const captions = m.photoCaptions || {};
     const frameHtml = (p) =>
-      `<div class="filmstrip-frame">
+      `<div class="filmstrip-frame" data-src="/uploads/debrief/${m.id}/${p}" data-month="${m.id}" data-photo-filename="${p}" data-caption="${(captions[p] || '').replace(/"/g, '&quot;')}">
         <img src="/uploads/debrief/${m.id}/${p}" alt="Photo" loading="lazy">
         <button class="photo-delete" data-month="${m.id}" data-filename="${p}">&times;</button>
       </div>`;
@@ -605,6 +607,7 @@
 
     updateUI();
     updateSlideAudio();
+    updateSlideVideos();
   }
 
   function jumpToSlide(idx) {
@@ -624,6 +627,7 @@
     }
     updateUI();
     updateSlideAudio();
+    updateSlideVideos();
   }
 
   function revealAllItems(slide) {
@@ -807,6 +811,21 @@
           resolve();
         }
       }, stepTime);
+    });
+  }
+
+  function updateSlideVideos() {
+    const slides = slidesContainer.querySelectorAll('.slide');
+    slides.forEach((s, i) => {
+      s.querySelectorAll('.event-photo-frame video').forEach(v => {
+        if (i === slideIndex) {
+          v.muted = true;
+          v.play().catch(() => {});
+        } else {
+          v.pause();
+          v.currentTime = 0;
+        }
+      });
     });
   }
 
@@ -1098,6 +1117,19 @@
   // Add event button
   if (addEventBtn) {
     addEventBtn.addEventListener('click', addEventSlide);
+  }
+
+  // --- Shared save ---
+  async function saveAllContent() {
+    try {
+      await fetch('/api/debrief/content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contentData)
+      });
+    } catch (e) {
+      console.error('Save failed:', e);
+    }
   }
 
   // --- Editor Mode ---
@@ -1628,18 +1660,6 @@
     await saveAllContent();
   }
 
-  async function saveAllContent() {
-    try {
-      await fetch('/api/debrief/content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(contentData)
-      });
-    } catch (e) {
-      console.error('Save failed:', e);
-    }
-  }
-
   async function saveConfig() {
     try {
       await fetch('/api/debrief/config', {
@@ -1804,10 +1824,11 @@
       </div>`;
     document.body.appendChild(lb);
 
-    function openLightbox(src, type, caption) {
-      const lbImg = lb.querySelector('.lightbox-img');
-      const lbVideo = lb.querySelector('.lightbox-video');
-      const lbCaption = lb.querySelector('.lightbox-caption');
+    const lbImg = lb.querySelector('.lightbox-img');
+    const lbVideo = lb.querySelector('.lightbox-video');
+    const lbCaption = lb.querySelector('.lightbox-caption');
+
+    function openLightbox(src, type, caption, monthId, photoFilename) {
       if (type === 'video') {
         lbImg.style.display = 'none';
         lbVideo.style.display = 'block';
@@ -1821,9 +1842,39 @@
         lbImg.src = src;
       }
       lbCaption.textContent = caption || '';
-      lbCaption.style.display = caption ? 'block' : 'none';
+      lbCaption.dataset.month = monthId || '';
+      lbCaption.dataset.photoFilename = photoFilename || '';
+      if (role === 'editor') {
+        lbCaption.contentEditable = 'true';
+        lbCaption.style.display = 'block';
+      } else {
+        lbCaption.contentEditable = 'false';
+        lbCaption.style.display = caption ? 'block' : 'none';
+      }
       lb.classList.add('active');
+      if (role === 'editor' && !caption) setTimeout(() => lbCaption.focus(), 50);
     }
+
+    lbCaption.addEventListener('blur', async () => {
+      if (role !== 'editor') return;
+      const monthId = lbCaption.dataset.month;
+      const filename = lbCaption.dataset.photoFilename;
+      if (!monthId || !filename) return;
+      const caption = lbCaption.textContent.trim();
+      if (!contentData.months) contentData.months = {};
+      if (!contentData.months[monthId]) contentData.months[monthId] = {};
+      if (!contentData.months[monthId].photoCaptions) contentData.months[monthId].photoCaptions = {};
+      contentData.months[monthId].photoCaptions[filename] = caption;
+      const m = months.find(x => x.id === monthId);
+      if (m) {
+        if (!m.photoCaptions) m.photoCaptions = {};
+        m.photoCaptions[filename] = caption;
+        document.querySelectorAll(`.filmstrip-frame[data-photo-filename="${filename}"]`).forEach(f => {
+          f.dataset.caption = caption;
+        });
+      }
+      await saveAllContent();
+    });
 
     function closeLightbox() {
       lb.classList.remove('active');
@@ -1833,22 +1884,35 @@
     }
 
     document.addEventListener('click', (e) => {
-      // Open lightbox on media frame click — presenter only (viewer gets it via socket, editor edits captions)
+      if (e.target.closest('.photo-delete') || e.target.closest('.photo-delete-event')) return;
+
+      // Filmstrip frame click — presenter and editor
+      const filmFrame = e.target.closest('.filmstrip-frame');
+      if (filmFrame && filmFrame.dataset.src) {
+        if (role !== 'presenter' && role !== 'editor') return;
+        const src = filmFrame.dataset.src;
+        const caption = filmFrame.dataset.caption || '';
+        const monthId = filmFrame.dataset.month;
+        const photoFilename = filmFrame.dataset.photoFilename;
+        openLightbox(src, 'image', caption, monthId, photoFilename);
+        if (role === 'presenter') socket.emit('debrief:lightbox-open', { src, type: 'image', caption });
+        return;
+      }
+
+      // Event media frame click — presenter only (editor edits captions inline)
       const frame = e.target.closest('.event-media-frame');
-      if (frame && !e.target.closest('.photo-delete-event')) {
+      if (frame) {
         if (role !== 'presenter') return;
         const src = frame.dataset.src;
         const type = frame.dataset.type;
-        // Read caption from sibling
         const wrapper = frame.closest('.event-photo-wrapper');
         const captionEl = wrapper && wrapper.querySelector('.event-photo-caption');
         const caption = captionEl ? captionEl.textContent.trim() : '';
         openLightbox(src, type, caption);
-        if (role === 'presenter') {
-          socket.emit('debrief:lightbox-open', { src, type, caption });
-        }
+        socket.emit('debrief:lightbox-open', { src, type, caption });
         return;
       }
+
       // Close lightbox
       if (e.target.closest('.lightbox-backdrop') || e.target.closest('.lightbox-close')) {
         closeLightbox();
