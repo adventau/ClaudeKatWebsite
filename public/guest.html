@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; font-family: 'Inter', sans-serif; overflow: hidden; -webkit-font-smoothing: antialiased; }
+    html, body { height: 100%; font-family: var(--font-body, 'Inter', sans-serif); overflow: hidden; -webkit-font-smoothing: antialiased; }
 
     :root {
       --bg:        #0c0912;
@@ -559,9 +559,10 @@
 
     /* ── Host theme overrides (creator's theme) ────────── */
     body.host-theme-kaliph {
-      --bg: #08051a; --surface: #0d0a1a; --border: rgba(124,58,237,0.2);
-      --accent: #7c3aed; --accent2: #3b82f6; --text: #e8e4f0; --muted: rgba(232,228,240,0.45);
-      --glow: rgba(124,58,237,0.22); --msg-self: linear-gradient(135deg,#7c3aed,#3b82f6);
+      --bg: #080c1e; --surface: #0d1128; --border: rgba(79,70,229,0.2);
+      --accent: #4f46e5; --accent2: #818cf8; --text: #e0e0ff; --muted: rgba(224,224,255,0.45);
+      --glow: rgba(79,70,229,0.22); --msg-self: linear-gradient(135deg,#4f46e5,#818cf8);
+      --font-body: 'DM Mono', monospace;
     }
     body.host-theme-kathrine {
       --bg: #0d0716; --surface: #120e1f; --border: rgba(139,92,246,0.2);
@@ -569,9 +570,10 @@
       --glow: rgba(139,92,246,0.22); --msg-self: linear-gradient(135deg,#8b5cf6,#c084fc);
     }
     body.host-theme-royal {
-      --bg: #0a0703; --surface: #12100a; --border: rgba(185,28,28,0.2);
-      --accent: #b91c1c; --accent2: #d97706; --text: #f0e8e0; --muted: rgba(240,232,224,0.45);
-      --glow: rgba(185,28,28,0.22); --msg-self: linear-gradient(135deg,#b91c1c,#d97706);
+      --bg: #0c0606; --surface: #140a0a; --border: rgba(196,30,58,0.25);
+      --accent: #c41e3a; --accent2: #d4a017; --text: #f0e8e0; --muted: rgba(240,232,224,0.45);
+      --glow: rgba(196,30,58,0.22); --msg-self: linear-gradient(135deg,#c41e3a,#d4a017);
+      --font-body: 'Barlow', sans-serif;
     }
     body.host-theme-heaven {
       --bg: #fafaf8; --surface: #ffffff; --border: rgba(200,169,110,0.2);
@@ -602,9 +604,10 @@
       --glow: rgba(212,175,55,0.15); --msg-self: linear-gradient(135deg,#d4af37,#c9a227);
     }
     body.host-theme-dark {
-      --bg: #1a1a1a; --surface: #242424; --border: #303030;
+      --bg: #141414; --surface: #242424; --border: #303030;
       --accent: #ececec; --accent2: #a0a0a0; --text: #ececec; --muted: rgba(236,236,236,0.45);
       --glow: rgba(255,255,255,0.06); --msg-self: #e8e8e8; --msg-other: #242424;
+      --font-body: 'Inter', sans-serif;
     }
     body.host-theme-dark header { background: #171717; }
     body.host-theme-dark .channel-bar { background: #171717; }
@@ -628,10 +631,25 @@
       --glow: rgba(67,232,177,0.2); --msg-self: linear-gradient(135deg,#1a6b5a,#145848);
     }
     body.host-theme-sandstone {
-      --bg: #1a1410; --surface: #161110; --border: rgba(212,168,67,0.18);
-      --accent: #c4632a; --accent2: #d4a843; --text: #e8ddd0; --muted: rgba(232,221,208,0.45);
-      --glow: rgba(196,99,42,0.2); --msg-self: linear-gradient(135deg,#c4632a,#a8522a);
+      --bg: #f5ede0; --surface: #fdf7ef; --border: #dfd0b8;
+      --accent: #c2713a; --accent2: #d4a870; --text: #2d1f0f; --muted: rgba(45,31,15,0.5);
+      --glow: rgba(194,113,58,0.15); --msg-self: linear-gradient(135deg,#c2713a,#d4874e);
+      --font-body: 'Lora', Georgia, serif;
     }
+    body.host-theme-sandstone header { background: rgba(237,228,212,0.97); }
+    body.host-theme-sandstone .channel-bar { background: #ede4d4; }
+    body.host-theme-sandstone .input-area { background: #ede4d4; }
+    body.host-theme-aurora {
+      --bg: #f0f4f8; --surface: rgba(255,255,255,0.85); --border: rgba(6,182,212,0.15);
+      --accent: #06b6d4; --accent2: #818cf8; --text: #1e293b; --muted: rgba(30,41,59,0.5);
+      --glow: rgba(6,182,212,0.15); --msg-self: linear-gradient(135deg,#06b6d4,#818cf8);
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+    }
+    body.host-theme-aurora header { background: rgba(232,237,245,0.97); }
+    body.host-theme-aurora .channel-bar { background: #e8edf5; }
+    body.host-theme-aurora .input-area { background: #e8edf5; }
+
+    /* ADD NEW THEMES HERE — see checklist in themes.css */
 
     /* ── Guest Profile Viewer ──────────────────────────────── */
     .guest-profile-overlay {
@@ -1566,7 +1584,7 @@
   function setGuestTheme(theme) {
     currentGuestTheme = theme;
     sessionStorage.setItem('guestTheme', theme);
-    document.body.classList.remove('light-theme', 'host-theme-kaliph', 'host-theme-kathrine', 'host-theme-royal', 'host-theme-heaven', 'host-theme-neon', 'host-theme-noir', 'host-theme-dark', 'host-theme-light', 'host-theme-rosewood', 'host-theme-ocean', 'host-theme-forest', 'host-theme-arctic', 'host-theme-sandstone');
+    document.body.className = document.body.className.split(' ').filter(c => !c.startsWith('host-theme-') && c !== 'light-theme').join(' ');
     if (theme === 'light') {
       document.body.classList.add('light-theme');
     } else if (theme === 'host') {

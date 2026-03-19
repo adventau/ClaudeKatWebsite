@@ -116,18 +116,20 @@ const EMOJIS = [
 ];
 
 const THEMES = [
-  { id: 'kaliph',   name: 'AVNT Purple',       preview: 'linear-gradient(135deg,#08051a,#7c3aed,#3b82f6)' },
+  { id: 'kaliph',   name: 'AVNT',              preview: 'linear-gradient(135deg,#080c1e,#4f46e5,#818cf8)' },
   { id: 'kathrine', name: 'Royal Violet',       preview: 'linear-gradient(135deg,#0d0716,#8b5cf6,#e9d5ff)' },
-  { id: 'royal',    name: 'Crimson Throne',     preview: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)' },
+  { id: 'royal',    name: 'Crimson Throne',     preview: 'linear-gradient(135deg,#0c0606,#c41e3a,#d4a017)' },
   { id: 'light',    name: 'Pristine Light',     preview: 'linear-gradient(135deg,#f9f9f9,#d4d4d4,#e8e8e8)' },
-  { id: 'dark',     name: 'Midnight Dark',      preview: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)' },
-  { id: 'neon',     name: 'Neon Tokyo',           preview: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)' },
-  { id: 'noir',     name: 'Velvet Noir',          preview: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)' },
-  { id: 'rosewood', name: 'Rose & Ember',       preview: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)' },
+  { id: 'dark',     name: 'Midnight Dark',      preview: 'linear-gradient(135deg,#141414,#404040,#242424)' },
+  { id: 'heaven',   name: 'Celestial',          preview: 'linear-gradient(135deg,#faf8f2,#c8a96e,#d4b882)' },
+  { id: 'neon',     name: 'Neon Tokyo',         preview: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)' },
+  { id: 'noir',     name: 'Velvet Noir',        preview: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)' },
+  { id: 'rosewood', name: 'Rose & Ember',       preview: 'linear-gradient(135deg,#0c0912,#c8967a,#7c3aed)' },
   { id: 'ocean',    name: 'Deep Tide',          preview: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)' },
   { id: 'forest',   name: 'Enchanted Forest',   preview: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)' },
-  { id: 'arctic',   name: 'Arctic Aurora',      preview: 'linear-gradient(135deg,#070e1a,#43e8b1,#a48efa)' },
-  { id: 'sandstone',name: 'Sandstone Dusk',     preview: 'linear-gradient(135deg,#1a1410,#c4632a,#d4a843)' },
+  { id: 'arctic',   name: 'Arctic',             preview: 'linear-gradient(135deg,#070e1a,#43e8b1,#a48efa)' },
+  { id: 'aurora',   name: 'Arctic Aurora',      preview: 'linear-gradient(135deg,#f0f4f8,#06b6d4,#818cf8)' },
+  { id: 'sandstone',name: 'Sandstone Dusk',     preview: 'linear-gradient(135deg,#f5ede0,#c2713a,#d4a870)' },
 ];
 
 // ── Socket ────────────────────────────────────────────────────────────

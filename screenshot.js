@@ -5,7 +5,7 @@
  */
 const { chromium } = require('playwright');
 
-const THEMES = ['dark', 'light', 'kathrine', 'royal', 'kaliph', 'heaven', 'rosewood', 'ocean', 'forest'];
+const THEMES = ['dark', 'light', 'kathrine', 'royal', 'kaliph', 'heaven', 'rosewood', 'ocean', 'forest', 'neon', 'noir', 'arctic', 'aurora', 'sandstone'];
 const BASE = 'http://localhost:3000';
 
 (async () => {

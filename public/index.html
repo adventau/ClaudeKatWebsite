@@ -899,29 +899,93 @@
       100% { background-position: 0% 0%; opacity: 0.7; }
     }
 
-    /* ── T13: Sandstone Dusk — Moroccan riad, terracotta, warm amber, carved stone ── */
+    /* ── T13a: Aurora — Light frosted glass, cyan + violet aurora ── */
+    @keyframes aurora-card-sweep {
+      0%   { background-position: 0% 0%; }
+      50%  { background-position: 100% 100%; }
+      100% { background-position: 0% 0%; }
+    }
+    .theme-aurora {
+      background: linear-gradient(160deg, #f0f4f8 0%, #e8edf5 35%, #eff6ff 65%, #f0f4f8 100%);
+      border-color: rgba(6,182,212,0.25);
+      color: #1e293b;
+    }
+    .theme-aurora:hover {
+      transform: translateY(-12px) scale(1.04);
+      box-shadow:
+        0 28px 60px rgba(6,182,212,0.15),
+        0 8px 24px rgba(129,140,248,0.12),
+        0 0 0 1px rgba(6,182,212,0.2);
+    }
+    .theme-aurora::before {
+      background: linear-gradient(135deg,
+        rgba(6,182,212,0.2) 0%, rgba(129,140,248,0.25) 35%,
+        rgba(6,182,212,0.15) 65%, rgba(129,140,248,0.2) 100%);
+      background-size: 300% 300%;
+    }
+    .theme-aurora:hover::before { opacity: 1; animation: aurora-card-sweep 4s ease-in-out infinite; }
+    .theme-aurora::after {
+      background-image:
+        radial-gradient(2px 2px at 20% 25%, rgba(6,182,212,0.5), transparent),
+        radial-gradient(1.5px 1.5px at 55% 15%, rgba(129,140,248,0.5), transparent),
+        radial-gradient(2px 2px at 75% 50%, rgba(6,182,212,0.4), transparent),
+        radial-gradient(1px 1px at 35% 70%, rgba(129,140,248,0.4), transparent),
+        radial-gradient(2px 2px at 82% 80%, rgba(6,182,212,0.45), transparent);
+      background-size: 100% 100%;
+    }
+    .theme-aurora:hover::after { opacity: 1; animation: sparkle-drift 4s ease-in-out infinite; }
+    .theme-aurora .card-glow { background: radial-gradient(circle, rgba(6,182,212,0.35) 0%, rgba(129,140,248,0.2) 40%, transparent 70%); filter: blur(50px); }
+    .theme-aurora .card-avatar {
+      background: linear-gradient(135deg, #06b6d4, #818cf8);
+      border-color: rgba(6,182,212,0.4);
+      box-shadow: 0 0 20px rgba(6,182,212,0.4), 0 0 40px rgba(129,140,248,0.15);
+    }
+    .theme-aurora:hover .card-avatar {
+      transform: scale(1.12);
+      box-shadow: 0 0 30px rgba(6,182,212,0.6), 0 0 60px rgba(129,140,248,0.25);
+    }
+    .theme-aurora .card-name {
+      font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.75rem; font-weight: 700;
+      background: linear-gradient(135deg, #0891b2, #818cf8, #06b6d4);
+      -webkit-background-clip: text; background-clip: text;
+    }
+    .theme-aurora:hover .card-name { letter-spacing: 0.04em; transform: scale(1.04); }
+    .theme-aurora .card-theme-label { color: rgba(6,182,212,0.7); font-family: 'Plus Jakarta Sans', sans-serif; }
+    .theme-aurora .card-enter-hint { font-family: 'Plus Jakarta Sans', sans-serif; color: rgba(6,182,212,0.55); }
+    .theme-aurora .card-badge { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.6rem; color: rgba(6,182,212,0.8); border: 1px solid rgba(6,182,212,0.25); }
+    .theme-aurora:hover .card-badge { box-shadow: 0 0 10px rgba(6,182,212,0.25); }
+    .theme-aurora .card-status-dot { border-color: #e8edf5; }
+    .theme-aurora .card-circuit {
+      background: linear-gradient(90deg,
+        transparent 10%, rgba(6,182,212,0.1) 10%, rgba(6,182,212,0.1) 10.5%, transparent 10.5%,
+        transparent 40%, rgba(129,140,248,0.08) 40%, rgba(129,140,248,0.08) 40.5%, transparent 40.5%,
+        transparent 70%, rgba(6,182,212,0.08) 70%, rgba(6,182,212,0.08) 70.5%, transparent 70.5%);
+    }
+    .theme-aurora .ripple { background: rgba(6,182,212,0.18); }
+
+    /* ── T13: Sandstone Dusk — warm sand, terracotta, Lora/Playfair (LIGHT) ── */
     .theme-sandstone {
-      background: linear-gradient(160deg, #1a1410 0%, #261e16 30%, #1e1812 60%, #141008 100%);
-      border-color: rgba(196,99,42,0.2);
+      background: linear-gradient(160deg, #f5ede0 0%, #ede4d4 30%, #f0e8d8 60%, #faf5ee 100%);
+      border-color: rgba(194,113,58,0.25);
+      color: #2d1f0f;
     }
     .theme-sandstone:hover {
       transform: translateY(-10px) scale(1.03);
-      box-shadow:
-        0 20px 60px rgba(196,99,42,0.3),
+      box-shadow:        0 20px 60px rgba(196,99,42,0.3),
         0 0 80px rgba(212,168,67,0.12),
         inset 0 1px 0 rgba(212,168,67,0.15);
       border-color: rgba(196,99,42,0.5);
     }
     /* Warm golden shimmer sweep */
     .theme-sandstone::before {
-      background: linear-gradient(45deg, transparent 30%, rgba(212,168,67,0.12) 50%, transparent 70%);
+      background: linear-gradient(45deg, transparent 30%, rgba(194,113,58,0.15) 50%, transparent 70%);
       transform: translateX(-100%) rotate(45deg); transition: none;
     }
     .theme-sandstone:hover::before { animation: shimmer-sweep 0.8s ease; }
     /* Warm ember particles */
     .theme-sandstone::after {
       background-image:
-        radial-gradient(1.5px 1.5px at 22% 28%, rgba(196,99,42,0.5), transparent),
+        radial-gradient(1.5px 1.5px at 22% 28%, rgba(194,113,58,0.5), transparent),
         radial-gradient(1px 1px at 65% 20%, rgba(212,168,67,0.45), transparent),
         radial-gradient(1.5px 1.5px at 78% 55%, rgba(196,99,42,0.4), transparent),
         radial-gradient(1px 1px at 40% 72%, rgba(212,168,67,0.35), transparent),
@@ -930,34 +994,35 @@
       background-size: 100% 100%;
     }
     .theme-sandstone:hover::after { opacity: 1; animation: sparkle-drift 4s ease-in-out infinite; }
-    .theme-sandstone .card-glow { background: radial-gradient(circle, rgba(196,99,42,0.4) 0%, rgba(212,168,67,0.2) 35%, transparent 70%); filter: blur(45px); }
+    .theme-sandstone .card-glow { background: radial-gradient(circle, rgba(194,113,58,0.3) 0%, rgba(212,168,80,0.15) 35%, transparent 70%); filter: blur(45px); }
     .theme-sandstone .card-avatar {
-      background: linear-gradient(135deg, #a84e1e, #c4632a);
-      border-color: rgba(196,99,42,0.5);
-      box-shadow: 0 0 20px rgba(196,99,42,0.45), 0 0 40px rgba(212,168,67,0.1);
+      background: linear-gradient(135deg, #c2713a, #d4874e);
+      border-color: rgba(194,113,58,0.4);
+      box-shadow: 0 0 20px rgba(194,113,58,0.3), 0 0 40px rgba(212,168,80,0.1);
     }
     .theme-sandstone:hover .card-avatar {
       transform: scale(1.1);
-      box-shadow: 0 0 30px rgba(196,99,42,0.65), 0 0 55px rgba(212,168,67,0.25);
+      box-shadow: 0 0 30px rgba(194,113,58,0.5), 0 0 55px rgba(212,168,80,0.2);
     }
     .theme-sandstone .card-name {
-      font-family: 'Crimson Pro', serif; font-size: 2rem; font-weight: 600; font-style: italic;
-      background: linear-gradient(135deg, #d4a843, #c4632a, #e8c080);
+      font-family: 'Playfair Display', Georgia, serif; font-size: 2rem; font-weight: 700; font-style: italic;
+      background: linear-gradient(135deg, #8a4a20, #c2713a, #d4874e);
       -webkit-background-clip: text; background-clip: text;
     }
     .theme-sandstone:hover .card-name { transform: scale(1.06); }
-    .theme-sandstone .card-theme-label { color: rgba(212,168,67,0.6); font-family: 'Crimson Pro', serif; font-style: italic; letter-spacing: 0.08em; }
-    .theme-sandstone .card-enter-hint { font-family: 'Crimson Pro', serif; font-style: italic; color: rgba(212,168,67,0.5); }
-    .theme-sandstone .card-badge { font-family: 'Crimson Pro', serif; font-style: italic; font-size: 0.65rem; color: rgba(212,168,67,0.7); border: 1px solid rgba(196,99,42,0.25); }
-    .theme-sandstone:hover .card-badge { box-shadow: 0 0 10px rgba(196,99,42,0.2); }
+    .theme-sandstone .card-theme-label { color: rgba(194,113,58,0.7); font-family: 'Lora', Georgia, serif; font-style: italic; letter-spacing: 0.08em; }
+    .theme-sandstone .card-enter-hint { font-family: 'Lora', Georgia, serif; font-style: italic; color: rgba(194,113,58,0.6); }
+    .theme-sandstone .card-badge { font-family: 'Lora', Georgia, serif; font-style: italic; font-size: 0.65rem; color: rgba(194,113,58,0.8); border: 1px solid rgba(194,113,58,0.3); }
+    .theme-sandstone:hover .card-badge { box-shadow: 0 0 10px rgba(194,113,58,0.2); }
+    .theme-sandstone .card-status-dot { border-color: #f5ede0; }
     .theme-sandstone .card-circuit {
       background: linear-gradient(90deg,
-        transparent 12%, rgba(196,99,42,0.1) 12%, rgba(196,99,42,0.1) 12.5%, transparent 12.5%,
+        transparent 12%, rgba(194,113,58,0.1) 12%, rgba(194,113,58,0.1) 12.5%, transparent 12.5%,
         transparent 38%, rgba(212,168,67,0.08) 38%, rgba(212,168,67,0.08) 38.5%, transparent 38.5%,
         transparent 62%, rgba(196,99,42,0.07) 62%, rgba(196,99,42,0.07) 62.5%, transparent 62.5%,
         transparent 88%, rgba(212,168,67,0.06) 88%, rgba(212,168,67,0.06) 88.5%, transparent 88.5%);
     }
-    .theme-sandstone .ripple { background: rgba(196,99,42,0.2); }
+    .theme-sandstone .ripple { background: rgba(194,113,58,0.15); }
 
     /* ── Select header ───────────────────────────────────────────────── */
     .select-header {
@@ -1321,24 +1386,26 @@
       forest:   '🍄 Enchanted',
       neon:     '⚡ NEON',
       noir:     '◈ Noir',
-      arctic:   '❄ Aurora',
-      sandstone:'◈ Dusk',
+      arctic:   '❄ Arctic',
+      aurora:   '❄ Arctic Aurora',
+      sandstone:'🏜 Sandstone Dusk',
     };
     // Theme colors — used for passcode overlay styling
     const themeColors = {
-      kaliph:   { bg: '#0d0820', accent: '#7c3aed', accent2: '#a78bfa', glow: 'rgba(124,58,237,0.3)', border: 'rgba(124,58,237,0.25)' },
+      kaliph:   { bg: '#080c1e', accent: '#4f46e5', accent2: '#818cf8', glow: 'rgba(79,70,229,0.3)', border: 'rgba(79,70,229,0.25)' },
       kathrine: { bg: '#0d0716', accent: '#8b5cf6', accent2: '#c084fc', glow: 'rgba(139,92,246,0.3)', border: 'rgba(139,92,246,0.25)' },
-      royal:    { bg: '#0a0703', accent: '#d97706', accent2: '#f59e0b', glow: 'rgba(217,119,6,0.3)', border: 'rgba(180,120,30,0.4)' },
+      royal:    { bg: '#0c0606', accent: '#c41e3a', accent2: '#d4a017', glow: 'rgba(196,30,58,0.3)', border: 'rgba(196,30,58,0.3)' },
       light:    { bg: '#ffffff', accent: '#4f46e5', accent2: '#6366f1', glow: 'rgba(79,70,229,0.1)', border: 'rgba(79,70,229,0.2)', textDark: true },
-      dark:     { bg: '#1a1a1a', accent: '#e8e8e8', accent2: '#a0a0a0', glow: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.1)' },
-      heaven:   { bg: '#faf8f2', accent: '#c8a96e', accent2: '#e8d5a3', glow: 'rgba(200,169,110,0.12)', border: 'rgba(200,169,110,0.25)', textDark: true },
+      dark:     { bg: '#141414', accent: '#e8e8e8', accent2: '#a0a0a0', glow: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.1)' },
+      heaven:   { bg: '#faf8f2', accent: '#c8a96e', accent2: '#d4b882', glow: 'rgba(200,169,110,0.15)', border: 'rgba(200,169,110,0.25)', textDark: true },
       rosewood: { bg: '#0c0912', accent: '#c8967a', accent2: '#e8c9a0', glow: 'rgba(200,150,122,0.22)', border: 'rgba(200,150,120,0.18)' },
       ocean:    { bg: '#060d10', accent: '#14b8a6', accent2: '#2dd4bf', glow: 'rgba(20,184,166,0.25)', border: 'rgba(20,184,166,0.2)' },
       forest:   { bg: '#0f1a14', accent: '#52b788', accent2: '#c8a84e', glow: 'rgba(92,184,138,0.25)', border: 'rgba(92,184,138,0.2)' },
       neon:     { bg: '#06060e', accent: '#ff2d7b', accent2: '#00f0ff', glow: 'rgba(255,45,123,0.3)', border: 'rgba(0,240,255,0.3)' },
       noir:     { bg: '#0e0e1a', accent: '#d4af37', accent2: '#f0d060', glow: 'rgba(212,175,55,0.25)', border: 'rgba(212,175,55,0.28)' },
       arctic:   { bg: '#0a1628', accent: '#43e8b1', accent2: '#a48efa', glow: 'rgba(67,232,177,0.3)', border: 'rgba(67,232,177,0.25)' },
-      sandstone:{ bg: '#1a1410', accent: '#c4632a', accent2: '#d4a843', glow: 'rgba(196,99,42,0.25)', border: 'rgba(196,99,42,0.25)' },
+      aurora:   { bg: '#f0f4f8', accent: '#06b6d4', accent2: '#818cf8', glow: 'rgba(6,182,212,0.15)', border: 'rgba(6,182,212,0.2)', textDark: true },
+      sandstone:{ bg: '#f5ede0', accent: '#c2713a', accent2: '#d4a870', glow: 'rgba(194,113,58,0.15)', border: 'rgba(194,113,58,0.25)', textDark: true },
     };
 
     async function loadUserPreviews() {
@@ -1614,9 +1681,7 @@
       if (data.success) {
         closePasscodeOverlay();
         const overlay = document.getElementById('transition-overlay');
-        overlay.style.background = pendingProfile === 'kaliph'
-          ? 'radial-gradient(circle, #7c3aed 0%, #0a0612 100%)'
-          : 'radial-gradient(circle, #8b5cf6 0%, #0a0612 100%)';
+        overlay.style.background = getOverlayGradient(pendingProfile);
         doTransition(() => window.location.href = '/app');
       } else {
         errEl.textContent = data.error || 'Something went wrong';
@@ -1657,9 +1722,7 @@
       if (data.success) {
         closePasscodeOverlay();
         const overlay = document.getElementById('transition-overlay');
-        overlay.style.background = pendingProfile === 'kaliph'
-          ? 'radial-gradient(circle, #7c3aed 0%, #0a0612 100%)'
-          : 'radial-gradient(circle, #8b5cf6 0%, #0a0612 100%)';
+        overlay.style.background = getOverlayGradient(pendingProfile);
         doTransition(() => window.location.href = '/app');
       } else {
         document.getElementById('passcode-error').textContent = data.error || 'Incorrect passcode';
@@ -1690,11 +1753,9 @@
           return;
         }
 
-        // Choose overlay color by profile
+        // Choose overlay color by profile's active theme
         const overlay = document.getElementById('transition-overlay');
-        overlay.style.background = profile === 'kaliph'
-          ? 'radial-gradient(circle, #7c3aed 0%, #0a0612 100%)'
-          : 'radial-gradient(circle, #8b5cf6 0%, #0a0612 100%)';
+        overlay.style.background = getOverlayGradient(profile);
 
         try {
           const r = await fetch('/api/auth/profile', {
@@ -1715,6 +1776,14 @@
         }
       });
     });
+
+    function getOverlayGradient(profile) {
+      const users = window._cachedUsers || {};
+      const themeId = users[profile]?.theme || (profile === 'kaliph' ? 'kaliph' : 'kathrine');
+      const t = themeColors[themeId] || themeColors.dark;
+      const bg = t.textDark ? '#f8f4ff' : '#080612';
+      return `radial-gradient(circle, ${t.accent} 0%, ${bg} 100%)`;
+    }
 
     function doTransition(cb) {
       const overlay = document.getElementById('transition-overlay');

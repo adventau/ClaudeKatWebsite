@@ -275,7 +275,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   proxy: true,
-  cookie: { secure: true, sameSite: 'none', maxAge: 2 * 60 * 60 * 1000 }
+  cookie: { secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', maxAge: 2 * 60 * 60 * 1000 }
 }));
 
 // ── File upload ───────────────────────────────────────────────────────────────
@@ -2380,7 +2380,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       const user = parts[2]?.toLowerCase();
       const theme = parts[3]?.toLowerCase();
       if (!user || !theme) return lines('Usage: set theme <user> <theme>', 'warn');
-      const valid = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'neon', 'noir', 'rosewood', 'ocean', 'forest', 'arctic', 'sandstone'];
+      const valid = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'heaven', 'neon', 'noir', 'rosewood', 'ocean', 'forest', 'arctic', 'aurora', 'sandstone'];
       if (!valid.includes(theme)) return lines(`Invalid theme. Options: ${valid.join(', ')}`, 'error');
       const users = rd(F.users);
       if (!users[user]) return lines(`User "${user}" not found`, 'error');

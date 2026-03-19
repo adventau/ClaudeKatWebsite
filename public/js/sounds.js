@@ -15,26 +15,27 @@ const SoundSystem = (() => {
 
   const profiles = {
 
-    // ── KALIPH: AVNT Purple — Cyber/tech, aggressive sawtooth, digital glitch ──
+    // ── KALIPH: AVNT Purple — Clean & sharp, crystal sine, high-precision, premium ──
+    // Identity: pure sine throughout, high-range frequencies (392–1319 Hz), minimal detune, crisp
     kaliph: {
-      keystroke:  { type: 'sawtooth', freq: [180, 200, 220], dur: 0.04, gain: 0.07, detune: 100 },
-      send:       { type: 'sine', freqs: [300, 400, 600], dur: 0.25, gain: 0.12 },
-      recv:       { type: 'triangle', freqs: [800, 1000], dur: 0.3, gain: 0.1 },
-      error:      { type: 'sawtooth', freqs: [120, 90], dur: 0.2, gain: 0.1 },
-      notif:      { type: 'sine', freqs: [880, 1100, 880], dur: 0.4, gain: 0.12 },
-      navigate:   { type: 'sawtooth', freqs: [300, 500], dur: 0.08, gain: 0.05 },
-      modal_open: { type: 'sine', freqs: [400, 600], dur: 0.1, gain: 0.06 },
-      modal_close:{ type: 'sine', freqs: [500, 300], dur: 0.08, gain: 0.05 },
-      toggle:     { type: 'sawtooth', freqs: [350, 450], dur: 0.06, gain: 0.05 },
-      success:    { type: 'sine', freqs: [400, 600, 800], dur: 0.15, gain: 0.08 },
-      delete_snd: { type: 'sawtooth', freqs: [350, 200], dur: 0.1, gain: 0.06 },
-      ring_out:   { type: 'sine', freqs: [400, 500], dur: 0.4, gain: 0.08, gap: 0.15 },
-      ring_in:    { type: 'sawtooth', freqs: [600, 750, 900], dur: 0.2, gain: 0.09, gap: 0.15 },
-      hangup:     { type: 'sawtooth', freqs: [500, 300, 150], dur: 0.12, gain: 0.1 },
-      mute:       { type: 'sawtooth', freqs: [250, 150], dur: 0.08, gain: 0.08 },
-      unmute:     { type: 'sawtooth', freqs: [200, 350], dur: 0.08, gain: 0.08 },
-      share_on:   { type: 'sine', freqs: [400, 600, 800], dur: 0.1, gain: 0.07 },
-      share_off:  { type: 'sine', freqs: [600, 400], dur: 0.1, gain: 0.06 },
+      keystroke:  { type: 'sine', freq: [880, 988, 784], dur: 0.022, gain: 0.05, detune: 4 },
+      send:       { type: 'sine', freqs: [523, 784, 1047, 1319], dur: 0.14, gain: 0.08 },
+      recv:       { type: 'sine', freqs: [1047, 784], dur: 0.18, gain: 0.07 },
+      error:      { type: 'sine', freqs: [440, 370], dur: 0.2, gain: 0.08 },
+      notif:      { type: 'sine', freqs: [784, 988, 1175, 1319], dur: 0.18, gain: 0.09 },
+      navigate:   { type: 'sine', freqs: [659, 784], dur: 0.055, gain: 0.04 },
+      modal_open: { type: 'sine', freqs: [523, 784], dur: 0.09, gain: 0.05 },
+      modal_close:{ type: 'sine', freqs: [784, 523], dur: 0.075, gain: 0.04 },
+      toggle:     { type: 'sine', freqs: [784, 988], dur: 0.05, gain: 0.05 },
+      success:    { type: 'sine', freqs: [659, 784, 988, 1175], dur: 0.13, gain: 0.07 },
+      delete_snd: { type: 'sine', freqs: [880, 659, 440], dur: 0.1, gain: 0.06 },
+      ring_out:   { type: 'sine', freqs: [659, 784], dur: 0.28, gain: 0.07, gap: 0.12 },
+      ring_in:    { type: 'sine', freqs: [784, 988, 1175, 1319], dur: 0.15, gain: 0.09, gap: 0.1 },
+      hangup:     { type: 'sine', freqs: [784, 523, 392], dur: 0.11, gain: 0.08 },
+      mute:       { type: 'sine', freqs: [880, 659], dur: 0.08, gain: 0.06 },
+      unmute:     { type: 'sine', freqs: [659, 880], dur: 0.08, gain: 0.07 },
+      share_on:   { type: 'sine', freqs: [659, 784, 988], dur: 0.09, gain: 0.06 },
+      share_off:  { type: 'sine', freqs: [988, 784], dur: 0.075, gain: 0.05 },
     },
 
     // ── KATHRINE: Royal Violet — Elegant, airy, high sparkle, gentle harp ──
