@@ -1323,6 +1323,18 @@ html, body {
   transition: background 0.15s;
 }
 .lightbox-close:hover { background: rgba(255,255,255,0.3); }
+.lightbox-caption {
+  display: none;
+  position: absolute;
+  bottom: -36px;
+  left: 0; right: 0;
+  text-align: center;
+  color: rgba(255,255,255,0.75);
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+}
 
 /* Audio trim slider */
 .audio-trim-row {

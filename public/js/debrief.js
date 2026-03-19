@@ -328,7 +328,7 @@
           </div>
           <div class="photo-upload-zone" id="upload-zone-${m.id}">
             <p>Drop photos here or click to upload</p>
-            <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic" data-month="${m.id}">
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-month="${m.id}">
           </div>
         </div>
       </div>
@@ -1761,49 +1761,76 @@
         <button class="lightbox-close">&times;</button>
         <img class="lightbox-img" src="" alt="">
         <video class="lightbox-video" src="" controls autoplay loop playsinline></video>
+        <div class="lightbox-caption"></div>
       </div>`;
     document.body.appendChild(lb);
 
+    function openLightbox(src, type, caption) {
+      const lbImg = lb.querySelector('.lightbox-img');
+      const lbVideo = lb.querySelector('.lightbox-video');
+      const lbCaption = lb.querySelector('.lightbox-caption');
+      if (type === 'video') {
+        lbImg.style.display = 'none';
+        lbVideo.style.display = 'block';
+        lbVideo.src = src;
+        lbVideo.play().catch(() => {});
+      } else {
+        lbVideo.style.display = 'none';
+        lbVideo.pause();
+        lbVideo.src = '';
+        lbImg.style.display = 'block';
+        lbImg.src = src;
+      }
+      lbCaption.textContent = caption || '';
+      lbCaption.style.display = caption ? 'block' : 'none';
+      lb.classList.add('active');
+    }
+
+    function closeLightbox() {
+      lb.classList.remove('active');
+      const lbVideo = lb.querySelector('.lightbox-video');
+      lbVideo.pause();
+      lbVideo.src = '';
+    }
+
     document.addEventListener('click', (e) => {
-      // Open lightbox on media frame click
+      // Open lightbox on media frame click (presenter/editor only — viewer gets it via socket)
       const frame = e.target.closest('.event-media-frame');
       if (frame && !e.target.closest('.photo-delete-event')) {
+        if (role === 'viewer') return; // viewer is driven by socket
         const src = frame.dataset.src;
         const type = frame.dataset.type;
-        const lbImg = lb.querySelector('.lightbox-img');
-        const lbVideo = lb.querySelector('.lightbox-video');
-        if (type === 'video') {
-          lbImg.style.display = 'none';
-          lbVideo.style.display = 'block';
-          lbVideo.src = src;
-          lbVideo.play().catch(() => {});
-        } else {
-          lbVideo.style.display = 'none';
-          lbVideo.pause();
-          lbVideo.src = '';
-          lbImg.style.display = 'block';
-          lbImg.src = src;
+        // Read caption from sibling
+        const wrapper = frame.closest('.event-photo-wrapper');
+        const captionEl = wrapper && wrapper.querySelector('.event-photo-caption');
+        const caption = captionEl ? captionEl.textContent.trim() : '';
+        openLightbox(src, type, caption);
+        if (role === 'presenter') {
+          socket.emit('debrief:lightbox-open', { src, type, caption });
         }
-        lb.classList.add('active');
         return;
       }
       // Close lightbox
       if (e.target.closest('.lightbox-backdrop') || e.target.closest('.lightbox-close')) {
-        lb.classList.remove('active');
-        const lbVideo = lb.querySelector('.lightbox-video');
-        lbVideo.pause();
-        lbVideo.src = '';
+        closeLightbox();
+        if (role === 'presenter') socket.emit('debrief:lightbox-close');
       }
     });
 
     // Close on Escape
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && lb.classList.contains('active')) {
-        lb.classList.remove('active');
-        const lbVideo = lb.querySelector('.lightbox-video');
-        lbVideo.pause();
-        lbVideo.src = '';
+        closeLightbox();
+        if (role === 'presenter') socket.emit('debrief:lightbox-close');
       }
+    });
+
+    // Viewer mirrors presenter
+    socket.on('debrief:lightbox-open', (data) => {
+      if (role === 'viewer') openLightbox(data.src, data.type, data.caption);
+    });
+    socket.on('debrief:lightbox-close', () => {
+      if (role === 'viewer') closeLightbox();
     });
   }
 

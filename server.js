@@ -3897,6 +3897,12 @@ io.on('connection', socket => {
     debriefPresenterState.revealStep = data.revealStep;
     socket.broadcast.emit('debrief:reveal', data);
   });
+  socket.on('debrief:lightbox-open', (data) => {
+    socket.broadcast.emit('debrief:lightbox-open', data);
+  });
+  socket.on('debrief:lightbox-close', () => {
+    socket.broadcast.emit('debrief:lightbox-close');
+  });
   socket.on('debrief:request-state', () => {
     if (debriefPresenterState.connected) {
       socket.emit('debrief:state', {
