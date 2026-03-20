@@ -833,6 +833,20 @@
     });
   }
 
+  // Size event-slide IMAGE frames to their natural aspect ratio on load
+  document.addEventListener('load', (e) => {
+    const img = e.target;
+    if (img.tagName !== 'IMG') return;
+    const frame = img.closest('.event-media-frame[data-type="image"]');
+    if (!frame || !img.naturalWidth || !img.naturalHeight) return;
+    const ratio = img.naturalWidth / img.naturalHeight;
+    const maxH = 240, maxW = 320;
+    const h = Math.min(maxH, img.naturalHeight);
+    const w = Math.min(maxW, Math.round(ratio * h));
+    frame.style.height = h + 'px';
+    frame.style.width  = w + 'px';
+  }, true);
+
   // Size event-slide video frames exactly to the video's natural aspect ratio
   // once metadata is available — eliminates letterboxing / beige gaps.
   document.addEventListener('loadedmetadata', (e) => {
