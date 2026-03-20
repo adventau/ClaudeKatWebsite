@@ -825,23 +825,11 @@ html, body {
 }
 .event-photo-wrapper {
   flex: 0 0 auto;
+  min-height: 0; min-width: 0;
 }
 .event-photo-frame {
   height: 200px;
-  width: auto; /* JS sets aspect-ratio so width follows naturally */
-}
-.event-photo-frame img,
-.event-photo-frame video {
-  width: 100%; height: 100%;
-  object-fit: fill; display: block;
-}
-
-.event-photo-wrapper {
-  min-height: 0;
-  min-width: 0;
-}
-.event-photo-frame {
-  width: 100%; height: 100%;
+  width: auto; /* aspect-ratio set by JS → width follows naturally */
   border-radius: 12px; overflow: hidden;
   box-shadow: var(--shadow-card);
   cursor: pointer;
@@ -854,7 +842,7 @@ html, body {
 .event-photo-frame img,
 .event-photo-frame video {
   width: 100%; height: 100%;
-  object-fit: cover; display: block;
+  object-fit: fill; display: block;
 }
 
 /* Videos: JS (loadedmetadata) sizes frame to natural aspect ratio */

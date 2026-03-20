@@ -611,6 +611,7 @@
     updateUI();
     updateSlideAudio();
     updateSlideVideos();
+    sizeAllEventImages();
   }
 
   function jumpToSlide(idx) {
@@ -631,6 +632,7 @@
     updateUI();
     updateSlideAudio();
     updateSlideVideos();
+    sizeAllEventImages();
   }
 
   function revealAllItems(slide) {
@@ -833,14 +835,22 @@
     });
   }
 
-  // Set aspect-ratio on event image frames so the full photo shows (all roles)
-  document.addEventListener('load', (e) => {
-    const img = e.target;
-    if (img.tagName !== 'IMG') return;
+  // Set aspect-ratio on event image frames so the full photo shows (all roles).
+  // Called for both freshly-loaded and already-cached images.
+  function sizeEventFrame(img) {
     const frame = img.closest('.event-media-frame[data-type="image"]');
     if (!frame || !img.naturalWidth || !img.naturalHeight) return;
     frame.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+  }
+  document.addEventListener('load', (e) => {
+    if (e.target.tagName === 'IMG') sizeEventFrame(e.target);
   }, true);
+  // Handle images already in cache (complete before listener fires)
+  function sizeAllEventImages() {
+    document.querySelectorAll('.event-media-frame[data-type="image"] img').forEach(img => {
+      if (img.complete && img.naturalWidth) sizeEventFrame(img);
+    });
+  }
 
   // Size FILMSTRIP video frames to natural aspect ratio on metadata load.
   // (Event slide frames are handled by CSS grid — no JS sizing needed there.)
