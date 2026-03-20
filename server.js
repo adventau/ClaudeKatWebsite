@@ -25,6 +25,27 @@ try { compression = require('compression'); } catch(e) { /* optional */ }
 const webpush = require('web-push');
 const crypto = require('crypto');
 
+// HEIC → JPEG conversion helper
+let heicConvert;
+try { heicConvert = require('heic-convert'); } catch(e) { console.warn('[heic-convert] not available:', e.message); }
+
+async function convertHeicIfNeeded(filePath) {
+  if (!heicConvert) return filePath;
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext !== '.heic' && ext !== '.heif') return filePath;
+  try {
+    const inputBuffer = await fs.readFile(filePath);
+    const outputBuffer = await heicConvert({ buffer: inputBuffer, format: 'JPEG', quality: 0.92 });
+    const jpegPath = filePath.replace(/\.(heic|heif)$/i, '.jpg');
+    await fs.writeFile(jpegPath, Buffer.from(outputBuffer));
+    await fs.remove(filePath);
+    return jpegPath;
+  } catch (e) {
+    console.error('[heic-convert] conversion failed:', e.message);
+    return filePath; // keep original if conversion fails
+  }
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: '*' } });
@@ -3658,23 +3679,31 @@ app.post('/api/debrief/config', (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /api/debrief/upload/:monthId — upload photos
-app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), (req, res) => {
-  const { monthId } = req.params;
-  const content = readDebriefContent();
-  if (!content.months) content.months = {};
-  if (!content.months[monthId]) content.months[monthId] = {};
-  if (!content.months[monthId].photos) content.months[monthId].photos = [];
+// POST /api/debrief/upload/:monthId — upload photos (HEIC auto-converted to JPEG)
+app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), async (req, res) => {
+  try {
+    const { monthId } = req.params;
+    const content = readDebriefContent();
+    if (!content.months) content.months = {};
+    if (!content.months[monthId]) content.months[monthId] = {};
+    if (!content.months[monthId].photos) content.months[monthId].photos = [];
 
-  const newFiles = (req.files || []).map(f => f.filename);
-  content.months[monthId].photos.push(...newFiles);
-  writeDebriefContent(content);
-  // Persist photos to DB
-  for (const f of (req.files || [])) {
-    const buf = fs.readFileSync(f.path);
-    storeDebriefFile(`${monthId}/${f.filename}`, buf).catch(e => console.error('[debrief] DB store photo:', e.message));
+    const newFiles = [];
+    for (const f of (req.files || [])) {
+      const finalPath = await convertHeicIfNeeded(f.path);
+      const finalName = path.basename(finalPath);
+      newFiles.push(finalName);
+      const buf = await fs.readFile(finalPath);
+      storeDebriefFile(`${monthId}/${finalName}`, buf).catch(e => console.error('[debrief] DB store photo:', e.message));
+    }
+
+    content.months[monthId].photos.push(...newFiles);
+    writeDebriefContent(content);
+    res.json({ ok: true, files: newFiles });
+  } catch (e) {
+    console.error('[debrief] upload error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
   }
-  res.json({ ok: true, files: newFiles });
 });
 
 // POST /api/debrief/upload-audio/:monthId — upload audio file for a month
@@ -3774,7 +3803,7 @@ const debriefCoverUpload = multer({
 
 app.post('/api/debrief/upload-cover/:monthId', (req, res) => {
   try {
-    debriefCoverUpload.single('cover')(req, res, (err) => {
+    debriefCoverUpload.single('cover')(req, res, async (err) => {
       try {
         if (err) {
           console.error('Cover upload multer error:', err.message);
@@ -3782,16 +3811,17 @@ app.post('/api/debrief/upload-cover/:monthId', (req, res) => {
         }
         if (!req.file) return res.status(400).json({ error: 'No cover file received' });
         const { monthId } = req.params;
-        console.log(`Cover uploaded: ${req.file.filename} for ${monthId} (${req.file.size} bytes)`);
+        const finalPath = await convertHeicIfNeeded(req.file.path);
+        const finalName = path.basename(finalPath);
+        console.log(`Cover uploaded: ${finalName} for ${monthId}`);
         const content = readDebriefContent();
         if (!content.months) content.months = {};
         if (!content.months[monthId]) content.months[monthId] = {};
-        content.months[monthId].coverFile = req.file.filename;
+        content.months[monthId].coverFile = finalName;
         writeDebriefContent(content);
-        // Persist file to DB so it survives deploys
-        const fileBuffer = fs.readFileSync(req.file.path);
-        storeDebriefFile(`covers/${req.file.filename}`, fileBuffer).catch(e => console.error('[debrief] DB store cover:', e.message));
-        res.json({ ok: true, filename: req.file.filename });
+        const fileBuffer = await fs.readFile(finalPath);
+        storeDebriefFile(`covers/${finalName}`, fileBuffer).catch(e => console.error('[debrief] DB store cover:', e.message));
+        res.json({ ok: true, filename: finalName });
       } catch (innerErr) {
         console.error('Cover upload handler error:', innerErr);
         if (!res.headersSent) res.status(500).json({ error: 'Server error during upload' });
