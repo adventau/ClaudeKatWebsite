@@ -1203,6 +1203,53 @@
       }
     });
 
+    // Paste image from clipboard → upload to current slide
+    document.addEventListener('paste', async (e) => {
+      if (role !== 'editor') return;
+      // Don't intercept pastes inside text fields
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+
+      const items = Array.from(e.clipboardData?.items || []);
+      const imageItems = items.filter(it => it.type.startsWith('image/'));
+      if (!imageItems.length) return;
+      e.preventDefault();
+
+      const files = imageItems.map(it => {
+        const blob = it.getAsFile();
+        // Give it a sensible filename with timestamp
+        return new File([blob], `paste-${Date.now()}.${it.type.split('/')[1] || 'png'}`, { type: it.type });
+      });
+
+      const desc = slideList[slideIndex];
+      if (!desc) return;
+
+      // Show a brief toast so the user knows it worked
+      showPasteToast();
+
+      if (desc.type === 'event') {
+        const m = months[desc.monthIndex];
+        const evt = m?.events?.[desc.eventIndex];
+        if (m && evt) await uploadEventPhotos(m.id, evt.id, files);
+      } else if (desc.type === 'month') {
+        const m = months[desc.monthIndex];
+        if (m) await uploadPhotos(m.id, files);
+      }
+    });
+
+    function showPasteToast() {
+      let toast = document.getElementById('debrief-paste-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'debrief-paste-toast';
+        toast.textContent = '📋 Uploading pasted image…';
+        document.body.appendChild(toast);
+      }
+      toast.classList.add('visible');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => toast.classList.remove('visible'), 2500);
+    }
+
     // Rich text: Cmd/Ctrl + B, I, U
     document.addEventListener('keydown', (e) => {
       if (role !== 'editor') return;

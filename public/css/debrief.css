@@ -1548,3 +1548,25 @@ html, body {
 .confirm-delete:hover {
   background: rgba(220,60,60,0.9);
 }
+
+/* Paste-to-upload toast */
+#debrief-paste-toast {
+  position: fixed;
+  bottom: 32px; left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: rgba(30,30,30,0.92);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 9999;
+}
+#debrief-paste-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
