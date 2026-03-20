@@ -833,9 +833,8 @@
     });
   }
 
-  // In editor mode: set aspect-ratio on event image frames so full photo shows
+  // Set aspect-ratio on event image frames so the full photo shows (all roles)
   document.addEventListener('load', (e) => {
-    if (role !== 'editor') return;
     const img = e.target;
     if (img.tagName !== 'IMG') return;
     const frame = img.closest('.event-media-frame[data-type="image"]');

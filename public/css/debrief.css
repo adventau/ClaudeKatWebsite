@@ -740,11 +740,13 @@ html, body {
 .slide-event {
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   background: var(--bg-cream);
   padding: 60px 40px;
   width: 100%;
-  height: 100%;
+  min-height: 100%;
+  height: auto;
+  overflow-y: auto;
 }
 
 /* Left accent stripe for events too */
@@ -759,10 +761,9 @@ html, body {
 .event-content {
   width: 100%;
   max-width: 1100px;
-  min-height: 420px;
   display: flex;
   flex-direction: row;
-  align-items: stretch; /* both columns fill the card height */
+  align-items: flex-start;
   gap: 40px;
   background: rgba(255,255,255,0.35);
   backdrop-filter: blur(16px);
@@ -784,8 +785,6 @@ html, body {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  min-height: 0;
-  overflow: hidden;
 }
 
 .event-breadcrumb {
@@ -818,37 +817,23 @@ html, body {
 }
 
 .event-photos {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  grid-auto-rows: 1fr;
-  gap: 8px;
-  overflow: hidden;
-}
-
-/* Editor: natural aspect-ratio flex layout — no cropping */
-.editor-mode .event-photos {
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
   gap: 10px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  max-height: 100%;
+  overflow: visible;
 }
-.editor-mode .event-photo-wrapper {
+.event-photo-wrapper {
   flex: 0 0 auto;
 }
-.editor-mode .event-photo-frame {
+.event-photo-frame {
   height: 200px;
-  width: auto; /* aspect-ratio set by JS fills this in */
+  width: auto; /* JS sets aspect-ratio so width follows naturally */
 }
-.editor-mode .event-photo-frame img,
-.editor-mode .event-photo-frame video {
-  object-fit: fill;
-  width: 100%;
-  height: 100%;
+.event-photo-frame img,
+.event-photo-frame video {
+  width: 100%; height: 100%;
+  object-fit: fill; display: block;
 }
 
 .event-photo-wrapper {
@@ -1240,29 +1225,9 @@ html, body {
 .editor-mode .slides-container { top: 48px; height: calc(100% - 48px); overflow-y: auto; }
 .editor-mode .slide { top: 0; }
 
-/* Editor: event slides grow to fit content — no fixed height, no clipping */
+/* Editor: extra top padding to clear the toolbar */
 .editor-mode .slide-event {
-  position: relative;
-  height: auto;
-  min-height: 100%;
-  justify-content: flex-start;
-  padding-top: 48px;
-  padding-bottom: 48px;
-}
-.editor-mode .event-content {
-  min-height: unset;
-  height: auto;
-  align-items: flex-start;
-}
-.editor-mode .event-media-col {
-  overflow: visible;
-  min-height: unset;
-  height: auto;
-}
-.editor-mode .event-photos {
-  overflow: visible;
-  max-height: unset;
-  height: auto;
+  padding-top: 72px;
 }
 
 .edit-toolbar-badge {
