@@ -1237,8 +1237,33 @@ html, body {
   backdrop-filter: blur(12px);
 }
 .editor-mode .edit-toolbar { display: flex; }
-.editor-mode .slides-container { top: 48px; height: calc(100% - 48px); }
+.editor-mode .slides-container { top: 48px; height: calc(100% - 48px); overflow-y: auto; }
 .editor-mode .slide { top: 0; }
+
+/* Editor: event slides grow to fit content — no fixed height, no clipping */
+.editor-mode .slide-event {
+  position: relative;
+  height: auto;
+  min-height: 100%;
+  justify-content: flex-start;
+  padding-top: 48px;
+  padding-bottom: 48px;
+}
+.editor-mode .event-content {
+  min-height: unset;
+  height: auto;
+  align-items: flex-start;
+}
+.editor-mode .event-media-col {
+  overflow: visible;
+  min-height: unset;
+  height: auto;
+}
+.editor-mode .event-photos {
+  overflow: visible;
+  max-height: unset;
+  height: auto;
+}
 
 .edit-toolbar-badge {
   font-family: var(--font-mono); font-size: 10px;
@@ -1543,6 +1568,7 @@ html, body {
   .event-text-col { flex: none; width: 100%; }
   .event-media-col { flex: none; width: 100%; min-height: 200px; }
   .event-photos { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+
 
   .edit-toolbar { gap: 6px; padding: 0 8px; }
   .edit-toolbar-badge { display: none; }
