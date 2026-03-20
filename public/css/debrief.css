@@ -1334,7 +1334,7 @@ html, body {
 }
 .lightbox-img, .lightbox-video {
   max-width: 90vw;
-  max-height: 82vh;
+  max-height: 78vh;
   border-radius: 12px;
   box-shadow: 0 24px 80px rgba(0,0,0,0.6);
   object-fit: contain;
@@ -1356,6 +1356,11 @@ html, body {
 .lightbox-close:hover { background: rgba(255,255,255,0.3); }
 .lightbox-caption {
   display: none;
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
   text-align: center;
   color: rgba(255,255,255,0.85);
   font-family: var(--font-body);
@@ -1363,8 +1368,10 @@ html, body {
   font-size: 15px;
   letter-spacing: 0.01em;
   max-width: 80vw;
-  min-width: 200px;
-  padding: 4px 8px;
+  width: max-content;
+  padding: 4px 12px;
+  background: rgba(0,0,0,0.35);
+  border-radius: 6px;
 }
 .lightbox-caption[contenteditable="true"] {
   border-bottom: 1px solid rgba(255,255,255,0.25);

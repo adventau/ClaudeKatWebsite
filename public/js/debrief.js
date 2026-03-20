@@ -1820,8 +1820,8 @@
         <button class="lightbox-close">&times;</button>
         <img class="lightbox-img" src="" alt="">
         <video class="lightbox-video" src="" controls autoplay loop playsinline></video>
-        <div class="lightbox-caption"></div>
-      </div>`;
+      </div>
+      <div class="lightbox-caption"></div>`;
     document.body.appendChild(lb);
 
     const lbImg = lb.querySelector('.lightbox-img');
