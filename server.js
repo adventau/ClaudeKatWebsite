@@ -72,6 +72,51 @@ async function optimisePhoto(filePath) {
   }
 }
 
+// Video transcoding — convert any uploaded video to web-optimised H.264 MP4
+// Uses bundled ffmpeg binaries via @ffmpeg-installer so no system install needed.
+let ffmpeg = null;
+try {
+  const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+  const fluentFfmpeg   = require('fluent-ffmpeg');
+  fluentFfmpeg.setFfmpegPath(ffmpegInstaller.path);
+  ffmpeg = fluentFfmpeg;
+  console.log('[ffmpeg] available at', ffmpegInstaller.path);
+} catch (e) {
+  console.warn('[ffmpeg] not available — videos will be served raw:', e.message);
+}
+
+const VIDEO_EXTS = new Set(['.mp4', '.mov', '.webm', '.m4v', '.avi']);
+
+async function transcodeVideo(inputPath) {
+  if (!ffmpeg) return inputPath;
+  const ext = path.extname(inputPath).toLowerCase();
+  if (!VIDEO_EXTS.has(ext)) return inputPath;
+
+  const outputPath = inputPath.replace(/\.[^.]+$/, '_web.mp4');
+  console.log(`[ffmpeg] transcoding ${path.basename(inputPath)} …`);
+
+  await new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .outputOptions([
+        '-c:v', 'libx264',        // H.264 — universally supported, hardware-decodable
+        '-crf', '26',             // Quality: 0=lossless, 51=worst. 26 is visually near-lossless
+        '-preset', 'fast',        // Encoding speed (fast = good quality/speed trade-off)
+        '-c:a', 'aac',            // AAC audio
+        '-b:a', '128k',           // 128 kbps audio
+        '-vf', 'scale=-2:min(720\\,ih)',  // Cap height at 720p, keep aspect ratio, width divisible by 2
+        '-movflags', '+faststart', // Put moov atom at start so browser can play before fully downloaded
+        '-pix_fmt', 'yuv420p',    // Maximum browser compatibility
+      ])
+      .on('start', cmd => console.log('[ffmpeg] cmd:', cmd))
+      .on('end', () => { console.log(`[ffmpeg] done: ${path.basename(outputPath)}`); resolve(); })
+      .on('error', (err) => { console.error('[ffmpeg] error:', err.message); reject(err); })
+      .save(outputPath);
+  });
+
+  await fs.remove(inputPath).catch(() => {});
+  return outputPath;
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: '*' } });
@@ -3746,8 +3791,14 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), asyn
 
     const newFiles = [];
     for (const f of (req.files || [])) {
-      const heicPath  = await convertHeicIfNeeded(f.path);
-      const finalPath = await optimisePhoto(heicPath);
+      const isVideo = VIDEO_EXTS.has(path.extname(f.originalname).toLowerCase());
+      let finalPath;
+      if (isVideo) {
+        finalPath = await transcodeVideo(f.path);
+      } else {
+        const heicPath = await convertHeicIfNeeded(f.path);
+        finalPath = await optimisePhoto(heicPath);
+      }
       const finalName = path.basename(finalPath);
       newFiles.push(finalName);
       const buf = await fs.readFile(finalPath);
