@@ -359,7 +359,7 @@
           `<div class="event-photo-wrapper" draggable="true" data-photo="${p}" data-month="${m.id}" data-event-id="${evt.id}" data-photo-index="${pi}">
             <div class="event-photo-frame event-media-frame" style="position:relative" data-src="/uploads/debrief/${m.id}/${p}" data-type="${isVideo(p) ? 'video' : 'image'}">
               ${isVideo(p)
-                ? `<video src="/uploads/debrief/${m.id}/${p}" preload="metadata" muted loop playsinline></video>`
+                ? `<video data-src="/uploads/debrief/${m.id}/${p}" preload="none" muted loop playsinline></video>`
                 : `<img src="/uploads/debrief/${m.id}/${p}" alt="" loading="lazy">`
               }
               <button class="photo-delete-event" data-month="${m.id}" data-event-id="${evt.id}" data-filename="${p}">&times;</button>
@@ -484,7 +484,7 @@
     const frameHtml = (p) =>
       `<div class="filmstrip-frame ${isVid(p) ? 'filmstrip-frame--video' : ''}" data-src="/uploads/debrief/${m.id}/${p}" data-type="${isVid(p) ? 'video' : 'image'}" data-month="${m.id}" data-photo-filename="${p}" data-caption="${(captions[p] || '').replace(/"/g, '&quot;')}">
         ${isVid(p)
-          ? `<video src="/uploads/debrief/${m.id}/${p}" preload="metadata" muted loop playsinline></video>`
+          ? `<video data-src="/uploads/debrief/${m.id}/${p}" preload="none" muted loop playsinline></video>`
           : `<img src="/uploads/debrief/${m.id}/${p}" alt="Photo" loading="lazy">`}
         <button class="photo-delete" data-month="${m.id}" data-filename="${p}">&times;</button>
       </div>`;
@@ -824,14 +824,24 @@
   function updateSlideVideos() {
     const slides = slidesContainer.querySelectorAll('.slide');
     slides.forEach((s, i) => {
-      // Covers both event-photo-frame videos AND filmstrip videos
       s.querySelectorAll('.event-photo-frame video, .filmstrip-frame video').forEach(v => {
+        const lazySrc = v.dataset.src || '';
         if (i === slideIndex) {
+          // Load src on first activation — this is when the network request is made
+          if (lazySrc && v.getAttribute('src') !== lazySrc) {
+            v.src = lazySrc;
+          }
           v.muted = true;
           v.play().catch(() => {});
         } else {
           v.pause();
           v.currentTime = 0;
+          // Unload videos 2+ slides away — frees the active network connection
+          // and lets the browser reclaim memory. data-src stays so we can reload.
+          if (lazySrc && Math.abs(i - slideIndex) > 1 && v.hasAttribute('src')) {
+            v.removeAttribute('src');
+            v.load(); // aborts any in-progress download
+          }
         }
       });
     });
@@ -854,13 +864,19 @@
     });
   }
 
-  // Size FILMSTRIP video frames to natural aspect ratio on metadata load.
-  // (Event slide frames are handled by CSS grid — no JS sizing needed there.)
+  // Size video frames to natural aspect ratio on metadata load.
   document.addEventListener('loadedmetadata', (e) => {
     const v = e.target;
     if (v.tagName !== 'VIDEO') return;
     if (!v.videoWidth || !v.videoHeight) return;
     const ratio = v.videoWidth / v.videoHeight;
+
+    // Event slide video frame — set aspect-ratio so width fills naturally from height
+    const eventFrame = v.closest('.event-media-frame[data-type="video"]');
+    if (eventFrame) {
+      eventFrame.style.aspectRatio = `${v.videoWidth} / ${v.videoHeight}`;
+      eventFrame.style.width = 'auto';
+    }
 
     // Filmstrip video frame
     const filmFrame = v.closest('.filmstrip-frame--video');
