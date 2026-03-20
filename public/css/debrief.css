@@ -650,6 +650,14 @@ html, body {
 }
 .filmstrip-frame { cursor: pointer; }
 .filmstrip-frame:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
+.filmstrip-frame--video {
+  width: 85px; /* portrait default until JS corrects */
+  background: #111;
+}
+.filmstrip-frame--video video {
+  width: 100%; height: 100%;
+  object-fit: fill; display: block;
+}
 .filmstrip-frame img {
   width: auto; height: 100%;
   object-fit: cover; display: block;
@@ -784,20 +792,18 @@ html, body {
   object-fit: cover; display: block;
 }
 
-/* Videos size to their natural aspect ratio */
+/* Videos: JS sets exact frame size after loadedmetadata; CSS provides defaults */
 .event-media-frame[data-type="video"] {
-  width: auto;
-  height: auto;
-  max-height: 220px;
+  height: 220px;
+  width: 124px; /* sensible portrait default until JS corrects it */
   max-width: 340px;
+  background: #111;
 }
 .event-media-frame[data-type="video"] video {
-  width: auto;
-  height: auto;
-  max-height: 220px;
-  max-width: 340px;
-  object-fit: contain;
-  background: #000;
+  width: 100%;
+  height: 100%;
+  object-fit: fill; /* fill exact frame — no letterboxing once JS sizes it */
+  display: block;
 }
 
 /* Photo captions */

@@ -320,7 +320,7 @@
             <div class="editor-upload-box">
               <div class="settings-label">Cover Art</div>
               <button class="editor-upload-btn cover-upload-btn ${m.coverFile ? 'has-file' : ''}" data-month="${m.id}">${m.coverFile ? '✓ ' + m.coverFile : '↑ Upload Image'}</button>
-              <input type="file" class="cover-file-input" data-month="${m.id}" accept=".jpg,.jpeg,.png,.webp" style="display:none">
+              <input type="file" class="cover-file-input" data-month="${m.id}" accept=".jpg,.jpeg,.png,.webp,.heic,.heif,image/heic,image/heif" style="display:none">
             </div>
           </div>
         </div>
@@ -329,8 +329,8 @@
             ${buildFilmstrip(m)}
           </div>
           <div class="photo-upload-zone" id="upload-zone-${m.id}">
-            <p>Drop photos here or click to upload</p>
-            <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" data-month="${m.id}">
+            <p>Drop photos &amp; videos here or click to upload</p>
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,video/mp4,video/quicktime,video/webm" data-month="${m.id}">
           </div>
         </div>
       </div>
@@ -382,7 +382,7 @@
           <div class="event-photos" data-month="${m.id}" data-event-id="${evt.id}">${photosHtml}</div>
           <div class="photo-upload-zone" id="upload-zone-evt-${evt.id}">
             <p>Drop photos &amp; videos here or click to upload</p>
-            <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,video/webm" data-month="${m.id}" data-event-id="${evt.id}">
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif,video/mp4,video/quicktime,video/webm" data-month="${m.id}" data-event-id="${evt.id}">
           </div>
         </div>
       </div>
@@ -480,9 +480,12 @@
     }
 
     const captions = m.photoCaptions || {};
+    const isVid = (p) => /\.(mp4|mov|webm|m4v|avi)$/i.test(p);
     const frameHtml = (p) =>
-      `<div class="filmstrip-frame" data-src="/uploads/debrief/${m.id}/${p}" data-month="${m.id}" data-photo-filename="${p}" data-caption="${(captions[p] || '').replace(/"/g, '&quot;')}">
-        <img src="/uploads/debrief/${m.id}/${p}" alt="Photo" loading="lazy">
+      `<div class="filmstrip-frame ${isVid(p) ? 'filmstrip-frame--video' : ''}" data-src="/uploads/debrief/${m.id}/${p}" data-type="${isVid(p) ? 'video' : 'image'}" data-month="${m.id}" data-photo-filename="${p}" data-caption="${(captions[p] || '').replace(/"/g, '&quot;')}">
+        ${isVid(p)
+          ? `<video src="/uploads/debrief/${m.id}/${p}" preload="metadata" muted loop playsinline></video>`
+          : `<img src="/uploads/debrief/${m.id}/${p}" alt="Photo" loading="lazy">`}
         <button class="photo-delete" data-month="${m.id}" data-filename="${p}">&times;</button>
       </div>`;
 
@@ -817,7 +820,8 @@
   function updateSlideVideos() {
     const slides = slidesContainer.querySelectorAll('.slide');
     slides.forEach((s, i) => {
-      s.querySelectorAll('.event-photo-frame video').forEach(v => {
+      // Covers both event-photo-frame videos AND filmstrip videos
+      s.querySelectorAll('.event-photo-frame video, .filmstrip-frame video').forEach(v => {
         if (i === slideIndex) {
           v.muted = true;
           v.play().catch(() => {});
@@ -828,6 +832,35 @@
       });
     });
   }
+
+  // Size event-slide video frames exactly to the video's natural aspect ratio
+  // once metadata is available — eliminates letterboxing / beige gaps.
+  document.addEventListener('loadedmetadata', (e) => {
+    const v = e.target;
+    if (v.tagName !== 'VIDEO') return;
+    if (!v.videoWidth || !v.videoHeight) return;
+    const ratio = v.videoWidth / v.videoHeight;
+
+    // Event slide video frame
+    const evtFrame = v.closest('.event-media-frame[data-type="video"]');
+    if (evtFrame) {
+      const maxH = 220, maxW = 340;
+      const h = Math.min(maxH, v.videoHeight);
+      const w = Math.min(maxW, Math.round(ratio * h));
+      evtFrame.style.height = h + 'px';
+      evtFrame.style.width  = w + 'px';
+    }
+
+    // Filmstrip video frame
+    const filmFrame = v.closest('.filmstrip-frame--video');
+    if (filmFrame) {
+      const maxH = 150, maxW = 260;
+      const h = Math.min(maxH, v.videoHeight);
+      const w = Math.min(maxW, Math.round(ratio * h));
+      filmFrame.style.height = h + 'px';
+      filmFrame.style.width  = w + 'px';
+    }
+  }, true);
 
   function updateSlideAudio() {
     const desc = slideList[slideIndex];

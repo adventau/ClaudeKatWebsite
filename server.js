@@ -3545,7 +3545,7 @@ const debriefStorage = multer.diskStorage({
 const debriefUpload = multer({
   storage: debriefStorage,
   fileFilter: (_req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp|heic|mp4|mov|webm|m4v|avi|quicktime/i;
+    const allowed = /jpeg|jpg|png|webp|heic|heif|mp4|mov|webm|m4v|avi|quicktime/i;
     cb(null, allowed.test(path.extname(file.originalname)));
   },
   limits: { fileSize: 500 * 1024 * 1024 }
