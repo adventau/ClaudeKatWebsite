@@ -2024,10 +2024,10 @@
         return;
       }
 
-      // Event media frame click — presenter only
+      // Event media frame click — presenter and editor
       const frame = e.target.closest('.event-media-frame');
       if (frame && frame.dataset.src) {
-        if (role !== 'presenter') return;
+        if (role !== 'presenter' && role !== 'editor') return;
         lbItems = [...document.querySelectorAll('.slide.active .event-media-frame[data-src]')]
           .map(f => {
             const wrapper = f.closest('.event-photo-wrapper');
