@@ -1378,6 +1378,13 @@
           if (btn) { btn.textContent = '✓ ' + data.filename; btn.classList.add('has-file'); btn.style.opacity = '1'; }
           await loadContent();
           mergeData();
+          // Force the audio player to reload with the new file immediately
+          slideAudio.pause();
+          slideAudio.src = '';
+          updateSlideAudio();
+          // Rebuild current slide so trim slider reflects new filename
+          buildSlides();
+          jumpToSlide(slideIndex);
         } else {
           throw new Error(data.error || 'Upload failed');
         }

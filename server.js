@@ -3740,7 +3740,8 @@ const debriefAudioStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${req.params.monthId}${ext}`);
+    // Unique name so replacing audio always busts the browser cache
+    cb(null, `${req.params.monthId}-${Date.now()}${ext}`);
   }
 });
 const debriefAudioUpload = multer({
@@ -3762,6 +3763,11 @@ app.post('/api/debrief/upload-audio/:monthId', (req, res) => {
         const content = readDebriefContent();
         if (!content.months) content.months = {};
         if (!content.months[monthId]) content.months[monthId] = {};
+        // Delete old audio file so it doesn't accumulate
+        const oldAudio = content.months[monthId].audioFile;
+        if (oldAudio && oldAudio !== req.file.filename) {
+          fs.remove(path.join(DEBRIEF_UPLOADS_DIR, 'audio', oldAudio)).catch(() => {});
+        }
         content.months[monthId].audioFile = req.file.filename;
         writeDebriefContent(content);
         // Persist file to DB so it survives deploys
