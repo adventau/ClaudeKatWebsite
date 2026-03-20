@@ -3966,6 +3966,9 @@ io.on('connection', socket => {
   socket.on('debrief:lightbox-close', () => {
     socket.broadcast.emit('debrief:lightbox-close');
   });
+  socket.on('debrief:volume-change', (data) => {
+    socket.broadcast.emit('debrief:volume-change', data);
+  });
   socket.on('debrief:request-state', () => {
     if (debriefPresenterState.connected) {
       socket.emit('debrief:state', {

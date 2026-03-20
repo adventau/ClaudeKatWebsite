@@ -894,7 +894,7 @@
     slideAudio.currentTime = startTime;
     slideAudio.volume = audioMuted ? 0 : 0.35;
     slideAudio.play().then(() => {
-      if (!audioMuted) fadeAudioIn(slideAudio, 0.35, 400);
+      if (!audioMuted) fadeAudioIn(slideAudio, masterVolume, 400);
       updateDiscSpinState(true);
     }).catch(() => {
       updateDiscSpinState(false);
@@ -916,18 +916,60 @@
     }
   }
 
+  // --- Volume control ---
+  const volumeSlider = document.getElementById('volume-slider');
+  const volumePct    = document.getElementById('volume-pct');
+  let masterVolume   = config.globalVolume || 0.4; // 0–1
+
+  function applyMasterVolume(vol) {
+    masterVolume = Math.max(0, Math.min(1, vol));
+    volumeSlider.value = Math.round(masterVolume * 100);
+    volumePct.textContent = Math.round(masterVolume * 100) + '%';
+    if (!audioMuted) {
+      if (!gateAudio.paused)  gateAudio.volume  = masterVolume;
+      if (!slideAudio.paused) slideAudio.volume = masterVolume;
+    }
+    // Update icon — show muted icon when vol is 0
+    const isSilent = masterVolume === 0;
+    audioIconOn.style.display  = isSilent ? 'none'  : 'block';
+    audioIconOff.style.display = isSilent ? 'block' : 'none';
+  }
+
+  volumeSlider.addEventListener('input', () => {
+    if (role !== 'presenter' && role !== 'editor') return;
+    const vol = parseInt(volumeSlider.value) / 100;
+    applyMasterVolume(vol);
+    socket.emit('debrief:volume-change', { volume: vol });
+  });
+
+  // Viewer receives volume from presenter
+  socket.on('debrief:volume-change', (data) => {
+    if (role === 'viewer') applyMasterVolume(data.volume);
+  });
+
   audioToggle.addEventListener('click', () => {
     audioMuted = !audioMuted;
-    audioIconOn.style.display = audioMuted ? 'none' : 'block';
-    audioIconOff.style.display = audioMuted ? 'block' : 'none';
+    audioIconOn.style.display = (audioMuted || masterVolume === 0) ? 'none' : 'block';
+    audioIconOff.style.display = (audioMuted || masterVolume === 0) ? 'block' : 'none';
 
     [gateAudio, slideAudio].forEach(a => {
       if (audioMuted) { a.volume = 0; }
       else if (!a.paused) {
-        fadeAudioIn(a, a === gateAudio ? (config.globalVolume || 0.4) : 0.35, 500);
+        fadeAudioIn(a, masterVolume, 500);
       }
     });
   });
+
+  // Only show volume slider for presenter/editor (hidden for viewers)
+  function updateVolumeVisibility() {
+    const wrap = document.getElementById('audio-control-wrap');
+    const popup = document.getElementById('volume-popup');
+    if (role === 'presenter' || role === 'editor') {
+      popup.style.display = '';
+    } else {
+      popup.style.display = 'none';
+    }
+  }
 
   // --- Gate Screen ---
   gateForm.addEventListener('submit', async (e) => {
@@ -992,6 +1034,8 @@
 
     buildSlides();
     jumpToSlide(0);
+    updateVolumeVisibility();
+    applyMasterVolume(config.globalVolume || 0.4);
   }
 
   // --- Keyboard Controls ---
@@ -1843,7 +1887,7 @@
       }
       slideAudio.volume = audioMuted ? 0 : 0.35;
       slideAudio.play().then(() => {
-        if (!audioMuted) fadeAudioIn(slideAudio, 0.35, 500);
+        if (!audioMuted) fadeAudioIn(slideAudio, masterVolume, 500);
         updateDiscSpinState(true);
       }).catch(() => {});
     }

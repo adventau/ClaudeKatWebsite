@@ -133,8 +133,11 @@ html, body {
 .gate-error.visible { opacity: 1; }
 
 /* Audio toggle */
-.audio-toggle {
+.audio-control-wrap {
   position: fixed; bottom: 20px; right: 20px; z-index: 10000;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.audio-toggle {
   width: 40px; height: 40px;
   background: var(--bg-card); border: 1px solid var(--border-light);
   border-radius: 50%; cursor: pointer;
@@ -145,12 +148,61 @@ html, body {
 .audio-toggle:hover { background: var(--bg-warm); transform: scale(1.05); }
 .audio-toggle svg { width: 16px; height: 16px; fill: var(--text-tertiary); stroke: var(--text-tertiary); stroke-width: 1.5; }
 
+/* Volume popup — slides up from the button on hover */
+.volume-popup {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 12px 8px;
+  box-shadow: var(--shadow-card);
+  opacity: 0; pointer-events: none;
+  transform: translateY(6px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.audio-control-wrap:hover .volume-popup,
+.volume-popup:hover {
+  opacity: 1; pointer-events: all;
+  transform: translateY(0);
+}
+.volume-pct {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.5px;
+}
+.volume-slider {
+  -webkit-appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 4px; height: 80px;
+  background: var(--border-light);
+  border-radius: 2px;
+  outline: none; cursor: pointer;
+}
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent-gold);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+.volume-slider::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent-gold);
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+
 /* Gate screen overrides for audio toggle */
-.gate-screen ~ .audio-toggle {
+.gate-screen ~ .audio-control-wrap .audio-toggle {
   background: rgba(255,255,255,0.08);
   border-color: rgba(255,255,255,0.1);
 }
-.gate-screen ~ .audio-toggle svg { fill: rgba(255,255,255,0.4); stroke: rgba(255,255,255,0.4); }
+.gate-screen ~ .audio-control-wrap .audio-toggle svg { fill: rgba(255,255,255,0.4); stroke: rgba(255,255,255,0.4); }
 
 .audio-prompt {
   position: fixed; bottom: 68px; right: 12px; z-index: 10000;

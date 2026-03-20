@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Space+Mono:ital@0;1&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/debrief.css?v=29">
+  <link rel="stylesheet" href="/css/debrief.css?v=30">
 </head>
 <body>
 
@@ -53,10 +53,16 @@
   <!-- Gate Audio -->
   <audio id="gate-audio" loop preload="auto"></audio>
 
-  <!-- Audio Toggle -->
-  <div class="audio-toggle" id="audio-toggle" title="Toggle audio">
-    <svg id="audio-icon-on" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11 5L6 9H2v6h4l5 4V5zm8.07.93a10 10 0 010 12.14M15.54 8.46a5 5 0 010 7.08"/></svg>
-    <svg id="audio-icon-off" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none"><path d="M11 5L6 9H2v6h4l5 4V5zm12 4l-4 4m0-4l4 4"/></svg>
+  <!-- Audio Toggle + Volume Slider -->
+  <div class="audio-control-wrap" id="audio-control-wrap">
+    <div class="volume-popup" id="volume-popup">
+      <span class="volume-pct" id="volume-pct">40%</span>
+      <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="40">
+    </div>
+    <div class="audio-toggle" id="audio-toggle" title="Toggle audio">
+      <svg id="audio-icon-on" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11 5L6 9H2v6h4l5 4V5zm8.07.93a10 10 0 010 12.14M15.54 8.46a5 5 0 010 7.08"/></svg>
+      <svg id="audio-icon-off" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none"><path d="M11 5L6 9H2v6h4l5 4V5zm12 4l-4 4m0-4l4 4"/></svg>
+    </div>
   </div>
   <div class="audio-prompt" id="audio-prompt">Click to enable audio</div>
 
@@ -147,6 +153,6 @@
   <!-- Scripts -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/debrief-data.js?v=18"></script>
-  <script src="/js/debrief.js?v=29"></script>
+  <script src="/js/debrief.js?v=30"></script>
 </body>
 </html>
