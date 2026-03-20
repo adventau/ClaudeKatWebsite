@@ -3826,14 +3826,18 @@ app.post('/api/debrief/upload-gate-audio', (req, res) => {
           return res.status(400).json({ error: err.message || 'Upload failed' });
         }
         if (!req.file) return res.status(400).json({ error: 'No audio file received' });
-        // Rename file to gate-song.ext
+        // Use a unique filename so the 7-day browser cache never serves a stale file
         const ext = path.extname(req.file.originalname).toLowerCase();
-        const newName = `gate-song${ext}`;
+        const newName = `gate-song-${uuidv4()}${ext}`;
         const oldPath = req.file.path;
         const newPath = path.join(path.dirname(oldPath), newName);
         fs.renameSync(oldPath, newPath);
         console.log(`Gate audio uploaded: ${newName} (${req.file.size} bytes)`);
         const cfg = readDebriefConfig();
+        // Delete the previous gate song file to avoid accumulating old files
+        if (cfg.gateSongFile && cfg.gateSongFile !== newName) {
+          fs.remove(path.join(DEBRIEF_UPLOADS_DIR, 'audio', cfg.gateSongFile)).catch(() => {});
+        }
         cfg.gateSongFile = newName;
         writeDebriefConfig(cfg);
         storeDebriefFile(`audio/${newName}`, fs.readFileSync(newPath)).catch(e => console.error('[debrief] DB store gate audio:', e.message));

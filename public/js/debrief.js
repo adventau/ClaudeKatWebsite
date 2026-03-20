@@ -1355,6 +1355,15 @@
           config.gateSongFile = data.filename;
           await saveConfig();
           status.textContent = 'Uploaded: ' + file.name;
+          // Refresh the live audio element so the new song plays without a reload
+          const newSrc = `/uploads/debrief/audio/${data.filename}`;
+          gateAudio.pause();
+          gateAudio.src = newSrc;
+          gateAudio.currentTime = 0;
+          gateAudio.load();
+          // Rebuild intro slide to show new song name
+          buildSlides();
+          jumpToSlide(slideIndex);
         } else {
           status.textContent = 'Error: ' + (data.error || 'Upload failed');
         }
