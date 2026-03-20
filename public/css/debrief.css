@@ -827,6 +827,30 @@ html, body {
   overflow: hidden;
 }
 
+/* Editor: natural aspect-ratio flex layout — no cropping */
+.editor-mode .event-photos {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 100%;
+}
+.editor-mode .event-photo-wrapper {
+  flex: 0 0 auto;
+}
+.editor-mode .event-photo-frame {
+  height: 200px;
+  width: auto; /* aspect-ratio set by JS fills this in */
+}
+.editor-mode .event-photo-frame img,
+.editor-mode .event-photo-frame video {
+  object-fit: fill;
+  width: 100%;
+  height: 100%;
+}
+
 .event-photo-wrapper {
   min-height: 0;
   min-width: 0;

@@ -833,6 +833,16 @@
     });
   }
 
+  // In editor mode: set aspect-ratio on event image frames so full photo shows
+  document.addEventListener('load', (e) => {
+    if (role !== 'editor') return;
+    const img = e.target;
+    if (img.tagName !== 'IMG') return;
+    const frame = img.closest('.event-media-frame[data-type="image"]');
+    if (!frame || !img.naturalWidth || !img.naturalHeight) return;
+    frame.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
+  }, true);
+
   // Size FILMSTRIP video frames to natural aspect ratio on metadata load.
   // (Event slide frames are handled by CSS grid — no JS sizing needed there.)
   document.addEventListener('loadedmetadata', (e) => {
