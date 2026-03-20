@@ -612,6 +612,7 @@
     updateSlideAudio();
     updateSlideVideos();
     sizeAllEventImages();
+    eagerLoadSlide(newSlide);
   }
 
   function jumpToSlide(idx) {
@@ -633,6 +634,7 @@
     updateSlideAudio();
     updateSlideVideos();
     sizeAllEventImages();
+    eagerLoadSlide(slide);
   }
 
   function revealAllItems(slide) {
@@ -871,6 +873,32 @@
     }
   }, true);
 
+  // Preload audio files for the first N months using <link rel="preload">
+  // so they're in the browser cache before the user navigates to those slides
+  function preloadAudioFiles() {
+    let count = 0;
+    for (const m of months) {
+      if (!m.audioFile || count >= 3) break;
+      const existing = document.head.querySelector(`link[data-debrief-audio="${m.audioFile}"]`);
+      if (existing) continue;
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'audio';
+      link.href = `/uploads/debrief/audio/${m.audioFile}`;
+      link.dataset.debriefAudio = m.audioFile;
+      document.head.appendChild(link);
+      count++;
+    }
+  }
+
+  // Strip lazy loading from images on the active slide so they load immediately
+  function eagerLoadSlide(slide) {
+    if (!slide) return;
+    slide.querySelectorAll('img[loading="lazy"]').forEach(img => {
+      img.removeAttribute('loading');
+    });
+  }
+
   function updateSlideAudio() {
     const desc = slideList[slideIndex];
     let bgUrl = '';
@@ -1055,6 +1083,7 @@
     jumpToSlide(0);
     updateVolumeVisibility();
     applyMasterVolume(config.globalVolume || 0.4);
+    preloadAudioFiles(); // warm browser cache for first few months' audio
   }
 
   // --- Keyboard Controls ---

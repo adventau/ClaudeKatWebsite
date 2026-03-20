@@ -50,7 +50,7 @@ async function convertHeicIfNeeded(filePath) {
   }
 }
 
-// Resize + compress any photo to max 1400px / JPEG 82% — keeps file size ~150-350 KB
+// Resize + compress any photo to max 1000px / JPEG 80% — keeps file size ~80-200 KB
 async function optimisePhoto(filePath) {
   if (!sharp) return filePath;
   const ext = path.extname(filePath).toLowerCase();
@@ -60,8 +60,8 @@ async function optimisePhoto(filePath) {
   try {
     await sharp(filePath)
       .rotate()                        // auto-orient from EXIF
-      .resize({ width: 1400, height: 1400, fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 82, mozjpeg: true })
+      .resize({ width: 1000, height: 1000, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80, mozjpeg: true })
       .toFile(outPath + '.tmp');
     await fs.move(outPath + '.tmp', outPath, { overwrite: true });
     if (outPath !== filePath) await fs.remove(filePath).catch(() => {});
@@ -3574,8 +3574,38 @@ fs.ensureDirSync(DEBRIEF_UPLOADS_DIR);
 fs.ensureDirSync(path.join(DEBRIEF_UPLOADS_DIR, 'audio'));
 fs.ensureDirSync(path.join(DEBRIEF_UPLOADS_DIR, 'covers'));
 
-// Serve uploaded debrief photos
-app.use('/uploads/debrief', express.static(DEBRIEF_UPLOADS_DIR));
+// One-time startup migration: recompress any existing photos larger than 300 KB
+// Runs in background so it doesn't delay server startup
+(async () => {
+  if (!sharp) return;
+  try {
+    const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+    const SIZE_THRESHOLD = 300 * 1024; // only recompress if > 300 KB
+    const dirs = await fs.readdir(DEBRIEF_UPLOADS_DIR);
+    for (const dir of dirs) {
+      if (dir === 'audio' || dir === 'covers') continue;
+      const monthDir = path.join(DEBRIEF_UPLOADS_DIR, dir);
+      const stat = await fs.stat(monthDir).catch(() => null);
+      if (!stat || !stat.isDirectory()) continue;
+      const files = await fs.readdir(monthDir);
+      for (const file of files) {
+        const ext = path.extname(file).toLowerCase();
+        if (!IMAGE_EXTS.has(ext)) continue;
+        const filePath = path.join(monthDir, file);
+        const fstat = await fs.stat(filePath).catch(() => null);
+        if (!fstat || fstat.size <= SIZE_THRESHOLD) continue;
+        console.log(`[debrief] recompressing ${file} (${Math.round(fstat.size/1024)} KB)`);
+        await optimisePhoto(filePath);
+      }
+    }
+    console.log('[debrief] photo migration complete');
+  } catch (e) {
+    console.warn('[debrief] migration error:', e.message);
+  }
+})();
+
+// Serve uploaded debrief photos — 7-day cache so repeat visits load instantly
+app.use('/uploads/debrief', express.static(DEBRIEF_UPLOADS_DIR, { maxAge: '7d', immutable: false }));
 
 // Debrief multer setup
 const debriefStorage = multer.diskStorage({
