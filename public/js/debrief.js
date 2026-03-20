@@ -2092,12 +2092,12 @@
 
   async function init() {
     injectVinyls();
-    initGateAudio();
     initLightbox();
     await Promise.all([loadContent(), loadConfig()]);
     mergeData();
     buildSlideList();
     initDataLoaded = true;
+    initGateAudio(); // must run AFTER loadConfig() so config.gateSongFile is populated
   }
 
   init();
