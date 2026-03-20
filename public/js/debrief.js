@@ -1865,17 +1865,24 @@
       <div class="lightbox-backdrop"></div>
       <div class="lightbox-inner">
         <button class="lightbox-close">&times;</button>
+        <button class="lightbox-prev">&#8249;</button>
+        <button class="lightbox-next">&#8250;</button>
         <img class="lightbox-img" src="" alt="">
         <video class="lightbox-video" src="" controls autoplay loop playsinline></video>
       </div>
       <div class="lightbox-caption"></div>`;
     document.body.appendChild(lb);
 
-    const lbImg = lb.querySelector('.lightbox-img');
-    const lbVideo = lb.querySelector('.lightbox-video');
+    const lbImg    = lb.querySelector('.lightbox-img');
+    const lbVideo  = lb.querySelector('.lightbox-video');
     const lbCaption = lb.querySelector('.lightbox-caption');
+    const lbPrev   = lb.querySelector('.lightbox-prev');
+    const lbNext   = lb.querySelector('.lightbox-next');
 
-    function openLightbox(src, type, caption, monthId, photoFilename) {
+    let lbItems = [];  // [{src, type, caption, monthId, photoFilename}]
+    let lbIndex = -1;
+
+    function renderItem(src, type, caption, monthId, photoFilename) {
       if (type === 'video') {
         lbImg.style.display = 'none';
         lbVideo.style.display = 'block';
@@ -1898,13 +1905,44 @@
         lbCaption.contentEditable = 'false';
         lbCaption.style.display = caption ? 'block' : 'none';
       }
+      // Arrow visibility
+      lbPrev.style.display = lbItems.length > 1 ? 'flex' : 'none';
+      lbNext.style.display = lbItems.length > 1 ? 'flex' : 'none';
+    }
+
+    function openLightbox(src, type, caption, monthId, photoFilename) {
+      renderItem(src, type, caption, monthId, photoFilename);
       lb.classList.add('active');
       if (role === 'editor' && !caption) setTimeout(() => lbCaption.focus(), 50);
     }
 
+    function lbNavigate(dir) {
+      if (!lbItems.length) return;
+      lbIndex = (lbIndex + dir + lbItems.length) % lbItems.length;
+      const item = lbItems[lbIndex];
+      renderItem(item.src, item.type, item.caption, item.monthId, item.photoFilename);
+      if (role === 'presenter') {
+        socket.emit('debrief:lightbox-open', { src: item.src, type: item.type, caption: item.caption });
+      }
+    }
+
+    lbPrev.addEventListener('click', (e) => { e.stopPropagation(); lbNavigate(-1); });
+    lbNext.addEventListener('click', (e) => { e.stopPropagation(); lbNavigate(1); });
+
+    // Keyboard navigation inside lightbox
+    document.addEventListener('keydown', (e) => {
+      if (!lb.classList.contains('active')) return;
+      if (e.key === 'ArrowLeft')  { e.stopPropagation(); lbNavigate(-1); }
+      if (e.key === 'ArrowRight') { e.stopPropagation(); lbNavigate(1); }
+      if (e.key === 'Escape') {
+        closeLightbox();
+        if (role === 'presenter') socket.emit('debrief:lightbox-close');
+      }
+    }, true);
+
     lbCaption.addEventListener('blur', async () => {
       if (role !== 'editor') return;
-      const monthId = lbCaption.dataset.month;
+      const monthId  = lbCaption.dataset.month;
       const filename = lbCaption.dataset.photoFilename;
       if (!monthId || !filename) return;
       const caption = lbCaption.textContent.trim();
@@ -1920,43 +1958,57 @@
           f.dataset.caption = caption;
         });
       }
+      // Update in-memory lbItems too
+      if (lbIndex >= 0 && lbItems[lbIndex]) lbItems[lbIndex].caption = caption;
       await saveAllContent();
     });
 
     function closeLightbox() {
       lb.classList.remove('active');
-      const lbVideo = lb.querySelector('.lightbox-video');
       lbVideo.pause();
       lbVideo.src = '';
+      lbItems = [];
+      lbIndex = -1;
     }
 
     document.addEventListener('click', (e) => {
       if (e.target.closest('.photo-delete') || e.target.closest('.photo-delete-event')) return;
+      if (e.target.closest('.lightbox-prev') || e.target.closest('.lightbox-next')) return;
 
       // Filmstrip frame click — presenter and editor
       const filmFrame = e.target.closest('.filmstrip-frame');
       if (filmFrame && filmFrame.dataset.src) {
         if (role !== 'presenter' && role !== 'editor') return;
-        const src = filmFrame.dataset.src;
-        const caption = filmFrame.dataset.caption || '';
-        const monthId = filmFrame.dataset.month;
-        const photoFilename = filmFrame.dataset.photoFilename;
-        openLightbox(src, 'image', caption, monthId, photoFilename);
-        if (role === 'presenter') socket.emit('debrief:lightbox-open', { src, type: 'image', caption });
+        // Build item list from unique frames on this slide (dedupe marquee duplicates)
+        const seen = new Set();
+        lbItems = [...document.querySelectorAll('.slide.active .filmstrip-frame[data-src]')]
+          .filter(f => { if (seen.has(f.dataset.src)) return false; seen.add(f.dataset.src); return true; })
+          .map(f => ({ src: f.dataset.src, type: f.dataset.type || 'image',
+                       caption: f.dataset.caption || '', monthId: f.dataset.month,
+                       photoFilename: f.dataset.photoFilename }));
+        lbIndex = lbItems.findIndex(i => i.src === filmFrame.dataset.src);
+        if (lbIndex < 0) lbIndex = 0;
+        const item = lbItems[lbIndex];
+        openLightbox(item.src, item.type, item.caption, item.monthId, item.photoFilename);
+        if (role === 'presenter') socket.emit('debrief:lightbox-open', { src: item.src, type: item.type, caption: item.caption });
         return;
       }
 
-      // Event media frame click — presenter only (editor edits captions inline)
+      // Event media frame click — presenter only
       const frame = e.target.closest('.event-media-frame');
-      if (frame) {
+      if (frame && frame.dataset.src) {
         if (role !== 'presenter') return;
-        const src = frame.dataset.src;
-        const type = frame.dataset.type;
-        const wrapper = frame.closest('.event-photo-wrapper');
-        const captionEl = wrapper && wrapper.querySelector('.event-photo-caption');
-        const caption = captionEl ? captionEl.textContent.trim() : '';
-        openLightbox(src, type, caption);
-        socket.emit('debrief:lightbox-open', { src, type, caption });
+        lbItems = [...document.querySelectorAll('.slide.active .event-media-frame[data-src]')]
+          .map(f => {
+            const wrapper = f.closest('.event-photo-wrapper');
+            const cap = wrapper ? (wrapper.querySelector('.event-photo-caption')?.textContent.trim() || '') : '';
+            return { src: f.dataset.src, type: f.dataset.type || 'image', caption: cap };
+          });
+        lbIndex = lbItems.findIndex(i => i.src === frame.dataset.src);
+        if (lbIndex < 0) lbIndex = 0;
+        const item = lbItems[lbIndex];
+        openLightbox(item.src, item.type, item.caption);
+        socket.emit('debrief:lightbox-open', { src: item.src, type: item.type, caption: item.caption });
         return;
       }
 

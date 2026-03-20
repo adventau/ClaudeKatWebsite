@@ -1353,6 +1353,25 @@ html, body {
   transition: background 0.15s;
 }
 .lightbox-close:hover { background: rgba(255,255,255,0.3); }
+
+/* Prev / Next arrows */
+.lightbox-prev, .lightbox-next {
+  display: none; /* shown by JS when multiple items */
+  position: fixed;
+  top: 50%; transform: translateY(-50%);
+  width: 48px; height: 64px;
+  background: rgba(0,0,0,0.35);
+  border: none; border-radius: 8px;
+  color: #fff; font-size: 36px; line-height: 1;
+  cursor: pointer;
+  align-items: center; justify-content: center;
+  z-index: 10002;
+  transition: background 0.15s;
+  user-select: none;
+}
+.lightbox-prev { left: 20px; }
+.lightbox-next { right: 20px; }
+.lightbox-prev:hover, .lightbox-next:hover { background: rgba(0,0,0,0.6); }
 .lightbox-caption {
   display: none;
   position: absolute;

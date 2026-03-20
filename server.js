@@ -29,6 +29,10 @@ const crypto = require('crypto');
 let heicConvert;
 try { heicConvert = require('heic-convert'); } catch(e) { console.warn('[heic-convert] not available:', e.message); }
 
+// Sharp for resize + compression
+let sharp;
+try { sharp = require('sharp'); } catch(e) { console.warn('[sharp] not available:', e.message); }
+
 async function convertHeicIfNeeded(filePath) {
   if (!heicConvert) return filePath;
   const ext = path.extname(filePath).toLowerCase();
@@ -42,7 +46,29 @@ async function convertHeicIfNeeded(filePath) {
     return jpegPath;
   } catch (e) {
     console.error('[heic-convert] conversion failed:', e.message);
-    return filePath; // keep original if conversion fails
+    return filePath;
+  }
+}
+
+// Resize + compress any photo to max 1400px / JPEG 82% — keeps file size ~150-350 KB
+async function optimisePhoto(filePath) {
+  if (!sharp) return filePath;
+  const ext = path.extname(filePath).toLowerCase();
+  const isImage = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
+  if (!isImage) return filePath;
+  const outPath = filePath.replace(/\.[^.]+$/, '.jpg');
+  try {
+    await sharp(filePath)
+      .rotate()                        // auto-orient from EXIF
+      .resize({ width: 1400, height: 1400, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toFile(outPath + '.tmp');
+    await fs.move(outPath + '.tmp', outPath, { overwrite: true });
+    if (outPath !== filePath) await fs.remove(filePath).catch(() => {});
+    return outPath;
+  } catch (e) {
+    console.error('[sharp] optimise failed:', e.message);
+    return filePath;
   }
 }
 
@@ -3690,7 +3716,8 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), asyn
 
     const newFiles = [];
     for (const f of (req.files || [])) {
-      const finalPath = await convertHeicIfNeeded(f.path);
+      const heicPath  = await convertHeicIfNeeded(f.path);
+      const finalPath = await optimisePhoto(heicPath);
       const finalName = path.basename(finalPath);
       newFiles.push(finalName);
       const buf = await fs.readFile(finalPath);
