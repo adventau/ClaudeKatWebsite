@@ -677,11 +677,15 @@ html, body {
 }
 .photo-filmstrip::-webkit-scrollbar { display: none; }
 
-/* Infinite marquee track */
+/* Infinite marquee track — uses margin-right instead of gap so that -50%
+   translateX lands exactly on the seam (gap causes a half-gap offset at loop point) */
 .filmstrip-marquee-track {
-  display: flex; gap: 12px;
+  display: flex;
   animation: filmstripMarquee var(--marquee-duration, 20s) linear infinite;
   width: max-content;
+}
+.filmstrip-marquee-track .filmstrip-frame {
+  margin-right: 12px;
 }
 .filmstrip-marquee-track:hover {
   animation-play-state: paused;
