@@ -3291,7 +3291,8 @@ async function checkTodayEvents() {
     const events = calData.shared || [];
     if (!events.length) return;
 
-    const today = getNow().toISOString().split('T')[0];
+    const _n = getNow();
+    const today = `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
     const todayEvents = events.filter(ev => {
       const start = ev.start || ev.date;
       const end = ev.end || start;

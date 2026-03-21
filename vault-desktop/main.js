@@ -32,13 +32,13 @@ function buildTrayIcon() {
   try {
     const img = nativeImage.createFromPath(iconPath);
     if (!img.isEmpty()) {
-      const resized = img.resize({ width: 18, height: 18 });
-      resized.setTemplateImage(true); // macOS auto-adapts to light/dark menu bar
-      return resized;
+      img.setTemplateImage(true); // macOS auto-adapts black crown to light/dark menu bar
+      return img;
     }
   } catch (_) { /* fall through */ }
+  // Fallback: inline crown (32x32 black silhouette)
   return nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAA+klEQVRYhe2WwQ3CMAxFX8QIjMAIjMAIjMAIjMAIjABHRmAERmAERmAEuEA5VKJqk9hJD0hIldr3+f2kbQohhBBCCCGEEEIIIYQQQgjhP3AB7sADeALnEMIOwBW4AQ/gCByBE3AFTsAZ2AMHYAfsgC2wATbAGlgBK2AJLIAFMAemwBiYAGNgBIyAITAAesAA6AN9oAf0gC7QBTpAG2gDLaAJNIAGUAdqQBWoAhWgDJSAIlAAcsABnFMCjqkAR6QAR6QAR6QAR6QAR6QAR6QAR6QAR6QAR6QAR6QAR6QAR6QAR6QAR6QA16UAVwAAAABJRU5ErkJggg=='
   );
 }
 
@@ -136,12 +136,14 @@ function createWindow() {
   // Allow web notifications (for when app is hidden to tray)
   const ses = session.fromPartition('persist:royalvault');
   ses.setPermissionRequestHandler((webContents, permission, callback) => {
-    if (permission === 'notifications') {
-      callback(true);
-    } else {
-      callback(true); // Allow other permissions too
-    }
+    callback(true); // Grant all permissions (notifications, microphone, camera, etc.)
   });
+  // Pre-approve permission checks so Electron doesn't re-prompt on every getUserMedia call
+  ses.setPermissionCheckHandler(() => true);
+  // Grant device access (camera/microphone) without showing repeated system dialogs
+  if (ses.setDevicePermissionHandler) {
+    ses.setDevicePermissionHandler(() => true);
+  }
 }
 
 function loadWebsite() {
@@ -206,6 +208,10 @@ function injectDesktopCSS() {
     #sidebar { padding-top: 32px !important; }
     #sidebar .sidebar-user { margin-top: 4px !important; }
     #app-header { padding-top: 28px !important; }
+    /* Search bar: extra clearance from drag bar */
+    .search-wrap { margin-top: 2px; }
+    /* Calendar: ensure cells have enough height in Electron */
+    .cal-day { min-height: 110px !important; }
 
     /* Force desktop layout — always show vertical sidebar, never tablet/mobile mode */
     @media (max-width: 834px) {
