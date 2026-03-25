@@ -3883,6 +3883,7 @@ app.post('/api/debrief/config', (req, res) => {
 });
 
 // POST /api/debrief/upload/:monthId — upload photos (HEIC auto-converted to JPEG)
+// Processes one file per request for progress tracking; responds fast, DB store in background
 app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), async (req, res) => {
   try {
     const { monthId } = req.params;
@@ -3903,16 +3904,26 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), asyn
       }
       const finalName = path.basename(finalPath);
       newFiles.push(finalName);
-      const buf = await fs.readFile(finalPath);
-      storeDebriefFile(`${monthId}/${finalName}`, buf).catch(e => console.error('[debrief] DB store photo:', e.message));
     }
 
     content.months[monthId].photos.push(...newFiles);
     writeDebriefContent(content);
+
+    // Respond immediately — persist to DB in background
     res.json({ ok: true, files: newFiles });
+
+    // Background: store files to DB for deployment durability
+    for (const f of (req.files || [])) {
+      const finalName = newFiles[(req.files || []).indexOf(f)];
+      if (!finalName) continue;
+      const finalPath = path.join(path.dirname(f.path), finalName);
+      fs.readFile(finalPath).then(buf => {
+        storeDebriefFile(`${monthId}/${finalName}`, buf).catch(e => console.error('[debrief] DB store photo:', e.message));
+      }).catch(e => console.error('[debrief] Read for DB store:', e.message));
+    }
   } catch (e) {
     console.error('[debrief] upload error:', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    if (!res.headersSent) res.status(500).json({ ok: false, error: e.message });
   }
 });
 
@@ -3929,7 +3940,7 @@ const debriefAudioStorage = multer.diskStorage({
 });
 const debriefAudioUpload = multer({
   storage: debriefAudioStorage,
-  limits: { fileSize: 20 * 1024 * 1024 } // 20MB max
+  limits: { fileSize: 100 * 1024 * 1024 } // 100MB max
 });
 
 app.post('/api/debrief/upload-audio/:monthId', (req, res) => {

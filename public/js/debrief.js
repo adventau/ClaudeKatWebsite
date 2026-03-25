@@ -1507,30 +1507,34 @@
       if (!file) return;
       const box = e.target.closest('.editor-upload-box');
       const btn = box ? box.querySelector('.audio-upload-btn') : null;
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      showUploadProgress('Uploading Audio');
+      updateUploadProgress(0, `${file.name} (${sizeMB} MB)...`);
       if (btn) { btn.textContent = 'Uploading...'; btn.style.opacity = '0.5'; }
-      const formData = new FormData();
-      formData.append('audio', file);
       try {
-        const res = await fetch(`/api/debrief/upload-audio/${monthId}`, { method: 'POST', body: formData });
-        if (!res.ok) throw new Error(`Server error ${res.status}`);
-        const data = await res.json();
+        const data = await uploadFileWithProgress(
+          `/api/debrief/upload-audio/${monthId}`, 'audio', file,
+          (pct) => updateUploadProgress(Math.round(pct * 100), `${file.name} (${sizeMB} MB)... ${Math.round(pct * 100)}%`)
+        );
         if (data.ok) {
+          updateUploadProgress(100, 'Done!');
           if (btn) { btn.textContent = '✓ ' + data.filename; btn.classList.add('has-file'); btn.style.opacity = '1'; }
           await loadContent();
           mergeData();
-          // Force the audio player to reload with the new file immediately
           slideAudio.pause();
           slideAudio.src = '';
           updateSlideAudio();
-          // Rebuild current slide so trim slider reflects new filename
           buildSlides();
           jumpToSlide(slideIndex);
         } else {
           throw new Error(data.error || 'Upload failed');
         }
+        setTimeout(hideUploadProgress, 600);
       } catch (err) {
         console.error('Audio upload failed:', err);
         if (btn) { btn.textContent = '✗ Error — try again'; btn.style.opacity = '1'; }
+        updateUploadProgress(0, 'Upload failed — try again');
+        setTimeout(hideUploadProgress, 2000);
       }
       e.target.value = '';
     });
@@ -1601,13 +1605,17 @@
       const box = e.target.closest('.editor-upload-box');
       const btn = box ? box.querySelector('.cover-upload-btn') : null;
       if (btn) { btn.textContent = 'Uploading...'; btn.style.opacity = '0.5'; }
-      const formData = new FormData();
-      formData.append('cover', file);
+      showUploadProgress('Uploading Cover Art');
+      updateUploadProgress(0, 'Compressing...');
+      const compressed = await compressImage(file, 1200, 0.85);
+      const sizeMB = (compressed.size / (1024 * 1024)).toFixed(1);
       try {
-        const res = await fetch(`/api/debrief/upload-cover/${monthId}`, { method: 'POST', body: formData });
-        if (!res.ok) throw new Error(`Server error ${res.status}`);
-        const data = await res.json();
+        const data = await uploadFileWithProgress(
+          `/api/debrief/upload-cover/${monthId}`, 'cover', compressed,
+          (pct) => updateUploadProgress(Math.round(pct * 100), `Cover art (${sizeMB} MB)... ${Math.round(pct * 100)}%`)
+        );
         if (data.ok) {
+          updateUploadProgress(100, 'Done!');
           if (btn) { btn.textContent = '✓ ' + data.filename; btn.classList.add('has-file'); btn.style.opacity = '1'; }
           await loadContent();
           mergeData();
@@ -1615,9 +1623,12 @@
         } else {
           throw new Error(data.error || 'Upload failed');
         }
+        setTimeout(hideUploadProgress, 600);
       } catch (err) {
         console.error('Cover upload failed:', err);
         if (btn) { btn.textContent = '✗ Error — try again'; btn.style.opacity = '1'; }
+        updateUploadProgress(0, 'Upload failed — try again');
+        setTimeout(hideUploadProgress, 2000);
       }
       e.target.value = '';
     });
@@ -1866,48 +1877,157 @@
     }
   }
 
+  // --- Upload Progress Overlay ---
+  const uploadOverlay = document.getElementById('upload-overlay');
+  const uploadTitle = document.getElementById('upload-title');
+  const uploadProgressFill = document.getElementById('upload-progress-fill');
+  const uploadStatus = document.getElementById('upload-status');
+
+  function showUploadProgress(title) {
+    uploadTitle.textContent = title || 'Uploading...';
+    uploadProgressFill.style.width = '0%';
+    uploadStatus.textContent = 'Preparing files...';
+    uploadOverlay.classList.add('visible');
+  }
+
+  function updateUploadProgress(percent, statusText) {
+    uploadProgressFill.style.width = percent + '%';
+    if (statusText) uploadStatus.textContent = statusText;
+  }
+
+  function hideUploadProgress() {
+    uploadOverlay.classList.remove('visible');
+  }
+
+  // --- Client-side image compression ---
+  function compressImage(file, maxDim, quality) {
+    maxDim = maxDim || 2400;
+    quality = quality || 0.82;
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) { resolve(file); return; }
+      if (file.size < 500 * 1024) { resolve(file); return; }
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob && blob.size < file.size) {
+            resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }));
+          } else {
+            resolve(file);
+          }
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+
+  // --- Upload single file with XHR progress ---
+  function uploadFileWithProgress(url, fieldName, file, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append(fieldName, file);
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+      });
+      xhr.addEventListener('load', () => {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch { resolve({ ok: true }); }
+      });
+      xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+      xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+      xhr.open('POST', url);
+      xhr.send(formData);
+    });
+  }
+
   async function uploadPhotos(monthId, files) {
     if (!files || !files.length) return;
-    const formData = new FormData();
-    for (const f of files) formData.append('photos', f);
+    const total = files.length;
+    showUploadProgress(`Uploading ${total} file${total > 1 ? 's' : ''}...`);
     try {
-      await fetch(`/api/debrief/upload/${monthId}`, { method: 'POST', body: formData });
+      updateUploadProgress(0, `Compressing ${total} file${total > 1 ? 's' : ''}...`);
+      const compressed = await Promise.all(Array.from(files).map(f => compressImage(f)));
+      for (let i = 0; i < compressed.length; i++) {
+        const file = compressed[i];
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        const isVideo = file.type.startsWith('video/');
+        updateUploadProgress(
+          Math.round((i / total) * 100),
+          `Uploading ${i + 1}/${total} (${sizeMB} MB)${isVideo ? ' — processing video...' : '...'}`
+        );
+        await uploadFileWithProgress(`/api/debrief/upload/${monthId}`, 'photos', file, (pct) => {
+          updateUploadProgress(Math.round(((i + pct) / total) * 100));
+        });
+      }
+      updateUploadProgress(100, 'Done!');
       await loadContent();
       mergeData();
       refreshFilmstrip(monthId);
+      setTimeout(hideUploadProgress, 600);
     } catch (e) {
       console.error('Upload failed:', e);
+      updateUploadProgress(0, 'Upload failed — try again');
+      setTimeout(hideUploadProgress, 2000);
     }
   }
 
   async function uploadEventPhotos(monthId, eventId, files) {
     if (!files || !files.length) return;
-    const targetIdx = slideIndex; // capture before any awaits
-    const formData = new FormData();
-    for (const f of files) formData.append('photos', f);
+    const total = files.length;
+    const targetIdx = slideIndex;
+    showUploadProgress(`Uploading ${total} file${total > 1 ? 's' : ''}...`);
     try {
-      const res = await fetch(`/api/debrief/upload/${monthId}`, { method: 'POST', body: formData });
-      const data = await res.json();
-      if (data.ok && data.files) {
-        // Add photo filenames to the event
+      updateUploadProgress(0, `Compressing ${total} file${total > 1 ? 's' : ''}...`);
+      const compressed = await Promise.all(Array.from(files).map(f => compressImage(f)));
+      const allNewFiles = [];
+      for (let i = 0; i < compressed.length; i++) {
+        const file = compressed[i];
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        const isVideo = file.type.startsWith('video/');
+        updateUploadProgress(
+          Math.round((i / total) * 100),
+          `Uploading ${i + 1}/${total} (${sizeMB} MB)${isVideo ? ' — processing video...' : '...'}`
+        );
+        const data = await uploadFileWithProgress(`/api/debrief/upload/${monthId}`, 'photos', file, (pct) => {
+          updateUploadProgress(Math.round(((i + pct) / total) * 100));
+        });
+        if (data.ok && data.files) allNewFiles.push(...data.files);
+      }
+      updateUploadProgress(100, 'Done!');
+      if (allNewFiles.length) {
         if (!contentData.months) contentData.months = {};
         if (!contentData.months[monthId]) contentData.months[monthId] = {};
         if (!contentData.months[monthId].events) contentData.months[monthId].events = [];
         const evt = contentData.months[monthId].events.find(e => e.id === eventId);
         if (evt) {
           if (!evt.photos) evt.photos = [];
-          evt.photos.push(...data.files);
+          evt.photos.push(...allNewFiles);
           await saveAllContent();
           await loadContent();
           mergeData();
-          // Rebuild the event slide and return to the same slide
           buildSlideList();
           buildSlides();
           jumpToSlide(targetIdx);
         }
       }
+      setTimeout(hideUploadProgress, 600);
     } catch (e) {
       console.error('Event photo upload failed:', e);
+      updateUploadProgress(0, 'Upload failed — try again');
+      setTimeout(hideUploadProgress, 2000);
     }
   }
 
