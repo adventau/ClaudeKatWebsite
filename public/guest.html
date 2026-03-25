@@ -157,7 +157,11 @@
     .guest-input-actions {
       display: flex; align-items: center; gap: 2px;
       flex-shrink: 0; padding-bottom: 2px;
+      overflow-x: auto; flex-wrap: nowrap;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
     }
+    .guest-input-actions::-webkit-scrollbar { display: none; }
     .gia-btn {
       background: none; border: none; color: var(--muted); cursor: pointer;
       min-width: 28px; height: 28px; border-radius: 7px;
@@ -705,6 +709,15 @@
   </style>
 </head>
 <body>
+
+<!-- Full-screen graceful expiry screen — shown when guest pass expires mid-session -->
+<div id="guest-expired-screen" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;gap:20px;text-align:center;padding:2rem">
+  <div style="font-size:3rem">💜</div>
+  <div style="font-size:1.5rem;font-weight:700;color:var(--text);font-family:var(--font-display,'Cormorant Garamond',serif)">Your guest pass has expired</div>
+  <div style="font-size:0.9rem;color:var(--muted);max-width:320px;line-height:1.6">Thanks for visiting the Royal K&K Vault. Your access has ended.</div>
+  <div style="font-size:0.78rem;color:var(--muted);margin-top:8px">You may close this tab.</div>
+</div>
+
 <div id="app">
   <!-- Header -->
   <header>
@@ -970,16 +983,46 @@
   let creatorTheme = null;
   let welcomeDismissed = false;
 
+  // ── Expiry helper ────────────────────────────────────────────────
+  function showExpiryScreen() {
+    document.getElementById('app').style.display = 'none';
+    const screen = document.getElementById('guest-expired-screen');
+    screen.style.display = 'flex';
+  }
+
+  // Central handler for expired: true on any mid-session API response
+  async function checkExpiredResponse(res) {
+    if (res.status === 401) {
+      try {
+        const data = await res.clone().json();
+        if (data.expired) { showExpiryScreen(); return true; }
+      } catch {}
+    }
+    return false;
+  }
+
+  // ── Socket listener registration state ──────────────────────────
+  let _guestSocketsInit = false;
+
   // ── Init ────────────────────────────────────────────────────────
   async function init() {
-    const r = await fetch('/api/auth/session');
+    const r = await fetch('/api/auth/guest-session');
     const data = await r.json();
-    if (!data.isGuest || !data.guestId) { window.location.href = '/'; return; }
+    if (!data.isGuest || !data.guestId) {
+      if (data.expired) { showExpiryScreen(); return; }
+      window.location.href = '/';
+      return;
+    }
     guestId = data.guestId;
+    guestName = data.guestName || sessionStorage.getItem('guestName') || 'Guest';
+    sessionStorage.setItem('guestName', guestName);
+    allowedChannels = data.channels || ['kaliph', 'kathrine', 'group'];
     document.getElementById('guest-name-badge').textContent = guestName;
 
     // Load existing messages + channel permissions
-    const guestData = await fetch(`/api/guests/${guestId}`).then(r => r.json()).catch(() => null);
+    const gResp = await fetch(`/api/guests/${guestId}`);
+    if (await checkExpiredResponse(gResp)) return;
+    const guestData = gResp.ok ? await gResp.json().catch(() => null) : null;
     if (guestData) {
       if (guestData.messages) channelMessages = guestData.messages;
       if (guestData.channels) allowedChannels = guestData.channels;
@@ -994,115 +1037,120 @@
       loadCreatorTheme();
     }
 
-    // Real-time — single handler per channel (no duplicates)
-    socket.on(`guest-msg-${guestId}-kaliph`,   msg => { channelMessages.kaliph.push(msg); if (channel === 'kaliph') appendMsg(msg); else showBadge('kaliph'); });
-    socket.on(`guest-msg-${guestId}-kathrine`, msg => { channelMessages.kathrine.push(msg); if (channel === 'kathrine') appendMsg(msg); else showBadge('kathrine'); });
-    socket.on(`guest-msg-${guestId}-group`,    msg => { channelMessages.group.push(msg); if (channel === 'group') appendMsg(msg); else showBadge('group'); });
+    // Register socket listeners once — guard against duplicate registration on reconnect
+    if (!_guestSocketsInit) {
+      _guestSocketsInit = true;
 
-    socket.on('user-typing', ({ user }) => {
-      document.getElementById('typing-row').style.display = 'flex';
-      clearTimeout(window._typingTimer);
-      window._typingTimer = setTimeout(() => document.getElementById('typing-row').style.display = 'none', 2000);
-    });
+      socket.on(`guest-msg-${guestId}-kaliph`,   msg => { channelMessages.kaliph.push(msg); if (channel === 'kaliph') appendMsg(msg); else showBadge('kaliph'); });
+      socket.on(`guest-msg-${guestId}-kathrine`, msg => { channelMessages.kathrine.push(msg); if (channel === 'kathrine') appendMsg(msg); else showBadge('kathrine'); });
+      socket.on(`guest-msg-${guestId}-group`,    msg => { channelMessages.group.push(msg); if (channel === 'group') appendMsg(msg); else showBadge('group'); });
 
-    // Immediate logout if guest access is revoked
-    socket.on('guest-revoked', ({ guestId: revokedId }) => {
-      if (revokedId === guestId) {
-        alert('Your guest access has been revoked.');
-        fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.href = '/');
-      }
-    });
-    socket.on('force-logout', () => {
-      window.location.href = '/';
-    });
+      socket.on('user-typing', ({ user }) => {
+        document.getElementById('typing-row').style.display = 'flex';
+        clearTimeout(window._typingTimer);
+        window._typingTimer = setTimeout(() => document.getElementById('typing-row').style.display = 'none', 2000);
+      });
 
-    // Reaction updates
-    socket.on(`guest-msg-reaction-${guestId}`, ({ msgId, reactions }) => {
-      // Update stored message
-      for (const ch of Object.keys(channelMessages)) {
-        const msg = (channelMessages[ch] || []).find(m => m.id === msgId);
-        if (msg) { msg.reactions = reactions; break; }
-      }
-      // Update DOM
-      const el = document.getElementById('guest-msg-' + msgId);
-      if (!el) return;
-      let reactRow = el.querySelector('.msg-reactions');
-      if (!reactRow) {
-        reactRow = document.createElement('div');
-        reactRow.className = 'msg-reactions';
-        const timeEl = el.querySelector('.msg-time');
-        if (timeEl) el.insertBefore(reactRow, timeEl);
-        else el.appendChild(reactRow);
-      }
-      reactRow.innerHTML = Object.entries(reactions).filter(([,u]) => u.length > 0).map(([emoji, users]) =>
-        `<div class="reaction-chip ${users.includes(guestName)?'mine':''}" onclick="reactToGuestMessage('${msgId}','${emoji}')" title="${users.join(', ')}">${emoji} ${users.length}</div>`
-      ).join('');
-    });
+      // Show expiry screen gracefully when host revokes access
+      socket.on('guest-revoked', ({ guestId: revokedId }) => {
+        if (revokedId === guestId) showExpiryScreen();
+      });
+      socket.on('force-logout', () => { window.location.href = '/'; });
 
-    // Presence updates (online/idle/offline activity-based)
-    socket.on('user-presence', ({ user, state }) => {
-      if (window._hostUsers?.[user]) {
-        window._hostUsers[user]._presence = state;
-        if (state === 'offline') window._hostUsers[user].lastSeen = Date.now();
-        if (user === channel) updateChatBar();
-      }
-    });
-    // Manual status updates (custom status, emoji, etc.)
-    socket.on('status-changed', ({ user, status, customStatus, statusEmoji }) => {
-      if (window._hostUsers?.[user]) {
-        // Map status to presence: dnd stays as 'dnd', invisible → 'offline'
-        if (status === 'invisible') {
-          window._hostUsers[user]._presence = 'offline';
-          window._hostUsers[user].lastSeen = Date.now();
-        } else if (status) {
-          window._hostUsers[user]._presence = status; // 'online', 'idle', 'dnd'
+      // Reaction updates
+      socket.on(`guest-msg-reaction-${guestId}`, ({ msgId, reactions }) => {
+        for (const ch of Object.keys(channelMessages)) {
+          const msg = (channelMessages[ch] || []).find(m => m.id === msgId);
+          if (msg) { msg.reactions = reactions; break; }
         }
-        if (customStatus !== undefined) window._hostUsers[user].customStatus = customStatus;
-        if (statusEmoji !== undefined) window._hostUsers[user].statusEmoji = statusEmoji;
-        if (status !== undefined) window._hostUsers[user].status = status;
-        if (user === channel) updateChatBar();
-      }
-    });
+        const el = document.getElementById('guest-msg-' + msgId);
+        if (!el) return;
+        let reactRow = el.querySelector('.msg-reactions');
+        if (!reactRow) {
+          reactRow = document.createElement('div');
+          reactRow.className = 'msg-reactions';
+          const timeEl = el.querySelector('.msg-time');
+          if (timeEl) el.insertBefore(reactRow, timeEl);
+          else el.appendChild(reactRow);
+        }
+        reactRow.innerHTML = Object.entries(reactions).filter(([,u]) => u.length > 0).map(([emoji, users]) =>
+          `<div class="reaction-chip ${users.includes(guestName)?'mine':''}" data-msg-id="${escHtml(msgId)}" data-emoji="${escHtml(emoji)}" title="${escHtml(users.join(', '))}">${escHtml(emoji)} ${users.length}</div>`
+        ).join('');
+      });
 
-    // Call signaling
-    socket.on('call-offer', data => handleGuestCallOffer(data));
-    socket.on('call-answer', data => handleGuestCallAnswer(data));
-    socket.on('call-ice-candidate', data => handleGuestIce(data));
-    socket.on('call-ended', data => { if (!data?.callId || data.callId === guestCallId) endGuestCall(true); });
+      // Presence updates
+      socket.on('user-presence', ({ user, state }) => {
+        if (window._hostUsers?.[user]) {
+          window._hostUsers[user]._presence = state;
+          if (state === 'offline') window._hostUsers[user].lastSeen = Date.now();
+          if (user === channel) updateChatBar();
+        }
+      });
+      socket.on('status-changed', ({ user, status, customStatus, statusEmoji }) => {
+        if (window._hostUsers?.[user]) {
+          if (status === 'invisible') {
+            window._hostUsers[user]._presence = 'offline';
+            window._hostUsers[user].lastSeen = Date.now();
+          } else if (status) {
+            window._hostUsers[user]._presence = status;
+          }
+          if (customStatus !== undefined) window._hostUsers[user].customStatus = customStatus;
+          if (statusEmoji !== undefined) window._hostUsers[user].statusEmoji = statusEmoji;
+          if (status !== undefined) window._hostUsers[user].status = status;
+          if (user === channel) updateChatBar();
+        }
+      });
 
-    // Live permission/name update from host
-    socket.on('guest-updated', ({ guestId: updatedId, name, channels }) => {
-      if (updatedId === guestId) {
-        if (channels) { allowedChannels = channels; applyChannelPermissions(); }
-      }
-    });
+      // Call signaling
+      socket.on('call-offer', data => handleGuestCallOffer(data));
+      socket.on('call-answer', data => handleGuestCallAnswer(data));
+      socket.on('call-ice-candidate', data => handleGuestIce(data));
+      socket.on('call-ended', data => { if (!data?.callId || data.callId === guestCallId) endGuestCall(true); });
 
-    // Live theme sync — if guest is using host's theme, update immediately when host changes it
-    socket.on('user-updated', ({ user, data }) => {
-      if (user === creatorTheme && data.theme && currentGuestTheme === 'host') {
-        // Update the host theme button's stored theme ID
-        const hostBtn = document.getElementById('host-theme-btn');
-        if (hostBtn) hostBtn.setAttribute('data-theme', data.theme);
-        // Update the preview gradient
-        const hostPreview = document.getElementById('host-theme-preview');
-        const themePreviewColors = {
-          kaliph: 'linear-gradient(135deg,#08051a,#7c3aed,#3b82f6)',
-          kathrine: 'linear-gradient(135deg,#0d0716,#8b5cf6,#e9d5ff)',
-          royal: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)',
-          heaven: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)',
-          neon: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)',
-          noir: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)',
-          dark: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)',
-          light: 'linear-gradient(135deg,#f9f9f9,#d4d4d4,#e8e8e8)',
-          rosewood: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)',
-          ocean: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)',
-          forest: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)',
-        };
-        if (hostPreview) hostPreview.style.background = themePreviewColors[data.theme] || 'var(--accent)';
-        // Re-apply the host theme with updated colors
-        setGuestTheme('host');
-      }
-    });
+      // Live permission/name update from host
+      socket.on('guest-updated', ({ guestId: updatedId, name, channels }) => {
+        if (updatedId === guestId) {
+          if (channels) { allowedChannels = channels; applyChannelPermissions(); }
+        }
+      });
+
+      // Live theme sync
+      socket.on('user-updated', ({ user, data }) => {
+        if (user === creatorTheme && data.theme && currentGuestTheme === 'host') {
+          const hostBtn = document.getElementById('host-theme-btn');
+          if (hostBtn) hostBtn.setAttribute('data-theme', data.theme);
+          const hostPreview = document.getElementById('host-theme-preview');
+          const themePreviewColors = {
+            kaliph: 'linear-gradient(135deg,#08051a,#7c3aed,#3b82f6)',
+            kathrine: 'linear-gradient(135deg,#0d0716,#8b5cf6,#e9d5ff)',
+            royal: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)',
+            heaven: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)',
+            neon: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)',
+            noir: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)',
+            dark: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)',
+            light: 'linear-gradient(135deg,#f9f9f9,#d4d4d4,#e8e8e8)',
+            rosewood: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)',
+            ocean: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)',
+            forest: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)',
+          };
+          if (hostPreview) hostPreview.style.background = themePreviewColors[data.theme] || 'var(--accent)';
+          setGuestTheme('host');
+        }
+      });
+
+      // Reconnect — re-fetch state and re-check session validity
+      socket.on('connect', async () => {
+        if (!guestId) return; // Not yet initialised
+        const check = await fetch('/api/auth/guest-session').then(r => r.json()).catch(() => ({ isGuest: false, expired: true }));
+        if (!check.isGuest) { showExpiryScreen(); return; }
+        // Re-sync messages in case we missed some while disconnected
+        const refreshed = await fetch(`/api/guests/${guestId}`).then(r => r.ok ? r.json() : null).catch(() => null);
+        if (refreshed?.messages) {
+          channelMessages = refreshed.messages;
+          renderChannel();
+        }
+      });
+    }
   }
 
   // ── Channel permissions ──────────────────────────────────────────
@@ -1201,7 +1249,9 @@
         ? 'Direct message with <strong style="color:var(--accent)">Kaliph</strong>'
         : 'Direct message with <strong style="color:var(--accent)">Kathrine</strong>';
     area.appendChild(ch);
-    (channelMessages[channel] || []).forEach(m => area.appendChild(buildMsgEl(m)));
+    // Sort by timestamp to ensure correct order after refresh/reconnect
+    const sorted = (channelMessages[channel] || []).slice().sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    sorted.forEach(m => area.appendChild(buildMsgEl(m)));
     area.scrollTop = area.scrollHeight;
   }
 
@@ -1221,9 +1271,9 @@
     // Use avatar if available (host or guest's own)
     const hostData = (window._hostUsers || {})[msg.sender];
     if (isHost && hostData?.avatar) {
-      avatar.innerHTML = `<img src="${hostData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+      avatar.innerHTML = `<img src="${escHtml(hostData.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
     } else if (isSelf && guestAvatar) {
-      avatar.innerHTML = `<img src="${guestAvatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+      avatar.innerHTML = `<img src="${escHtml(guestAvatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
     } else {
       avatar.textContent = (msg.sender || 'G')[0].toUpperCase();
     }
@@ -1234,11 +1284,11 @@
     const content = document.createElement('div');
     content.className = 'msg-content-wrap';
     if (msg.id) content.id = 'guest-msg-' + msg.id;
-    const senderLabel = isSelf ? 'You' : capitalize(msg.sender);
+    const senderLabel = isSelf ? 'You' : escHtml(capitalize(msg.sender));
     let reactionsHtml = '';
     if (msg.reactions && Object.keys(msg.reactions).length > 0) {
       reactionsHtml = '<div class="msg-reactions">' + Object.entries(msg.reactions).filter(([,u]) => u.length > 0).map(([emoji, users]) =>
-        `<div class="reaction-chip ${users.includes(guestName) ? 'mine' : ''}" onclick="reactToGuestMessage('${msg.id}','${emoji}')" title="${users.join(', ')}">${emoji} ${users.length}</div>`
+        `<div class="reaction-chip ${users.includes(guestName) ? 'mine' : ''}" data-msg-id="${escHtml(msg.id)}" data-emoji="${escHtml(emoji)}" title="${escHtml(users.join(', '))}">${escHtml(emoji)} ${users.length}</div>`
       ).join('') + '</div>';
     }
     // Render message content (text, GIF, voice, files)
@@ -1261,9 +1311,9 @@
     // Hover actions bar (only on hover, not sticky)
     const _s = 'xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
     const actionsBar = msg.id ? `<div class="msg-actions">
-      <button class="msg-action-btn" onclick="showGuestQuickReact('${msg.id}',this)" title="React"><svg ${_s}><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg></button>
-      <button class="msg-action-btn" onclick="guestReply('${msg.id}','${escHtml(senderLabel)}')" title="Reply"><svg ${_s}><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></button>
-      <button class="msg-action-btn" onclick="copyGuestMsg('${msg.id}')" title="Copy"><svg ${_s}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+      <button class="msg-action-btn" data-action="react" data-msg-id="${escHtml(msg.id)}" title="React"><svg ${_s}><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg></button>
+      <button class="msg-action-btn" data-action="reply" data-msg-id="${escHtml(msg.id)}" data-sender="${escHtml(msg.sender)}" title="Reply"><svg ${_s}><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></button>
+      <button class="msg-action-btn" data-action="copy" data-msg-id="${escHtml(msg.id)}" title="Copy"><svg ${_s}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
     </div>` : '';
     // Reply preview
     let replyHtml = '';
@@ -1275,7 +1325,7 @@
       }
     }
     content.innerHTML = `
-      <div class="msg-sender"${isHost ? ` style="cursor:pointer" onclick="showGuestProfile('${msg.sender}')"` : ''}>${senderLabel}</div>
+      <div class="msg-sender"${isHost ? ` style="cursor:pointer" data-profile="${escHtml(msg.sender)}"` : ''}>${senderLabel}</div>
       ${replyHtml}
       ${msgBody}
       ${filesHtml}
@@ -1318,10 +1368,13 @@
   async function sendMsg() {
     if (isSending) return;
     const input = document.getElementById('msg-input');
+    const sendBtn = document.querySelector('.send-btn');
     const text = input.value.trim();
     const hasFiles = window._guestPendingFiles?.length > 0;
     if (!text && !hasFiles) return;
     isSending = true;
+    if (sendBtn) sendBtn.disabled = true;
+    input.disabled = true;
     input.value = '';
     input.style.height = 'auto';
     if (!welcomeDismissed) dismissWelcome();
@@ -1339,23 +1392,29 @@
       renderGuestFileBar();
     }
     try {
-      await fetch(`/api/guests/${guestId}/message`, {
-        method: 'POST', headers: { 'X-Guest-Id': guestId },
+      const msgRes = await fetch(`/api/guests/${guestId}/message`, {
+        method: 'POST',
         body: formData
       });
+      if (await checkExpiredResponse(msgRes)) return;
       if (priority) { document.getElementById('guest-priority-checkbox').checked = false; toggleGuestPriority(); }
     } finally {
       isSending = false;
+      const _sendBtn = document.querySelector('.send-btn');
+      const _input = document.getElementById('msg-input');
+      if (_sendBtn) _sendBtn.disabled = false;
+      if (_input) { _input.disabled = false; _input.focus(); }
     }
   }
 
   async function sendGuestGif(gifUrl) {
     closeGuestGif();
     if (!welcomeDismissed) dismissWelcome();
-    await fetch(`/api/guests/${guestId}/message`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guest-Id': guestId },
+    const gifRes = await fetch(`/api/guests/${guestId}/message`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: '', target: channel, sender: guestName, type: 'gif', gifUrl })
     });
+    await checkExpiredResponse(gifRes);
   }
 
   function insertEmoji(e) {
@@ -1418,7 +1477,7 @@
         const results = data.results || [];
         grid.innerHTML = results.map(g => {
           const url = g.media_formats?.gif?.url || g.media_formats?.tinygif?.url || '';
-          return url ? `<img src="${url}" onclick="sendGuestGif('${url}')" alt="GIF" loading="lazy">` : '';
+          return url ? `<img src="${escHtml(url)}" data-gif-url="${escHtml(url)}" alt="GIF" loading="lazy" style="cursor:pointer">` : '';
         }).join('') || '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">No GIFs found</p>';
       } catch { grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:0.8rem;padding:1rem">Search failed</p>'; }
     }, 350);
@@ -1496,7 +1555,7 @@
     formData.append('sender', guestName);
     formData.append('type', 'voice');
     formData.append('files', blob, `voice-${Date.now()}.webm`);
-    await fetch(`/api/guests/${guestId}/message`, { method: 'POST', headers: { 'X-Guest-Id': guestId }, body: formData });
+    await fetch(`/api/guests/${guestId}/message`, { method: 'POST', body: formData });
   }
 
   // Priority notification
@@ -1548,7 +1607,7 @@
   }, { passive: true });
 
   // ── Utility ──────────────────────────────────────────────────────
-  function escHtml(t) { return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function escHtml(t) { return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#x27;'); }
   function formatTime(ts) { return new Date(ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); }
   function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
   function logout() { fetch('/api/auth/logout', { method:'POST' }).then(() => window.location.href = '/'); }
@@ -1623,9 +1682,9 @@
       const displayName = host?.displayName || capitalize(channel);
       nameEl.textContent = displayName;
       if (host?.avatar) {
-        avatarEl.innerHTML = `<img src="${host.avatar}">`;
+        avatarEl.innerHTML = `<img src="${escHtml(host.avatar)}">`;
       } else {
-        avatarEl.innerHTML = `<span>${displayName[0].toUpperCase()}</span>`;
+        avatarEl.innerHTML = `<span>${escHtml(displayName[0].toUpperCase())}</span>`;
       }
       avatarEl.onclick = () => showGuestProfile(channel);
       avatarEl.style.cursor = 'pointer';
@@ -1810,7 +1869,7 @@
     document.getElementById('gcall-status').textContent = status;
     const host = (window._hostUsers || {})[channel];
     const avatarEl = document.getElementById('gcall-avatar');
-    if (host?.avatar) avatarEl.innerHTML = `<img src="${host.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    if (host?.avatar) avatarEl.innerHTML = `<img src="${escHtml(host.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
     else avatarEl.textContent = (name[0] || 'K').toUpperCase();
   }
 
@@ -1853,10 +1912,10 @@
     const removeBtn = document.getElementById('guest-avatar-remove-btn');
     if (!preview) return;
     if (guestAvatar) {
-      preview.innerHTML = `<img src="${guestAvatar}" style="width:100%;height:100%;object-fit:cover">`;
+      preview.innerHTML = `<img src="${escHtml(guestAvatar)}" style="width:100%;height:100%;object-fit:cover">`;
       if (removeBtn) removeBtn.style.display = '';
     } else {
-      preview.innerHTML = guestName ? guestName[0].toUpperCase() : 'G';
+      preview.innerHTML = guestName ? escHtml(guestName[0].toUpperCase()) : 'G';
       if (removeBtn) removeBtn.style.display = 'none';
     }
   }
@@ -1916,9 +1975,9 @@
     // Avatar
     const avatarEl = document.getElementById('gp-avatar');
     if (u.avatar) {
-      avatarEl.innerHTML = `<img src="${u.avatar}" alt="">`;
+      avatarEl.innerHTML = `<img src="${escHtml(u.avatar)}" alt="">`;
     } else {
-      avatarEl.innerHTML = `<span>${(u.displayName || u.name)[0].toUpperCase()}</span>`;
+      avatarEl.innerHTML = `<span>${escHtml((u.displayName || u.name)[0].toUpperCase())}</span>`;
     }
     // Status dot
     const statusColors = { online: '#22c55e', idle: '#eab308', dnd: '#ef4444', invisible: '#6b7280' };
@@ -1935,7 +1994,7 @@
     const statusIcons = { online: '🟢', idle: '🌙', dnd: '⛔', invisible: '⚫' };
     const statusLabels = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible' };
     const userStatus = u.status || 'online';
-    let statusHtml = `<span>${statusIcons[userStatus] || '🟢'}</span><span>${statusLabels[userStatus] || 'Online'}</span>`;
+    let statusHtml = `<span>${escHtml(statusIcons[userStatus] || '🟢')}</span><span>${escHtml(statusLabels[userStatus] || 'Online')}</span>`;
     if (u.customStatus) statusHtml += `<span>— ${escHtml(u.customStatus)}</span>`;
     document.getElementById('gp-status-row').innerHTML = statusHtml;
     // Bio
@@ -1969,6 +2028,28 @@
   document.getElementById('msg-input').addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') sendMsg();
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+  });
+
+  // Delegated handler for GIF grid (replaces inline onclick on img tags)
+  document.getElementById('guest-gif-grid').addEventListener('click', e => {
+    const img = e.target.closest('[data-gif-url]');
+    if (img) sendGuestGif(img.dataset.gifUrl);
+  });
+
+  // Delegated handler for msg-action buttons and reaction chips (replaces inline onclick)
+  document.getElementById('messages-area').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (btn) {
+      const action = btn.dataset.action;
+      const msgId = btn.dataset.msgId;
+      if (action === 'react') { showGuestQuickReact(msgId, btn); return; }
+      if (action === 'reply') { guestReply(msgId, btn.dataset.sender); return; }
+      if (action === 'copy') { copyGuestMsg(msgId); return; }
+    }
+    const chip = e.target.closest('[data-emoji]');
+    if (chip) { reactToGuestMessage(chip.dataset.msgId, chip.dataset.emoji); return; }
+    const senderEl = e.target.closest('[data-profile]');
+    if (senderEl) { showGuestProfile(senderEl.dataset.profile); return; }
   });
 
   init();

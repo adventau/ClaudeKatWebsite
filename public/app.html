@@ -451,14 +451,16 @@
               <div class="guest-header-avatar" id="guest-chat-initial">G</div>
               <div class="guest-header-info">
                 <div class="guest-header-name" id="guest-chat-name">Guest</div>
-                <div class="guest-header-status" id="guest-chat-status">Guest Chat</div>
+                <!-- Channel tab strip: Group · DM -->
+                <div id="guest-channel-tabs" class="guest-channel-tabs"></div>
               </div>
             </div>
             <div class="guest-chat-header-actions">
               <button class="btn-icon" id="guest-edit-btn" onclick="editGuest(activeGuestId)" title="Edit Guest"><i data-lucide="settings" style="width:16px;height:16px"></i></button>
             </div>
           </div>
-          <!-- Messages area -->
+          <!-- Messages area (position:relative so nudge button can anchor inside) -->
+          <div style="position:relative;flex:1;overflow:hidden;display:flex;flex-direction:column">
           <div id="guest-messages-area" class="guest-messages-scroll">
             <div class="empty-state">
               <div class="empty-state-icon"><i data-lucide="message-square-plus" style="width:48px;height:48px;opacity:0.4"></i></div>
@@ -473,6 +475,7 @@
               <i data-lucide="send" style="width:16px;height:16px"></i>
             </button>
           </div>
+          </div><!-- /position:relative wrapper -->
         </div>
       </div>
     </section>

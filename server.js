@@ -430,6 +430,22 @@ function mainAuth(req, res, next) {
   res.status(401).json({ error: 'Unauthorized' });
 }
 
+// ── Guest auth guard ──────────────────────────────────────────────────────────
+// Confirms the request belongs to an active, non-expired guest session.
+// Returns { error, expired: true } with 401 if any check fails.
+function isGuestExpired(g) {
+  return !!(g.expiresAt && new Date() > new Date(g.expiresAt));
+}
+function guestAuth(req, res, next) {
+  if (!req.session?.isGuest || !req.session?.guestId)
+    return res.status(401).json({ error: 'Guest session expired', expired: true });
+  const guests = rd(F.guests) || {};
+  const g = guests[req.session.guestId];
+  if (!g || !g.active || isGuestExpired(g))
+    return res.status(401).json({ error: 'Guest session expired', expired: true });
+  next();
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -561,6 +577,26 @@ app.get('/api/auth/session', (req, res) => {
   });
 });
 
+// Dedicated guest session check — no auth middleware required.
+// Used by guest.html on init and reconnect instead of /api/auth/session.
+app.get('/api/auth/guest-session', (req, res) => {
+  if (!req.session?.isGuest || !req.session?.guestId)
+    return res.json({ isGuest: false, expired: false });
+  const guests = rd(F.guests) || {};
+  const g = guests[req.session.guestId];
+  if (!g || !g.active)
+    return res.json({ isGuest: false, expired: true });
+  if (isGuestExpired(g))
+    return res.json({ isGuest: false, expired: true });
+  res.json({
+    isGuest: true,
+    guestId: req.session.guestId,
+    guestName: g.name,
+    channels: g.channels || ['kaliph', 'kathrine', 'group'],
+    expired: false,
+  });
+});
+
 // Stealth preview — view as another user without affecting their presence/lastSeen/unread
 app.get('/api/auth/stealth', (req, res) => {
   if (!req.session?.authenticated || !req.session?.user) return res.status(401).json({ error: 'Not authenticated' });
@@ -583,11 +619,26 @@ app.get('/api/users', (req, res) => {
   if (!req.session?.user && !req.session?.isGuest && !req.session?.authenticated)
     return res.status(401).json({ error: 'Unauthorized' });
   const users = rd(F.users);
+  if (!users) return res.json({});
   // Inject live presence: 'online' | 'idle' | 'offline'
-  if (users) {
-    for (const name of Object.keys(users)) {
-      users[name]._presence = onlineUsers[name]?.state || 'offline';
+  for (const name of Object.keys(users)) {
+    users[name]._presence = onlineUsers[name]?.state || 'offline';
+  }
+  // Guests get only public profile fields — no sensitive auth data
+  if (req.session?.isGuest && !req.session?.user) {
+    const safe = {};
+    for (const [name, u] of Object.entries(users)) {
+      safe[name] = {
+        displayName: u.displayName,
+        avatar: u.avatar,
+        banner: u.banner,
+        customStatus: u.customStatus,
+        lastSeen: u.lastSeen,
+        _presence: u._presence,
+        theme: u.theme,
+      };
     }
+    return res.json(safe);
   }
   res.json(users);
 });
@@ -1789,7 +1840,10 @@ app.get('/api/guests', mainAuth, (_, res) => {
 
 app.post('/api/guests', mainAuth, async (req, res) => {
   const guests = rd(F.guests) || {};
-  const { name, password, expiresIn, expiresAt, channels } = req.body;
+  let { name, password, expiresIn, expiresAt, channels } = req.body;
+  if (!name || !password) return res.status(400).json({ error: 'Name and password are required' });
+  name = name.replace(/<[^>]*>/g, '').replace(/[&"'`]/g, c => ({'&':'&amp;','"':'&quot;',"'":'&#x27;','`':'&#x60;'}[c])).trim().substring(0, 50);
+  if (!name) return res.status(400).json({ error: 'Invalid name' });
   const id = uuidv4();
   const allowedChannels = Array.isArray(channels) && channels.length ? channels : ['kaliph', 'kathrine', 'group'];
   let expiry = null;
@@ -1812,8 +1866,12 @@ app.put('/api/guests/:id', mainAuth, (req, res) => {
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
-  const { name, channels, password } = req.body;
-  if (name) g.name = name;
+  const { channels, password } = req.body;
+  let { name } = req.body;
+  if (name) {
+    name = name.replace(/<[^>]*>/g, '').replace(/[&"'`]/g, c => ({'&':'&amp;','"':'&quot;',"'":'&#x27;','`':'&#x60;'}[c])).trim().substring(0, 50);
+    if (name) g.name = name;
+  }
   if (Array.isArray(channels) && channels.length) g.channels = channels;
   if (password) g.passwordHash = require('bcryptjs').hashSync(password, 10);
   wd(F.guests, guests);
@@ -1821,8 +1879,13 @@ app.put('/api/guests/:id', mainAuth, (req, res) => {
   res.json({ success: true });
 });
 
-// Guest avatar upload (authenticated as guest)
-app.post('/api/guests/:id/avatar', auth, upload.single('avatar'), (req, res) => {
+// Guest avatar upload — guests may only update their own avatar
+app.post('/api/guests/:id/avatar', (req, res, next) => {
+  if (req.session?.isGuest) return guestAuth(req, res, next);
+  return mainAuth(req, res, next);
+}, upload.single('avatar'), (req, res) => {
+  if (req.session?.isGuest && req.session.guestId !== req.params.id)
+    return res.status(403).json({ error: 'Forbidden' });
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
@@ -1851,10 +1914,17 @@ app.delete('/api/guests/:id', mainAuth, (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/guests/:id', auth, (req, res) => {
+app.get('/api/guests/:id', (req, res, next) => {
+  // Route to the appropriate auth guard based on session type
+  if (req.session?.isGuest) return guestAuth(req, res, next);
+  return mainAuth(req, res, next);
+}, (req, res) => {
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
+  // Guests can only fetch their own record
+  if (req.session?.isGuest && req.session.guestId !== req.params.id)
+    return res.status(403).json({ error: 'Forbidden' });
   res.json({ id: g.id, name: g.name, messages: g.messages, active: g.active, channels: g.channels || ['kaliph','kathrine','group'], createdBy: g.createdBy, avatar: g.avatar || null });
 });
 
@@ -1866,13 +1936,23 @@ app.get('/api/guest-messages', mainAuth, (req, res) => {
   Object.values(guests).forEach(g => {
     if (!g.active) return;
     const channels = { group: g.messages?.group || [], [user]: g.messages?.[user] || [] };
-    result.push({ id: g.id, name: g.name, avatar: g.avatar || null, channels });
+    // Per-channel message counts so the UI can show a badge
+    const messageCount = {};
+    Object.keys(g.messages || {}).forEach(ch => {
+      messageCount[ch] = (g.messages[ch] || []).length;
+    });
+    result.push({ id: g.id, name: g.name, avatar: g.avatar || null, channels, messageCount });
   });
   res.json(result);
 });
 
 // Guest message reactions
-app.post('/api/guests/:guestId/messages/:msgId/react', auth, (req, res) => {
+app.post('/api/guests/:guestId/messages/:msgId/react', (req, res, next) => {
+  if (req.session?.isGuest) return guestAuth(req, res, next);
+  return mainAuth(req, res, next);
+}, (req, res) => {
+  if (req.session?.isGuest && req.session.guestId !== req.params.guestId)
+    return res.status(403).json({ error: 'Forbidden' });
   const { emoji, sender } = req.body;
   const guests = rd(F.guests) || {};
   const g = guests[req.params.guestId];
@@ -1897,10 +1977,16 @@ app.post('/api/guests/:guestId/messages/:msgId/react', auth, (req, res) => {
   res.json({ success: found });
 });
 
-// Guest file upload
+// Guest file upload — session-based auth only
 app.post('/api/guests/:id/upload', upload.array('files', 10), (req, res) => {
-  const xGuestId = req.headers['x-guest-id'];
-  if (!xGuestId && !req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+  const isGuestSession = req.session?.isGuest === true && req.session?.guestId === req.params.id;
+  if (!isGuestSession && !req.session?.user)
+    return res.status(401).json({ error: 'Unauthorized' });
+  if (isGuestSession) {
+    const gCheck = (rd(F.guests) || {})[req.session.guestId];
+    if (!gCheck || !gCheck.active || isGuestExpired(gCheck))
+      return res.status(401).json({ error: 'Guest session expired', expired: true });
+  }
   const files = (req.files || []).map(f => ({
     url: `/uploads/${f.filename}`, type: f.mimetype, name: f.originalname, size: f.size
   }));
@@ -1916,26 +2002,38 @@ app.get('/api/guest-gif-search', (req, res) => {
 });
 
 app.post('/api/guests/:id/message', upload.array('files', 10), (req, res) => {
-  // Use X-Guest-Id header (sent only by guest.html) to identify guest senders.
-  // This avoids session cross-contamination when a main-user tab and a guest tab
-  // are open in the same browser simultaneously (they share the same session cookie).
-  const xGuestId = req.headers['x-guest-id'];
-  const isGuestRequest = !!(xGuestId && xGuestId === req.params.id);
-  if (!isGuestRequest && !req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+  // Determine whether this is a guest session or a main-user session.
+  // The session is the sole authority — no X-Guest-Id header tricks.
+  const isGuestSession = req.session?.isGuest === true && !!req.session?.guestId;
+  const isMainUser    = !!req.session?.user;
+
+  if (!isGuestSession && !isMainUser)
+    return res.status(401).json({ error: 'Unauthorized' });
+
+  // Guests may only post to their own conversation record
+  if (isGuestSession) {
+    if (req.session.guestId !== req.params.id)
+      return res.status(403).json({ error: 'Forbidden' });
+    // Live expiry check — do not rely solely on session age
+    const gCheck = (rd(F.guests) || {})[req.session.guestId];
+    if (!gCheck || !gCheck.active || isGuestExpired(gCheck))
+      return res.status(401).json({ error: 'Guest session expired', expired: true });
+  }
+
   const guests = rd(F.guests) || {};
   const g = guests[req.params.id];
   if (!g) return res.status(404).json({ error: 'Not found' });
+
   const { text, target, sender: clientSender, type, gifUrl, priority, replyTo } = req.body;
-  // Validate channel access for guests
-  if (isGuestRequest) {
-    const allowed = g.channels || ['kaliph','kathrine','group'];
-    if (!allowed.includes(target)) return res.status(403).json({ error: 'No access to this channel' });
-  }
-  // Guest portal sends X-Guest-Id header → use client-sent name (supports renames);
-  // Main users never send that header → always use their authenticated profile name.
-  const sender = isGuestRequest ? (clientSender || g.name) : req.session.user;
+
+  // Validate channel access
+  const allowed = g.channels || ['kaliph','kathrine','group'];
+  if (isGuestSession && !allowed.includes(target))
+    return res.status(403).json({ error: 'No access to this channel' });
+
+  const sender = isGuestSession ? g.name : req.session.user;
   const msg = { id: uuidv4(), sender, text: text || '', timestamp: Date.now(), replyTo: replyTo || null };
-  // Handle different message types
+
   if (type === 'gif' && gifUrl) { msg.type = 'gif'; msg.gifUrl = gifUrl; }
   if (type === 'voice' && req.files?.length) {
     msg.type = 'voice';
@@ -1945,8 +2043,12 @@ app.post('/api/guests/:id/message', upload.array('files', 10), (req, res) => {
     msg.files = req.files.map(f => ({ url: `/uploads/${f.filename}`, type: f.mimetype, name: f.originalname, size: f.size }));
   }
   if (priority === 'true') msg.priority = true;
+
   if (!g.messages[target]) g.messages[target] = [];
+  // Cap at 200 messages per channel — drop the oldest if over limit
+  if (g.messages[target].length >= 200) g.messages[target].shift();
   g.messages[target].push(msg);
+
   wd(F.guests, guests);
   io.emit(`guest-msg-${req.params.id}-${target}`, msg);
   res.json({ success: true, message: msg });

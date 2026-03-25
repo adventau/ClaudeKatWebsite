@@ -4072,35 +4072,57 @@ async function deleteAnnouncement(id) {
 
 // ── Guest Messages ────────────────────────────────────────────────────
 let activeGuestId = null;
-let activeGuestChannel = null; // 'group', 'kaliph', 'kathrine'
+let activeGuestChannel = null; // 'group', 'kaliph', 'kathrine', or a guest-* channel
 let guestData = [];
-let guestUnread = {}; // { 'guestId:channel': count }
+// { 'guestId:channel': count } — persisted in sessionStorage across section switches
+let guestUnread = JSON.parse(sessionStorage.getItem('guestUnread') || '{}');
+// Track which guest IDs have had socket listeners registered
+const _guestListenersRegistered = new Set();
+
+function _persistGuestUnread() {
+  sessionStorage.setItem('guestUnread', JSON.stringify(guestUnread));
+}
 
 async function loadGuestMessages() {
+  const prevActiveId = activeGuestId;
+  const prevActiveCh = activeGuestChannel;
   try {
     const res = await fetch('/api/guest-messages');
     if (!res.ok) return;
     guestData = await res.json();
   } catch { guestData = []; }
+  // Restore active selection if the guest is still present
+  if (prevActiveId && !guestData.find(g => g.id === prevActiveId)) {
+    activeGuestId = null;
+    activeGuestChannel = null;
+  }
   renderGuestList();
   setupGuestSocketListeners();
 }
 
 function setupGuestSocketListeners() {
-  socket.off('guest-revoked');
-  guestData.forEach(g => {
-    socket.off(`guest-msg-${g.id}-group`);
-    socket.off(`guest-msg-${g.id}-${currentUser}`);
-  });
+  // Remove listeners for guests that are no longer in guestData
+  const currentIds = new Set(guestData.map(g => g.id));
+  for (const id of _guestListenersRegistered) {
+    if (!currentIds.has(id)) {
+      socket.off(`guest-msg-${id}-group`);
+      socket.off(`guest-msg-${id}-${currentUser}`);
+      _guestListenersRegistered.delete(id);
+    }
+  }
 
+  // Register master events only once (they are not per-guest so always safe to re-register)
   socket.off('guest-created');
-  socket.on('guest-created', async ({ guestId, name }) => {
-    // Reload guest data and re-register socket listeners for new guest
+  socket.on('guest-created', async () => {
     await loadGuestMessages();
   });
 
+  socket.off('guest-revoked');
   socket.on('guest-revoked', ({ guestId }) => {
     guestData = guestData.filter(g => g.id !== guestId);
+    _guestListenersRegistered.delete(guestId);
+    socket.off(`guest-msg-${guestId}-group`);
+    socket.off(`guest-msg-${guestId}-${currentUser}`);
     if (activeGuestId === guestId) {
       activeGuestId = null;
       activeGuestChannel = null;
@@ -4113,7 +4135,11 @@ function setupGuestSocketListeners() {
     updateGuestNavBadge();
   });
 
+  // Add listeners only for guests not yet registered
   guestData.forEach(g => {
+    if (_guestListenersRegistered.has(g.id)) return;
+    _guestListenersRegistered.add(g.id);
+
     const handleGuestMsg = (channel) => (msg) => {
       const guest = guestData.find(x => x.id === g.id);
       if (guest) {
@@ -4125,6 +4151,7 @@ function setupGuestSocketListeners() {
       } else {
         const key = g.id + ':' + channel;
         guestUnread[key] = (guestUnread[key] || 0) + 1;
+        _persistGuestUnread();
         renderGuestList();
       }
       if (msg.sender !== currentUser) {
@@ -4164,10 +4191,23 @@ function updateGuestNavBadge() {
   }
 }
 
+// Delegated click handler for #guest-list — wired up once in DOMContentLoaded
+function _initGuestListDelegate() {
+  const list = document.getElementById('guest-list');
+  if (!list || list._delegateReady) return;
+  list._delegateReady = true;
+  list.addEventListener('click', e => {
+    const item = e.target.closest('[data-guest-id]');
+    if (!item) return;
+    selectGuest(item.dataset.guestId, item.dataset.guestChannel);
+  });
+}
+
 function renderGuestList() {
   const list = document.getElementById('guest-list');
   const badge = document.getElementById('guest-count-badge');
   if (!list) return;
+  _initGuestListDelegate();
   if (badge) badge.textContent = guestData.length;
   if (!guestData.length) {
     list.innerHTML = '<div class="empty-state" style="padding:2rem 1rem;height:auto"><div class="empty-state-icon"><i data-lucide="user-x" style="width:32px;height:32px;opacity:0.4"></i></div><div class="empty-state-text" style="font-size:0.82rem">No active guests</div></div>';
@@ -4175,7 +4215,7 @@ function renderGuestList() {
     return;
   }
 
-  // Build separate entries per channel, then sort by most recent message
+  // Build separate entries per channel, sort by most recent message
   const entries = [];
   guestData.forEach(g => {
     const channels = g.channels || {};
@@ -4184,7 +4224,6 @@ function renderGuestList() {
       return msgs && msgs.length > 0;
     });
     if (!channelIds.length) channelIds.push('group');
-
     channelIds.forEach(ch => {
       const msgs = channels[ch] || [];
       const lastMsg = msgs[msgs.length - 1];
@@ -4193,23 +4232,24 @@ function renderGuestList() {
     });
   });
 
-  // Sort by most recent message first
   entries.sort((a, b) => b.lastTs - a.lastTs);
 
   let html = '';
   entries.forEach(({ g, ch, lastMsg }) => {
-    const preview = lastMsg ? (lastMsg.text.length > 30 ? lastMsg.text.slice(0, 30) + '…' : lastMsg.text) : 'No messages yet';
+    const rawPreview = lastMsg ? (lastMsg.text || '') : '';
+    const preview = rawPreview.length > 30 ? rawPreview.slice(0, 30) + '…' : (rawPreview || 'No messages yet');
     const time = lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
     const unreadKey = g.id + ':' + ch;
     const unread = guestUnread[unreadKey] || 0;
     const isActive = activeGuestId === g.id && activeGuestChannel === ch;
     const chLabel = ch === 'group' ? 'Group' : 'DM';
-    html += `<div class="guest-list-item ${isActive ? 'active' : ''}" onclick="selectGuest('${g.id}','${ch}')">
-      <div class="guest-item-avatar">${g.avatar ? `<img src="${g.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : g.name[0].toUpperCase()}</div>
+    // data-* attributes instead of inline onclick to avoid XSS from names
+    html += `<div class="guest-list-item ${isActive ? 'active' : ''}" data-guest-id="${escapeHtml(g.id)}" data-guest-channel="${escapeHtml(ch)}" role="button" tabindex="0">
+      <div class="guest-item-avatar">${g.avatar ? `<img src="${escapeHtml(g.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : escapeHtml(g.name[0].toUpperCase())}</div>
       <div class="guest-item-info">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <div class="guest-item-name">${escapeHtml(g.name)} <span style="font-size:0.65rem;color:var(--text-muted);font-weight:400">· ${chLabel}</span></div>
-          ${time ? `<span style="font-size:0.65rem;color:var(--text-muted);flex-shrink:0">${time}</span>` : ''}
+          <div class="guest-item-name">${escapeHtml(g.name)} <span style="font-size:0.65rem;color:var(--text-muted);font-weight:400">· ${escapeHtml(chLabel)}</span></div>
+          ${time ? `<span style="font-size:0.65rem;color:var(--text-muted);flex-shrink:0">${escapeHtml(time)}</span>` : ''}
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
           <div class="guest-item-meta">${escapeHtml(preview)}</div>
@@ -4225,14 +4265,35 @@ function renderGuestList() {
 function selectGuest(guestId, channel) {
   activeGuestId = guestId;
   activeGuestChannel = channel || 'group';
-  // Clear unread for this specific guest+channel
+  // Clear unread for this specific guest+channel and persist
   delete guestUnread[guestId + ':' + activeGuestChannel];
+  _persistGuestUnread();
   updateGuestNavBadge();
   renderGuestList();
   renderGuestChat();
   document.getElementById('guest-chat-header').style.display = '';
   document.getElementById('guest-reply-bar').style.display = '';
   if (window.lucide) lucide.createIcons();
+}
+
+function _updateGuestChannelTabs() {
+  const guest = guestData.find(g => g.id === activeGuestId);
+  const tabsEl = document.getElementById('guest-channel-tabs');
+  if (!tabsEl || !guest) return;
+  // Build available channels for this guest (group + DM channels)
+  const availableChannels = ['group', currentUser].filter(ch =>
+    (guest.channels && (ch === 'group' || guest.channels[ch] !== undefined)) || ch === 'group'
+  );
+  tabsEl.innerHTML = availableChannels.map(ch => {
+    const label = ch === 'group' ? 'Group' : 'DM';
+    const isActive = activeGuestChannel === ch;
+    return `<button class="guest-ch-tab${isActive ? ' active' : ''}" data-channel="${escapeHtml(ch)}">${escapeHtml(label)}</button>`;
+  }).join('');
+  tabsEl.querySelectorAll('.guest-ch-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectGuest(activeGuestId, btn.dataset.channel);
+    });
+  });
 }
 
 function renderGuestChat() {
@@ -4244,13 +4305,12 @@ function renderGuestChat() {
     return;
   }
 
-  const chLabel = activeGuestChannel === 'group' ? 'Group Chat' : 'Direct Message';
-  document.getElementById('guest-chat-name').textContent = guest.name;
+  // Update header
+  document.getElementById('guest-chat-name').textContent = escapeHtml(guest.name);
   const gciEl = document.getElementById('guest-chat-initial');
-  if (guest.avatar) gciEl.innerHTML = `<img src="${guest.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+  if (guest.avatar) gciEl.innerHTML = `<img src="${escapeHtml(guest.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
   else gciEl.textContent = guest.name[0].toUpperCase();
-  const statusEl = document.getElementById('guest-chat-status');
-  if (statusEl) statusEl.textContent = chLabel;
+  _updateGuestChannelTabs();
 
   // Show only the selected channel's messages
   const msgs = (guest.channels || {})[activeGuestChannel] || [];
@@ -4261,8 +4321,10 @@ function renderGuestChat() {
     return;
   }
 
+  // Scroll-preservation: if user is near bottom, auto-scroll; otherwise show nudge
+  const wasNearBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 60;
+
   area.innerHTML = msgs.map((m, i) => {
-    // Only current user's messages go on the right — other host + guest on left
     const isSelf = m.sender === currentUser;
     const isHost = m.sender === 'kaliph' || m.sender === 'kathrine';
     const senderName = isHost ? capitalize(m.sender) : escapeHtml(m.sender);
@@ -4270,14 +4332,13 @@ function renderGuestChat() {
     const prev = msgs[i - 1];
     const sameSender = prev && prev.sender === m.sender && (m.timestamp - prev.timestamp < 120000);
     const chatColor = m.sender === 'kaliph' ? 'var(--kaliph-color, #7c3aed)' : m.sender === 'kathrine' ? 'var(--kathrine-color, #c084fc)' : 'var(--accent)';
-    // Use profile picture for host users or guest avatar
     const userData = isHost && window._users ? window._users[m.sender] : null;
     const gAvatar = !isHost && !isSelf && guest?.avatar ? guest.avatar : null;
     const avatarInner = userData?.avatar
-      ? `<img src="${userData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      ? `<img src="${escapeHtml(userData.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
       : gAvatar
-        ? `<img src="${gAvatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
-        : (m.sender || 'G')[0].toUpperCase();
+        ? `<img src="${escapeHtml(gAvatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+        : escapeHtml((m.sender || 'G')[0].toUpperCase());
 
     return `<div class="guest-msg-row ${isSelf ? 'self' : ''}${sameSender ? ' same-sender' : ''}">
       ${!isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${avatarInner}</div>` : ''}
@@ -4285,26 +4346,61 @@ function renderGuestChat() {
         ${!sameSender ? `<div class="guest-msg-sender ${isSelf ? 'self' : ''}" style="color:${chatColor}">${senderName}</div>` : ''}
         <div class="guest-msg-bubble ${isSelf ? 'self' : 'other'}">
           <span>${escapeHtml(m.text)}</span>
-          <span class="guest-msg-time">${time}</span>
+          <span class="guest-msg-time">${escapeHtml(time)}</span>
         </div>
       </div>
       ${isSelf ? `<div class="guest-msg-avatar" style="${sameSender ? 'visibility:hidden' : ''};background:${chatColor}">${avatarInner}</div>` : ''}
     </div>`;
   }).join('');
-  area.scrollTop = area.scrollHeight;
+
+  if (wasNearBottom) {
+    area.scrollTop = area.scrollHeight;
+    // Remove any existing nudge
+    const existingNudge = area.parentElement?.querySelector('.guest-msg-nudge');
+    if (existingNudge) existingNudge.remove();
+  } else {
+    // Show a nudge button so the user can scroll to new messages
+    const parent = area.parentElement;
+    if (parent && !parent.querySelector('.guest-msg-nudge')) {
+      const nudge = document.createElement('button');
+      nudge.className = 'guest-msg-nudge';
+      nudge.textContent = '↓ New message';
+      nudge.addEventListener('click', () => {
+        area.scrollTop = area.scrollHeight;
+        nudge.remove();
+      });
+      parent.appendChild(nudge);
+    }
+  }
+  if (window.lucide) lucide.createIcons();
 }
 
+let _guestReplySending = false;
 async function sendGuestReply() {
+  if (_guestReplySending) return;
   const input = document.getElementById('guest-reply-input');
+  const sendBtn = document.querySelector('.guest-send-btn');
   const text = input.value.trim();
   if (!text || !activeGuestId || !activeGuestChannel) return;
+  _guestReplySending = true;
+  if (sendBtn) sendBtn.disabled = true;
   input.value = '';
   try {
-    await fetch(`/api/guests/${activeGuestId}/message`, {
+    const res = await fetch(`/api/guests/${activeGuestId}/message`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, target: activeGuestChannel })
+      body: JSON.stringify({ text, target: activeGuestChannel, sender: currentUser })
     });
-  } catch (e) { showToast('Failed to send'); }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.error || 'Failed to send');
+    }
+  } catch (e) {
+    showToast('Failed to send');
+  } finally {
+    _guestReplySending = false;
+    if (sendBtn) sendBtn.disabled = false;
+    input.focus();
+  }
 }
 
 // ── Settings ──────────────────────────────────────────────────────────
@@ -5436,8 +5532,8 @@ async function editGuest(guestId) {
   if (!g) return showToast('Guest not found');
   const channels = g.channels || ['kaliph','kathrine','group'];
   const avatarPreview = g.avatar
-    ? `<img src="${g.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
-    : `<span style="font-size:1.4rem;color:var(--text-primary,#fff)">${g.name[0].toUpperCase()}</span>`;
+    ? `<img src="${escapeHtml(g.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+    : `<span style="font-size:1.4rem;color:var(--text-primary,#fff)">${escapeHtml(g.name[0].toUpperCase())}</span>`;
   let overlay = document.getElementById('edit-guest-overlay');
   if (overlay) overlay.remove();
   overlay = document.createElement('div');
@@ -5488,7 +5584,7 @@ async function uploadGuestAvatarHost(guestId, input) {
   const data = await res.json();
   if (data.avatar) {
     const preview = document.getElementById('edit-guest-avatar-preview');
-    if (preview) preview.innerHTML = `<img src="${data.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"><div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);opacity:0;transition:opacity 0.2s;display:flex;align-items:center;justify-content:center;border-radius:50%" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0"><i data-lucide="camera" style="width:20px;height:20px;color:#fff"></i></div>`;
+    if (preview) preview.innerHTML = `<img src="${escapeHtml(data.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"><div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);opacity:0;transition:opacity 0.2s;display:flex;align-items:center;justify-content:center;border-radius:50%" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0"><i data-lucide="camera" style="width:20px;height:20px;color:#fff"></i></div>`;
     if (window.lucide) lucide.createIcons();
     showToast('Avatar updated');
     await loadGuestMessages();
@@ -5543,7 +5639,6 @@ async function createGuest() {
   const name = document.getElementById('guest-name').value.trim();
   const pw   = document.getElementById('guest-pw').value;
   if (!name || !pw) return showToast('⚠️ Name and password required');
-  // Compute expiration
   const mode = getCustomSelectValue('guest-expires-mode');
   let expiresAt = null;
   if (mode === 'duration') {
@@ -5562,11 +5657,21 @@ async function createGuest() {
     if (cb.checked) channels.push('guest-' + cb.dataset.guestChannel);
   });
   if (!channels.length) return showToast('⚠️ Select at least one channel');
-  const resp = await fetch('/api/guests', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, password: pw, expiresAt, channels })
-  });
-  const result = await resp.json();
+
+  let result;
+  try {
+    const resp = await fetch('/api/guests', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, password: pw, expiresAt, channels })
+    });
+    result = await resp.json();
+    if (!resp.ok) throw new Error(result.error || 'Server error');
+  } catch (e) {
+    showToast(`❌ Failed to create guest: ${e.message}`);
+    return;
+  }
+
+  // Reset form
   document.getElementById('guest-name').value = '';
   document.getElementById('guest-pw').value = '';
   setCustomSelectValue('guest-expires-mode', 'never', 'Never expires');
@@ -5574,15 +5679,53 @@ async function createGuest() {
   document.getElementById('guest-perm-kaliph').checked = true;
   document.getElementById('guest-perm-kathrine').checked = true;
   document.getElementById('guest-perm-group').checked = true;
+
   await loadGuests();
-  // Auto-open the new guest's conversation
-  if (result.guestId) {
-    await loadGuestMessages();
-    const defaultCh = channels.includes('group') ? 'group' : channels[0];
-    showSection('guest-messages', document.querySelector('.nav-item[data-section="guest-messages"]'));
-    selectGuest(result.guestId, defaultCh);
-  }
-  showToast(`🌟 Guest pass created for ${name}!`);
+
+  // Show password confirmation overlay with copy button
+  _showGuestCreatedModal(name, pw, result.guestId, channels);
+}
+
+function _showGuestCreatedModal(name, pw, guestId, channels) {
+  let overlay = document.getElementById('guest-created-overlay');
+  if (overlay) overlay.remove();
+  overlay = document.createElement('div');
+  overlay.id = 'guest-created-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-card,var(--surface,#1e1e2e));border:1px solid var(--border);border-radius:16px;padding:1.75rem;width:360px;max-width:92vw;box-shadow:0 12px 40px rgba(0,0,0,0.45);text-align:center">
+      <div style="font-size:2rem;margin-bottom:0.5rem">🌟</div>
+      <div style="font-size:1rem;font-weight:700;color:var(--text-primary,#fff);margin-bottom:0.3rem">Guest Pass Created!</div>
+      <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1.25rem">Share your site URL and this password with <strong>${escapeHtml(name)}</strong>.</div>
+      <div style="background:var(--bg-primary,#0c0912);border:1px solid var(--border);border-radius:10px;padding:0.85rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:8px;justify-content:space-between">
+        <code id="guest-pw-display" style="font-size:1rem;font-weight:700;color:var(--accent);letter-spacing:0.04em;word-break:break-all">${escapeHtml(pw)}</code>
+        <button id="guest-pw-copy-btn" style="flex-shrink:0;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:0.75rem;cursor:pointer;white-space:nowrap">Copy</button>
+      </div>
+      <div style="font-size:0.74rem;color:var(--text-muted);margin-bottom:1.25rem">This password won't be shown again — copy it now.</div>
+      <button id="guest-created-dismiss" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:9px 28px;font-size:0.88rem;font-weight:600;cursor:pointer;width:100%">Done</button>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#guest-pw-copy-btn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(pw);
+      const btn = overlay.querySelector('#guest-pw-copy-btn');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1800);
+    } catch { showToast('Copy failed — please copy manually'); }
+  });
+
+  const dismiss = overlay.querySelector('#guest-created-dismiss');
+  dismiss.addEventListener('click', async () => {
+    overlay.remove();
+    if (guestId) {
+      await loadGuestMessages();
+      const defaultCh = channels.includes('group') ? 'group' : channels[0];
+      showSection('guest-messages', document.querySelector('.nav-item[data-section="guest-messages"]'));
+      selectGuest(guestId, defaultCh);
+    }
+    showToast(`🌟 Guest pass created for ${escapeHtml(name)}!`);
+  });
 }
 
 // Custom confirm dialog (replaces browser confirm())
@@ -5637,6 +5780,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); closePromptDialog(true); }
     if (e.key === 'Escape') closePromptDialog(false);
   });
+  // Wire up guest list delegated click handler
+  _initGuestListDelegate();
 });
 
 async function revokeGuest(id, name) {
