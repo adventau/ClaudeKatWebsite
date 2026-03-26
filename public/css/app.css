@@ -3572,6 +3572,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 }
 .money-setup-field {
   flex: 1;
+  min-width: 0;
   text-align: left;
 }
 .money-setup-field label {
@@ -3589,6 +3590,8 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   border-radius: var(--radius-input, 10px);
   padding: 0 12px;
   transition: border-color 0.2s;
+  min-width: 0;
+  overflow: hidden;
 }
 .money-input-prefix:focus-within { border-color: var(--border-focus); }
 .money-input-prefix span {
