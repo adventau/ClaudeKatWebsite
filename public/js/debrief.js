@@ -1943,10 +1943,16 @@
         if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
       });
       xhr.addEventListener('load', () => {
-        try { resolve(JSON.parse(xhr.responseText)); }
-        catch { resolve({ ok: true }); }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); }
+          catch { reject(new Error('Invalid server response')); }
+        } else {
+          let msg = `Server error ${xhr.status}`;
+          try { const err = JSON.parse(xhr.responseText); msg = err.error || msg; } catch {}
+          reject(new Error(msg));
+        }
       });
-      xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+      xhr.addEventListener('error', () => reject(new Error('Upload failed — network error')));
       xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
       xhr.open('POST', url);
       xhr.send(formData);
@@ -2008,6 +2014,9 @@
       }
       updateUploadProgress(100, 'Done!');
       if (allNewFiles.length) {
+        // Reload fresh content from server before modifying, so we don't
+        // overwrite the server's updated photo tracking with stale data
+        await loadContent();
         if (!contentData.months) contentData.months = {};
         if (!contentData.months[monthId]) contentData.months[monthId] = {};
         if (!contentData.months[monthId].events) contentData.months[monthId].events = [];
@@ -2090,7 +2099,10 @@
     const m = months.find(x => x.id === monthId);
     if (!m) return;
     const strip = document.getElementById(`filmstrip-${monthId}`);
-    if (strip) strip.innerHTML = buildFilmstrip(m);
+    if (strip) {
+      strip.innerHTML = buildFilmstrip(m);
+      updateSlideVideos();
+    }
   }
 
   // --- Reorder photos within an event slide ---
