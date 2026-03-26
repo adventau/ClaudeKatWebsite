@@ -100,7 +100,7 @@ async function transcodeVideo(inputPath) {
       .outputOptions([
         '-c:v', 'libx264',        // H.264 — universally supported, hardware-decodable
         '-crf', '26',             // Quality: 0=lossless, 51=worst. 26 is visually near-lossless
-        '-preset', 'fast',        // Encoding speed (fast = good quality/speed trade-off)
+        '-preset', 'ultrafast',   // Fastest encoding — slightly larger file but done quickly
         '-c:a', 'aac',            // AAC audio
         '-b:a', '128k',           // 128 kbps audio
         '-vf', 'scale=-2:min(720\\,ih)',  // Cap height at 720p, keep aspect ratio, width divisible by 2
