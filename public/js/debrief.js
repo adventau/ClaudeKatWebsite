@@ -1533,8 +1533,8 @@
       } catch (err) {
         console.error('Audio upload failed:', err);
         if (btn) { btn.textContent = '✗ Error — try again'; btn.style.opacity = '1'; }
-        updateUploadProgress(0, 'Upload failed — try again');
-        setTimeout(hideUploadProgress, 2000);
+        updateUploadProgress(0, err.message || 'Upload failed — try again');
+        setTimeout(hideUploadProgress, 3000);
       }
       e.target.value = '';
     });
@@ -1627,8 +1627,8 @@
       } catch (err) {
         console.error('Cover upload failed:', err);
         if (btn) { btn.textContent = '✗ Error — try again'; btn.style.opacity = '1'; }
-        updateUploadProgress(0, 'Upload failed — try again');
-        setTimeout(hideUploadProgress, 2000);
+        updateUploadProgress(0, err.message || 'Upload failed — try again');
+        setTimeout(hideUploadProgress, 3000);
       }
       e.target.value = '';
     });
@@ -1947,8 +1947,10 @@
           try { resolve(JSON.parse(xhr.responseText)); }
           catch { reject(new Error('Invalid server response')); }
         } else {
-          let msg = `Server error ${xhr.status}`;
-          try { const err = JSON.parse(xhr.responseText); msg = err.error || msg; } catch {}
+          let msg = `Error ${xhr.status}`;
+          try { const err = JSON.parse(xhr.responseText); if (err.error) msg = err.error; } catch {}
+          if (xhr.status === 413) msg = 'File too large for server';
+          if (xhr.status === 502 || xhr.status === 504) msg = 'Server timeout — file may be too large';
           reject(new Error(msg));
         }
       });
@@ -1985,8 +1987,8 @@
       setTimeout(hideUploadProgress, 600);
     } catch (e) {
       console.error('Upload failed:', e);
-      updateUploadProgress(0, 'Upload failed — try again');
-      setTimeout(hideUploadProgress, 2000);
+      updateUploadProgress(0, e.message || 'Upload failed — try again');
+      setTimeout(hideUploadProgress, 3000);
     }
   }
 
@@ -2035,8 +2037,8 @@
       setTimeout(hideUploadProgress, 600);
     } catch (e) {
       console.error('Event photo upload failed:', e);
-      updateUploadProgress(0, 'Upload failed — try again');
-      setTimeout(hideUploadProgress, 2000);
+      updateUploadProgress(0, e.message || 'Upload failed — try again');
+      setTimeout(hideUploadProgress, 3000);
     }
   }
 
