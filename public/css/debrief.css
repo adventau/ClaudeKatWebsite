@@ -160,7 +160,7 @@ html, body {
   transform: translateY(6px);
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
-.audio-control-wrap:hover .volume-popup,
+.audio-control-wrap:has(.audio-toggle:hover) .volume-popup,
 .volume-popup:hover {
   opacity: 1; pointer-events: all;
   transform: translateY(0);
