@@ -3795,24 +3795,98 @@ function writeDebriefConfig(data) {
 }
 
 // Store a file in DB as base64 for persistence across deploys
-async function storeDebriefFile(filePath, buffer) {
-  const base64 = buffer.toString('base64');
-  await db.write(`debrief-file:${filePath}`, { data: base64, size: buffer.length });
-  _debriefFilesCache[filePath] = buffer;
+// Store file to DB in chunks to avoid OOM on large files.
+// Each chunk is ~1MB of raw data (~1.33MB as base64).
+const DB_CHUNK_SIZE = 1 * 1024 * 1024; // 1MB chunks
+
+async function storeDebriefFile(filePath, bufferOrPath) {
+  let buffer;
+  if (typeof bufferOrPath === 'string') {
+    // It's a file path — read in chunks and store directly
+    const stat = await fs.stat(bufferOrPath);
+    const totalChunks = Math.ceil(stat.size / DB_CHUNK_SIZE);
+
+    // Delete any old chunks/legacy single-row entry first
+    try {
+      await db.query("DELETE FROM data_store WHERE key = $1 OR key LIKE $2",
+        [`debrief-file:${filePath}`, `debrief-file:${filePath}:chunk:%`]);
+    } catch (e) { /* table might not exist yet */ }
+
+    // Store metadata
+    await db.write(`debrief-file:${filePath}`, { chunked: true, chunks: totalChunks, size: stat.size });
+
+    // Stream chunks from file without loading entire file into memory
+    const fd = await fs.open(bufferOrPath, 'r');
+    try {
+      const chunkBuf = Buffer.alloc(DB_CHUNK_SIZE);
+      for (let i = 0; i < totalChunks; i++) {
+        const { bytesRead } = await fd.read(chunkBuf, 0, DB_CHUNK_SIZE, i * DB_CHUNK_SIZE);
+        const base64 = chunkBuf.slice(0, bytesRead).toString('base64');
+        await db.write(`debrief-file:${filePath}:chunk:${i}`, { data: base64 });
+      }
+    } finally {
+      await fd.close();
+    }
+    console.log(`[debrief] Stored ${filePath} to DB (${totalChunks} chunks, ${Math.round(stat.size / 1024)}KB)`);
+    return;
+  }
+
+  // Legacy: buffer passed directly (small files)
+  buffer = bufferOrPath;
+  if (buffer.length <= DB_CHUNK_SIZE) {
+    // Small file — single row (backwards compatible)
+    await db.write(`debrief-file:${filePath}`, { data: buffer.toString('base64'), size: buffer.length });
+  } else {
+    // Large buffer — chunk it
+    const totalChunks = Math.ceil(buffer.length / DB_CHUNK_SIZE);
+    try {
+      await db.query("DELETE FROM data_store WHERE key = $1 OR key LIKE $2",
+        [`debrief-file:${filePath}`, `debrief-file:${filePath}:chunk:%`]);
+    } catch (e) { /* ignore */ }
+    await db.write(`debrief-file:${filePath}`, { chunked: true, chunks: totalChunks, size: buffer.length });
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * DB_CHUNK_SIZE;
+      const chunk = buffer.slice(start, start + DB_CHUNK_SIZE);
+      await db.write(`debrief-file:${filePath}:chunk:${i}`, { data: chunk.toString('base64') });
+    }
+    console.log(`[debrief] Stored ${filePath} to DB (${totalChunks} chunks, ${Math.round(buffer.length / 1024)}KB)`);
+  }
 }
 
 // Restore all debrief files from DB to disk on startup
 async function restoreDebriefFiles() {
   try {
     if (!db.pool) return;
-    const result = await db.query("SELECT key, value FROM data_store WHERE key LIKE 'debrief-file:%'");
+    // Get all metadata entries (not chunks)
+    const result = await db.query(
+      "SELECT key, value FROM data_store WHERE key LIKE 'debrief-file:%' AND key NOT LIKE '%:chunk:%'"
+    );
     for (const row of result.rows) {
       const filePath = row.key.replace('debrief-file:', '');
-      const { data } = JSON.parse(row.value);
       const fullPath = path.join(DEBRIEF_UPLOADS_DIR, filePath);
       fs.ensureDirSync(path.dirname(fullPath));
-      fs.writeFileSync(fullPath, Buffer.from(data, 'base64'));
-      console.log(`[debrief] Restored file: ${filePath}`);
+      const meta = JSON.parse(row.value);
+
+      if (meta.chunked) {
+        // Reassemble from chunks — write directly to file to save memory
+        const fd = await fs.open(fullPath, 'w');
+        try {
+          for (let i = 0; i < meta.chunks; i++) {
+            const chunkRow = await db.read(`debrief-file:${filePath}:chunk:${i}`);
+            if (chunkRow && chunkRow.data) {
+              const buf = Buffer.from(chunkRow.data, 'base64');
+              await fd.write(buf, 0, buf.length);
+            }
+          }
+        } finally {
+          await fd.close();
+        }
+        console.log(`[debrief] Restored chunked file: ${filePath} (${meta.chunks} chunks)`);
+      } else if (meta.data) {
+        // Legacy single-row format
+        fs.writeFileSync(fullPath, Buffer.from(meta.data, 'base64'));
+        console.log(`[debrief] Restored file: ${filePath}`);
+      }
     }
   } catch (e) {
     console.error('[debrief] Error restoring files:', e.message);
@@ -3912,25 +3986,12 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), asyn
     // Respond immediately — persist to DB in background
     res.json({ ok: true, files: newFiles });
 
-    // Background: store files to DB for deployment durability
-    // Skip files > 5MB (videos) to avoid OOM crashes on small hosting plans
-    const DB_STORE_MAX = 5 * 1024 * 1024;
+    // Background: store files to DB in chunks (streams from disk, never loads full file into RAM)
     for (let i = 0; i < (req.files || []).length; i++) {
-      const f = req.files[i];
       const finalName = newFiles[i];
       if (!finalName) continue;
-      const finalPath = path.join(path.dirname(f.path), finalName);
-      try {
-        const stat = await fs.stat(finalPath);
-        if (stat.size > DB_STORE_MAX) {
-          console.log(`[debrief] Skipping DB store for ${finalName} (${Math.round(stat.size / 1024 / 1024)}MB > 5MB limit)`);
-          continue;
-        }
-        const buf = await fs.readFile(finalPath);
-        storeDebriefFile(`${monthId}/${finalName}`, buf).catch(e => console.error('[debrief] DB store photo:', e.message));
-      } catch (e) {
-        console.error('[debrief] Read for DB store:', e.message);
-      }
+      const finalPath = path.join(path.dirname(req.files[i].path), finalName);
+      storeDebriefFile(`${monthId}/${finalName}`, finalPath).catch(e => console.error('[debrief] DB store photo:', e.message));
     }
   } catch (e) {
     console.error('[debrief] upload error:', e.message);
@@ -3977,13 +4038,9 @@ app.post('/api/debrief/upload-audio/:monthId', (req, res) => {
         writeDebriefContent(content);
         // Respond immediately — persist to DB in background only if small enough
         res.json({ ok: true, filename: req.file.filename });
-        if (req.file.size <= 5 * 1024 * 1024) {
-          fs.readFile(req.file.path).then(buf => {
-            storeDebriefFile(`audio/${req.file.filename}`, buf).catch(e => console.error('[debrief] DB store audio:', e.message));
-          }).catch(() => {});
-        } else {
-          console.log(`[debrief] Skipping DB store for audio ${req.file.filename} (${Math.round(req.file.size / 1024 / 1024)}MB)`);
-        }
+        // Background: chunk-store to DB (streams from disk, no OOM)
+        storeDebriefFile(`audio/${req.file.filename}`, req.file.path)
+          .catch(e => console.error('[debrief] DB store audio:', e.message));
       } catch (innerErr) {
         console.error('Audio upload handler error:', innerErr);
         if (!res.headersSent) res.status(500).json({ error: 'Server error during upload' });
@@ -4022,14 +4079,8 @@ app.post('/api/debrief/upload-gate-audio', (req, res) => {
         writeDebriefConfig(cfg);
         res.json({ ok: true, filename: newName });
         // Background DB store — skip if too large
-        const gateSize = fs.statSync(newPath).size;
-        if (gateSize <= 5 * 1024 * 1024) {
-          fs.readFile(newPath).then(buf => {
-            storeDebriefFile(`audio/${newName}`, buf).catch(e => console.error('[debrief] DB store gate audio:', e.message));
-          }).catch(() => {});
-        } else {
-          console.log(`[debrief] Skipping DB store for gate audio (${Math.round(gateSize / 1024 / 1024)}MB)`);
-        }
+        storeDebriefFile(`audio/${newName}`, newPath)
+          .catch(e => console.error('[debrief] DB store gate audio:', e.message));
       } catch (innerErr) {
         console.error('Gate audio upload handler error:', innerErr);
         if (!res.headersSent) res.status(500).json({ error: 'Server error during upload' });
@@ -4075,10 +4126,8 @@ app.post('/api/debrief/upload-cover/:monthId', (req, res) => {
         content.months[monthId].coverFile = finalName;
         writeDebriefContent(content);
         res.json({ ok: true, filename: finalName });
-        // Background DB store
-        fs.readFile(finalPath).then(buf => {
-          storeDebriefFile(`covers/${finalName}`, buf).catch(e => console.error('[debrief] DB store cover:', e.message));
-        }).catch(() => {});
+        storeDebriefFile(`covers/${finalName}`, finalPath)
+          .catch(e => console.error('[debrief] DB store cover:', e.message));
       } catch (innerErr) {
         console.error('Cover upload handler error:', innerErr);
         if (!res.headersSent) res.status(500).json({ error: 'Server error during upload' });
