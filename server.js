@@ -3962,17 +3962,24 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), asyn
     if (!content.months[monthId].photos) content.months[monthId].photos = [];
 
     const newFiles = [];
+    const videoFilesToTranscode = [];
 
     for (const f of (req.files || [])) {
       const isVideo = VIDEO_EXTS.has(path.extname(f.originalname).toLowerCase());
       if (isVideo) {
-        // Serve original file as-is — no transcoding. Most iPhone .mov/.mp4 are H.264
-        // and play natively in all browsers without any processing delay.
-        newFiles.push(path.basename(f.path));
+        // Save original filename immediately so the file exists and is playable right away.
+        // After background transcoding completes, content is updated to the _web.mp4 name.
+        const originalName = path.basename(f.path);
+        const transcodedName = ffmpeg
+          ? originalName.replace(/\.[^.]+$/, '_web.mp4')
+          : null;
+        newFiles.push(originalName);
+        videoFilesToTranscode.push({ inputPath: f.path, originalName, transcodedName, monthId });
       } else {
         const heicPath = await convertHeicIfNeeded(f.path);
         const finalPath = await optimisePhoto(heicPath);
-        newFiles.push(path.basename(finalPath));
+        const finalName = path.basename(finalPath);
+        newFiles.push(finalName);
       }
     }
 
@@ -3982,7 +3989,23 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), asyn
     // Respond immediately — persist to DB in background
     res.json({ ok: true, files: newFiles });
 
-    // Background: store photo files to DB (videos excluded — too large for DB storage)
+    // Background: transcode videos (avoids proxy timeout) — too large for DB storage.
+    // On completion, swap the original filename in content for the transcoded _web.mp4 name.
+    for (const { inputPath, originalName, transcodedName, monthId: mid } of videoFilesToTranscode) {
+      if (!transcodedName) continue; // ffmpeg unavailable — original served as-is
+      transcodeVideo(inputPath).then(() => {
+        console.log(`[debrief] background transcode done: ${transcodedName}`);
+        // Update content to point at the transcoded file
+        const c = readDebriefContent();
+        const photos = c.months?.[mid]?.photos;
+        if (photos) {
+          const idx = photos.indexOf(originalName);
+          if (idx !== -1) photos[idx] = transcodedName;
+          writeDebriefContent(c);
+        }
+      }).catch(e => console.error('[debrief] background transcode error:', e.message));
+    }
+    // Background: store photo files to DB (skip videos — handled above)
     for (let i = 0; i < (req.files || []).length; i++) {
       const f = req.files[i];
       if (VIDEO_EXTS.has(path.extname(f.originalname).toLowerCase())) continue;

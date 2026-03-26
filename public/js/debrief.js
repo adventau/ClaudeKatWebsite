@@ -898,7 +898,7 @@
     if (!frame || frame.querySelector('.video-processing-overlay')) return;
     const overlay = document.createElement('div');
     overlay.className = 'video-processing-overlay';
-    overlay.innerHTML = '<span>⚠️ Unsupported format</span>';
+    overlay.innerHTML = '<span>⏳ Processing video…</span>';
     frame.appendChild(overlay);
   }, true);
 
