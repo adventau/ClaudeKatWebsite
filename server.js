@@ -3962,17 +3962,23 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), asyn
     if (!content.months[monthId].photos) content.months[monthId].photos = [];
 
     const newFiles = [];
+    const videoFilesToTranscode = [];
+
     for (const f of (req.files || [])) {
       const isVideo = VIDEO_EXTS.has(path.extname(f.originalname).toLowerCase());
-      let finalPath;
       if (isVideo) {
-        finalPath = await transcodeVideo(f.path);
+        // Determine the final filename: transcoded _web.mp4 if ffmpeg available, else original
+        const pendingName = ffmpeg
+          ? path.basename(f.path).replace(/\.[^.]+$/, '_web.mp4')
+          : path.basename(f.path);
+        newFiles.push(pendingName);
+        videoFilesToTranscode.push({ inputPath: f.path, pendingName, monthId });
       } else {
         const heicPath = await convertHeicIfNeeded(f.path);
-        finalPath = await optimisePhoto(heicPath);
+        const finalPath = await optimisePhoto(heicPath);
+        const finalName = path.basename(finalPath);
+        newFiles.push(finalName);
       }
-      const finalName = path.basename(finalPath);
-      newFiles.push(finalName);
     }
 
     content.months[monthId].photos.push(...newFiles);
@@ -3981,11 +3987,19 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), asyn
     // Respond immediately — persist to DB in background
     res.json({ ok: true, files: newFiles });
 
-    // Background: store files to DB in chunks (streams from disk, never loads full file into RAM)
+    // Background: transcode videos (avoids proxy timeout) — too large for DB storage
+    for (const { inputPath } of videoFilesToTranscode) {
+      transcodeVideo(inputPath).then(finalPath => {
+        console.log(`[debrief] background transcode done: ${path.basename(finalPath)}`);
+      }).catch(e => console.error('[debrief] background transcode error:', e.message));
+    }
+    // Background: store photo files to DB (skip videos — handled above)
     for (let i = 0; i < (req.files || []).length; i++) {
+      const f = req.files[i];
+      if (VIDEO_EXTS.has(path.extname(f.originalname).toLowerCase())) continue;
       const finalName = newFiles[i];
       if (!finalName) continue;
-      const finalPath = path.join(path.dirname(req.files[i].path), finalName);
+      const finalPath = path.join(path.dirname(f.path), finalName);
       storeDebriefFile(`${monthId}/${finalName}`, finalPath).catch(e => console.error('[debrief] DB store photo:', e.message));
     }
   } catch (e) {
