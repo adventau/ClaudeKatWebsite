@@ -3913,13 +3913,24 @@ app.post('/api/debrief/upload/:monthId', debriefUpload.array('photos', 50), asyn
     res.json({ ok: true, files: newFiles });
 
     // Background: store files to DB for deployment durability
-    for (const f of (req.files || [])) {
-      const finalName = newFiles[(req.files || []).indexOf(f)];
+    // Skip files > 5MB (videos) to avoid OOM crashes on small hosting plans
+    const DB_STORE_MAX = 5 * 1024 * 1024;
+    for (let i = 0; i < (req.files || []).length; i++) {
+      const f = req.files[i];
+      const finalName = newFiles[i];
       if (!finalName) continue;
       const finalPath = path.join(path.dirname(f.path), finalName);
-      fs.readFile(finalPath).then(buf => {
+      try {
+        const stat = await fs.stat(finalPath);
+        if (stat.size > DB_STORE_MAX) {
+          console.log(`[debrief] Skipping DB store for ${finalName} (${Math.round(stat.size / 1024 / 1024)}MB > 5MB limit)`);
+          continue;
+        }
+        const buf = await fs.readFile(finalPath);
         storeDebriefFile(`${monthId}/${finalName}`, buf).catch(e => console.error('[debrief] DB store photo:', e.message));
-      }).catch(e => console.error('[debrief] Read for DB store:', e.message));
+      } catch (e) {
+        console.error('[debrief] Read for DB store:', e.message);
+      }
     }
   } catch (e) {
     console.error('[debrief] upload error:', e.message);
@@ -3964,10 +3975,15 @@ app.post('/api/debrief/upload-audio/:monthId', (req, res) => {
         }
         content.months[monthId].audioFile = req.file.filename;
         writeDebriefContent(content);
-        // Persist file to DB so it survives deploys
-        const fileBuffer = fs.readFileSync(req.file.path);
-        storeDebriefFile(`audio/${req.file.filename}`, fileBuffer).catch(e => console.error('[debrief] DB store audio:', e.message));
+        // Respond immediately — persist to DB in background only if small enough
         res.json({ ok: true, filename: req.file.filename });
+        if (req.file.size <= 5 * 1024 * 1024) {
+          fs.readFile(req.file.path).then(buf => {
+            storeDebriefFile(`audio/${req.file.filename}`, buf).catch(e => console.error('[debrief] DB store audio:', e.message));
+          }).catch(() => {});
+        } else {
+          console.log(`[debrief] Skipping DB store for audio ${req.file.filename} (${Math.round(req.file.size / 1024 / 1024)}MB)`);
+        }
       } catch (innerErr) {
         console.error('Audio upload handler error:', innerErr);
         if (!res.headersSent) res.status(500).json({ error: 'Server error during upload' });
@@ -4004,8 +4020,16 @@ app.post('/api/debrief/upload-gate-audio', (req, res) => {
         }
         cfg.gateSongFile = newName;
         writeDebriefConfig(cfg);
-        storeDebriefFile(`audio/${newName}`, fs.readFileSync(newPath)).catch(e => console.error('[debrief] DB store gate audio:', e.message));
         res.json({ ok: true, filename: newName });
+        // Background DB store — skip if too large
+        const gateSize = fs.statSync(newPath).size;
+        if (gateSize <= 5 * 1024 * 1024) {
+          fs.readFile(newPath).then(buf => {
+            storeDebriefFile(`audio/${newName}`, buf).catch(e => console.error('[debrief] DB store gate audio:', e.message));
+          }).catch(() => {});
+        } else {
+          console.log(`[debrief] Skipping DB store for gate audio (${Math.round(gateSize / 1024 / 1024)}MB)`);
+        }
       } catch (innerErr) {
         console.error('Gate audio upload handler error:', innerErr);
         if (!res.headersSent) res.status(500).json({ error: 'Server error during upload' });
@@ -4050,9 +4074,11 @@ app.post('/api/debrief/upload-cover/:monthId', (req, res) => {
         if (!content.months[monthId]) content.months[monthId] = {};
         content.months[monthId].coverFile = finalName;
         writeDebriefContent(content);
-        const fileBuffer = await fs.readFile(finalPath);
-        storeDebriefFile(`covers/${finalName}`, fileBuffer).catch(e => console.error('[debrief] DB store cover:', e.message));
         res.json({ ok: true, filename: finalName });
+        // Background DB store
+        fs.readFile(finalPath).then(buf => {
+          storeDebriefFile(`covers/${finalName}`, buf).catch(e => console.error('[debrief] DB store cover:', e.message));
+        }).catch(() => {});
       } catch (innerErr) {
         console.error('Cover upload handler error:', innerErr);
         if (!res.headersSent) res.status(500).json({ error: 'Server error during upload' });
