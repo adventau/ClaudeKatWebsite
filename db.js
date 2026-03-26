@@ -210,6 +210,20 @@ async function getMessages(opts = {}) {
   return rows.map(rowToMsg);
 }
 
+// Fetch messages centered around a timestamp (half before, half after)
+async function getMessagesAround(timestamp, half = 25) {
+  const before = await query(
+    'SELECT * FROM messages WHERE timestamp <= $1 ORDER BY timestamp DESC LIMIT $2',
+    [timestamp, half]
+  );
+  const after = await query(
+    'SELECT * FROM messages WHERE timestamp > $1 ORDER BY timestamp ASC LIMIT $2',
+    [timestamp, half]
+  );
+  const rows = [...before.rows.reverse(), ...after.rows];
+  return rows.map(rowToMsg);
+}
+
 // Fetch a single message by id
 async function getMessageById(id) {
   const result = await query('SELECT * FROM messages WHERE id = $1', [id]);
@@ -272,6 +286,6 @@ async function clearMessages() {
 
 module.exports = {
   pool, query, read, write, createSchema, rowToMsg,
-  insertMessage, getMessages, getMessageById, updateMessage,
+  insertMessage, getMessages, getMessagesAround, getMessageById, updateMessage,
   deleteMessage, getPinnedMessages, clearMessages,
 };

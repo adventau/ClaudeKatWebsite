@@ -111,6 +111,10 @@
         <span class="nav-icon"><i data-lucide="bell-ring"></i></span><span class="nav-label">Reminders</span>
         <span class="nav-badge" id="reminders-badge" style="display:none">0</span>
       </div>
+        <div class="nav-item" data-section="money" onclick="showSection('money',this)">
+          <span class="nav-icon"><i data-lucide="wallet"></i></span>
+          <span class="nav-label">Money</span>
+        </div>
       <div class="nav-item" data-section="authenticator" id="nav-authenticator" onclick="showSection('authenticator',this)">
         <span class="nav-icon"><i data-lucide="shield-check"></i></span><span class="nav-label">Authenticator</span>
       </div>
@@ -219,6 +223,13 @@
       <button id="jump-to-latest" onclick="jumpToLatest()" title="Jump to latest message">
         <i data-lucide="chevron-down"></i>
       </button>
+
+      <!-- Jump mode banner (shown when viewing old messages from search) -->
+      <div id="jump-mode-banner" style="display:none">
+        <i data-lucide="history" style="width:14px;height:14px"></i>
+        Viewing older messages
+        <button onclick="exitJumpMode()" id="jump-mode-back-btn">Back to latest ↓</button>
+      </div>
 
       <!-- Typing indicator -->
       <div id="typing-indicator">
@@ -516,6 +527,122 @@
             <div class="empty-state-sub">Create a reminder to get notified via push, email, or on-site.</div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ═══ MONEY DASHBOARD ═══ -->
+    <section id="section-money" class="section">
+      <!-- Setup Screen (shown when setup: false) -->
+      <div id="money-setup" style="display:none">
+        <div class="money-setup-card">
+          <div class="money-setup-icon">💰</div>
+          <h2 class="money-setup-title">Let's get started</h2>
+          <p class="money-setup-sub">Enter your current Cash App balance for each person. Everything from here will be tracked automatically.</p>
+          <div class="money-setup-inputs">
+            <div class="money-setup-field">
+              <label>Kaliph</label>
+              <div class="money-input-prefix">
+                <span>$</span>
+                <input type="number" id="money-setup-kaliph" placeholder="0.00" step="0.01" min="0">
+              </div>
+            </div>
+            <div class="money-setup-field">
+              <label>Kathrine</label>
+              <div class="money-input-prefix">
+                <span>$</span>
+                <input type="number" id="money-setup-kathrine" placeholder="0.00" step="0.01" min="0">
+              </div>
+            </div>
+          </div>
+          <button class="btn-primary" onclick="submitMoneySetup()" style="width:100%;margin-top:8px">Get Started</button>
+        </div>
+      </div>
+
+      <!-- Dashboard (shown when setup: true) -->
+      <div id="money-dashboard" style="display:none">
+        <div class="section-header">
+          <span class="section-title">Money</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn-ghost btn-sm" onclick="toggleRecurringView()" id="money-recurring-toggle" style="font-size:0.78rem">
+              <i data-lucide="repeat" style="width:14px;height:14px"></i> Recurring
+            </button>
+          </div>
+        </div>
+
+        <div class="money-grid" id="money-grid">
+          <!-- Left Column -->
+          <div class="money-left">
+            <!-- Snapshot Card -->
+            <div class="money-card money-anim" id="money-snapshot-card">
+              <div id="money-snapshot">
+                <div class="money-skeleton">
+                  <div class="skeleton" style="width:180px;height:40px;margin:0 auto 16px"></div>
+                  <div style="display:flex;gap:24px;justify-content:center">
+                    <div class="skeleton" style="width:100px;height:24px"></div>
+                    <div class="skeleton" style="width:100px;height:24px"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Activity Feed Card -->
+            <div class="money-card money-anim" id="money-feed-card">
+              <div class="money-tab-bar" id="money-tab-bar">
+                <button class="money-tab active" data-tab="week" onclick="switchMoneyTab('week',this)">This Week</button>
+                <button class="money-tab" data-tab="month" onclick="switchMoneyTab('month',this)">This Month</button>
+                <button class="money-tab" data-tab="all" onclick="switchMoneyTab('all',this)">All Time</button>
+                <div class="money-tab-indicator" id="money-tab-indicator"></div>
+              </div>
+              <div id="money-feed">
+                <div class="money-skeleton">
+                  <div class="skeleton-feed-row" style="display:flex;gap:10px;align-items:center;padding:12px 0">
+                    <div class="skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div>
+                    <div style="flex:1"><div class="skeleton" style="width:60%;height:14px;margin-bottom:6px"></div><div class="skeleton" style="width:40%;height:12px"></div></div>
+                  </div>
+                  <div class="skeleton-feed-row" style="display:flex;gap:10px;align-items:center;padding:12px 0">
+                    <div class="skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div>
+                    <div style="flex:1"><div class="skeleton" style="width:50%;height:14px;margin-bottom:6px"></div><div class="skeleton" style="width:35%;height:12px"></div></div>
+                  </div>
+                  <div class="skeleton-feed-row" style="display:flex;gap:10px;align-items:center;padding:12px 0">
+                    <div class="skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div>
+                    <div style="flex:1"><div class="skeleton" style="width:70%;height:14px;margin-bottom:6px"></div><div class="skeleton" style="width:45%;height:12px"></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Goals -->
+          <div class="money-right money-anim" id="money-goals-card">
+            <div class="money-card-header">
+              <span style="font-weight:700;font-size:0.9rem">Savings Goals</span>
+            </div>
+            <div id="money-goals" class="goals-grid">
+              <div class="money-skeleton" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="skeleton" style="height:160px;border-radius:12px"></div>
+                <div class="skeleton" style="height:160px;border-radius:12px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recurring View (hidden by default) -->
+        <div id="money-recurring-view" style="display:none">
+          <div class="money-card" style="margin:16px">
+            <div class="money-card-header" style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:700;font-size:0.9rem">Recurring Bills</span>
+              <button class="btn-primary btn-sm" onclick="openModal('money-recurring-modal')" style="font-size:0.78rem">+ Add</button>
+            </div>
+            <div id="money-recurring-list">
+              <div class="empty-state" style="padding:2rem"><div class="empty-state-icon">📋</div><div class="empty-state-text">No recurring bills</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FAB -->
+        <button class="money-fab" id="money-fab" onclick="openQuickAdd()" title="Add transaction">
+          <i data-lucide="plus" style="width:24px;height:24px"></i>
+        </button>
       </div>
     </section>
 
@@ -1569,6 +1696,180 @@
     <button onclick="declineCall()" style="width:48px;height:48px;border-radius:50%;border:none;background:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform 0.15s,box-shadow 0.15s;box-shadow:0 4px 16px rgba(239,68,68,0.4)" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="23" y1="1" x2="1" y2="23"/></svg>
     </button>
+  </div>
+</div>
+
+<!-- ── Money: Quick-Add Modal ── -->
+<div class="modal-overlay" id="money-add-modal">
+  <div class="modal-content money-modal-inner" style="max-width:420px">
+    <div class="modal-header">
+      <div class="money-modal-tabs">
+        <button class="money-modal-tab active" onclick="switchMoneyModalTab('expense',this)">Expense</button>
+        <button class="money-modal-tab" onclick="switchMoneyModalTab('deposit',this)">Deposit</button>
+        <div class="money-modal-tab-indicator" id="money-modal-tab-indicator"></div>
+      </div>
+      <button class="btn-icon" onclick="closeQuickAdd()"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <input type="hidden" id="money-txn-type" value="expense">
+
+      <label class="modal-label">Amount</label>
+      <div class="money-input-prefix" style="margin-bottom:12px">
+        <span>$</span>
+        <input type="number" id="money-txn-amount" class="input" placeholder="0.00" step="0.01" min="0" autofocus>
+      </div>
+
+      <label class="modal-label">Description</label>
+      <input type="text" id="money-txn-desc" class="input" placeholder="What was it for?" style="margin-bottom:12px">
+
+      <div id="money-category-section">
+        <label class="modal-label">Category</label>
+        <div class="money-category-grid" id="money-category-grid">
+          <button class="category-pill selected" data-cat="food" onclick="selectCategory(this)"><i data-lucide="utensils" style="width:14px;height:14px"></i> Food</button>
+          <button class="category-pill" data-cat="groceries" onclick="selectCategory(this)"><i data-lucide="shopping-basket" style="width:14px;height:14px"></i> Groceries</button>
+          <button class="category-pill" data-cat="transport" onclick="selectCategory(this)"><i data-lucide="car" style="width:14px;height:14px"></i> Transport</button>
+          <button class="category-pill" data-cat="bills" onclick="selectCategory(this)"><i data-lucide="receipt" style="width:14px;height:14px"></i> Bills</button>
+          <button class="category-pill" data-cat="entertainment" onclick="selectCategory(this)"><i data-lucide="tv" style="width:14px;height:14px"></i> Fun</button>
+          <button class="category-pill" data-cat="health" onclick="selectCategory(this)"><i data-lucide="heart-pulse" style="width:14px;height:14px"></i> Health</button>
+          <button class="category-pill" data-cat="shopping" onclick="selectCategory(this)"><i data-lucide="shopping-bag" style="width:14px;height:14px"></i> Shopping</button>
+          <button class="category-pill" data-cat="other" onclick="selectCategory(this)"><i data-lucide="circle-dot" style="width:14px;height:14px"></i> Other</button>
+        </div>
+      </div>
+
+      <label class="modal-label" id="money-paidby-label">Paid by</label>
+      <div class="money-segmented" id="money-paidby-seg">
+        <button class="seg-btn active" data-val="kaliph" onclick="selectSeg(this)">Kaliph</button>
+        <button class="seg-btn" data-val="kathrine" onclick="selectSeg(this)">Kathrine</button>
+      </div>
+
+      <div id="money-split-row" style="display:flex;align-items:center;justify-content:space-between;margin:12px 0">
+        <span style="font-size:0.85rem;color:var(--text-secondary)">Split 50/50</span>
+        <label class="toggle">
+          <input type="checkbox" id="money-txn-split">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <label class="modal-label">Date</label>
+      <div class="custom-datetime-wrap" id="money-date-wrap">
+        <button class="custom-datetime-btn" id="money-date-btn" onclick="toggleMoneyDatePicker()" type="button">
+          <i data-lucide="calendar" style="width:15px;height:15px;opacity:0.5"></i>
+          <span class="custom-datetime-text" id="money-date-text">Today</span>
+        </button>
+        <input type="hidden" id="money-txn-date">
+        <div class="custom-datetime-picker" id="money-date-picker" style="display:none">
+          <div class="cdtp-header">
+            <button class="btn-icon cdtp-nav" onclick="moneyDateNav(-1)" type="button">&#8249;</button>
+            <span class="cdtp-month" id="money-date-month"></span>
+            <button class="btn-icon cdtp-nav" onclick="moneyDateNav(1)" type="button">&#8250;</button>
+          </div>
+          <div class="cdtp-grid" id="money-date-grid">
+            <div class="cdtp-day-header">S</div><div class="cdtp-day-header">M</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">W</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">F</div><div class="cdtp-day-header">S</div>
+          </div>
+          <div class="cdtp-actions">
+            <button class="btn-ghost btn-sm" onclick="closeMoneyDatePicker()" type="button">Done</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="submitTransaction()" style="width:100%;margin-top:16px">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Money: Goal Modal ── -->
+<div class="modal-overlay" id="money-goal-modal">
+  <div class="modal-content" style="max-width:380px">
+    <div class="modal-header">
+      <span class="modal-title" id="money-goal-modal-title">New Savings Goal</span>
+      <button class="btn-icon" onclick="closeModal('money-goal-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <input type="hidden" id="money-goal-edit-id">
+      <label class="modal-label">Goal Name</label>
+      <input type="text" id="money-goal-name" class="input" placeholder="NYC Trip, New Car..." style="margin-bottom:12px">
+
+      <label class="modal-label">Target Amount</label>
+      <div class="money-input-prefix" style="margin-bottom:12px">
+        <span>$</span>
+        <input type="number" id="money-goal-target" class="input" placeholder="1000" step="1" min="1">
+      </div>
+
+      <label class="modal-label">Color</label>
+      <div class="money-color-swatches" id="money-goal-colors">
+        <button class="color-swatch active" data-color="#4f46e5" style="background:#4f46e5" onclick="selectGoalColor(this)"></button>
+        <button class="color-swatch" data-color="#06b6d4" style="background:#06b6d4" onclick="selectGoalColor(this)"></button>
+        <button class="color-swatch" data-color="#22c55e" style="background:#22c55e" onclick="selectGoalColor(this)"></button>
+        <button class="color-swatch" data-color="#f59e0b" style="background:#f59e0b" onclick="selectGoalColor(this)"></button>
+        <button class="color-swatch" data-color="#ef4444" style="background:#ef4444" onclick="selectGoalColor(this)"></button>
+        <button class="color-swatch" data-color="#ec4899" style="background:#ec4899" onclick="selectGoalColor(this)"></button>
+      </div>
+
+      <label class="modal-label" style="margin-top:12px">Target Date (optional)</label>
+      <input type="date" id="money-goal-date" class="input" style="margin-bottom:12px">
+
+      <button class="btn-primary" onclick="saveGoal()" style="width:100%;margin-top:4px" id="money-goal-save-btn">Create Goal</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Money: Contribute Modal ── -->
+<div class="modal-overlay" id="money-contribute-modal">
+  <div class="modal-content" style="max-width:340px">
+    <div class="modal-header">
+      <span class="modal-title">Contribute</span>
+      <button class="btn-icon" onclick="closeModal('money-contribute-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <input type="hidden" id="money-contrib-goal-id">
+      <label class="modal-label">Amount</label>
+      <div class="money-input-prefix" style="margin-bottom:12px">
+        <span>$</span>
+        <input type="number" id="money-contrib-amount" class="input" placeholder="0.00" step="0.01" min="0">
+      </div>
+      <label class="modal-label">Note (optional)</label>
+      <input type="text" id="money-contrib-note" class="input" placeholder="Birthday money, paycheck..." style="margin-bottom:12px">
+      <button class="btn-primary" onclick="submitContribution()" style="width:100%">Add Contribution</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Money: Recurring Modal ── -->
+<div class="modal-overlay" id="money-recurring-modal">
+  <div class="modal-content" style="max-width:380px">
+    <div class="modal-header">
+      <span class="modal-title">New Recurring Bill</span>
+      <button class="btn-icon" onclick="closeModal('money-recurring-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <label class="modal-label">Description</label>
+      <input type="text" id="money-rec-desc" class="input" placeholder="Hulu, Netflix..." style="margin-bottom:12px">
+
+      <label class="modal-label">Amount</label>
+      <div class="money-input-prefix" style="margin-bottom:12px">
+        <span>$</span>
+        <input type="number" id="money-rec-amount" class="input" placeholder="0.00" step="0.01" min="0">
+      </div>
+
+      <label class="modal-label">Frequency</label>
+      <div class="money-segmented" style="margin-bottom:12px">
+        <button class="seg-btn active" data-val="monthly" onclick="selectSeg(this)">Monthly</button>
+        <button class="seg-btn" data-val="weekly" onclick="selectSeg(this)">Weekly</button>
+        <button class="seg-btn" data-val="yearly" onclick="selectSeg(this)">Yearly</button>
+      </div>
+
+      <label class="modal-label">Paid by</label>
+      <div class="money-segmented" id="money-rec-paidby">
+        <button class="seg-btn" data-val="kaliph" onclick="selectSeg(this)">Kaliph</button>
+        <button class="seg-btn" data-val="kathrine" onclick="selectSeg(this)">Kathrine</button>
+        <button class="seg-btn active" data-val="shared" onclick="selectSeg(this)">Shared</button>
+      </div>
+
+      <label class="modal-label" style="margin-top:12px">Next Due Date</label>
+      <input type="date" id="money-rec-next" class="input" style="margin-bottom:12px">
+
+      <button class="btn-primary" onclick="submitRecurring()" style="width:100%">Add Recurring</button>
+    </div>
   </div>
 </div>
 

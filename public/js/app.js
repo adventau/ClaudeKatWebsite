@@ -57,6 +57,8 @@ let allMessages = [];
 let hasMoreMessages = false;
 let loadingMoreMessages = false;
 const MSG_PAGE_SIZE = 50;
+let _jumpMode = false;
+let _jumpUnloadTimer = null;
 let brainstormMessages = [];
 let replyToId   = null;
 let ctxMsgId    = null;
@@ -126,7 +128,6 @@ const THEMES = [
   { id: 'noir',     name: 'Velvet Noir',        preview: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)' },
   { id: 'rosewood', name: 'Rose & Ember',       preview: 'linear-gradient(135deg,#0c0912,#c8967a,#7c3aed)' },
   { id: 'ocean',    name: 'Deep Tide',          preview: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)' },
-  { id: 'forest',   name: 'Enchanted Forest',   preview: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)' },
   { id: 'arctic',   name: 'Arctic',             preview: 'linear-gradient(135deg,#070e1a,#43e8b1,#a48efa)' },
   { id: 'aurora',   name: 'Arctic Aurora',      preview: 'linear-gradient(135deg,#f0f4f8,#06b6d4,#818cf8)' },
   { id: 'sandstone',name: 'Sandstone Dusk',     preview: 'linear-gradient(135deg,#f5ede0,#c2713a,#d4a870)' },
@@ -567,6 +568,7 @@ function showSection(name, el) {
   if (name === 'announcements') loadAnnouncements();
   if (name === 'reminders') loadReminders();
   if (name === 'authenticator') initTotpSection();
+  if (name === 'money') loadMoney();
   if (name === 'guest-messages') {
     loadGuestMessages();
     // Clear unread for active guest (keys are 'guestId:channel')
@@ -2118,7 +2120,8 @@ function setupSocketEvents() {
     const empty = document.getElementById('chat-empty');
     if (empty) empty.remove();
     area.appendChild(buildMsgElement(msg, shouldGroupWithPrev(msg)));
-    area.scrollTop = area.scrollHeight;
+    // Don't auto-scroll if user jumped to an old message — let them stay in context
+    if (!_jumpMode) area.scrollTop = area.scrollHeight;
     if (msg.sender !== currentUser && msg.sender !== 'ai' && msg.type !== 'call-event') {
       SoundSystem.receive();
       // Only mark read if the user is actively looking at chat (tab visible + chat section open)
@@ -2382,6 +2385,12 @@ function setupSocketEvents() {
   socket.on('reminder-due', (data) => {
     showReminderNotification(data);
     loadReminders();
+  });
+
+  socket.on('money:updated', (data) => {
+    const oldData = _moneyData;
+    _moneyData = data;
+    if (currentSection === 'money') renderMoneyUpdate(oldData, data);
   });
 
   socket.on('time-offset', ({ offset }) => {
@@ -6688,6 +6697,14 @@ async function executeSearch() {
   // Sort by newest first
   hits.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
+  // Store hits for load-more pagination
+  window._searchHits = hits;
+  window._searchQuery = textQuery;
+  renderSearchResults(hits, textQuery, 25);
+}
+
+function renderSearchResults(hits, textQuery, displayLimit) {
+  const dropdown = document.getElementById('search-results');
   const count = hits.length;
   let html = `<div class="search-results-header">
     <span class="search-results-count">${count} result${count !== 1 ? 's' : ''}</span>
@@ -6696,7 +6713,7 @@ async function executeSearch() {
   if (!count) {
     html += '<div class="search-result-item"><div class="search-result-text" style="color:var(--text-muted);text-align:center">No messages found</div></div>';
   } else {
-    html += hits.slice(0, 25).map(m => {
+    html += hits.slice(0, displayLimit).map(m => {
       const time = formatSearchTime(m.timestamp);
       const preview = buildMsgPreviewHtml(m, textQuery);
       return `<div class="search-result-item" onclick="clickSearchResult('${m.id}', ${m.timestamp})">
@@ -6707,11 +6724,23 @@ async function executeSearch() {
         ${preview}
       </div>`;
     }).join('');
+    if (hits.length > displayLimit) {
+      const remaining = hits.length - displayLimit;
+      html += `<div class="search-load-more" onclick="loadMoreSearchResults(${displayLimit})">
+        Show ${Math.min(25, remaining)} more result${remaining > 1 ? 's' : ''}
+      </div>`;
+    }
   }
 
   dropdown.innerHTML = html;
   dropdown.classList.add('open');
   document.getElementById('search-clear-btn').style.display = '';
+}
+
+function loadMoreSearchResults(currentLimit) {
+  const hits = window._searchHits || [];
+  const textQuery = window._searchQuery || '';
+  renderSearchResults(hits, textQuery, currentLimit + 25);
 }
 
 function clickSearchResult(id, timestamp) {
@@ -6721,23 +6750,86 @@ function clickSearchResult(id, timestamp) {
 
 async function scrollToMessage(id, timestamp) {
   showSection('chat', document.querySelector('.nav-item[data-section=chat]'));
-  // Small delay to let the section animate in
   await new Promise(r => setTimeout(r, 100));
 
   let el = document.getElementById('msg-' + id);
-  if (!el && timestamp && hasMoreMessages) {
-    // Message not in DOM — load history backwards until we find it (up to 10 pages)
-    for (let i = 0; i < 10 && !el && hasMoreMessages; i++) {
-      await loadOlderMessages();
-      el = document.getElementById('msg-' + id);
+  let loadedNewBatch = false;
+
+  if (!el && timestamp) {
+    // Load messages around the target timestamp — much faster than backward paging
+    try {
+      const data = await fetch(`/api/messages?around=${timestamp}&limit=60`).then(r => r.json());
+      if (Array.isArray(data) && data.length) {
+        // Replace current messages with the "around" batch
+        allMessages = data.filter(m => !(m.type === 'call-event' && m.callPeer && guestData.some(g => g.name === m.callPeer)));
+        hasMoreMessages = true; // assume there are older msgs beyond this batch
+        renderMessages();
+        setupLoadMoreObserver();
+        el = document.getElementById('msg-' + id);
+        loadedNewBatch = true;
+      }
+    } catch (e) {
+      console.error('scrollToMessage fetch error', e);
     }
   }
 
   if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.scrollIntoView({ behavior: 'instant', block: 'center' });
     el.classList.add('msg-highlight');
     setTimeout(() => el.classList.remove('msg-highlight'), 2500);
+    // Only enter jump mode if we loaded a fresh batch of old messages
+    if (loadedNewBatch) _enterJumpMode();
   }
+}
+
+function _enterJumpMode() {
+  if (_jumpMode) return;
+  _jumpMode = true;
+
+  const banner = document.getElementById('jump-mode-banner');
+  if (banner) {
+    banner.style.display = 'flex';
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // Auto-exit after 90s of being in jump mode (user likely forgot)
+  clearTimeout(_jumpUnloadTimer);
+  _jumpUnloadTimer = setTimeout(() => exitJumpMode(), 90000);
+
+  // Also exit when user scrolls to very bottom of current view
+  const area = document.getElementById('messages-area');
+  if (area) {
+    const onScroll = () => {
+      const distFromBottom = area.scrollHeight - area.scrollTop - area.clientHeight;
+      if (distFromBottom < 80) {
+        area.removeEventListener('scroll', onScroll);
+        exitJumpMode();
+      }
+    };
+    area._jumpScrollListener = onScroll;
+    area.addEventListener('scroll', onScroll, { passive: true });
+  }
+}
+
+async function exitJumpMode() {
+  if (!_jumpMode) return;
+  _jumpMode = false;
+  clearTimeout(_jumpUnloadTimer);
+
+  // Remove scroll listener
+  const area = document.getElementById('messages-area');
+  if (area?._jumpScrollListener) {
+    area.removeEventListener('scroll', area._jumpScrollListener);
+    area._jumpScrollListener = null;
+  }
+
+  // Hide banner
+  const banner = document.getElementById('jump-mode-banner');
+  if (banner) banner.style.display = 'none';
+
+  // Reload latest messages cleanly (no DOM bloat from old jump batch)
+  await loadMessages();
+  if (area) area.scrollTop = area.scrollHeight;
 }
 
 function highlight(text, q) {
@@ -7416,6 +7508,36 @@ function startReminderChecker() {
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
   {
+    version: '3.9.0',
+    date: 'Mar 26 2026',
+    intro: 'A brand-new Money Dashboard for tracking balances, expenses, deposits, savings goals, and recurring bills — plus search improvements, theme fixes, and under-the-hood polish.',
+    sections: [
+      { icon: '💰', title: 'Money Dashboard', items: [
+        { name: 'Balance Tracking', desc: 'Combined and individual balance cards with daily snapshots and trend tickers.' },
+        { name: 'Expense & Deposit Logging', desc: 'Quick-add floating button with category pills, split 50/50 toggle, and custom date picker.' },
+        { name: 'Savings Goals', desc: 'Circular SVG arc progress, color-coded goals, contribute button, and confetti on completion.' },
+        { name: 'Recurring Bills', desc: 'Auto-logged monthly/weekly/yearly bills with manual "Log Now" option.' },
+        { name: 'Animated Dashboard', desc: 'Staggered fade-in, skeleton loading, number counting animation, balance flash on change, ticker bounce, and smooth arc transitions.' },
+      ]},
+      { icon: '🔍', title: 'Search', items: [
+        { name: 'Jump to Message', desc: 'Clicking a search result instantly loads messages around that timestamp instead of backward-paging.' },
+        { name: 'Load More Results', desc: 'Search dropdown now shows a "Show more" button when there are additional results.' },
+        { name: 'Smart Unloading', desc: 'After jumping to an old message, a "Back to latest" banner appears. Messages auto-unload after 90 seconds or when scrolling to the bottom.' },
+      ]},
+      { icon: '🎨', title: 'Themes', items: [
+        { name: 'Enchanted Forest Removed', desc: 'The Enchanted Forest theme has been retired from the theme picker.' },
+        { name: 'Arctic Redesigned', desc: 'New Space Grotesk font, larger text, clean single-color nav border, tighter spacing, and profile picture overflow fix.' },
+      ]},
+      { icon: '🔔', title: 'Reminders', items: [
+        { name: 'Priority Card Colors', desc: 'High and low priority reminder cards now use subtle background tints instead of full vivid colors.' },
+      ]},
+      { icon: '⚙️', title: 'System', items: [
+        { name: 'Update Log Persistence', desc: 'Dismissed update log state now syncs to the server so it persists across devices.' },
+        { name: 'brrr Push Notifications', desc: 'New messages now send iOS push notifications via brrr webhooks.' },
+      ]},
+    ],
+  },
+  {
     version: '3.8.0',
     date: 'Mar 16 2026',
     intro: 'Two brand-new premium themes — Arctic Aurora and Sandstone Dusk. Each brings unique animations, layout changes, and a full sound profile.',
@@ -7811,8 +7933,11 @@ function renderChangelogEntry(entry, { skipHeader = false } = {}) {
 
 function checkAndShowUpdateLog() {
   if (!CHANGELOG.length) return;
-  const key = 'rkk-changelog-dismissed-' + currentUser;
-  const dismissed = localStorage.getItem(key);
+  // Primary: server-side per-user dismissed version (persists across devices)
+  const serverDismissed = window._users?.[currentUser]?.dismissedChangelogVersion;
+  // Fallback: localStorage for same-device fast check
+  const localDismissed = localStorage.getItem('rkk-changelog-dismissed-' + currentUser);
+  const dismissed = serverDismissed || localDismissed;
   if (dismissed === CHANGELOG[0].version) return;
 
   const container = document.getElementById('update-log-content');
@@ -7820,13 +7945,628 @@ function checkAndShowUpdateLog() {
   openModal('update-log-modal');
 }
 
-function dismissUpdateLog() {
+async function dismissUpdateLog() {
   const latest = CHANGELOG[0];
   if (latest) {
+    // Save to server so it persists across devices
+    fetch('/api/users/' + currentUser, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dismissedChangelogVersion: latest.version })
+    }).catch(console.error);
+    // Also save locally as a fast-path cache
     localStorage.setItem('rkk-changelog-dismissed-' + currentUser, latest.version);
+    // Update cached user data so re-checks in same session work
+    if (window._users?.[currentUser]) {
+      window._users[currentUser].dismissedChangelogVersion = latest.version;
+    }
   }
   closeModal('update-log-modal');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MONEY DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _moneyData = null;
+let _moneyTab = 'week';
+let _moneyFeedPage = 1;
+let _moneyDateState = { year: getNow().getFullYear(), month: getNow().getMonth(), selectedDate: null };
+let _moneyRecurringView = false;
+
+const MONEY_CATEGORIES = {
+  food: { icon: 'utensils', label: 'Food' },
+  groceries: { icon: 'shopping-basket', label: 'Groceries' },
+  transport: { icon: 'car', label: 'Transport' },
+  bills: { icon: 'receipt', label: 'Bills' },
+  entertainment: { icon: 'tv', label: 'Fun' },
+  health: { icon: 'heart-pulse', label: 'Health' },
+  shopping: { icon: 'shopping-bag', label: 'Shopping' },
+  other: { icon: 'circle-dot', label: 'Other' },
+};
+
+async function loadMoney() {
+  // Show skeletons
+  const setup = document.getElementById('money-setup');
+  const dash = document.getElementById('money-dashboard');
+  setup.style.display = 'none';
+  dash.style.display = 'none';
+
+  try {
+    _moneyData = await fetch('/api/money').then(r => r.json());
+  } catch { _moneyData = {}; }
+
+  if (!_moneyData.setup) {
+    setup.style.display = '';
+    dash.style.display = 'none';
+  } else {
+    setup.style.display = 'none';
+    dash.style.display = 'flex';
+    _moneyRecurringView = false;
+    document.getElementById('money-recurring-view').style.display = 'none';
+    document.getElementById('money-grid').style.display = '';
+    renderMoney(_moneyData);
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+async function submitMoneySetup() {
+  const k = parseFloat(document.getElementById('money-setup-kaliph').value) || 0;
+  const ka = parseFloat(document.getElementById('money-setup-kathrine').value) || 0;
+  try {
+    const res = await fetch('/api/money/setup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kaliph: k, kathrine: ka }),
+    }).then(r => r.json());
+    if (res.success) {
+      _moneyData = res.money;
+      document.getElementById('money-setup').style.display = 'none';
+      document.getElementById('money-dashboard').style.display = 'flex';
+      renderMoney(_moneyData);
+      showToast('Money dashboard is ready!');
+    }
+  } catch (e) { showToast('Setup failed'); }
+}
+
+function renderMoney(data) {
+  // Re-trigger animations
+  document.querySelectorAll('.money-anim').forEach(el => {
+    el.style.animation = 'none';
+    el.offsetHeight; // reflow
+    el.style.animation = '';
+  });
+  renderSnapshot(data);
+  renderFeed(data);
+  renderGoals(data);
+  updateMoneyTabIndicator();
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderMoneyUpdate(oldData, newData) {
+  // Flash balances on change
+  if (oldData?.balances) {
+    const kOld = oldData.balances.kaliph?.amount ?? 0;
+    const kaOld = oldData.balances.kathrine?.amount ?? 0;
+    const kNew = newData.balances.kaliph?.amount ?? 0;
+    const kaNew = newData.balances.kathrine?.amount ?? 0;
+    const kEl = document.getElementById('money-bal-kaliph');
+    const kaEl = document.getElementById('money-bal-kathrine');
+    if (kEl && kNew !== kOld) {
+      kEl.classList.add(kNew > kOld ? 'balance-flash-green' : 'balance-flash-red');
+      kEl.addEventListener('animationend', () => kEl.classList.remove('balance-flash-green', 'balance-flash-red'), { once: true });
+    }
+    if (kaEl && kaNew !== kaOld) {
+      kaEl.classList.add(kaNew > kaOld ? 'balance-flash-green' : 'balance-flash-red');
+      kaEl.addEventListener('animationend', () => kaEl.classList.remove('balance-flash-green', 'balance-flash-red'), { once: true });
+    }
+  }
+  renderSnapshot(newData);
+  renderFeed(newData);
+  renderGoals(newData);
+}
+
+// ── Number Animation ──
+function animateNumber(el, from, to, duration = 600, prefix = '$') {
+  const start = performance.now();
+  const update = (now) => {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = from + (to - from) * eased;
+    el.textContent = prefix + current.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (progress < 1) requestAnimationFrame(update);
+  };
+  requestAnimationFrame(update);
+}
+
+// ── Ticker Calc ──
+function calcTicker(current, previous) {
+  if (previous == null || previous === 0) return null;
+  const delta = current - previous;
+  const pct = Math.round(Math.abs(delta / previous) * 100);
+  const absDelta = Math.abs(delta).toFixed(2);
+  const sign = delta >= 0 ? '+' : '-';
+  const direction = delta >= 0 ? 'up' : 'down';
+  return { direction, pct, absDelta, sign };
+}
+
+function renderSnapshot(data) {
+  const container = document.getElementById('money-snapshot');
+  const k = data.balances?.kaliph?.amount ?? 0;
+  const ka = data.balances?.kathrine?.amount ?? 0;
+  const combined = k + ka;
+
+  // Find previous snapshot for tickers
+  const snaps = data.dailySnapshots || [];
+  const prev = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
+  const kTick = prev ? calcTicker(k, prev.kaliph) : null;
+  const kaTick = prev ? calcTicker(ka, prev.kathrine) : null;
+
+  // Weekly/monthly spend calcs
+  const now = Date.now();
+  const weekAgo = now - 7 * 86400000;
+  const twoWeeksAgo = now - 14 * 86400000;
+  const txns = data.transactions || [];
+  const thisWeekSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= weekAgo).reduce((s, t) => s + t.amount, 0);
+  const lastWeekSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= twoWeeksAgo && t.createdAt < weekAgo).reduce((s, t) => s + t.amount, 0);
+  const weekTick = calcTicker(thisWeekSpend, lastWeekSpend);
+
+  function tickerHtml(tick, label, invertColor) {
+    if (!tick) return `<div class="ticker"><span class="ticker-label">${label}</span> —</div>`;
+    const cls = invertColor ? (tick.direction === 'up' ? 'ticker-down' : 'ticker-up') : (tick.direction === 'up' ? 'ticker-up' : 'ticker-down');
+    const arrow = tick.direction === 'up' ? '↑' : '↓';
+    return `<div class="ticker ${cls}">
+      <span class="ticker-label">${label}</span>
+      <span class="ticker-arrow">${arrow}</span> ${tick.pct}%
+      <span class="tick-delta">(${tick.sign}$${tick.absDelta})</span>
+    </div>`;
+  }
+
+  container.innerHTML = `
+    <div class="money-combined" id="money-combined">$${combined.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+    <div class="money-balances">
+      <div class="money-bal">
+        <div class="money-bal-name">Kaliph</div>
+        <div class="money-bal-amount" id="money-bal-kaliph">$${k.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+        ${kTick ? `<div class="ticker ${kTick.direction === 'up' ? 'ticker-up' : 'ticker-down'}" style="justify-content:center;margin-top:2px">
+          <span class="ticker-arrow">${kTick.direction === 'up' ? '↑' : '↓'}</span> ${kTick.pct}%
+          <span class="tick-delta">(${kTick.sign}$${kTick.absDelta})</span>
+        </div>` : ''}
+      </div>
+      <div class="money-bal">
+        <div class="money-bal-name">Kathrine</div>
+        <div class="money-bal-amount" id="money-bal-kathrine">$${ka.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+        ${kaTick ? `<div class="ticker ${kaTick.direction === 'up' ? 'ticker-up' : 'ticker-down'}" style="justify-content:center;margin-top:2px">
+          <span class="ticker-arrow">${kaTick.direction === 'up' ? '↑' : '↓'}</span> ${kaTick.pct}%
+          <span class="tick-delta">(${kaTick.sign}$${kaTick.absDelta})</span>
+        </div>` : ''}
+      </div>
+    </div>
+    <div class="money-tickers">
+      ${tickerHtml(weekTick, 'Spent this week', true)}
+    </div>
+  `;
+}
+
+function renderFeed(data) {
+  const container = document.getElementById('money-feed');
+  const txns = [...(data.transactions || [])].sort((a, b) => b.createdAt - a.createdAt);
+
+  // Filter by tab
+  const now = Date.now();
+  let filtered = txns;
+  if (_moneyTab === 'week') filtered = txns.filter(t => t.createdAt >= now - 7 * 86400000);
+  else if (_moneyTab === 'month') filtered = txns.filter(t => t.createdAt >= now - 30 * 86400000);
+
+  const page = filtered.slice(0, _moneyFeedPage * 20);
+  const hasMore = filtered.length > page.length;
+
+  if (!page.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:2rem"><div class="empty-state-icon">📊</div><div class="empty-state-text">No transactions yet</div></div>';
+    return;
+  }
+
+  let html = '<div class="money-feed-list">';
+  page.forEach(t => {
+    const isDeposit = t.type === 'deposit';
+    const cat = MONEY_CATEGORIES[t.category] || MONEY_CATEGORIES.other;
+    const avatarClass = t.split ? 'feed-avatar-s' : (t.paidBy === 'kaliph' ? 'feed-avatar-k' : 'feed-avatar-ka');
+    const avatarText = t.split ? 'S' : (t.paidBy === 'kaliph' ? 'K' : 'Ka');
+    const dateStr = formatMoneyDate(t.date || t.createdAt);
+    const amtStr = (isDeposit ? '+' : '-') + '$' + t.amount.toFixed(2);
+
+    html += `<div class="feed-item">
+      <div class="feed-avatar ${avatarClass}">${avatarText}</div>
+      <div class="feed-body">
+        <div class="feed-desc">${isDeposit ? 'Deposit' : escapeHtml(t.description || 'Expense')}</div>
+        <div class="feed-meta">
+          ${!isDeposit ? `<span class="feed-cat"><i data-lucide="${cat.icon}" style="width:10px;height:10px"></i> ${cat.label}</span>` : ''}
+          <span>${dateStr}</span>
+        </div>
+      </div>
+      <span class="feed-amount ${isDeposit ? 'deposit' : 'expense'}">${amtStr}</span>
+      <button class="feed-delete" onclick="deleteTransaction('${t.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+    </div>`;
+  });
+  html += '</div>';
+  if (hasMore) html += `<div class="feed-load-more" onclick="_moneyFeedPage++;renderFeed(_moneyData)">Load more</div>`;
+  container.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+}
+
+function formatMoneyDate(d) {
+  const date = typeof d === 'number' ? new Date(d) : new Date(d + 'T12:00:00');
+  const now = new Date();
+  const today = now.toDateString();
+  const yesterday = new Date(now - 86400000).toDateString();
+  if (date.toDateString() === today) return 'Today';
+  if (date.toDateString() === yesterday) return 'Yesterday';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function switchMoneyTab(tab, el) {
+  _moneyTab = tab;
+  _moneyFeedPage = 1;
+  document.querySelectorAll('.money-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  updateMoneyTabIndicator();
+  if (_moneyData) renderFeed(_moneyData);
+}
+
+function updateMoneyTabIndicator() {
+  const bar = document.getElementById('money-tab-bar');
+  const indicator = document.getElementById('money-tab-indicator');
+  const active = bar?.querySelector('.money-tab.active');
+  if (!bar || !indicator || !active) return;
+  indicator.style.left = active.offsetLeft + 'px';
+  indicator.style.width = active.offsetWidth + 'px';
+}
+
+// ── Goals ──
+function renderGoals(data) {
+  const container = document.getElementById('money-goals');
+  const goals = data.goals || [];
+  const circ = 2 * Math.PI * 34; // radius 34
+
+  let html = '';
+  goals.forEach((g, i) => {
+    const pct = g.targetAmount > 0 ? Math.min(100, Math.round((g.currentAmount / g.targetAmount) * 100)) : 0;
+    const offset = circ - (circ * pct / 100);
+    const completed = g.completedAt != null;
+    const daysLeft = g.targetDate ? Math.max(0, Math.ceil((new Date(g.targetDate) - new Date()) / 86400000)) : null;
+
+    html += `<div class="goal-card${completed ? ' completed' : ''}">
+      <div class="goal-arc-wrap">
+        <svg viewBox="0 0 80 80">
+          <circle class="goal-arc-track" cx="40" cy="40" r="34"/>
+          <circle class="goal-arc" cx="40" cy="40" r="34"
+            stroke="${g.color}" stroke-dasharray="${circ}" stroke-dashoffset="${circ}"
+            data-target-offset="${offset}" style="transition-delay:${i * 120}ms"/>
+        </svg>
+        <div class="goal-pct">${completed ? '✓' : pct + '%'}</div>
+      </div>
+      <div class="goal-name">${escapeHtml(g.name)}</div>
+      <div class="goal-progress-text">$${g.currentAmount.toFixed(2)} / $${g.targetAmount.toFixed(2)}</div>
+      ${daysLeft !== null && !completed ? `<div class="goal-countdown">in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}</div>` : ''}
+      <div class="goal-actions">
+        ${!completed ? `<button class="goal-action-btn" onclick="openContribute('${g.id}')">+ Contribute</button>` : ''}
+        <button class="goal-action-btn" onclick="editGoal('${g.id}')"><i data-lucide="pencil" style="width:12px;height:12px"></i></button>
+        <button class="goal-action-btn" onclick="deleteGoal('${g.id}')"><i data-lucide="trash-2" style="width:12px;height:12px"></i></button>
+      </div>
+    </div>`;
+  });
+
+  html += `<div class="goal-new" onclick="openNewGoal()"><i data-lucide="plus" style="width:24px;height:24px"></i> New Goal</div>`;
+  container.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+
+  // Animate arcs after render
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.goal-arc[data-target-offset]').forEach(arc => {
+      arc.style.strokeDashoffset = arc.dataset.targetOffset;
+    });
+  });
+}
+
+// ── FAB + Quick Add ──
+function openQuickAdd() {
+  const fab = document.getElementById('money-fab');
+  const modal = document.getElementById('money-add-modal');
+  if (modal.classList.contains('open')) {
+    closeQuickAdd();
+    return;
+  }
+  fab.classList.add('open');
+  openModal('money-add-modal');
+  // Reset form
+  document.getElementById('money-txn-type').value = 'expense';
+  document.getElementById('money-txn-amount').value = '';
+  document.getElementById('money-txn-desc').value = '';
+  document.getElementById('money-txn-split').checked = false;
+  document.getElementById('money-txn-date').value = '';
+  document.getElementById('money-date-text').textContent = 'Today';
+  document.querySelectorAll('#money-add-modal .money-modal-tab').forEach((t, i) => t.classList.toggle('active', i === 0));
+  document.querySelectorAll('#money-add-modal .category-pill').forEach((p, i) => p.classList.toggle('selected', i === 0));
+  document.querySelectorAll('#money-paidby-seg .seg-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  document.getElementById('money-category-section').style.display = '';
+  document.getElementById('money-split-row').style.display = '';
+  document.getElementById('money-paidby-label').textContent = 'Paid by';
+  updateMoneyModalTabIndicator();
+  setTimeout(() => document.getElementById('money-txn-amount')?.focus(), 100);
+}
+
+function closeQuickAdd() {
+  document.getElementById('money-fab')?.classList.remove('open');
+  closeModal('money-add-modal');
+}
+
+function switchMoneyModalTab(type, el) {
+  document.getElementById('money-txn-type').value = type;
+  document.querySelectorAll('.money-modal-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const isDeposit = type === 'deposit';
+  document.getElementById('money-category-section').style.display = isDeposit ? 'none' : '';
+  document.getElementById('money-split-row').style.display = isDeposit ? 'none' : '';
+  document.getElementById('money-paidby-label').textContent = isDeposit ? 'Received by' : 'Paid by';
+  updateMoneyModalTabIndicator();
+}
+
+function updateMoneyModalTabIndicator() {
+  const tabs = document.querySelector('.money-modal-tabs');
+  const indicator = document.getElementById('money-modal-tab-indicator');
+  const active = tabs?.querySelector('.money-modal-tab.active');
+  if (!tabs || !indicator || !active) return;
+  indicator.style.left = active.offsetLeft + 'px';
+  indicator.style.width = active.offsetWidth + 'px';
+}
+
+function selectCategory(el) {
+  document.querySelectorAll('.category-pill').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function selectSeg(el) {
+  el.parentElement.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+async function submitTransaction() {
+  const type = document.getElementById('money-txn-type').value;
+  const amount = parseFloat(document.getElementById('money-txn-amount').value);
+  if (!amount || amount <= 0) { showToast('Enter an amount'); return; }
+  const description = document.getElementById('money-txn-desc').value.trim();
+  const category = document.querySelector('.category-pill.selected')?.dataset.cat || 'other';
+  const paidBy = document.querySelector('#money-paidby-seg .seg-btn.active')?.dataset.val || 'kaliph';
+  const split = document.getElementById('money-txn-split').checked;
+  const date = document.getElementById('money-txn-date').value || new Date().toISOString().split('T')[0];
+
+  try {
+    await fetch('/api/money/transactions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, amount, description, category, paidBy, split, date }),
+    });
+    closeQuickAdd();
+    showToast(type === 'deposit' ? 'Deposit added!' : 'Expense logged!');
+  } catch { showToast('Failed to add transaction'); }
+}
+
+async function deleteTransaction(id) {
+  const ok = await showConfirmDialog({ title: 'Delete transaction?', msg: 'This will reverse the balance effect.', icon: '🗑️' });
+  if (!ok) return;
+  try {
+    await fetch('/api/money/transactions/' + id, { method: 'DELETE' });
+    showToast('Transaction deleted');
+  } catch { showToast('Failed to delete'); }
+}
+
+// ── Goals CRUD ──
+function openNewGoal() {
+  document.getElementById('money-goal-edit-id').value = '';
+  document.getElementById('money-goal-name').value = '';
+  document.getElementById('money-goal-target').value = '';
+  document.getElementById('money-goal-date').value = '';
+  document.querySelectorAll('.color-swatch').forEach((s, i) => s.classList.toggle('active', i === 0));
+  document.getElementById('money-goal-modal-title').textContent = 'New Savings Goal';
+  document.getElementById('money-goal-save-btn').textContent = 'Create Goal';
+  openModal('money-goal-modal');
+}
+
+function editGoal(id) {
+  const goal = (_moneyData?.goals || []).find(g => g.id === id);
+  if (!goal) return;
+  document.getElementById('money-goal-edit-id').value = id;
+  document.getElementById('money-goal-name').value = goal.name;
+  document.getElementById('money-goal-target').value = goal.targetAmount;
+  document.getElementById('money-goal-date').value = goal.targetDate || '';
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.toggle('active', s.dataset.color === goal.color));
+  document.getElementById('money-goal-modal-title').textContent = 'Edit Goal';
+  document.getElementById('money-goal-save-btn').textContent = 'Save Changes';
+  openModal('money-goal-modal');
+}
+
+function selectGoalColor(el) {
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+}
+
+async function saveGoal() {
+  const editId = document.getElementById('money-goal-edit-id').value;
+  const name = document.getElementById('money-goal-name').value.trim();
+  const targetAmount = parseFloat(document.getElementById('money-goal-target').value);
+  const color = document.querySelector('.color-swatch.active')?.dataset.color || '#4f46e5';
+  const targetDate = document.getElementById('money-goal-date').value || null;
+  if (!name) { showToast('Enter a goal name'); return; }
+  if (!targetAmount || targetAmount <= 0) { showToast('Enter a target amount'); return; }
+
+  const url = editId ? `/api/money/goals/${editId}` : '/api/money/goals';
+  const method = editId ? 'PUT' : 'POST';
+  try {
+    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, targetAmount, color, targetDate }) });
+    closeModal('money-goal-modal');
+    showToast(editId ? 'Goal updated!' : 'Goal created!');
+  } catch { showToast('Failed to save goal'); }
+}
+
+async function deleteGoal(id) {
+  const ok = await showConfirmDialog({ title: 'Delete goal?', msg: 'This cannot be undone.', icon: '🗑️' });
+  if (!ok) return;
+  try {
+    await fetch('/api/money/goals/' + id, { method: 'DELETE' });
+    showToast('Goal deleted');
+  } catch { showToast('Failed to delete'); }
+}
+
+function openContribute(goalId) {
+  document.getElementById('money-contrib-goal-id').value = goalId;
+  document.getElementById('money-contrib-amount').value = '';
+  document.getElementById('money-contrib-note').value = '';
+  openModal('money-contribute-modal');
+  setTimeout(() => document.getElementById('money-contrib-amount')?.focus(), 100);
+}
+
+async function submitContribution() {
+  const goalId = document.getElementById('money-contrib-goal-id').value;
+  const amount = parseFloat(document.getElementById('money-contrib-amount').value);
+  const note = document.getElementById('money-contrib-note').value.trim();
+  if (!amount || amount <= 0) { showToast('Enter an amount'); return; }
+
+  const goal = (_moneyData?.goals || []).find(g => g.id === goalId);
+  const wasDone = goal?.completedAt != null;
+
+  try {
+    const res = await fetch(`/api/money/goals/${goalId}/contribute`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount, note, _wasCompleted: wasDone }),
+    }).then(r => r.json());
+    closeModal('money-contribute-modal');
+    showToast('Contribution added!');
+    if (res.justCompleted) {
+      // Confetti!
+      if (typeof confetti === 'function') {
+        confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+      }
+      showToast('🎉 Goal reached! ' + (res.goal?.name || '') + ' complete!');
+    }
+  } catch { showToast('Failed to contribute'); }
+}
+
+// ── Recurring ──
+function toggleRecurringView() {
+  _moneyRecurringView = !_moneyRecurringView;
+  document.getElementById('money-grid').style.display = _moneyRecurringView ? 'none' : '';
+  document.getElementById('money-recurring-view').style.display = _moneyRecurringView ? '' : 'none';
+  document.getElementById('money-fab').style.display = _moneyRecurringView ? 'none' : '';
+  if (_moneyRecurringView) renderRecurring();
+}
+
+function renderRecurring() {
+  const list = document.getElementById('money-recurring-list');
+  const recs = _moneyData?.recurring || [];
+  if (!recs.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:2rem"><div class="empty-state-icon">📋</div><div class="empty-state-text">No recurring bills</div></div>';
+    return;
+  }
+  list.innerHTML = recs.map(r => {
+    const cat = MONEY_CATEGORIES[r.category] || MONEY_CATEGORIES.other;
+    return `<div class="rec-item">
+      <div class="feed-avatar feed-avatar-s" style="width:32px;height:32px;font-size:0.65rem"><i data-lucide="repeat" style="width:14px;height:14px"></i></div>
+      <div class="rec-body">
+        <div class="rec-desc">${escapeHtml(r.description)}</div>
+        <div class="rec-meta">${capitalize(r.frequency)} · $${r.amount.toFixed(2)} · Next: ${r.nextDate}</div>
+      </div>
+      <div class="rec-actions">
+        <button class="btn-ghost btn-sm" onclick="logRecurringNow('${r.id}')" style="font-size:0.72rem">Log Now</button>
+        <button class="btn-icon" onclick="deleteRecurring('${r.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+async function submitRecurring() {
+  const description = document.getElementById('money-rec-desc').value.trim();
+  const amount = parseFloat(document.getElementById('money-rec-amount').value);
+  if (!description) { showToast('Enter a description'); return; }
+  if (!amount || amount <= 0) { showToast('Enter an amount'); return; }
+  const frequency = document.querySelector('#money-recurring-modal .seg-btn.active')?.dataset.val || 'monthly';
+  const paidBy = document.querySelector('#money-rec-paidby .seg-btn.active')?.dataset.val || 'shared';
+  const nextDate = document.getElementById('money-rec-next').value || new Date().toISOString().split('T')[0];
+
+  try {
+    await fetch('/api/money/recurring', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description, amount, category: 'bills', paidBy, split: paidBy === 'shared', frequency, nextDate }),
+    });
+    closeModal('money-recurring-modal');
+    showToast('Recurring bill added!');
+    if (_moneyRecurringView) renderRecurring();
+  } catch { showToast('Failed to add'); }
+}
+
+async function logRecurringNow(id) {
+  try {
+    await fetch(`/api/money/recurring/${id}/log`, { method: 'POST' });
+    showToast('Logged!');
+  } catch { showToast('Failed'); }
+}
+
+async function deleteRecurring(id) {
+  const ok = await showConfirmDialog({ title: 'Delete recurring bill?', msg: 'This cannot be undone.', icon: '🗑️' });
+  if (!ok) return;
+  try {
+    await fetch('/api/money/recurring/' + id, { method: 'DELETE' });
+    showToast('Removed');
+  } catch { showToast('Failed'); }
+}
+
+// ── Money Date Picker (simplified, date only) ──
+function toggleMoneyDatePicker() {
+  const picker = document.getElementById('money-date-picker');
+  if (picker.style.display !== 'none') { picker.style.display = 'none'; return; }
+  picker.style.display = '';
+  renderMoneyDateGrid();
+}
+function closeMoneyDatePicker() {
+  document.getElementById('money-date-picker').style.display = 'none';
+}
+function moneyDateNav(dir) {
+  _moneyDateState.month += dir;
+  if (_moneyDateState.month > 11) { _moneyDateState.month = 0; _moneyDateState.year++; }
+  if (_moneyDateState.month < 0) { _moneyDateState.month = 11; _moneyDateState.year--; }
+  renderMoneyDateGrid();
+}
+function renderMoneyDateGrid() {
+  const { year, month } = _moneyDateState;
+  document.getElementById('money-date-month').textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+  const grid = document.getElementById('money-date-grid');
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date().toISOString().split('T')[0];
+  let html = '<div class="cdtp-day-header">S</div><div class="cdtp-day-header">M</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">W</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">F</div><div class="cdtp-day-header">S</div>';
+  for (let i = 0; i < firstDay; i++) html += '<div></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const sel = _moneyDateState.selectedDate === dateStr ? ' cdtp-selected' : '';
+    const isToday = dateStr === today ? ' style="font-weight:700"' : '';
+    html += `<div class="cdtp-day${sel}"${isToday} onclick="selectMoneyDate('${dateStr}')">${d}</div>`;
+  }
+  grid.innerHTML = html;
+}
+function selectMoneyDate(dateStr) {
+  _moneyDateState.selectedDate = dateStr;
+  document.getElementById('money-txn-date').value = dateStr;
+  const d = new Date(dateStr + 'T12:00:00');
+  document.getElementById('money-date-text').textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  renderMoneyDateGrid();
+  closeMoneyDatePicker();
+}
+
+// ── Load confetti from CDN ──
+(function loadConfetti() {
+  if (typeof confetti !== 'undefined') return;
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js';
+  s.async = true;
+  document.head.appendChild(s);
+})();
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TOTP AUTHENTICATOR

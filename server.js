@@ -19,6 +19,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
+const { sendMessageNotification } = require('./utils/notifications');
 // nodemailer removed — using EmailJS HTTP API instead
 let compression;
 try { compression = require('compression'); } catch(e) { /* optional */ }
@@ -144,6 +145,7 @@ const F = {
   pushSubs:      path.join(DATA_DIR, 'push-subscriptions.json'),
   reminders:     path.join(DATA_DIR, 'reminders.json'),
   totp:          path.join(DATA_DIR, 'totp.json'),
+  money:         path.join(DATA_DIR, 'money.json'),
 };
 
 // ── Web Push (VAPID) ─────────────────────────────────────────────────────────
@@ -305,6 +307,7 @@ function initData() {
     announcements: [],
     suggestions:   [],
     totp:          { kaliph: [], kathrine: [] },
+    money: { setup: false, balances: { kaliph: { amount: 0, updatedAt: null }, kathrine: { amount: 0, updatedAt: null } }, dailySnapshots: [], transactions: [], goals: [], recurring: [] },
   };
   for (const [k, v] of Object.entries(defaults)) {
     if (!rd(F[k])) wd(F[k], v);
@@ -721,10 +724,15 @@ app.get('/api/messages', mainAuth, async (req, res) => {
   const limit  = parseInt(req.query.limit)  || 50;
   const before = parseInt(req.query.before) || null;
   const after  = parseInt(req.query.after)  || null;
+  const around = parseInt(req.query.around) || null;
   const q      = req.query.q || null;
 
   if (db.pool) {
     try {
+      if (around) {
+        const rows = await db.getMessagesAround(around, Math.floor(limit / 2));
+        return res.json(rows);
+      }
       const rows = await db.getMessages({ limit, before, after, search: q });
       return res.json(rows);
     } catch (e) {
@@ -735,6 +743,13 @@ app.get('/api/messages', mainAuth, async (req, res) => {
   // Legacy JSON fallback
   const msgs = rd(F.messages);
   let main = msgs?.main || [];
+  if (around) {
+    const half = Math.floor(limit / 2);
+    const idx = main.findIndex(m => m.timestamp >= around);
+    const start = Math.max(0, idx < 0 ? main.length - half : idx - half);
+    main = main.slice(start, start + limit);
+    return res.json(main);
+  }
   if (after)  main = main.filter(m => m.timestamp > after);
   if (before) main = main.filter(m => m.timestamp < before);
   if (q)      main = main.filter(m => m.text?.toLowerCase().includes(q.toLowerCase()));
@@ -842,6 +857,9 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
     url: '/app',
     priority: message.priority,
   }).catch(() => {});
+
+  // brrr webhook push notification (iOS)
+  sendMessageNotification(sender, recipient, message.text || (message.files?.length ? 'Sent a file' : ''));
 
   res.json({ success: true, message, emailStatus });
 });
@@ -1690,6 +1708,281 @@ async function checkDueReminders() {
 setInterval(checkDueReminders, 30000);
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// MONEY DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function applyTransaction(money, txn) {
+  const amt = parseFloat(txn.amount) || 0;
+  if (txn.type === 'deposit') {
+    money.balances[txn.paidBy].amount += amt;
+  } else {
+    if (txn.split) {
+      money.balances.kaliph.amount -= amt / 2;
+      money.balances.kathrine.amount -= amt / 2;
+    } else {
+      money.balances[txn.paidBy].amount -= amt;
+    }
+  }
+  money.balances.kaliph.amount = Math.round(money.balances.kaliph.amount * 100) / 100;
+  money.balances.kathrine.amount = Math.round(money.balances.kathrine.amount * 100) / 100;
+  money.balances.kaliph.updatedAt = Date.now();
+  money.balances.kathrine.updatedAt = Date.now();
+}
+
+function reverseTransaction(money, txn) {
+  const amt = parseFloat(txn.amount) || 0;
+  if (txn.type === 'deposit') {
+    money.balances[txn.paidBy].amount -= amt;
+  } else {
+    if (txn.split) {
+      money.balances.kaliph.amount += amt / 2;
+      money.balances.kathrine.amount += amt / 2;
+    } else {
+      money.balances[txn.paidBy].amount += amt;
+    }
+  }
+  money.balances.kaliph.amount = Math.round(money.balances.kaliph.amount * 100) / 100;
+  money.balances.kathrine.amount = Math.round(money.balances.kathrine.amount * 100) / 100;
+  money.balances.kaliph.updatedAt = Date.now();
+  money.balances.kathrine.updatedAt = Date.now();
+}
+
+function takeMoneySnapshot(money) {
+  const today = new Date().toISOString().split('T')[0];
+  if (money.dailySnapshots.some(s => s.date === today)) return;
+  money.dailySnapshots.push({
+    date: today,
+    kaliph: money.balances.kaliph.amount,
+    kathrine: money.balances.kathrine.amount,
+  });
+  if (money.dailySnapshots.length > 60) money.dailySnapshots = money.dailySnapshots.slice(-60);
+}
+
+function advanceNextDate(rec) {
+  const d = new Date(rec.nextDate);
+  if (rec.frequency === 'weekly') d.setDate(d.getDate() + 7);
+  else if (rec.frequency === 'biweekly') d.setDate(d.getDate() + 14);
+  else if (rec.frequency === 'yearly') d.setFullYear(d.getFullYear() + 1);
+  else d.setMonth(d.getMonth() + 1); // monthly default
+  rec.nextDate = d.toISOString().split('T')[0];
+}
+
+// ── Money: GET ──
+app.get('/api/money', mainAuth, (req, res) => {
+  res.json(rd(F.money) || {});
+});
+
+// ── Money: Setup ──
+app.post('/api/money/setup', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const { kaliph, kathrine } = req.body;
+  money.balances = {
+    kaliph: { amount: parseFloat(kaliph) || 0, updatedAt: Date.now() },
+    kathrine: { amount: parseFloat(kathrine) || 0, updatedAt: Date.now() },
+  };
+  money.setup = true;
+  takeMoneySnapshot(money);
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, money });
+});
+
+// ── Money: Create Transaction ──
+app.post('/api/money/transactions', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const txn = {
+    id: uuidv4(),
+    type: req.body.type || 'expense',
+    description: req.body.description || '',
+    amount: parseFloat(req.body.amount) || 0,
+    category: req.body.category || 'other',
+    paidBy: req.body.paidBy || req.session.user,
+    split: req.body.split === true || req.body.split === 'true',
+    date: req.body.date || new Date().toISOString().split('T')[0],
+    createdAt: Date.now(),
+    createdBy: req.session.user,
+  };
+  applyTransaction(money, txn);
+  money.transactions.push(txn);
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, transaction: txn });
+});
+
+// ── Money: Delete Transaction ──
+app.delete('/api/money/transactions/:id', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const idx = money.transactions.findIndex(t => t.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: 'Transaction not found' });
+  const [removed] = money.transactions.splice(idx, 1);
+  reverseTransaction(money, removed);
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true });
+});
+
+// ── Money: Create Goal ──
+app.post('/api/money/goals', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const goal = {
+    id: uuidv4(),
+    name: req.body.name || 'Untitled Goal',
+    targetAmount: parseFloat(req.body.targetAmount) || 100,
+    currentAmount: 0,
+    color: req.body.color || '#4f46e5',
+    targetDate: req.body.targetDate || null,
+    completedAt: null,
+    contributions: [],
+    createdAt: Date.now(),
+  };
+  money.goals.push(goal);
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, goal });
+});
+
+// ── Money: Update Goal ──
+app.put('/api/money/goals/:id', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const goal = money.goals.find(g => g.id === req.params.id);
+  if (!goal) return res.status(404).json({ error: 'Goal not found' });
+  if (req.body.name !== undefined) goal.name = req.body.name;
+  if (req.body.targetAmount !== undefined) goal.targetAmount = parseFloat(req.body.targetAmount);
+  if (req.body.color !== undefined) goal.color = req.body.color;
+  if (req.body.targetDate !== undefined) goal.targetDate = req.body.targetDate;
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, goal });
+});
+
+// ── Money: Delete Goal ──
+app.delete('/api/money/goals/:id', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  money.goals = money.goals.filter(g => g.id !== req.params.id);
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true });
+});
+
+// ── Money: Contribute to Goal ──
+app.post('/api/money/goals/:id/contribute', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const goal = money.goals.find(g => g.id === req.params.id);
+  if (!goal) return res.status(404).json({ error: 'Goal not found' });
+  const contrib = {
+    id: uuidv4(),
+    amount: parseFloat(req.body.amount) || 0,
+    note: req.body.note || '',
+    date: new Date().toISOString().split('T')[0],
+    createdAt: Date.now(),
+  };
+  goal.contributions.push(contrib);
+  goal.currentAmount = Math.round((goal.currentAmount + contrib.amount) * 100) / 100;
+  if (goal.currentAmount >= goal.targetAmount && !goal.completedAt) {
+    goal.completedAt = Date.now();
+  }
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, goal, justCompleted: goal.completedAt && !req.body._wasCompleted });
+});
+
+// ── Money: Create Recurring ──
+app.post('/api/money/recurring', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const rec = {
+    id: uuidv4(),
+    description: req.body.description || '',
+    amount: parseFloat(req.body.amount) || 0,
+    category: req.body.category || 'bills',
+    paidBy: req.body.paidBy || 'shared',
+    split: req.body.split === true || req.body.split === 'true',
+    frequency: req.body.frequency || 'monthly',
+    nextDate: req.body.nextDate || new Date().toISOString().split('T')[0],
+    createdAt: Date.now(),
+  };
+  money.recurring.push(rec);
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, recurring: rec });
+});
+
+// ── Money: Delete Recurring ──
+app.delete('/api/money/recurring/:id', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  money.recurring = money.recurring.filter(r => r.id !== req.params.id);
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true });
+});
+
+// ── Money: Log Recurring Now ──
+app.post('/api/money/recurring/:id/log', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const rec = money.recurring.find(r => r.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: 'Recurring entry not found' });
+  const txn = {
+    id: uuidv4(),
+    type: 'expense',
+    description: rec.description + ' (recurring)',
+    amount: rec.amount,
+    category: rec.category,
+    paidBy: rec.paidBy === 'shared' ? 'kaliph' : rec.paidBy,
+    split: rec.split || rec.paidBy === 'shared',
+    date: new Date().toISOString().split('T')[0],
+    createdAt: Date.now(),
+    createdBy: req.session.user,
+    recurringId: rec.id,
+  };
+  applyTransaction(money, txn);
+  money.transactions.push(txn);
+  advanceNextDate(rec);
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, transaction: txn });
+});
+
+// ── Money: Daily snapshot + recurring auto-log intervals ──
+function checkMoneyIntervals() {
+  const money = rd(F.money);
+  if (!money || !money.setup) return;
+  let changed = false;
+  // Daily snapshot
+  const today = new Date().toISOString().split('T')[0];
+  if (!money.dailySnapshots.some(s => s.date === today)) {
+    takeMoneySnapshot(money);
+    changed = true;
+  }
+  // Recurring auto-log
+  for (const rec of (money.recurring || [])) {
+    if (rec.nextDate && rec.nextDate <= today) {
+      const txn = {
+        id: uuidv4(),
+        type: 'expense',
+        description: rec.description + ' (auto)',
+        amount: rec.amount,
+        category: rec.category,
+        paidBy: rec.paidBy === 'shared' ? 'kaliph' : rec.paidBy,
+        split: rec.split || rec.paidBy === 'shared',
+        date: today,
+        createdAt: Date.now(),
+        createdBy: 'system',
+        recurringId: rec.id,
+      };
+      applyTransaction(money, txn);
+      money.transactions.push(txn);
+      advanceNextDate(rec);
+      changed = true;
+    }
+  }
+  if (changed) {
+    wd(F.money, money);
+    io.emit('money:updated', money);
+  }
+}
+setInterval(checkMoneyIntervals, 3600000); // hourly
+checkMoneyIntervals(); // run on startup
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TOTP AUTHENTICATOR
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2180,6 +2473,7 @@ app.post('/api/backdoor/import', express.json({ limit: '50mb' }), async (req, re
     ['announcements', F.announcements],
     ['suggestions',   F.suggestions],
     ['reminders',     F.reminders],
+    ['money',       F.money],
     ['pushSubs',      F.pushSubs],
   ];
 
@@ -3681,6 +3975,43 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     const [removed] = all.splice(idx, 1);
     wd(F.reminders, all);
     return lines(`Deleted reminder: "${removed.title}" (${removed.id})`, 'success');
+  }
+
+  // ── MONEY ──
+  if (cmd === 'money') {
+    const sub = parts[1]?.toLowerCase();
+    const money = rd(F.money) || {};
+    if (!sub || sub === 'status') {
+      const k = money.balances?.kaliph?.amount ?? 0;
+      const ka = money.balances?.kathrine?.amount ?? 0;
+      return { lines: [
+        { text: `Kaliph: $${k.toFixed(2)}  |  Kathrine: $${ka.toFixed(2)}  |  Combined: $${(k+ka).toFixed(2)}`, cls: 'success' },
+        { text: `Transactions: ${(money.transactions||[]).length}  |  Goals: ${(money.goals||[]).length}  |  Snapshots: ${(money.dailySnapshots||[]).length}  |  Recurring: ${(money.recurring||[]).length}`, cls: 'dim' },
+      ]};
+    }
+    if (sub === 'set') {
+      const who = parts[2]?.toLowerCase();
+      const amt = parseFloat(parts[3]);
+      if (!who || isNaN(amt) || !['kaliph','kathrine'].includes(who)) return lines('Usage: money set <kaliph|kathrine> <amount>', 'warn');
+      money.balances[who].amount = Math.round(amt * 100) / 100;
+      money.balances[who].updatedAt = Date.now();
+      wd(F.money, money);
+      io.emit('money:updated', money);
+      return lines(`Set ${who}'s balance to $${amt.toFixed(2)}`, 'success');
+    }
+    if (sub === 'clear') {
+      const what = parts[2]?.toLowerCase();
+      if (what === 'transactions') { money.transactions = []; wd(F.money, money); io.emit('money:updated', money); return lines('All transactions cleared', 'success'); }
+      if (what === 'goals') { money.goals = []; wd(F.money, money); io.emit('money:updated', money); return lines('All goals cleared', 'success'); }
+      return lines('Usage: money clear <transactions|goals>', 'warn');
+    }
+    if (sub === 'snapshots') {
+      const snaps = (money.dailySnapshots || []).slice(-10);
+      if (!snaps.length) return lines('No snapshots yet', 'dim');
+      const rows = snaps.map(s => [s.date, '$' + s.kaliph.toFixed(2), '$' + s.kathrine.toFixed(2), '$' + (s.kaliph + s.kathrine).toFixed(2)]);
+      return { table: { headers: ['Date', 'Kaliph', 'Kathrine', 'Combined'], rows } };
+    }
+    return lines('Usage: money [status|set|clear|snapshots]', 'warn');
   }
 
   // ── PINNED LIST ──
