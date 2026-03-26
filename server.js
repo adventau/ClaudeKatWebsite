@@ -3798,15 +3798,15 @@ function writeDebriefConfig(data) {
 // Store file to DB in chunks to avoid OOM on large files.
 // Each chunk is ~1MB of raw data (~1.33MB as base64).
 const DB_CHUNK_SIZE = 1 * 1024 * 1024; // 1MB chunks
+const nodeFs = require('fs').promises; // Node native fs.promises for FileHandle API
 
 async function storeDebriefFile(filePath, bufferOrPath) {
-  let buffer;
   if (typeof bufferOrPath === 'string') {
-    // It's a file path — read in chunks and store directly
+    // It's a file path — read in chunks from disk (never loads full file into RAM)
     const stat = await fs.stat(bufferOrPath);
     const totalChunks = Math.ceil(stat.size / DB_CHUNK_SIZE);
 
-    // Delete any old chunks/legacy single-row entry first
+    // Delete old chunks/legacy entries
     try {
       await db.query("DELETE FROM data_store WHERE key = $1 OR key LIKE $2",
         [`debrief-file:${filePath}`, `debrief-file:${filePath}:chunk:%`]);
@@ -3815,29 +3815,26 @@ async function storeDebriefFile(filePath, bufferOrPath) {
     // Store metadata
     await db.write(`debrief-file:${filePath}`, { chunked: true, chunks: totalChunks, size: stat.size });
 
-    // Stream chunks from file without loading entire file into memory
-    const fd = await fs.open(bufferOrPath, 'r');
+    // Read and store one chunk at a time using Node's FileHandle API
+    const fh = await nodeFs.open(bufferOrPath, 'r');
     try {
-      const chunkBuf = Buffer.alloc(DB_CHUNK_SIZE);
       for (let i = 0; i < totalChunks; i++) {
-        const { bytesRead } = await fd.read(chunkBuf, 0, DB_CHUNK_SIZE, i * DB_CHUNK_SIZE);
-        const base64 = chunkBuf.slice(0, bytesRead).toString('base64');
-        await db.write(`debrief-file:${filePath}:chunk:${i}`, { data: base64 });
+        const chunkBuf = Buffer.alloc(Math.min(DB_CHUNK_SIZE, stat.size - i * DB_CHUNK_SIZE));
+        await fh.read(chunkBuf, 0, chunkBuf.length, i * DB_CHUNK_SIZE);
+        await db.write(`debrief-file:${filePath}:chunk:${i}`, { data: chunkBuf.toString('base64') });
       }
     } finally {
-      await fd.close();
+      await fh.close();
     }
     console.log(`[debrief] Stored ${filePath} to DB (${totalChunks} chunks, ${Math.round(stat.size / 1024)}KB)`);
     return;
   }
 
-  // Legacy: buffer passed directly (small files)
-  buffer = bufferOrPath;
+  // Buffer passed directly (small files / legacy callers)
+  const buffer = bufferOrPath;
   if (buffer.length <= DB_CHUNK_SIZE) {
-    // Small file — single row (backwards compatible)
     await db.write(`debrief-file:${filePath}`, { data: buffer.toString('base64'), size: buffer.length });
   } else {
-    // Large buffer — chunk it
     const totalChunks = Math.ceil(buffer.length / DB_CHUNK_SIZE);
     try {
       await db.query("DELETE FROM data_store WHERE key = $1 OR key LIKE $2",
@@ -3857,7 +3854,6 @@ async function storeDebriefFile(filePath, bufferOrPath) {
 async function restoreDebriefFiles() {
   try {
     if (!db.pool) return;
-    // Get all metadata entries (not chunks)
     const result = await db.query(
       "SELECT key, value FROM data_store WHERE key LIKE 'debrief-file:%' AND key NOT LIKE '%:chunk:%'"
     );
@@ -3868,18 +3864,17 @@ async function restoreDebriefFiles() {
       const meta = JSON.parse(row.value);
 
       if (meta.chunked) {
-        // Reassemble from chunks — write directly to file to save memory
-        const fd = await fs.open(fullPath, 'w');
+        // Reassemble from chunks — write one chunk at a time to save memory
+        const fh = await nodeFs.open(fullPath, 'w');
         try {
           for (let i = 0; i < meta.chunks; i++) {
             const chunkRow = await db.read(`debrief-file:${filePath}:chunk:${i}`);
             if (chunkRow && chunkRow.data) {
-              const buf = Buffer.from(chunkRow.data, 'base64');
-              await fd.write(buf, 0, buf.length);
+              await fh.write(Buffer.from(chunkRow.data, 'base64'));
             }
           }
         } finally {
-          await fd.close();
+          await fh.close();
         }
         console.log(`[debrief] Restored chunked file: ${filePath} (${meta.chunks} chunks)`);
       } else if (meta.data) {
