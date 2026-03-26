@@ -889,6 +889,27 @@
     }
   }, true);
 
+  // Show "Processing video..." overlay when browser can't decode the video yet
+  // (e.g. .mov or HEVC from iPhone while ffmpeg is still transcoding in background)
+  document.addEventListener('error', (e) => {
+    const v = e.target;
+    if (v.tagName !== 'VIDEO') return;
+    const frame = v.closest('.filmstrip-frame--video, .event-media-frame[data-type="video"]');
+    if (!frame || frame.querySelector('.video-processing-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'video-processing-overlay';
+    overlay.innerHTML = '<span>⏳ Processing video…</span>';
+    frame.appendChild(overlay);
+  }, true);
+
+  // Remove overlay if the video becomes playable (e.g. page refreshed after transcode)
+  document.addEventListener('canplay', (e) => {
+    const v = e.target;
+    if (v.tagName !== 'VIDEO') return;
+    const frame = v.closest('.filmstrip-frame--video, .event-media-frame[data-type="video"]');
+    if (frame) frame.querySelector('.video-processing-overlay')?.remove();
+  }, true);
+
   // Preload audio files for the first N months using <link rel="preload">
   // so they're in the browser cache before the user navigates to those slides
   function preloadAudioFiles() {
