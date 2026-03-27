@@ -9011,7 +9011,8 @@ function renderPortfolio(data) {
         <div class="holding-change ${cls}">${arrow} ${Math.abs(changePct).toFixed(1)}%</div>
       </div>
       <div class="holding-actions">
-        <button class="feed-action-btn" onclick="editInvestment('${h.id}')" title="Edit"><i data-lucide="pencil" style="width:11px;height:11px"></i></button>
+        <button class="feed-action-btn" onclick="openTrade('${h.id}','buy')" title="Buy More"><i data-lucide="plus" style="width:11px;height:11px"></i></button>
+        <button class="feed-action-btn" onclick="openTrade('${h.id}','sell')" title="Sell"><i data-lucide="minus" style="width:11px;height:11px"></i></button>
         <button class="feed-action-btn feed-delete-btn" onclick="deleteInvestment('${h.id}')" title="Delete"><i data-lucide="trash-2" style="width:11px;height:11px"></i></button>
       </div>
     </div>`;
@@ -9194,6 +9195,101 @@ async function deleteInvestment(id) {
     await fetch('/api/money/investments/' + id, { method: 'DELETE' });
     showToast('Holding removed');
   } catch { showToast('Failed to remove'); }
+}
+
+function openTrade(holdingId, type) {
+  const holding = (_moneyData?.investments?.holdings || []).find(h => h.id === holdingId);
+  if (!holding) return;
+  const p = _portfolioPrices[holding.symbol] || {};
+  const price = p.price || 0;
+  const currentValue = (holding.shares * price).toFixed(2);
+  const isBuy = type === 'buy';
+
+  document.getElementById('money-trade-holding-id').value = holdingId;
+  document.getElementById('money-trade-type').value = type;
+  document.getElementById('money-trade-modal-title').textContent = isBuy ? `Buy More ${holding.symbol}` : `Sell ${holding.symbol}`;
+  document.getElementById('money-trade-amount').value = '';
+  document.getElementById('trade-calc-preview').style.display = 'none';
+
+  const userBal = _moneyData?.balances?.[holding.owner]?.amount ?? 0;
+  document.getElementById('trade-holding-info').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <strong>${holding.symbol}</strong>
+      <span>$${price.toFixed(2)}/share</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-muted)">
+      <span>${holding.shares.toFixed(4)} shares · $${currentValue}</span>
+      ${isBuy ? `<span>Cash: $${userBal.toFixed(2)}</span>` : ''}
+    </div>
+  `;
+
+  const submitBtn = document.getElementById('money-trade-submit');
+  submitBtn.textContent = isBuy ? 'Buy' : 'Sell';
+  submitBtn.style.background = isBuy ? '' : '#b91c1c';
+
+  // Live calc on amount input
+  const amtInput = document.getElementById('money-trade-amount');
+  amtInput.oninput = () => {
+    const amt = parseFloat(amtInput.value) || 0;
+    const calcEl = document.getElementById('trade-calc-preview');
+    if (amt > 0 && price > 0) {
+      const shares = amt / price;
+      if (isBuy) {
+        calcEl.innerHTML = `You'll buy <strong>${shares.toFixed(4)}</strong> shares for <strong>$${amt.toFixed(2)}</strong>`;
+      } else {
+        const maxVal = holding.shares * price;
+        if (amt > maxVal + 0.01) {
+          calcEl.innerHTML = `<span style="color:#ef4444">Exceeds holding value ($${maxVal.toFixed(2)})</span>`;
+        } else {
+          calcEl.innerHTML = `You'll sell <strong>${shares.toFixed(4)}</strong> shares for <strong>$${amt.toFixed(2)}</strong>`;
+        }
+      }
+      calcEl.style.display = '';
+    } else {
+      calcEl.style.display = 'none';
+    }
+  };
+
+  openModal('money-trade-modal');
+  setTimeout(() => amtInput.focus(), 100);
+}
+
+async function submitTrade() {
+  const holdingId = document.getElementById('money-trade-holding-id').value;
+  const type = document.getElementById('money-trade-type').value;
+  const amount = parseFloat(document.getElementById('money-trade-amount').value);
+  if (!holdingId || !amount || amount <= 0) { showToast('Enter a valid amount'); return; }
+
+  const holding = (_moneyData?.investments?.holdings || []).find(h => h.id === holdingId);
+  if (!holding) return;
+  const price = _portfolioPrices[holding.symbol]?.price || 0;
+  if (price <= 0) { showToast('Price unavailable'); return; }
+  const shares = amount / price;
+
+  try {
+    if (type === 'buy') {
+      const res = await fetch(`/api/money/investments/${holdingId}/buy`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shares, cost: amount }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Failed to buy'); return; }
+      showToast(`Bought ${shares.toFixed(4)} shares of ${holding.symbol}`);
+    } else {
+      const maxShares = holding.shares;
+      const sellShares = Math.min(shares, maxShares);
+      const proceeds = sellShares * price;
+      const res = await fetch(`/api/money/investments/${holdingId}/sell`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shares: sellShares, proceeds }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Failed to sell'); return; }
+      showToast(`Sold ${sellShares.toFixed(4)} shares of ${holding.symbol}`);
+    }
+    closeModal('money-trade-modal');
+    fetchPortfolioPrices();
+  } catch { showToast('Trade failed'); }
 }
 
 let _investPreviewPrice = 0;

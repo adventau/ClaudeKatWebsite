@@ -2031,6 +2031,32 @@
   </div>
 </div>
 
+<!-- Buy/Sell Modal -->
+<div class="modal-overlay" id="money-trade-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <span class="modal-title" id="money-trade-modal-title">Buy More</span>
+      <button class="btn-icon" onclick="closeModal('money-trade-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <input type="hidden" id="money-trade-holding-id" value="">
+      <input type="hidden" id="money-trade-type" value="buy">
+
+      <div id="trade-holding-info" style="margin-bottom:14px;padding:10px 12px;background:var(--bg-hover);border-radius:10px;font-size:0.78rem;color:var(--text-secondary);line-height:1.8"></div>
+
+      <label class="modal-label">Amount ($)</label>
+      <div class="money-input-prefix" style="margin-bottom:12px">
+        <span>$</span>
+        <input type="number" id="money-trade-amount" class="input" placeholder="0.00" step="0.01" min="0">
+      </div>
+
+      <div id="trade-calc-preview" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--bg-hover);border-radius:10px;font-size:0.78rem;color:var(--text-secondary);line-height:1.8"></div>
+
+      <button class="btn-primary" id="money-trade-submit" onclick="submitTrade()" style="width:100%">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <!-- Custom Confirm Dialog (replaces browser confirm) -->
 <!-- Profile Viewer Modal -->
 <div class="modal-overlay" id="profile-viewer-modal">

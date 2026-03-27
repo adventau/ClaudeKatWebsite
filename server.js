@@ -2225,6 +2225,67 @@ app.put('/api/money/investments/:id', mainAuth, (req, res) => {
   res.json({ success: true, holding });
 });
 
+// Buy more shares of an existing holding
+app.post('/api/money/investments/:id/buy', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const holding = (money.investments?.holdings || []).find(h => h.id === req.params.id);
+  if (!holding) return res.status(404).json({ error: 'Holding not found' });
+  const addShares = parseFloat(req.body.shares);
+  const cost = parseFloat(req.body.cost) || 0;
+  if (!addShares || addShares <= 0) return res.status(400).json({ error: 'Invalid shares amount' });
+  const owner = holding.owner || req.session.user;
+  if (cost > 0 && money.balances[owner]) {
+    if (money.balances[owner].amount < cost) return res.status(400).json({ error: 'Insufficient balance' });
+    money.balances[owner].amount = Math.round((money.balances[owner].amount - cost) * 100) / 100;
+    money.balances[owner].updatedAt = Date.now();
+    money.transactions.push({
+      id: uuidv4(), type: 'expense', description: `${holding.symbol} (buy more)`,
+      amount: cost, category: 'other', paidBy: owner, split: false,
+      date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: req.session.user,
+    });
+  }
+  holding.shares = Math.round((holding.shares + addShares) * 10000) / 10000;
+  holding.costBasis = Math.round((holding.costBasis + cost) * 100) / 100;
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, holding });
+});
+
+// Sell shares of an existing holding
+app.post('/api/money/investments/:id/sell', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const holding = (money.investments?.holdings || []).find(h => h.id === req.params.id);
+  if (!holding) return res.status(404).json({ error: 'Holding not found' });
+  const sellShares = parseFloat(req.body.shares);
+  const proceeds = parseFloat(req.body.proceeds) || 0;
+  if (!sellShares || sellShares <= 0) return res.status(400).json({ error: 'Invalid shares amount' });
+  if (sellShares > holding.shares + 0.0001) return res.status(400).json({ error: 'Cannot sell more shares than you own' });
+  const owner = holding.owner || req.session.user;
+  // Credit proceeds to owner's balance
+  if (proceeds > 0 && money.balances[owner]) {
+    money.balances[owner].amount = Math.round((money.balances[owner].amount + proceeds) * 100) / 100;
+    money.balances[owner].updatedAt = Date.now();
+    money.transactions.push({
+      id: uuidv4(), type: 'deposit', description: `${holding.symbol} (sold)`,
+      amount: proceeds, category: 'other', paidBy: owner, split: false,
+      date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: req.session.user,
+    });
+  }
+  // Reduce cost basis proportionally
+  const fraction = sellShares / holding.shares;
+  const costReduction = Math.round(holding.costBasis * fraction * 100) / 100;
+  holding.shares = Math.round((holding.shares - sellShares) * 10000) / 10000;
+  holding.costBasis = Math.round((holding.costBasis - costReduction) * 100) / 100;
+  // Remove holding entirely if no shares left
+  if (holding.shares <= 0.0001) {
+    const idx = money.investments.holdings.findIndex(h => h.id === holding.id);
+    if (idx >= 0) money.investments.holdings.splice(idx, 1);
+  }
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true });
+});
+
 app.delete('/api/money/investments/:id', mainAuth, (req, res) => {
   const money = rd(F.money) || {};
   if (!money.investments) return res.status(404).json({ error: 'Not found' });
