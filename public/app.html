@@ -563,30 +563,29 @@
         <div class="section-header">
           <span class="section-title">Money</span>
           <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn-ghost btn-sm" onclick="toggleRecurringView()" id="money-recurring-toggle" style="font-size:0.78rem">
+            <button class="btn-ghost btn-sm" onclick="toggleRecurringView()" id="money-recurring-toggle">
               <i data-lucide="repeat" style="width:14px;height:14px"></i> Recurring
             </button>
           </div>
         </div>
 
-        <div class="money-grid" id="money-grid">
-          <!-- Left Column -->
-          <div class="money-left">
-            <!-- Snapshot Card -->
-            <div class="money-card money-anim" id="money-snapshot-card">
-              <div id="money-snapshot">
-                <div class="money-skeleton">
-                  <div class="skeleton" style="width:180px;height:40px;margin:0 auto 16px"></div>
-                  <div style="display:flex;gap:24px;justify-content:center">
-                    <div class="skeleton" style="width:100px;height:24px"></div>
-                    <div class="skeleton" style="width:100px;height:24px"></div>
-                  </div>
-                </div>
+        <div class="money-scroll" id="money-grid">
+          <!-- Balance Bar — full width -->
+          <div class="money-balance-bar money-anim" id="money-snapshot-card">
+            <div id="money-snapshot">
+              <div style="display:flex;gap:24px;justify-content:center;align-items:center;padding:24px 0">
+                <div class="skeleton" style="width:200px;height:48px"></div>
               </div>
             </div>
+          </div>
 
-            <!-- Activity Feed Card -->
+          <!-- Content Grid: Feed + Goals -->
+          <div class="money-content-grid">
+            <!-- Activity Feed -->
             <div class="money-card money-anim" id="money-feed-card">
+              <div class="money-card-header" style="display:flex;align-items:center;justify-content:space-between">
+                <span class="money-card-title">Activity</span>
+              </div>
               <div class="money-tab-bar" id="money-tab-bar">
                 <button class="money-tab active" data-tab="week" onclick="switchMoneyTab('week',this)">This Week</button>
                 <button class="money-tab" data-tab="month" onclick="switchMoneyTab('month',this)">This Month</button>
@@ -594,33 +593,24 @@
                 <div class="money-tab-indicator" id="money-tab-indicator"></div>
               </div>
               <div id="money-feed">
-                <div class="money-skeleton">
-                  <div class="skeleton-feed-row" style="display:flex;gap:10px;align-items:center;padding:12px 0">
-                    <div class="skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div>
-                    <div style="flex:1"><div class="skeleton" style="width:60%;height:14px;margin-bottom:6px"></div><div class="skeleton" style="width:40%;height:12px"></div></div>
-                  </div>
-                  <div class="skeleton-feed-row" style="display:flex;gap:10px;align-items:center;padding:12px 0">
-                    <div class="skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div>
-                    <div style="flex:1"><div class="skeleton" style="width:50%;height:14px;margin-bottom:6px"></div><div class="skeleton" style="width:35%;height:12px"></div></div>
-                  </div>
-                  <div class="skeleton-feed-row" style="display:flex;gap:10px;align-items:center;padding:12px 0">
-                    <div class="skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div>
-                    <div style="flex:1"><div class="skeleton" style="width:70%;height:14px;margin-bottom:6px"></div><div class="skeleton" style="width:45%;height:12px"></div></div>
-                  </div>
+                <div class="empty-state" style="padding:3rem 2rem">
+                  <div class="empty-state-icon">📊</div>
+                  <div class="empty-state-text">No transactions yet</div>
+                  <div class="empty-state-sub">Tap the + button to log your first expense or deposit</div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Right Column: Goals -->
-          <div class="money-right money-anim" id="money-goals-card">
-            <div class="money-card-header">
-              <span style="font-weight:700;font-size:0.9rem">Savings Goals</span>
-            </div>
-            <div id="money-goals" class="goals-grid">
-              <div class="money-skeleton" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                <div class="skeleton" style="height:160px;border-radius:12px"></div>
-                <div class="skeleton" style="height:160px;border-radius:12px"></div>
+            <!-- Savings Goals -->
+            <div class="money-card money-anim" id="money-goals-card">
+              <div class="money-card-header">
+                <span class="money-card-title">Savings Goals</span>
+              </div>
+              <div id="money-goals" class="goals-grid">
+                <div class="empty-state" style="padding:2rem">
+                  <div class="empty-state-icon">🎯</div>
+                  <div class="empty-state-text">No goals yet</div>
+                </div>
               </div>
             </div>
           </div>
@@ -628,13 +618,13 @@
 
         <!-- Recurring View (hidden by default) -->
         <div id="money-recurring-view" style="display:none">
-          <div class="money-card" style="margin:16px">
+          <div class="money-card" style="margin:20px">
             <div class="money-card-header" style="display:flex;justify-content:space-between;align-items:center">
-              <span style="font-weight:700;font-size:0.9rem">Recurring Bills</span>
-              <button class="btn-primary btn-sm" onclick="openModal('money-recurring-modal')" style="font-size:0.78rem">+ Add</button>
+              <span class="money-card-title">Recurring Bills</span>
+              <button class="btn-primary btn-sm" onclick="openModal('money-recurring-modal')">+ Add</button>
             </div>
             <div id="money-recurring-list">
-              <div class="empty-state" style="padding:2rem"><div class="empty-state-icon">📋</div><div class="empty-state-text">No recurring bills</div></div>
+              <div class="empty-state" style="padding:3rem"><div class="empty-state-icon">📋</div><div class="empty-state-text">No recurring bills</div></div>
             </div>
           </div>
         </div>

@@ -8121,24 +8121,32 @@ function renderSnapshot(data) {
     </div>`;
   }
 
+  function balTickerHtml(tick) {
+    if (!tick) return '';
+    const cls = tick.direction === 'up' ? 'ticker-up' : 'ticker-down';
+    const arrow = tick.direction === 'up' ? '↑' : '↓';
+    return `<span class="ticker ${cls}" style="font-size:0.75rem;margin-left:8px">
+      <span class="ticker-arrow">${arrow}</span> ${tick.pct}%
+      <span class="tick-delta">(${tick.sign}$${tick.absDelta})</span>
+    </span>`;
+  }
+
   container.innerHTML = `
     <div class="money-combined" id="money-combined">$${combined.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
     <div class="money-balances">
-      <div class="money-bal">
+      <div class="money-bal-card">
         <div class="money-bal-name">Kaliph</div>
-        <div class="money-bal-amount" id="money-bal-kaliph">$${k.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-        ${kTick ? `<div class="ticker ${kTick.direction === 'up' ? 'ticker-up' : 'ticker-down'}" style="justify-content:center;margin-top:2px">
-          <span class="ticker-arrow">${kTick.direction === 'up' ? '↑' : '↓'}</span> ${kTick.pct}%
-          <span class="tick-delta">(${kTick.sign}$${kTick.absDelta})</span>
-        </div>` : ''}
+        <div style="display:flex;align-items:center">
+          <span class="money-bal-amount" id="money-bal-kaliph">$${k.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          ${balTickerHtml(kTick)}
+        </div>
       </div>
-      <div class="money-bal">
+      <div class="money-bal-card kathrine">
         <div class="money-bal-name">Kathrine</div>
-        <div class="money-bal-amount" id="money-bal-kathrine">$${ka.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-        ${kaTick ? `<div class="ticker ${kaTick.direction === 'up' ? 'ticker-up' : 'ticker-down'}" style="justify-content:center;margin-top:2px">
-          <span class="ticker-arrow">${kaTick.direction === 'up' ? '↑' : '↓'}</span> ${kaTick.pct}%
-          <span class="tick-delta">(${kaTick.sign}$${kaTick.absDelta})</span>
-        </div>` : ''}
+        <div style="display:flex;align-items:center">
+          <span class="money-bal-amount" id="money-bal-kathrine">$${ka.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          ${balTickerHtml(kaTick)}
+        </div>
       </div>
     </div>
     <div class="money-tickers">
@@ -8224,7 +8232,8 @@ function updateMoneyTabIndicator() {
 function renderGoals(data) {
   const container = document.getElementById('money-goals');
   const goals = data.goals || [];
-  const circ = 2 * Math.PI * 34; // radius 34
+  const R = 38; // radius for 90px arc
+  const circ = 2 * Math.PI * R;
 
   let html = '';
   goals.forEach((g, i) => {
@@ -8235,9 +8244,9 @@ function renderGoals(data) {
 
     html += `<div class="goal-card${completed ? ' completed' : ''}">
       <div class="goal-arc-wrap">
-        <svg viewBox="0 0 80 80">
-          <circle class="goal-arc-track" cx="40" cy="40" r="34"/>
-          <circle class="goal-arc" cx="40" cy="40" r="34"
+        <svg viewBox="0 0 90 90">
+          <circle class="goal-arc-track" cx="45" cy="45" r="${R}"/>
+          <circle class="goal-arc" cx="45" cy="45" r="${R}"
             stroke="${g.color}" stroke-dasharray="${circ}" stroke-dashoffset="${circ}"
             data-target-offset="${offset}" style="transition-delay:${i * 120}ms"/>
         </svg>

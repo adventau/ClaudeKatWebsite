@@ -858,8 +858,10 @@ app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) 
     priority: message.priority,
   }).catch(() => {});
 
-  // brrr webhook push notification (iOS)
-  sendMessageNotification(sender, recipient, message.text || (message.files?.length ? 'Sent a file' : ''));
+  // brrr webhook push notification (iOS) — skip if recipient is actively online
+  if (onlineUsers[recipient]?.state !== 'online') {
+    sendMessageNotification(sender, recipient, message.text || (message.files?.length ? 'Sent a file' : ''));
+  }
 
   res.json({ success: true, message, emailStatus });
 });
@@ -3625,6 +3627,11 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       wd(F.messages, msgs);
     }
     io.emit('new-message', msg);
+    // brrr push notification to the recipient — skip if online
+    const recipient = user === 'kaliph' ? 'kathrine' : 'kaliph';
+    if (onlineUsers[recipient]?.state !== 'online') {
+      sendMessageNotification(user, recipient, text);
+    }
     return lines(`Sent as ${user}: "${text}"`, 'success');
   }
 

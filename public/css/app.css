@@ -3507,29 +3507,49 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
-.money-grid {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 16px;
-  padding: 16px;
+.money-scroll {
+  flex: 1;
   overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.money-content-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 20px;
+  min-height: 0;
   flex: 1;
 }
-.money-left { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.money-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .money-card {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
-  border-radius: var(--radius-card, 14px);
-  padding: 20px;
+  border-radius: var(--radius-card, 16px);
+  padding: 20px 24px;
   backdrop-filter: blur(8px);
-  transition: box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
 }
-.money-card:hover { box-shadow: 0 4px 20px var(--glow); }
 .money-card-header {
-  padding: 0 0 12px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 12px;
+}
+.money-card-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+/* ── Modal Labels (used across money modals) ───────────────────────────── */
+.modal-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 5px;
+  margin-top: 4px;
 }
 
 /* ── Setup Screen ──────────────────────────────────────────────────────── */
@@ -3544,8 +3564,8 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: 20px;
-  padding: 36px 32px;
-  max-width: 400px;
+  padding: 40px 36px;
+  max-width: 420px;
   width: 100%;
   text-align: center;
   box-shadow: var(--shadow-card);
@@ -3563,12 +3583,12 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   font-size: 0.85rem;
   color: var(--text-muted);
   line-height: 1.6;
-  margin: 0 0 20px;
+  margin: 0 0 24px;
 }
 .money-setup-inputs {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 .money-setup-field {
   flex: 1;
@@ -3580,7 +3600,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
 .money-input-prefix {
   display: flex;
@@ -3593,12 +3613,13 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   min-width: 0;
   overflow: hidden;
 }
-.money-input-prefix:focus-within { border-color: var(--border-focus); }
+.money-input-prefix:focus-within { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--glow); }
 .money-input-prefix span {
   color: var(--text-muted);
   font-weight: 600;
   font-size: 0.9rem;
   margin-right: 4px;
+  flex-shrink: 0;
 }
 .money-input-prefix input {
   flex: 1;
@@ -3608,63 +3629,74 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   color: var(--text-primary);
   font-family: var(--font-main);
   font-size: 0.9rem;
-  padding: 9px 0;
+  padding: 10px 0;
+  min-width: 0;
 }
 
-/* ── Snapshot Card ──────────────────────────────────────────────────────── */
+/* ── Balance Bar ───────────────────────────────────────────────────────── */
+.money-balance-bar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card, 16px);
+  padding: 28px 32px;
+  backdrop-filter: blur(8px);
+}
 .money-combined {
-  text-align: center;
-  font-size: 2.2rem;
+  font-size: 2.6rem;
   font-weight: 800;
   color: var(--text-primary);
-  letter-spacing: -0.02em;
-  padding: 4px 0 16px;
+  letter-spacing: -0.03em;
+  margin-bottom: 20px;
 }
 .money-balances {
   display: flex;
-  justify-content: center;
-  gap: 32px;
-  margin-bottom: 16px;
+  gap: 16px;
+  margin-bottom: 20px;
 }
-.money-bal {
-  text-align: center;
+.money-bal-card {
+  flex: 1;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  border-left: 3px solid var(--accent);
 }
+.money-bal-card.kathrine { border-left-color: #c084fc; }
 .money-bal-name {
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 .money-bal-amount {
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   font-weight: 700;
   color: var(--text-primary);
   display: inline-block;
-  padding: 2px 6px;
+  padding: 2px 0;
   border-radius: 6px;
   transition: background 0.3s;
 }
 .money-tickers {
   display: flex;
-  justify-content: center;
-  gap: 20px;
-  padding-top: 12px;
+  gap: 24px;
+  padding-top: 16px;
   border-top: 1px solid var(--border);
 }
 .ticker {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 0.78rem;
+  gap: 5px;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: default;
 }
 .ticker-label {
   color: var(--text-muted);
   font-weight: 500;
-  margin-right: 2px;
+  margin-right: 3px;
 }
 .ticker-up { color: #22c55e; }
 .ticker-down { color: #ef4444; }
@@ -3676,7 +3708,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   opacity: 0;
   transform: translateX(-4px);
   transition: opacity 0.2s ease, transform 0.2s ease;
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-weight: 500;
 }
 .ticker:hover .tick-delta {
@@ -3690,16 +3722,16 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   display: flex;
   gap: 0;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 12px;
-  padding: 0 4px;
+  margin-bottom: 14px;
+  padding: 0;
 }
 .money-tab {
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  padding: 10px 14px;
+  padding: 10px 16px;
   cursor: pointer;
   transition: color 0.15s;
   font-family: var(--font-main);
@@ -3717,28 +3749,29 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 
 /* ── Activity Feed ─────────────────────────────────────────────────────── */
 .money-feed-list {
-  max-height: 420px;
+  flex: 1;
   overflow-y: auto;
 }
 .feed-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 4px;
+  gap: 12px;
+  padding: 11px 8px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
   position: relative;
   transition: background 0.12s;
+  border-radius: 8px;
 }
-.feed-item:hover { background: var(--bg-hover); border-radius: 8px; }
+.feed-item:hover { background: var(--bg-hover); }
 .feed-item:last-child { border-bottom: none; }
 .feed-avatar {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 800;
   color: #fff;
   flex-shrink: 0;
@@ -3748,7 +3781,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .feed-avatar-s  { background: #22c55e; }
 .feed-body { flex: 1; min-width: 0; }
 .feed-desc {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
@@ -3759,9 +3792,9 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.72rem;
+  font-size: 0.73rem;
   color: var(--text-muted);
-  margin-top: 1px;
+  margin-top: 2px;
 }
 .feed-cat {
   display: inline-flex;
@@ -3769,14 +3802,14 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   gap: 3px;
   background: var(--bg-active);
   color: var(--accent);
-  padding: 1px 7px;
+  padding: 1px 8px;
   border-radius: 9999px;
   font-size: 0.68rem;
   font-weight: 600;
 }
 .feed-amount {
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   flex-shrink: 0;
   margin-left: auto;
 }
@@ -3801,7 +3834,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .feed-load-more {
   text-align: center;
   padding: 12px;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--accent);
   cursor: pointer;
@@ -3814,13 +3847,16 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .goals-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 14px;
+  flex: 1;
+  overflow-y: auto;
+  align-content: start;
 }
 .goal-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 16px;
+  padding: 18px 14px;
   text-align: center;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -3831,19 +3867,19 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .goal-card.completed { border-color: var(--accent); }
 .goal-arc-wrap {
   position: relative;
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 8px;
+  width: 90px;
+  height: 90px;
+  margin: 0 auto 10px;
 }
-.goal-arc-wrap svg { width: 80px; height: 80px; transform: rotate(-90deg); }
+.goal-arc-wrap svg { width: 90px; height: 90px; transform: rotate(-90deg); }
 .goal-arc-track {
   fill: none;
   stroke: var(--border);
-  stroke-width: 6;
+  stroke-width: 5;
 }
 .goal-arc {
   fill: none;
-  stroke-width: 6;
+  stroke-width: 5;
   stroke-linecap: round;
   transition: stroke-dashoffset 1s cubic-bezier(0.22,1,0.36,1);
 }
@@ -3853,21 +3889,21 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 800;
   color: var(--text-primary);
 }
 .goal-name {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 2px;
+  margin-bottom: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .goal-progress-text {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
   margin-bottom: 2px;
 }
@@ -3875,7 +3911,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   font-size: 0.68rem;
   color: var(--text-muted);
   font-style: italic;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .goal-actions {
   display: flex;
@@ -3886,17 +3922,17 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 }
 .goal-card:hover .goal-actions { opacity: 1; }
 .goal-action-btn {
-  background: var(--bg-hover);
+  background: var(--bg-active);
   border: none;
   color: var(--text-secondary);
   font-size: 0.72rem;
   font-weight: 600;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
-.goal-action-btn:hover { background: var(--bg-active); color: var(--accent); }
+.goal-action-btn:hover { background: var(--accent); color: var(--text-btn, #fff); }
 .goal-new {
   border: 2px dashed var(--border);
   display: flex;
@@ -3906,9 +3942,9 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   gap: 6px;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  min-height: 140px;
+  min-height: 160px;
   transition: border-color 0.2s, color 0.2s, background 0.2s;
   border-radius: 14px;
   background: transparent;
@@ -3973,7 +4009,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 3px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .seg-btn {
   flex: 1;
@@ -4000,13 +4036,13 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 .category-pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 10px;
+  padding: 5px 11px;
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -4028,14 +4064,14 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 /* ── Color Swatches ────────────────────────────────────────────────────── */
 .money-color-swatches {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 .color-swatch {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  border: 2px solid transparent;
+  border: 2.5px solid transparent;
   cursor: pointer;
   transition: transform 0.15s, border-color 0.15s;
 }
@@ -4046,15 +4082,15 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .rec-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 4px;
+  gap: 12px;
+  padding: 11px 4px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 .rec-item:last-child { border-bottom: none; }
 .rec-body { flex: 1; min-width: 0; }
-.rec-desc { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); }
-.rec-meta { font-size: 0.72rem; color: var(--text-muted); }
-.rec-actions { display: flex; gap: 4px; }
+.rec-desc { font-size: 0.88rem; font-weight: 600; color: var(--text-primary); }
+.rec-meta { font-size: 0.73rem; color: var(--text-muted); margin-top: 2px; }
+.rec-actions { display: flex; gap: 6px; align-items: center; }
 
 /* ── Animations ────────────────────────────────────────────────────────── */
 @keyframes moneyFadeUp {
@@ -4116,16 +4152,16 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 }
 
 /* ── Responsive ────────────────────────────────────────────────────────── */
-@media (max-width: 834px) {
-  .money-grid { grid-template-columns: 1fr; }
-  .money-fab { bottom: 16px; right: 16px; }
-  .goals-grid { grid-template-columns: 1fr 1fr; }
+@media (max-width: 900px) {
+  .money-content-grid { grid-template-columns: 1fr; }
+  .money-scroll { padding: 16px; }
 }
 @media (max-width: 600px) {
-  .money-grid { padding: 12px; gap: 12px; }
-  .money-combined { font-size: 1.6rem; }
-  .money-balances { gap: 16px; }
-  .money-tickers { flex-wrap: wrap; gap: 12px; }
+  .money-scroll { padding: 12px; gap: 14px; }
+  .money-balance-bar { padding: 20px 16px; }
+  .money-combined { font-size: 1.8rem; }
+  .money-balances { flex-direction: column; gap: 10px; }
+  .money-tickers { flex-wrap: wrap; gap: 14px; }
   .goals-grid { grid-template-columns: 1fr; }
   .money-setup-inputs { flex-direction: column; }
 }
