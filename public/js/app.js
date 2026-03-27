@@ -8240,7 +8240,7 @@ function renderFeed(data) {
     html += `<div class="feed-item">
       <div class="feed-avatar ${avatarClass}">${_feedAvatarInner}</div>
       <div class="feed-body">
-        <div class="feed-desc">${isDeposit ? 'Deposit' : escapeHtml(t.description || 'Expense')}</div>
+        <div class="feed-desc">${escapeHtml(t.description || (isDeposit ? 'Deposit' : 'Expense'))}</div>
         <div class="feed-meta">
           ${!isDeposit ? `<span class="feed-cat"><i data-lucide="${cat.icon}" style="width:10px;height:10px"></i> ${cat.label}</span>` : ''}
           <span>${dateStr}</span>
@@ -8594,20 +8594,29 @@ async function submitContribution() {
   } catch { showToast('Failed to contribute'); }
 }
 
-async function withdrawFromGoal(goalId) {
+function withdrawFromGoal(goalId) {
   const goal = (_moneyData?.goals || []).find(g => g.id === goalId);
   if (!goal || goal.currentAmount <= 0) { showToast('Nothing to withdraw'); return; }
-  const amount = prompt(`Withdraw from "${goal.name}" ($${goal.currentAmount.toFixed(2)} available):\nEnter amount:`);
-  if (!amount) return;
-  const val = parseFloat(amount);
-  if (!val || val <= 0) { showToast('Invalid amount'); return; }
-  if (val > goal.currentAmount) { showToast('Amount exceeds goal balance'); return; }
+  document.getElementById('money-withdraw-goal-id').value = goalId;
+  document.getElementById('money-withdraw-amount').value = '';
+  document.getElementById('money-withdraw-available').textContent = `Available: $${goal.currentAmount.toFixed(2)} from "${goal.name}"`;
+  openModal('money-withdraw-modal');
+  setTimeout(() => document.getElementById('money-withdraw-amount')?.focus(), 100);
+}
+
+async function submitWithdraw() {
+  const goalId = document.getElementById('money-withdraw-goal-id').value;
+  const val = parseFloat(document.getElementById('money-withdraw-amount').value);
+  const goal = (_moneyData?.goals || []).find(g => g.id === goalId);
+  if (!val || val <= 0) { showToast('Enter a valid amount'); return; }
+  if (goal && val > goal.currentAmount) { showToast('Amount exceeds goal balance'); return; }
   try {
     await fetch(`/api/money/goals/${goalId}/withdraw`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount: val }),
     });
-    showToast(`Withdrew $${val.toFixed(2)} from ${goal.name}`);
+    closeModal('money-withdraw-modal');
+    showToast(`Withdrew $${val.toFixed(2)}`);
   } catch { showToast('Failed to withdraw'); }
 }
 

@@ -3520,14 +3520,23 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
   gap: 12px;
+  flex: 1;
+  min-height: 0;
 }
 .money-left-col {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
 }
-.money-feed-stretch { min-height: 0; }
-.money-feed-scroll { overflow-y: auto; max-height: 300px; }
+.money-feed-stretch { min-height: 0; flex: 1; }
+.money-feed-scroll {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 .money-portfolio-stretch { min-height: 0; }
 .portfolio-holdings-scroll { overflow-y: auto; max-height: 180px; }
 .money-content-grid {
@@ -3968,7 +3977,6 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 /* ── Activity Feed ─────────────────────────────────────────────────────── */
 .money-feed-list {
   flex: 1;
-  overflow-y: auto;
 }
 .feed-item {
   display: flex;
@@ -4457,7 +4465,9 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .money-content-grid { grid-template-columns: 1fr; }
-  .money-main-grid { grid-template-columns: 1fr; }
+  .money-main-grid { grid-template-columns: 1fr; flex: unset; min-height: unset; }
+  .money-feed-stretch { flex: unset; }
+  .money-feed-scroll { flex: unset; max-height: 45vh; }
   .money-scroll { padding: 10px; }
   #money-dashboard { padding: 6px 10px; }
 }

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
-  <link rel="stylesheet" href="/css/app.css?v=networth1">
+  <link rel="stylesheet" href="/css/app.css?v=feedscroll1">
   <script src="/js/lucide.min.js" defer></script>
 </head>
 <body class="theme-dark">
@@ -1875,6 +1875,26 @@
       <label class="modal-label">Note (optional)</label>
       <input type="text" id="money-contrib-note" class="input" placeholder="Birthday money, paycheck..." style="margin-bottom:12px">
       <button class="btn-primary" onclick="submitContribution()" style="width:100%">Add Contribution</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Money: Withdraw Modal ── -->
+<div class="modal-overlay" id="money-withdraw-modal">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-header">
+      <span class="modal-title">Withdraw from Goal</span>
+      <button class="btn-icon" onclick="closeModal('money-withdraw-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <input type="hidden" id="money-withdraw-goal-id">
+      <div id="money-withdraw-available" style="font-size:0.72rem;color:var(--text-muted);margin-bottom:10px"></div>
+      <label class="modal-label">Amount</label>
+      <div class="money-input-prefix" style="margin-bottom:16px">
+        <span>$</span>
+        <input type="number" id="money-withdraw-amount" class="input" placeholder="0.00" step="0.01" min="0">
+      </div>
+      <button class="btn-primary" onclick="submitWithdraw()" style="width:100%">Withdraw</button>
     </div>
   </div>
 </div>
