@@ -269,7 +269,11 @@ function activateStealthBanner(target) {
 }
 
 function exitStealthMode() {
-  window.location.href = '/app';
+  // Close the stealth tab — it was opened from the eval terminal
+  // If window.close() fails (not opened by script), navigate away safely
+  window.close();
+  // Fallback: navigate to index (login) instead of /app to avoid session confusion
+  setTimeout(() => { window.location.href = '/'; }, 200);
 }
 
 function switchStealthUser(user) {

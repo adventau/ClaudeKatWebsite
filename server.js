@@ -3113,8 +3113,9 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     const users = rd(F.users);
     if (!users[user]) return lines(`User "${user}" not found`, 'error');
     // Ensure the session is authenticated for the app so stealth tab doesn't redirect to login
+    // Keep session.user as the real user — stealth target is passed via URL param only
     req.session.authenticated = true;
-    if (!req.session.user) req.session.user = user;
+    if (!req.session.user) req.session.user = 'kaliph'; // fallback — eval doesn't have a profile selected
     await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve()));
     return {
       lines: [
