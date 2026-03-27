@@ -3532,7 +3532,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .money-feed-stretch { min-height: 0; }
 .money-feed-scroll {
   overflow-y: auto;
-  max-height: calc(100vh - 460px);
+  max-height: 35vh;
   min-height: 120px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -4469,6 +4469,15 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   .money-feed-scroll { max-height: 40vh; }
   .money-scroll { padding: 10px; }
   #money-dashboard { padding: 6px 10px; }
+}
+/* Tighten layout at high zoom levels (small effective viewport height) */
+@media (max-height: 750px) {
+  .money-scroll { gap: 6px; padding: 6px 16px; }
+  .money-card { padding: 10px 14px; }
+  .money-feed-scroll { max-height: 30vh; }
+}
+@media (max-height: 620px) {
+  .money-feed-scroll { max-height: 25vh; }
 }
 @media (max-width: 600px) {
   .money-scroll { padding: 12px; gap: 14px; }
