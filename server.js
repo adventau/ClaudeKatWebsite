@@ -2614,7 +2614,7 @@ app.post('/api/eval/exec', async (req, res) => {
   const cmd = parts[0]?.toLowerCase();
 
   try {
-    const result = await handleEvalCommand(raw, parts, cmd, mode, previewUser);
+    const result = await handleEvalCommand(raw, parts, cmd, mode, previewUser, req);
     res.json(result);
   } catch (e) {
     console.error('Eval error:', e);
@@ -2622,7 +2622,7 @@ app.post('/api/eval/exec', async (req, res) => {
   }
 });
 
-async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
+async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
   const lines = (text, cls = 'info') => ({ lines: [{ text, cls }] });
   const multi = (...arr) => ({ lines: arr.map(([text, cls]) => ({ text, cls: cls || 'info' })) });
 
