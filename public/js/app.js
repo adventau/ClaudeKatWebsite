@@ -8152,11 +8152,12 @@ function renderSnapshot(data) {
   }
 
   container.innerHTML = `
-    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
-      <div class="money-combined" id="money-combined" style="margin-bottom:0">$${combined.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-      ${balTickerHtml(combinedTick)}
-    </div>
-    <div class="money-balances">
+    <div class="money-balance-row">
+      <div class="money-balance-main">
+        <div class="money-bal-label">Combined Balance</div>
+        <div class="money-combined" id="money-combined">$${combined.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+        ${balTickerHtml(combinedTick)}
+      </div>
       <div class="money-bal-card">
         <div class="money-bal-name">Kaliph</div>
         <div style="display:flex;align-items:center">

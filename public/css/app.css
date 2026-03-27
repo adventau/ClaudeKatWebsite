@@ -3837,25 +3837,40 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   backdrop-filter: blur(8px);
   flex-shrink: 0;
 }
+.money-balance-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+.money-balance-main {
+  flex: 1.2;
+  min-width: 0;
+}
+.money-bal-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
 .money-combined {
   font-size: 2.2rem;
   font-weight: 800;
   color: var(--text-primary);
   letter-spacing: -0.03em;
-  margin-bottom: 10px;
-}
-.money-balances {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 0;
+  margin-bottom: 2px;
 }
 .money-bal-card {
   flex: 1;
   background: var(--bg-hover);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-left: 3px solid var(--accent);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .money-bal-card.kathrine { border-left-color: #c084fc; }
 .money-bal-name {
