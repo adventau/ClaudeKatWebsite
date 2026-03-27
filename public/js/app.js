@@ -8230,11 +8230,15 @@ function renderFeed(data) {
     const cat = MONEY_CATEGORIES[t.category] || MONEY_CATEGORIES.other;
     const avatarClass = t.split ? 'feed-avatar-s' : (t.paidBy === 'kaliph' ? 'feed-avatar-k' : 'feed-avatar-ka');
     const avatarText = t.split ? 'S' : (t.paidBy === 'kaliph' ? 'K' : 'Ka');
+    const _feedUserData = t.split ? null : (window._users || {})[t.paidBy];
+    const _feedAvatarInner = _feedUserData?.avatar
+      ? `<img src="${_feedUserData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : avatarText;
     const dateStr = formatMoneyDate(t.date || t.createdAt);
     const amtStr = (isDeposit ? '+' : '-') + '$' + t.amount.toFixed(2);
 
     html += `<div class="feed-item">
-      <div class="feed-avatar ${avatarClass}">${avatarText}</div>
+      <div class="feed-avatar ${avatarClass}">${_feedAvatarInner}</div>
       <div class="feed-body">
         <div class="feed-desc">${isDeposit ? 'Deposit' : escapeHtml(t.description || 'Expense')}</div>
         <div class="feed-meta">
@@ -8925,23 +8929,23 @@ function renderPortfolio(data) {
     const arrow = changePct >= 0 ? '↑' : '↓';
     const ownerCls = (h.owner === 'kathrine') ? 'feed-avatar-ka' : 'feed-avatar-k';
     const ownerInit = (h.owner === 'kathrine') ? 'Ka' : 'K';
+    const _holdingUserData = (window._users || {})[h.owner];
+    const _holdingAvatarInner = _holdingUserData?.avatar
+      ? `<img src="${_holdingUserData.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : ownerInit;
     return `<div class="holding-item">
-      <div class="feed-avatar ${ownerCls}" style="width:22px;height:22px;font-size:0.55rem;flex-shrink:0">${ownerInit}</div>
-      <span class="holding-symbol">${h.symbol}</span>
+      <div class="feed-avatar ${ownerCls}" style="width:22px;height:22px;font-size:0.5rem;flex-shrink:0">${_holdingAvatarInner}</div>
       <div class="holding-info">
-        <div class="holding-name">${escapeHtml(h.name)}</div>
+        <div class="holding-name-row"><span class="holding-symbol">${h.symbol}</span> <span class="holding-name">${escapeHtml(h.name)}</span></div>
         <div class="holding-shares">${h.shares.toFixed(4)} shares</div>
       </div>
       <div class="holding-value">
         <div class="holding-price">$${val}</div>
-        <div class="holding-change ticker ${cls}" style="font-size:0.68rem">
-          <span class="ticker-arrow">${arrow}</span> ${Math.abs(changePct).toFixed(1)}%
-          <span class="tick-delta">(${changePct >= 0 ? '+' : '-'}$${Math.abs(parseFloat(changeAbs)).toFixed(2)})</span>
-        </div>
+        <div class="holding-change ${cls}">${arrow} ${Math.abs(changePct).toFixed(1)}%</div>
       </div>
       <div class="holding-actions">
-        <button class="feed-action-btn" onclick="editInvestment('${h.id}')" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px"></i></button>
-        <button class="feed-action-btn feed-delete-btn" onclick="deleteInvestment('${h.id}')" title="Delete"><i data-lucide="trash-2" style="width:12px;height:12px"></i></button>
+        <button class="feed-action-btn" onclick="editInvestment('${h.id}')" title="Edit"><i data-lucide="pencil" style="width:11px;height:11px"></i></button>
+        <button class="feed-action-btn feed-delete-btn" onclick="deleteInvestment('${h.id}')" title="Delete"><i data-lucide="trash-2" style="width:11px;height:11px"></i></button>
       </div>
     </div>`;
   }).join('');

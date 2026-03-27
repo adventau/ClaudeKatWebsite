@@ -3584,31 +3584,37 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .holding-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 4px;
+  gap: 6px;
+  padding: 6px 2px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
-  position: relative;
 }
 .holding-item:last-child { border-bottom: none; }
-.holding-symbol {
-  font-weight: 800;
-  font-size: 0.82rem;
-  color: var(--text-primary);
-  min-width: 48px;
-}
 .holding-info {
   flex: 1;
   min-width: 0;
 }
-.holding-name {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+.holding-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.holding-symbol {
+  font-weight: 800;
+  font-size: 0.78rem;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.holding-name {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .holding-shares {
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   color: var(--text-muted);
 }
 .holding-value {
@@ -3616,20 +3622,20 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   flex-shrink: 0;
 }
 .holding-price {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: var(--text-primary);
 }
 .holding-change {
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   font-weight: 600;
 }
 .holding-actions {
   display: flex;
-  gap: 2px;
+  gap: 1px;
   opacity: 0;
   transition: opacity 0.15s;
-  margin-left: 4px;
+  flex-shrink: 0;
 }
 .holding-item:hover .holding-actions { opacity: 1; }
 .money-card {
@@ -3986,6 +3992,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   font-weight: 800;
   color: #fff;
   flex-shrink: 0;
+  overflow: hidden;
 }
 .feed-avatar-k  { background: #4f46e5; }
 .feed-avatar-ka { background: #c084fc; }
