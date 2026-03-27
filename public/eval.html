@@ -865,6 +865,15 @@ const COMMANDS = [
   { cmd: 'reminders list kathrine', desc: 'List Kathrine reminders', cat: 'Data' },
   { cmd: 'delete reminder ', desc: 'Delete a reminder by ID', cat: 'Data' },
 
+  // Money
+  { cmd: 'money status', desc: 'Show balances, transaction/goal/snapshot counts', cat: 'Money' },
+  { cmd: 'money set kaliph ', desc: 'Force-set Kaliph balance', cat: 'Money' },
+  { cmd: 'money set kathrine ', desc: 'Force-set Kathrine balance', cat: 'Money' },
+  { cmd: 'money clear transactions', desc: 'Wipe all transactions', cat: 'Money' },
+  { cmd: 'money clear goals', desc: 'Wipe all goals', cat: 'Money' },
+  { cmd: 'money snapshots', desc: 'Show last 10 daily snapshots', cat: 'Money' },
+  { cmd: 'money reset', desc: 'Factory reset money dashboard', cat: 'Money' },
+
   // Time
   { cmd: 'time set ', desc: 'Set time offset (ISO date, +2h, -30m, +1d)', cat: 'Time' },
   { cmd: 'time reset', desc: 'Reset time to real system clock', cat: 'Time' },
@@ -1262,6 +1271,13 @@ function showHelp() {
       ['guests archive', 'List archived/revoked guests'],
       ['suggestions list', 'List suggestions'],
       ['delete suggestion <id>', 'Delete suggestion'],
+    ],
+    'MONEY': [
+      ['money status', 'Balances, counts, overview'],
+      ['money set <user> <amount>', 'Force-set balance'],
+      ['money clear <transactions|goals>', 'Wipe data'],
+      ['money snapshots', 'Last 10 daily snapshots'],
+      ['money reset', 'Factory reset (back to setup)'],
     ],
     'THEME BUILDER': [
       ['theme builder', 'Show theme builder help'],

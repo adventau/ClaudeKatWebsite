@@ -4039,6 +4039,12 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
       if (what === 'goals') { money.goals = []; wd(F.money, money); io.emit('money:updated', money); return lines('All goals cleared', 'success'); }
       return lines('Usage: money clear <transactions|goals>', 'warn');
     }
+    if (sub === 'reset') {
+      const defaultMoney = { setup: false, balances: { kaliph: { amount: 0, updatedAt: null }, kathrine: { amount: 0, updatedAt: null } }, dailySnapshots: [], transactions: [], goals: [], recurring: [] };
+      wd(F.money, defaultMoney);
+      io.emit('money:updated', defaultMoney);
+      return lines('Money dashboard factory reset. Next open will show setup screen.', 'success');
+    }
     if (sub === 'snapshots') {
       const snaps = (money.dailySnapshots || []).slice(-10);
       if (!snaps.length) return lines('No snapshots yet', 'dim');
