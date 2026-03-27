@@ -530,6 +530,22 @@
       </div>
     </section>
 
+    <!-- ═══ MONEY FULLSCREEN HEADER ═══ -->
+    <div id="money-fullscreen-header" class="money-fs-header" style="display:none">
+      <div class="money-fs-header-left">
+        <button class="btn-icon" onclick="showSection('chat', document.querySelector('.nav-item[data-section=chat]'))" title="Back">
+          <i data-lucide="arrow-left" style="width:18px;height:18px"></i>
+        </button>
+        <span class="money-fs-title">Royal K&K · Money</span>
+      </div>
+      <div class="money-fs-header-right">
+        <span class="money-fs-date" id="money-fs-date"></span>
+        <button class="btn-icon" onclick="openQuickAdd()" title="Add transaction">
+          <i data-lucide="plus" style="width:18px;height:18px"></i>
+        </button>
+      </div>
+    </div>
+
     <!-- ═══ MONEY DASHBOARD ═══ -->
     <section id="section-money" class="section">
       <!-- Setup Screen (shown when setup: false) -->

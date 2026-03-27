@@ -556,6 +556,22 @@ function showSection(name, el) {
   const searchWrap = document.getElementById('search-wrap');
   if (searchWrap) searchWrap.style.display = name === 'chat' ? '' : 'none';
 
+  // Money section takes over full screen — hide sidebar + app header
+  const sidebar = document.getElementById('sidebar');
+  const appHeader = document.getElementById('app-header');
+  const moneyHeader = document.getElementById('money-fullscreen-header');
+  if (name === 'money') {
+    if (sidebar) sidebar.style.display = 'none';
+    if (appHeader) appHeader.style.display = 'none';
+    if (moneyHeader) moneyHeader.style.display = '';
+    document.getElementById('app')?.classList.add('money-fullscreen');
+  } else {
+    if (sidebar) sidebar.style.display = '';
+    if (appHeader) appHeader.style.display = '';
+    if (moneyHeader) moneyHeader.style.display = 'none';
+    document.getElementById('app')?.classList.remove('money-fullscreen');
+  }
+
   // Clear unread badge when entering chat
   if (name === 'chat') {
     clearUnreadBadge();
@@ -7986,6 +8002,12 @@ const MONEY_CATEGORIES = {
 };
 
 async function loadMoney() {
+  // Set fullscreen header date
+  const dateEl = document.getElementById('money-fs-date');
+  if (dateEl) {
+    dateEl.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  }
+
   // Show skeletons
   const setup = document.getElementById('money-setup');
   const dash = document.getElementById('money-dashboard');

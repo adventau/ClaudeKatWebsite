@@ -3112,7 +3112,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   height: 0;
   position: absolute;
 }
-.toggle-slider {
+.toggle-switch .toggle-slider {
   position: absolute;
   inset: 0;
   background: var(--border, #3a3a4a);
@@ -3120,7 +3120,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   transition: background 0.25s, box-shadow 0.25s;
   cursor: pointer;
 }
-.toggle-slider::before {
+.toggle-switch .toggle-slider::before {
   content: '';
   position: absolute;
   left: 2px;
@@ -3567,6 +3567,50 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   color: var(--text-secondary);
   margin-bottom: 5px;
   margin-top: 4px;
+}
+
+/* ── Money Fullscreen Header ───────────────────────────────────────────── */
+.money-fs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.money-fs-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.money-fs-title {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.money-fs-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.money-fs-date {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+#app.money-fullscreen {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "header" "main";
+}
+#app.money-fullscreen .money-fs-header {
+  grid-area: header;
+}
+#app.money-fullscreen #section-money {
+  grid-area: main;
+  max-width: 100%;
 }
 
 /* ── Setup Screen ──────────────────────────────────────────────────────── */
