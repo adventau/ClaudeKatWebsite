@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
-  <link rel="stylesheet" href="/css/app.css?v=money6">
+  <link rel="stylesheet" href="/css/app.css?v=portfolio1">
   <script src="/js/lucide.min.js" defer></script>
 </head>
 <body class="theme-dark">
@@ -586,8 +586,13 @@
             </div>
           </div>
 
-          <!-- Content Grid: Feed + Goals -->
-          <div class="money-content-grid">
+          <!-- Overview Row (tickers) — full width -->
+          <div class="money-overview-row money-anim" id="money-overview-card">
+            <div id="money-overview-tickers" class="money-overview-tickers"></div>
+          </div>
+
+          <!-- Bottom Grid: Activity (left) + Portfolio & Goals (right) -->
+          <div class="money-bottom-grid">
             <!-- Activity Feed -->
             <div class="money-card money-anim" id="money-feed-card">
               <div class="money-card-header" style="display:flex;align-items:center;justify-content:space-between">
@@ -611,7 +616,6 @@
                   <div class="empty-state-sub">Tap the + button to log your first expense or deposit</div>
                 </div>
               </div>
-              <!-- Recurring list (hidden by default, toggled inside same card) -->
               <div id="money-recurring-view" style="display:none">
                 <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
                   <button class="btn-primary btn-sm" onclick="openModal('money-recurring-modal')">+ Add</button>
@@ -622,15 +626,37 @@
               </div>
             </div>
 
-            <!-- Savings Goals -->
-            <div class="money-card money-anim" id="money-goals-card">
-              <div class="money-card-header">
-                <span class="money-card-title">Savings Goals</span>
+            <!-- Right Column: Portfolio + Goals -->
+            <div class="money-right-col">
+              <!-- Portfolio Card -->
+              <div class="money-card money-anim" id="money-portfolio-card">
+                <div class="money-card-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+                  <span class="money-card-title">Portfolio</span>
+                  <div style="text-align:right">
+                    <div class="portfolio-total" id="portfolio-total">$0.00</div>
+                    <div class="portfolio-ticker" id="portfolio-ticker"></div>
+                  </div>
+                </div>
+                <div id="portfolio-chart-wrap" style="height:80px;margin-bottom:10px;display:none">
+                  <canvas id="portfolio-chart"></canvas>
+                </div>
+                <div id="portfolio-chart-empty" style="display:none;text-align:center;padding:8px;font-size:0.72rem;color:var(--text-muted);font-style:italic">Chart appears after 2 days of data</div>
+                <div id="portfolio-holdings"></div>
+                <div class="goal-new" onclick="openAddInvestment()" style="min-height:44px;margin-top:10px;font-size:0.78rem">
+                  <i data-lucide="plus" style="width:16px;height:16px"></i> Add Holding
+                </div>
               </div>
-              <div id="money-goals" class="goals-grid">
-                <div class="empty-state" style="padding:2rem">
-                  <div class="empty-state-icon"><i data-lucide="target" style="width:40px;height:40px;opacity:0.4"></i></div>
-                  <div class="empty-state-text">No goals yet</div>
+
+              <!-- Savings Goals -->
+              <div class="money-card money-anim" id="money-goals-card">
+                <div class="money-card-header">
+                  <span class="money-card-title">Savings Goals</span>
+                </div>
+                <div id="money-goals" class="goals-grid">
+                  <div class="empty-state" style="padding:2rem">
+                    <div class="empty-state-icon"><i data-lucide="target" style="width:40px;height:40px;opacity:0.4"></i></div>
+                    <div class="empty-state-text">No goals yet</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1931,6 +1957,38 @@
   </div>
 </div>
 
+<!-- ── Money: Add Investment Modal ── -->
+<div class="modal-overlay" id="money-invest-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <span class="modal-title" id="money-invest-modal-title">Add Investment</span>
+      <button class="btn-icon" onclick="closeModal('money-invest-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <input type="hidden" id="money-invest-edit-id" value="">
+
+      <label class="modal-label">Ticker Symbol</label>
+      <input type="text" id="money-invest-symbol" class="input" placeholder="AAPL, TSLA, VOO..." style="margin-bottom:8px;text-transform:uppercase" maxlength="10">
+      <div id="invest-symbol-preview" style="display:none;margin-bottom:12px"></div>
+
+      <label class="modal-label">Amount Invested ($)</label>
+      <div class="money-input-prefix" style="margin-bottom:12px">
+        <span>$</span>
+        <input type="number" id="money-invest-amount" class="input" placeholder="0.00" step="0.01" min="0">
+      </div>
+
+      <div id="invest-calc-preview" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--bg-hover);border-radius:10px;font-size:0.78rem;color:var(--text-secondary);line-height:1.8">
+      </div>
+
+      <p style="font-size:0.7rem;color:var(--text-muted);margin:0 0 12px;line-height:1.5;font-style:italic">
+        Prices update every 15 minutes. Only log changes when you buy or sell.
+      </p>
+
+      <button class="btn-primary" id="money-invest-submit" onclick="submitInvestment()" style="width:100%" disabled>Add to Portfolio</button>
+    </div>
+  </div>
+</div>
+
 <!-- Custom Confirm Dialog (replaces browser confirm) -->
 <!-- Profile Viewer Modal -->
 <div class="modal-overlay" id="profile-viewer-modal">
@@ -2196,6 +2254,6 @@
 <!-- Scripts -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js?v=4"></script>
-<script src="/js/app.js?v=money5"></script>
+<script src="/js/app.js?v=portfolio1"></script>
 </body>
 </html>

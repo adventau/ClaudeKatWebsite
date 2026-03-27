@@ -873,6 +873,10 @@ const COMMANDS = [
   { cmd: 'money clear goals', desc: 'Wipe all goals', cat: 'Money' },
   { cmd: 'money snapshots', desc: 'Show last 10 daily snapshots', cat: 'Money' },
   { cmd: 'money reset', desc: 'Factory reset money dashboard', cat: 'Money' },
+  { cmd: 'money portfolio', desc: 'List all holdings', cat: 'Money' },
+  { cmd: 'money portfolio add ', desc: 'Add holding (SYM shares cost)', cat: 'Money' },
+  { cmd: 'money portfolio remove ', desc: 'Remove holding by symbol', cat: 'Money' },
+  { cmd: 'money portfolio clear', desc: 'Wipe all holdings', cat: 'Money' },
 
   // Time
   { cmd: 'time set ', desc: 'Set time offset (ISO date, +2h, -30m, +1d)', cat: 'Time' },
@@ -1278,6 +1282,10 @@ function showHelp() {
       ['money clear <transactions|goals>', 'Wipe data'],
       ['money snapshots', 'Last 10 daily snapshots'],
       ['money reset', 'Factory reset (back to setup)'],
+      ['money portfolio', 'List all holdings'],
+      ['money portfolio add <SYM> <shares> <cost>', 'Add holding'],
+      ['money portfolio remove <SYM>', 'Remove holding'],
+      ['money portfolio clear', 'Wipe all holdings'],
     ],
     'THEME BUILDER': [
       ['theme builder', 'Show theme builder help'],

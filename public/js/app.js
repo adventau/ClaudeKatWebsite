@@ -574,6 +574,7 @@ function showSection(name, el) {
     if (appHeader) appHeader.style.display = '';
     if (moneyHeader) moneyHeader.style.display = 'none';
     document.getElementById('app')?.classList.remove('money-fullscreen');
+    if (typeof stopPortfolioRefresh === 'function') stopPortfolioRefresh();
   }
 
   // Clear unread badge when entering chat
@@ -8068,9 +8069,12 @@ function renderMoney(data) {
     el.style.animation = '';
   });
   renderSnapshot(data);
+  renderOverviewTickers(data);
   renderFeed(data);
   renderGoals(data);
+  renderPortfolio(data);
   updateMoneyTabIndicator();
+  startPortfolioRefresh();
   if (window.lucide) lucide.createIcons();
 }
 
@@ -8093,8 +8097,10 @@ function renderMoneyUpdate(oldData, newData) {
     }
   }
   renderSnapshot(newData);
+  renderOverviewTickers(newData);
   renderFeed(newData);
   renderGoals(newData);
+  renderPortfolio(newData);
 }
 
 // ── Number Animation ──
@@ -8135,40 +8141,6 @@ function renderSnapshot(data) {
   const combinedPrev = prev ? (prev.kaliph + prev.kathrine) : null;
   const combinedTick = combinedPrev != null ? calcTicker(combined, combinedPrev) : null;
 
-  // Weekly/monthly spend calcs
-  const now = Date.now();
-  const nowDate = new Date();
-  const weekAgo = now - 7 * 86400000;
-  const twoWeeksAgo = now - 14 * 86400000;
-  const txns = data.transactions || [];
-  const thisWeekSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= weekAgo).reduce((s, t) => s + t.amount, 0);
-  const lastWeekSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= twoWeeksAgo && t.createdAt < weekAgo).reduce((s, t) => s + t.amount, 0);
-  const weekTick = calcTicker(thisWeekSpend, lastWeekSpend);
-
-  // Monthly spend
-  const thisMonthStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
-  const lastMonthStart = new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1).getTime();
-  const thisMonthSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= thisMonthStart).reduce((s, t) => s + t.amount, 0);
-  const lastMonthSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= lastMonthStart && t.createdAt < thisMonthStart).reduce((s, t) => s + t.amount, 0);
-  const monthTick = calcTicker(thisMonthSpend, lastMonthSpend);
-
-  // Monthly savings (goal contributions)
-  const goals = data.goals || [];
-  const thisMonthSaved = goals.reduce((s, g) => s + (g.contributions || []).filter(c => c.createdAt >= thisMonthStart).reduce((a, c) => a + c.amount, 0), 0);
-  const lastMonthSaved = goals.reduce((s, g) => s + (g.contributions || []).filter(c => c.createdAt >= lastMonthStart && c.createdAt < thisMonthStart).reduce((a, c) => a + c.amount, 0), 0);
-  const savedTick = calcTicker(thisMonthSaved, lastMonthSaved);
-
-  function tickerHtml(tick, label, invertColor) {
-    if (!tick) return `<div class="ticker"><span class="ticker-label">${label}</span> —</div>`;
-    const cls = invertColor ? (tick.direction === 'up' ? 'ticker-down' : 'ticker-up') : (tick.direction === 'up' ? 'ticker-up' : 'ticker-down');
-    const arrow = tick.direction === 'up' ? '↑' : '↓';
-    return `<div class="ticker ${cls}">
-      <span class="ticker-label">${label}</span>
-      <span class="ticker-arrow">${arrow}</span> ${tick.pct}%
-      <span class="tick-delta">(${tick.sign}$${tick.absDelta})</span>
-    </div>`;
-  }
-
   function balTickerHtml(tick, label) {
     if (!tick) return `<span class="ticker" style="font-size:0.75rem;margin-left:8px;color:var(--text-muted)">—</span>`;
     const cls = tick.direction === 'up' ? 'ticker-up' : 'ticker-down';
@@ -8199,11 +8171,6 @@ function renderSnapshot(data) {
           ${balTickerHtml(kaTick)}
         </div>
       </div>
-    </div>
-    <div class="money-tickers">
-      ${tickerHtml(weekTick, 'Spent this week', true)}
-      ${tickerHtml(monthTick, 'Spent this month', true)}
-      ${tickerHtml(savedTick, 'Saved this month', false)}
     </div>
   `;
 }
@@ -8810,6 +8777,318 @@ function selectRecDate(dateStr) {
   renderMoneyRecDateGrid();
   closeMoneyRecDatePicker();
 }
+
+// ── Portfolio / Investments ──
+let _portfolioPrices = {};
+let _portfolioInterval = null;
+let _portfolioChart = null;
+
+async function fetchPortfolioPrices() {
+  try {
+    _portfolioPrices = await fetch('/api/money/portfolio/prices').then(r => r.json());
+    renderPortfolio(_moneyData);
+  } catch (e) { console.error('Portfolio price fetch error:', e); }
+}
+
+function startPortfolioRefresh() {
+  stopPortfolioRefresh();
+  fetchPortfolioPrices();
+  _portfolioInterval = setInterval(fetchPortfolioPrices, 15 * 60 * 1000);
+}
+
+function stopPortfolioRefresh() {
+  if (_portfolioInterval) { clearInterval(_portfolioInterval); _portfolioInterval = null; }
+}
+
+function renderPortfolio(data) {
+  if (!data) return;
+  const inv = data.investments || { holdings: [], snapshots: [] };
+  const holdings = inv.holdings || [];
+  const snapshots = inv.snapshots || [];
+
+  // Total value
+  let totalValue = 0;
+  let totalCost = 0;
+  holdings.forEach(h => {
+    const price = _portfolioPrices[h.symbol]?.price || 0;
+    totalValue += h.shares * price;
+    totalCost += h.costBasis;
+  });
+
+  const totalEl = document.getElementById('portfolio-total');
+  if (totalEl) totalEl.textContent = '$' + totalValue.toFixed(2);
+
+  // Portfolio ticker vs yesterday
+  const tickerEl = document.getElementById('portfolio-ticker');
+  if (tickerEl) {
+    const prevSnap = snapshots.length >= 2 ? snapshots[snapshots.length - 2] : null;
+    if (prevSnap && prevSnap.totalValue > 0) {
+      const tick = calcTicker(totalValue, prevSnap.totalValue);
+      if (tick) {
+        const cls = tick.direction === 'up' ? 'ticker-up' : 'ticker-down';
+        const arrow = tick.direction === 'up' ? '↑' : '↓';
+        tickerEl.innerHTML = `<span class="ticker ${cls}"><span class="ticker-arrow">${arrow}</span> ${tick.pct}% <span class="tick-delta">(${tick.sign}$${tick.absDelta})</span></span>`;
+      } else { tickerEl.innerHTML = ''; }
+    } else { tickerEl.innerHTML = holdings.length ? '<span style="color:var(--text-muted);font-size:0.7rem">—</span>' : ''; }
+  }
+
+  // Chart
+  const chartWrap = document.getElementById('portfolio-chart-wrap');
+  const chartEmpty = document.getElementById('portfolio-chart-empty');
+  if (snapshots.length >= 2) {
+    if (chartWrap) chartWrap.style.display = '';
+    if (chartEmpty) chartEmpty.style.display = 'none';
+    renderPortfolioChart(snapshots.slice(-7));
+  } else {
+    if (chartWrap) chartWrap.style.display = 'none';
+    if (chartEmpty) chartEmpty.style.display = holdings.length ? '' : 'none';
+  }
+
+  // Holdings list
+  const container = document.getElementById('portfolio-holdings');
+  if (!container) return;
+  if (!holdings.length) {
+    container.innerHTML = '<div style="text-align:center;padding:12px;font-size:0.78rem;color:var(--text-muted)">No holdings yet</div>';
+    return;
+  }
+  container.innerHTML = holdings.map(h => {
+    const p = _portfolioPrices[h.symbol] || {};
+    const val = (h.shares * (p.price || 0)).toFixed(2);
+    const changePct = p.changePct || 0;
+    const changeAbs = ((p.change || 0) * h.shares).toFixed(2);
+    const cls = changePct >= 0 ? 'ticker-up' : 'ticker-down';
+    const arrow = changePct >= 0 ? '↑' : '↓';
+    return `<div class="holding-item">
+      <span class="holding-symbol">${h.symbol}</span>
+      <div class="holding-info">
+        <div class="holding-name">${escapeHtml(h.name)}</div>
+        <div class="holding-shares">${h.shares.toFixed(4)} shares</div>
+      </div>
+      <div class="holding-value">
+        <div class="holding-price">$${val}</div>
+        <div class="holding-change ticker ${cls}" style="font-size:0.68rem">
+          <span class="ticker-arrow">${arrow}</span> ${Math.abs(changePct).toFixed(1)}%
+          <span class="tick-delta">(${changePct >= 0 ? '+' : '-'}$${Math.abs(parseFloat(changeAbs)).toFixed(2)})</span>
+        </div>
+      </div>
+      <div class="holding-actions">
+        <button class="feed-action-btn" onclick="editInvestment('${h.id}')" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px"></i></button>
+        <button class="feed-action-btn feed-delete-btn" onclick="deleteInvestment('${h.id}')" title="Delete"><i data-lucide="trash-2" style="width:12px;height:12px"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderPortfolioChart(snapshots) {
+  const canvas = document.getElementById('portfolio-chart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!window.Chart) return;
+
+  if (_portfolioChart) _portfolioChart.destroy();
+  _portfolioChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: snapshots.map(s => { const d = new Date(s.date + 'T12:00:00'); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }),
+      datasets: [{
+        data: snapshots.map(s => s.totalValue),
+        borderColor: '#3B6D11',
+        backgroundColor: 'rgba(59,109,17,0.12)',
+        fill: true,
+        tension: 0.3,
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: '#3B6D11',
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '$' + ctx.parsed.y.toFixed(2) } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.4)' } },
+        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.4)', callback: v => '$' + v } },
+      }
+    }
+  });
+}
+
+// Overview tickers (separate from balance bar tickers)
+function renderOverviewTickers(data) {
+  const container = document.getElementById('money-overview-tickers');
+  if (!container) return;
+  const txns = data.transactions || [];
+  const now = Date.now();
+  const nowDate = new Date();
+  const weekAgo = now - 7 * 86400000;
+  const twoWeeksAgo = now - 14 * 86400000;
+  const thisMonthStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
+  const lastMonthStart = new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1).getTime();
+
+  const thisWeekSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= weekAgo).reduce((s, t) => s + t.amount, 0);
+  const lastWeekSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= twoWeeksAgo && t.createdAt < weekAgo).reduce((s, t) => s + t.amount, 0);
+  const thisMonthSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= thisMonthStart).reduce((s, t) => s + t.amount, 0);
+  const lastMonthSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= lastMonthStart && t.createdAt < thisMonthStart).reduce((s, t) => s + t.amount, 0);
+  const goals = data.goals || [];
+  const thisMonthSaved = goals.reduce((s, g) => s + (g.contributions || []).filter(c => c.createdAt >= thisMonthStart).reduce((a, c) => a + c.amount, 0), 0);
+  const lastMonthSaved = goals.reduce((s, g) => s + (g.contributions || []).filter(c => c.createdAt >= lastMonthStart && c.createdAt < thisMonthStart).reduce((a, c) => a + c.amount, 0), 0);
+
+  const weekTick = calcTicker(thisWeekSpend, lastWeekSpend);
+  const monthTick = calcTicker(thisMonthSpend, lastMonthSpend);
+  const savedTick = calcTicker(thisMonthSaved, lastMonthSaved);
+
+  function overviewCard(label, amount, tick, invertColor) {
+    let changeHtml = '<span style="color:var(--text-muted)">—</span>';
+    if (tick) {
+      const cls = invertColor ? (tick.direction === 'up' ? 'ticker-down' : 'ticker-up') : (tick.direction === 'up' ? 'ticker-up' : 'ticker-down');
+      const arrow = tick.direction === 'up' ? '↑' : '↓';
+      changeHtml = `<span class="ticker ${cls}"><span class="ticker-arrow">${arrow}</span> ${tick.pct}% vs last</span>`;
+    }
+    return `<div class="overview-ticker-card">
+      <div class="overview-ticker-label">${label}</div>
+      <div class="overview-ticker-value">$${amount.toFixed(2)}</div>
+      <div class="overview-ticker-change">${changeHtml}</div>
+    </div>`;
+  }
+
+  container.innerHTML = overviewCard('spent this week', thisWeekSpend, weekTick, true) +
+    overviewCard('spent this month', thisMonthSpend, monthTick, true) +
+    overviewCard('saved this month', thisMonthSaved, savedTick, false);
+}
+
+function openAddInvestment() {
+  document.getElementById('money-invest-edit-id').value = '';
+  document.getElementById('money-invest-symbol').value = '';
+  document.getElementById('money-invest-amount').value = '';
+  document.getElementById('invest-symbol-preview').style.display = 'none';
+  document.getElementById('invest-calc-preview').style.display = 'none';
+  document.getElementById('money-invest-submit').disabled = true;
+  document.getElementById('money-invest-submit').textContent = 'Add to Portfolio';
+  document.getElementById('money-invest-modal-title').textContent = 'Add Investment';
+  openModal('money-invest-modal');
+  setTimeout(() => document.getElementById('money-invest-symbol')?.focus(), 100);
+}
+
+function editInvestment(id) {
+  const holding = (_moneyData?.investments?.holdings || []).find(h => h.id === id);
+  if (!holding) return;
+  document.getElementById('money-invest-edit-id').value = id;
+  document.getElementById('money-invest-symbol').value = holding.symbol;
+  document.getElementById('money-invest-amount').value = holding.costBasis;
+  document.getElementById('money-invest-submit').disabled = false;
+  document.getElementById('money-invest-submit').textContent = 'Save Changes';
+  document.getElementById('money-invest-modal-title').textContent = 'Edit Investment';
+  // Show preview
+  const p = _portfolioPrices[holding.symbol];
+  if (p) {
+    showInvestPreview(holding.symbol, p);
+    updateInvestCalc(p.price, holding.costBasis);
+  }
+  openModal('money-invest-modal');
+}
+
+async function deleteInvestment(id) {
+  const ok = await showConfirmDialog({ title: 'Remove holding?', msg: 'This will remove it from your portfolio.', icon: '🗑️' });
+  if (!ok) return;
+  try {
+    await fetch('/api/money/investments/' + id, { method: 'DELETE' });
+    showToast('Holding removed');
+  } catch { showToast('Failed to remove'); }
+}
+
+let _investPreviewPrice = 0;
+
+// Symbol validation on blur
+document.addEventListener('DOMContentLoaded', () => {
+  const symInput = document.getElementById('money-invest-symbol');
+  if (!symInput) return;
+  symInput.addEventListener('blur', async () => {
+    const sym = symInput.value.trim().toUpperCase();
+    if (!sym) { document.getElementById('invest-symbol-preview').style.display = 'none'; return; }
+    try {
+      const res = await fetch('/api/money/portfolio/prices?validate=' + sym).then(r => r.json());
+      const p = res[sym];
+      if (p && p.price > 0) {
+        showInvestPreview(sym, p);
+        updateInvestCalc(p.price, parseFloat(document.getElementById('money-invest-amount').value) || 0);
+      } else {
+        const preview = document.getElementById('invest-symbol-preview');
+        preview.style.display = '';
+        preview.innerHTML = '<div style="color:#ef4444;font-size:0.78rem">Invalid symbol</div>';
+        _investPreviewPrice = 0;
+        document.getElementById('money-invest-submit').disabled = true;
+      }
+    } catch { }
+  });
+  const amtInput = document.getElementById('money-invest-amount');
+  if (amtInput) {
+    amtInput.addEventListener('input', () => {
+      if (_investPreviewPrice > 0) {
+        updateInvestCalc(_investPreviewPrice, parseFloat(amtInput.value) || 0);
+      }
+    });
+  }
+});
+
+function showInvestPreview(sym, priceData) {
+  _investPreviewPrice = priceData.price;
+  const preview = document.getElementById('invest-symbol-preview');
+  const cls = (priceData.changePct || 0) >= 0 ? 'ticker-up' : 'ticker-down';
+  const arrow = (priceData.changePct || 0) >= 0 ? '↑' : '↓';
+  preview.style.display = '';
+  preview.innerHTML = `<div style="padding:10px 12px;background:var(--bg-hover);border-radius:10px;display:flex;justify-content:space-between;align-items:center">
+    <div><strong style="color:var(--text-primary)">${sym}</strong> <span style="color:var(--text-muted);font-size:0.78rem">${priceData.name || sym}</span></div>
+    <div style="text-align:right"><div style="font-weight:700;color:var(--text-primary)">$${priceData.price.toFixed(2)}</div>
+    <div class="${cls}" style="font-size:0.72rem;font-weight:600">${arrow} ${Math.abs(priceData.changePct || 0).toFixed(2)}%</div></div>
+  </div>`;
+  const amt = parseFloat(document.getElementById('money-invest-amount')?.value) || 0;
+  document.getElementById('money-invest-submit').disabled = !(amt > 0);
+}
+
+function updateInvestCalc(price, amount) {
+  const calc = document.getElementById('invest-calc-preview');
+  if (!price || !amount) { calc.style.display = 'none'; return; }
+  const shares = amount / price;
+  calc.style.display = '';
+  calc.innerHTML = `
+    <div>Amount: <strong>$${amount.toFixed(2)}</strong></div>
+    <div>Price per share: <strong>$${price.toFixed(2)}</strong></div>
+    <div>Shares: <strong>${shares.toFixed(4)}</strong></div>
+    <div>Current value: <strong>$${(shares * price).toFixed(2)}</strong></div>`;
+  document.getElementById('money-invest-submit').disabled = false;
+}
+
+async function submitInvestment() {
+  const editId = document.getElementById('money-invest-edit-id').value;
+  const symbol = document.getElementById('money-invest-symbol').value.trim().toUpperCase();
+  const amount = parseFloat(document.getElementById('money-invest-amount').value);
+  if (!symbol || !amount || _investPreviewPrice <= 0) { showToast('Enter a valid ticker and amount'); return; }
+  const shares = amount / _investPreviewPrice;
+  const previewEl = document.getElementById('invest-symbol-preview');
+  const name = previewEl?.querySelector('span')?.textContent || symbol;
+
+  const url = editId ? `/api/money/investments/${editId}` : '/api/money/investments';
+  const method = editId ? 'PUT' : 'POST';
+  try {
+    await fetch(url, {
+      method, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol, name, shares, costBasis: amount }),
+    });
+    closeModal('money-invest-modal');
+    showToast(editId ? 'Holding updated!' : `Added ${symbol} to your portfolio!`);
+    fetchPortfolioPrices();
+  } catch { showToast('Failed to save'); }
+}
+
+// ── Load Chart.js from CDN ──
+(function loadChartJS() {
+  if (typeof Chart !== 'undefined') return;
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js';
+  s.async = true;
+  document.head.appendChild(s);
+})();
 
 // ── Load confetti from CDN ──
 (function loadConfetti() {

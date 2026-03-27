@@ -3522,6 +3522,116 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   min-height: 0;
   flex: 1;
 }
+.money-overview-row {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card, 16px);
+  padding: 16px 24px;
+  backdrop-filter: blur(8px);
+}
+.money-overview-tickers {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.overview-ticker-card {
+  flex: 1;
+  min-width: 140px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+.overview-ticker-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  text-transform: lowercase;
+}
+.overview-ticker-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.overview-ticker-change {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.money-bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+}
+.money-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+}
+/* Portfolio Card */
+.portfolio-total {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.portfolio-ticker {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.holding-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  position: relative;
+}
+.holding-item:last-child { border-bottom: none; }
+.holding-symbol {
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  min-width: 48px;
+}
+.holding-info {
+  flex: 1;
+  min-width: 0;
+}
+.holding-name {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.holding-shares {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+.holding-value {
+  text-align: right;
+  flex-shrink: 0;
+}
+.holding-price {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.holding-change {
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+.holding-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  margin-left: 4px;
+}
+.holding-item:hover .holding-actions { opacity: 1; }
 .money-card {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
@@ -4226,6 +4336,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .money-content-grid { grid-template-columns: 1fr; }
+  .money-bottom-grid { grid-template-columns: 1fr; }
   .money-scroll { padding: 16px; }
 }
 @media (max-width: 600px) {

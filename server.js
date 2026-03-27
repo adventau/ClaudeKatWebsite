@@ -307,7 +307,7 @@ function initData() {
     announcements: [],
     suggestions:   [],
     totp:          { kaliph: [], kathrine: [] },
-    money: { setup: false, balances: { kaliph: { amount: 0, updatedAt: null }, kathrine: { amount: 0, updatedAt: null } }, dailySnapshots: [], transactions: [], goals: [], recurring: [] },
+    money: { setup: false, balances: { kaliph: { amount: 0, updatedAt: null }, kathrine: { amount: 0, updatedAt: null } }, dailySnapshots: [], transactions: [], goals: [], recurring: [], investments: { holdings: [], snapshots: [] } },
   };
   for (const [k, v] of Object.entries(defaults)) {
     if (!rd(F[k])) wd(F[k], v);
@@ -1970,6 +1970,99 @@ app.post('/api/money/recurring/:id/log', mainAuth, (req, res) => {
   res.json({ success: true, transaction: txn });
 });
 
+// ── Money: Portfolio / Investments ──
+const priceCache = {};
+const PRICE_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+async function fetchPrice(symbol) {
+  const cached = priceCache[symbol];
+  if (cached && Date.now() - cached.ts < PRICE_CACHE_TTL) return cached;
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey) return { symbol, price: 0, change: 0, changePct: 0, ts: Date.now(), error: 'No API key' };
+  try {
+    const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`);
+    const data = await res.json();
+    if (!data.c) return { symbol, price: 0, change: 0, changePct: 0, ts: Date.now(), error: 'Invalid symbol' };
+    const result = { symbol, price: data.c, change: data.d, changePct: data.dp, ts: Date.now() };
+    priceCache[symbol] = result;
+    return result;
+  } catch (e) {
+    console.error(`Finnhub fetch error for ${symbol}:`, e.message);
+    return cached || { symbol, price: 0, change: 0, changePct: 0, ts: Date.now(), error: e.message };
+  }
+}
+
+// Validate a symbol against Finnhub
+async function validateSymbol(symbol) {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const res = await fetch(`https://finnhub.io/api/v1/search?q=${symbol}&token=${apiKey}`);
+    const data = await res.json();
+    const match = (data.result || []).find(r => r.symbol === symbol.toUpperCase());
+    return match ? { symbol: match.symbol, name: match.description } : null;
+  } catch { return null; }
+}
+
+app.get('/api/money/portfolio/prices', mainAuth, async (req, res) => {
+  const money = rd(F.money) || {};
+  const holdings = money.investments?.holdings || [];
+  // Also allow validating a single symbol
+  const validateSym = req.query.validate;
+  if (validateSym) {
+    const price = await fetchPrice(validateSym.toUpperCase());
+    const info = await validateSymbol(validateSym);
+    return res.json({ [validateSym.toUpperCase()]: { ...price, name: info?.name || validateSym.toUpperCase() } });
+  }
+  const prices = {};
+  for (const h of holdings) {
+    prices[h.symbol] = await fetchPrice(h.symbol);
+  }
+  res.json(prices);
+});
+
+app.post('/api/money/investments', mainAuth, async (req, res) => {
+  const money = rd(F.money) || {};
+  if (!money.investments) money.investments = { holdings: [], snapshots: [] };
+  const { symbol, name, shares, costBasis } = req.body;
+  if (!symbol || !shares) return res.status(400).json({ error: 'Symbol and shares required' });
+  const holding = {
+    id: uuidv4(),
+    symbol: symbol.toUpperCase(),
+    name: name || symbol.toUpperCase(),
+    shares: parseFloat(shares) || 0,
+    costBasis: parseFloat(costBasis) || 0,
+    addedAt: Date.now(),
+  };
+  money.investments.holdings.push(holding);
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, holding });
+});
+
+app.put('/api/money/investments/:id', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const holding = (money.investments?.holdings || []).find(h => h.id === req.params.id);
+  if (!holding) return res.status(404).json({ error: 'Holding not found' });
+  if (req.body.shares !== undefined) holding.shares = parseFloat(req.body.shares);
+  if (req.body.costBasis !== undefined) holding.costBasis = parseFloat(req.body.costBasis);
+  if (req.body.name !== undefined) holding.name = req.body.name;
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, holding });
+});
+
+app.delete('/api/money/investments/:id', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  if (!money.investments) return res.status(404).json({ error: 'Not found' });
+  const idx = money.investments.holdings.findIndex(h => h.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: 'Holding not found' });
+  money.investments.holdings.splice(idx, 1);
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true });
+});
+
 // ── Money: Daily snapshot + recurring auto-log intervals ──
 function checkMoneyIntervals() {
   const money = rd(F.money);
@@ -1980,6 +2073,22 @@ function checkMoneyIntervals() {
   if (!money.dailySnapshots.some(s => s.date === today)) {
     takeMoneySnapshot(money);
     changed = true;
+  }
+  // Portfolio snapshot
+  if (!money.investments) money.investments = { holdings: [], snapshots: [] };
+  if (money.investments.holdings.length > 0 && !money.investments.snapshots.some(s => s.date === today)) {
+    (async () => {
+      try {
+        let totalValue = 0;
+        for (const h of money.investments.holdings) {
+          const p = await fetchPrice(h.symbol);
+          totalValue += h.shares * (p.price || 0);
+        }
+        money.investments.snapshots.push({ date: today, totalValue: Math.round(totalValue * 100) / 100 });
+        if (money.investments.snapshots.length > 30) money.investments.snapshots = money.investments.snapshots.slice(-30);
+        wd(F.money, money);
+      } catch (e) { console.error('Portfolio snapshot error:', e.message); }
+    })();
   }
   // Recurring auto-log
   for (const rec of (money.recurring || [])) {
@@ -4044,8 +4153,43 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
       if (what === 'goals') { money.goals = []; wd(F.money, money); io.emit('money:updated', money); return lines('All goals cleared', 'success'); }
       return lines('Usage: money clear <transactions|goals>', 'warn');
     }
+    if (sub === 'portfolio') {
+      const psub = parts[2]?.toLowerCase();
+      if (!money.investments) money.investments = { holdings: [], snapshots: [] };
+      if (!psub) {
+        const holdings = money.investments.holdings;
+        if (!holdings.length) return lines('No holdings', 'dim');
+        const rows = holdings.map(h => [h.symbol, h.name, h.shares.toFixed(4), '$' + h.costBasis.toFixed(2)]);
+        return { table: { headers: ['Symbol', 'Name', 'Shares', 'Cost Basis'], rows } };
+      }
+      if (psub === 'add') {
+        const sym = parts[3]?.toUpperCase();
+        const shares = parseFloat(parts[4]);
+        const cost = parseFloat(parts[5]);
+        if (!sym || isNaN(shares)) return lines('Usage: money portfolio add <SYM> <shares> <cost>', 'warn');
+        money.investments.holdings.push({ id: uuidv4(), symbol: sym, name: sym, shares, costBasis: cost || 0, addedAt: Date.now() });
+        wd(F.money, money); io.emit('money:updated', money);
+        return lines(`Added ${shares} shares of ${sym}`, 'success');
+      }
+      if (psub === 'remove') {
+        const sym = parts[3]?.toUpperCase();
+        if (!sym) return lines('Usage: money portfolio remove <SYM>', 'warn');
+        const idx = money.investments.holdings.findIndex(h => h.symbol === sym);
+        if (idx < 0) return lines(`No holding for ${sym}`, 'error');
+        money.investments.holdings.splice(idx, 1);
+        wd(F.money, money); io.emit('money:updated', money);
+        return lines(`Removed ${sym}`, 'success');
+      }
+      if (psub === 'clear') {
+        money.investments.holdings = [];
+        money.investments.snapshots = [];
+        wd(F.money, money); io.emit('money:updated', money);
+        return lines('Portfolio cleared', 'success');
+      }
+      return lines('Usage: money portfolio [add|remove|clear]', 'warn');
+    }
     if (sub === 'reset') {
-      const defaultMoney = { setup: false, balances: { kaliph: { amount: 0, updatedAt: null }, kathrine: { amount: 0, updatedAt: null } }, dailySnapshots: [], transactions: [], goals: [], recurring: [] };
+      const defaultMoney = { setup: false, balances: { kaliph: { amount: 0, updatedAt: null }, kathrine: { amount: 0, updatedAt: null } }, dailySnapshots: [], transactions: [], goals: [], recurring: [], investments: { holdings: [], snapshots: [] } };
       wd(F.money, defaultMoney);
       io.emit('money:updated', defaultMoney);
       return lines('Money dashboard factory reset. Next open will show setup screen.', 'success');
@@ -4056,7 +4200,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
       const rows = snaps.map(s => [s.date, '$' + s.kaliph.toFixed(2), '$' + s.kathrine.toFixed(2), '$' + (s.kaliph + s.kathrine).toFixed(2)]);
       return { table: { headers: ['Date', 'Kaliph', 'Kathrine', 'Combined'], rows } };
     }
-    return lines('Usage: money [status|set|clear|snapshots]', 'warn');
+    return lines('Usage: money [status|set|clear|snapshots|portfolio|reset]', 'warn');
   }
 
   // ── PINNED LIST ──
