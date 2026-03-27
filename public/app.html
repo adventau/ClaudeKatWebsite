@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
-  <link rel="stylesheet" href="/css/app.css?v=portfolio2">
+  <link rel="stylesheet" href="/css/app.css?v=portfolio4">
   <script src="/js/lucide.min.js" defer></script>
 </head>
 <body class="theme-dark">
@@ -632,6 +632,19 @@
 
             <!-- Right Column: Portfolio + Goals -->
             <div class="money-right-col">
+              <!-- Savings Goals -->
+              <div class="money-card money-anim" id="money-goals-card">
+                <div class="money-card-header">
+                  <span class="money-card-title">Savings Goals</span>
+                </div>
+                <div id="money-goals" class="goals-grid">
+                  <div class="empty-state" style="padding:2rem">
+                    <div class="empty-state-icon"><i data-lucide="target" style="width:40px;height:40px;opacity:0.4"></i></div>
+                    <div class="empty-state-text">No goals yet</div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Portfolio Card -->
               <div class="money-card money-anim" id="money-portfolio-card">
                 <div class="money-card-header" style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -648,19 +661,6 @@
                 <div id="portfolio-holdings"></div>
                 <div class="goal-new" onclick="openAddInvestment()" style="min-height:44px;margin-top:10px;font-size:0.78rem">
                   <i data-lucide="plus" style="width:16px;height:16px"></i> Add Holding
-                </div>
-              </div>
-
-              <!-- Savings Goals -->
-              <div class="money-card money-anim" id="money-goals-card">
-                <div class="money-card-header">
-                  <span class="money-card-title">Savings Goals</span>
-                </div>
-                <div id="money-goals" class="goals-grid">
-                  <div class="empty-state" style="padding:2rem">
-                    <div class="empty-state-icon"><i data-lucide="target" style="width:40px;height:40px;opacity:0.4"></i></div>
-                    <div class="empty-state-text">No goals yet</div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -2258,6 +2258,6 @@
 <!-- Scripts -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js?v=4"></script>
-<script src="/js/app.js?v=portfolio3"></script>
+<script src="/js/app.js?v=portfolio4"></script>
 </body>
 </html>

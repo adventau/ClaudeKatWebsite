@@ -3723,6 +3723,13 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 }
 
 /* ── Setup Screen ──────────────────────────────────────────────────────── */
+#money-dashboard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
 #money-setup {
   display: flex;
   align-items: center;

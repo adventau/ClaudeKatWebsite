@@ -8959,7 +8959,7 @@ function renderOverviewTickers(data) {
   // Spending chart from daily snapshots
   const snaps = data.dailySnapshots || [];
   const chartWrap = document.getElementById('money-spending-chart-wrap');
-  if (snaps.length >= 2 && chartWrap) {
+  if (snaps.length >= 1 && chartWrap) {
     chartWrap.style.display = '';
     renderSpendingChart(snaps.slice(-14));
   } else if (chartWrap) {
