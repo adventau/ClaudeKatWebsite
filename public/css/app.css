@@ -3519,25 +3519,34 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .money-main-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-rows: 1fr;
   gap: 12px;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 .money-left-col {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
+  overflow: hidden;
 }
-.money-feed-stretch { min-height: 0; }
+.money-feed-stretch { flex: 1; min-height: 0; overflow: hidden; }
 .money-feed-scroll {
   overflow-y: auto;
-  max-height: 35vh;
-  min-height: 120px;
+  flex: 1;
+  min-height: 60px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 .money-portfolio-stretch { min-height: 0; }
+.money-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
 .portfolio-holdings-scroll { overflow-y: auto; max-height: 180px; }
 .money-content-grid {
   display: grid;
@@ -3574,11 +3583,6 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .overview-ticker-change {
   font-size: 0.72rem;
   font-weight: 600;
-}
-.money-right-col {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 /* Portfolio Card */
 .portfolio-total {
@@ -3728,16 +3732,23 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   color: var(--text-muted);
   font-weight: 500;
 }
+/* money-fullscreen: collapse sidebar column and top header row so main-content
+   fills the entire viewport, then use flex column inside main-content so the
+   48px fs-header and section-money share height correctly. */
 #app.money-fullscreen {
   grid-template-columns: 1fr;
-  grid-template-rows: auto 1fr;
-  grid-template-areas: "header" "main";
+  grid-template-rows: 1fr;
+  grid-template-areas: "main";
 }
-#app.money-fullscreen .money-fs-header {
-  grid-area: header;
+#app.money-fullscreen #main-content {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
 }
 #app.money-fullscreen #section-money {
-  grid-area: main;
+  flex: 1;
+  min-height: 0;
+  height: auto;
   max-width: 100%;
 }
 
@@ -4465,8 +4476,11 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .money-content-grid { grid-template-columns: 1fr; }
-  .money-main-grid { grid-template-columns: 1fr; }
-  .money-feed-scroll { max-height: 40vh; }
+  .money-main-grid { grid-template-columns: 1fr; grid-template-rows: auto; overflow: visible; }
+  .money-left-col { overflow: visible; }
+  .money-right-col { overflow-y: visible; }
+  .money-feed-stretch { flex: none; overflow: visible; }
+  .money-feed-scroll { flex: none; max-height: 50vh; min-height: 120px; }
   .money-scroll { padding: 10px; }
   #money-dashboard { padding: 6px 10px; }
 }
@@ -4474,10 +4488,6 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 @media (max-height: 750px) {
   .money-scroll { gap: 6px; padding: 6px 16px; }
   .money-card { padding: 10px 14px; }
-  .money-feed-scroll { max-height: 30vh; }
-}
-@media (max-height: 620px) {
-  .money-feed-scroll { max-height: 25vh; }
 }
 @media (max-width: 600px) {
   .money-scroll { padding: 12px; gap: 14px; }
