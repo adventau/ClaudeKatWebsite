@@ -8211,14 +8211,15 @@ function renderSnapshot(data) {
   const kaTotal = kaCash + kaInv;
   const netWorth = kTotal + kaTotal;
 
-  // Tickers compare total (cash + invested) vs yesterday's snapshot
+  // Individual tickers compare cash vs yesterday's cash snapshot
   const snaps = data.dailySnapshots || [];
   const prev = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
-  const kPrevTotal = prev ? ((prev.kaliph || 0) + (prev.kaliphInvested || 0)) : null;
-  const kaPrevTotal = prev ? ((prev.kathrine || 0) + (prev.kathrineInvested || 0)) : null;
-  const kTick = kPrevTotal != null ? calcTicker(kTotal, kPrevTotal) : null;
-  const kaTick = kaPrevTotal != null ? calcTicker(kaTotal, kaPrevTotal) : null;
-  const prevNetWorth = (kPrevTotal != null && kaPrevTotal != null) ? (kPrevTotal + kaPrevTotal) : null;
+  const kPrevCash = prev ? (prev.kaliph || 0) : null;
+  const kaPrevCash = prev ? (prev.kathrine || 0) : null;
+  const kTick = kPrevCash != null ? calcTicker(kCash, kPrevCash) : null;
+  const kaTick = kaPrevCash != null ? calcTicker(kaCash, kaPrevCash) : null;
+  // Net worth ticker compares total (cash + invested) vs yesterday's total
+  const prevNetWorth = prev ? ((prev.kaliph || 0) + (prev.kaliphInvested || 0) + (prev.kathrine || 0) + (prev.kathrineInvested || 0)) : null;
   const netTick = prevNetWorth != null ? calcTicker(netWorth, prevNetWorth) : null;
 
   function balTickerHtml(tick) {
@@ -8242,17 +8243,17 @@ function renderSnapshot(data) {
       </div>
       <div class="money-bal-card">
         <div class="money-bal-name">Kaliph</div>
-        <span class="money-bal-amount" id="money-bal-kaliph">${fmtAmt(kTotal)}</span>
+        <span class="money-bal-amount" id="money-bal-kaliph">${fmtAmt(kCash)}</span>
         <div class="money-bal-breakdown">
-          <span>Cash ${fmtAmt(kCash)}</span>${kInv > 0 ? ` · <span>Invested ${fmtAmt(kInv)}</span>` : ''}
+          <span>Cash ${fmtAmt(kCash)}</span>
         </div>
         ${balTickerHtml(kTick)}
       </div>
       <div class="money-bal-card kathrine">
         <div class="money-bal-name">Kathrine</div>
-        <span class="money-bal-amount" id="money-bal-kathrine">${fmtAmt(kaTotal)}</span>
+        <span class="money-bal-amount" id="money-bal-kathrine">${fmtAmt(kaCash)}</span>
         <div class="money-bal-breakdown">
-          <span>Cash ${fmtAmt(kaCash)}</span>${kaInv > 0 ? ` · <span>Invested ${fmtAmt(kaInv)}</span>` : ''}
+          <span>Cash ${fmtAmt(kaCash)}</span>
         </div>
         ${balTickerHtml(kaTick)}
       </div>
