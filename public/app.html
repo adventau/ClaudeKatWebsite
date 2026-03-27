@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
-  <link rel="stylesheet" href="/css/app.css?v=portfolio1">
+  <link rel="stylesheet" href="/css/app.css?v=portfolio2">
   <script src="/js/lucide.min.js" defer></script>
 </head>
 <body class="theme-dark">
@@ -586,9 +586,13 @@
             </div>
           </div>
 
-          <!-- Overview Row (tickers) — full width -->
+          <!-- Overview Row (tickers + spending chart) — full width -->
           <div class="money-overview-row money-anim" id="money-overview-card">
+            <div class="money-card-title" style="margin-bottom:12px;text-transform:uppercase;font-size:0.78rem;letter-spacing:0.06em;color:var(--text-muted)">Overview</div>
             <div id="money-overview-tickers" class="money-overview-tickers"></div>
+            <div id="money-spending-chart-wrap" style="height:120px;margin-top:14px;display:none">
+              <canvas id="money-spending-chart"></canvas>
+            </div>
           </div>
 
           <!-- Bottom Grid: Activity (left) + Portfolio & Goals (right) -->
@@ -2254,6 +2258,6 @@
 <!-- Scripts -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js?v=4"></script>
-<script src="/js/app.js?v=portfolio1"></script>
+<script src="/js/app.js?v=portfolio2"></script>
 </body>
 </html>

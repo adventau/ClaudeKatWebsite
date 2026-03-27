@@ -2010,9 +2010,14 @@ app.get('/api/money/portfolio/prices', mainAuth, async (req, res) => {
   // Also allow validating a single symbol
   const validateSym = req.query.validate;
   if (validateSym) {
-    const price = await fetchPrice(validateSym.toUpperCase());
+    const sym = validateSym.toUpperCase();
+    const price = await fetchPrice(sym);
+    if (price.error === 'No API key') {
+      // No Finnhub key — allow adding with placeholder data
+      return res.json({ [sym]: { symbol: sym, price: 0, change: 0, changePct: 0, name: sym, ts: Date.now(), noKey: true } });
+    }
     const info = await validateSymbol(validateSym);
-    return res.json({ [validateSym.toUpperCase()]: { ...price, name: info?.name || validateSym.toUpperCase() } });
+    return res.json({ [sym]: { ...price, name: info?.name || sym } });
   }
   const prices = {};
   for (const h of holdings) {

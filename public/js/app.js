@@ -8955,6 +8955,52 @@ function renderOverviewTickers(data) {
   container.innerHTML = overviewCard('spent this week', thisWeekSpend, weekTick, true) +
     overviewCard('spent this month', thisMonthSpend, monthTick, true) +
     overviewCard('saved this month', thisMonthSaved, savedTick, false);
+
+  // Spending chart from daily snapshots
+  const snaps = data.dailySnapshots || [];
+  const chartWrap = document.getElementById('money-spending-chart-wrap');
+  if (snaps.length >= 2 && chartWrap) {
+    chartWrap.style.display = '';
+    renderSpendingChart(snaps.slice(-14));
+  } else if (chartWrap) {
+    chartWrap.style.display = 'none';
+  }
+}
+
+let _spendingChart = null;
+function renderSpendingChart(snapshots) {
+  const canvas = document.getElementById('money-spending-chart');
+  if (!canvas || !window.Chart) return;
+  const ctx = canvas.getContext('2d');
+  if (_spendingChart) _spendingChart.destroy();
+  _spendingChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: snapshots.map(s => { const d = new Date(s.date + 'T12:00:00'); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }),
+      datasets: [{
+        label: 'Kaliph',
+        data: snapshots.map(s => s.kaliph),
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.08)',
+        fill: true, tension: 0.35, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#6366f1',
+      }, {
+        label: 'Kathrine',
+        data: snapshots.map(s => s.kathrine),
+        borderColor: '#c084fc',
+        backgroundColor: 'rgba(192,132,252,0.08)',
+        fill: true, tension: 0.35, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#c084fc',
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 }, color: 'rgba(255,255,255,0.5)' } }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': $' + ctx.parsed.y.toFixed(2) } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.4)' } },
+        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.4)', callback: v => '$' + v } },
+      }
+    }
+  });
 }
 
 function openAddInvestment() {
@@ -9009,13 +9055,20 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch('/api/money/portfolio/prices?validate=' + sym).then(r => r.json());
       const p = res[sym];
-      if (p && p.price > 0) {
+      if (p && (p.price > 0 || p.noKey)) {
+        if (p.noKey) p.price = 0;
         showInvestPreview(sym, p);
-        updateInvestCalc(p.price, parseFloat(document.getElementById('money-invest-amount').value) || 0);
+        if (p.price > 0) {
+          updateInvestCalc(p.price, parseFloat(document.getElementById('money-invest-amount').value) || 0);
+        } else {
+          // No API key — allow manual entry, skip calc
+          document.getElementById('invest-calc-preview').style.display = 'none';
+          document.getElementById('money-invest-submit').disabled = false;
+        }
       } else {
         const preview = document.getElementById('invest-symbol-preview');
         preview.style.display = '';
-        preview.innerHTML = '<div style="color:#ef4444;font-size:0.78rem">Invalid symbol</div>';
+        preview.innerHTML = '<div style="color:#ef4444;font-size:0.78rem">Symbol not found — check the ticker and try again</div>';
         _investPreviewPrice = 0;
         document.getElementById('money-invest-submit').disabled = true;
       }
@@ -9063,8 +9116,8 @@ async function submitInvestment() {
   const editId = document.getElementById('money-invest-edit-id').value;
   const symbol = document.getElementById('money-invest-symbol').value.trim().toUpperCase();
   const amount = parseFloat(document.getElementById('money-invest-amount').value);
-  if (!symbol || !amount || _investPreviewPrice <= 0) { showToast('Enter a valid ticker and amount'); return; }
-  const shares = amount / _investPreviewPrice;
+  if (!symbol || !amount) { showToast('Enter a valid ticker and amount'); return; }
+  const shares = _investPreviewPrice > 0 ? amount / _investPreviewPrice : 0;
   const previewEl = document.getElementById('invest-symbol-preview');
   const name = previewEl?.querySelector('span')?.textContent || symbol;
 
