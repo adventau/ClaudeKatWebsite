@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
-  <link rel="stylesheet" href="/css/app.css?v=portfolio4">
+  <link rel="stylesheet" href="/css/app.css?v=compact1">
   <script src="/js/lucide.min.js" defer></script>
 </head>
 <body class="theme-dark">
@@ -576,33 +576,34 @@
 
       <!-- Dashboard (shown when setup: true) -->
       <div id="money-dashboard" style="display:none">
-        <div class="money-scroll" id="money-grid">
-          <!-- Balance Bar — full width -->
-          <div class="money-balance-bar money-anim" id="money-snapshot-card">
-            <div id="money-snapshot">
-              <div style="display:flex;gap:24px;justify-content:center;align-items:center;padding:24px 0">
-                <div class="skeleton" style="width:200px;height:48px"></div>
+        <!-- Balance Bar — compact full width -->
+        <div class="money-balance-bar money-anim" id="money-snapshot-card">
+          <div id="money-snapshot">
+            <div style="display:flex;gap:16px;justify-content:center;align-items:center;padding:10px 0">
+              <div class="skeleton" style="width:160px;height:32px"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Content Grid: Left col (overview + activity) | Right col (goals + portfolio) -->
+        <div class="money-main-grid">
+          <!-- Left Column -->
+          <div class="money-left-col">
+            <!-- Overview Card -->
+            <div class="money-card money-anim" id="money-overview-card">
+              <div class="money-card-title" style="text-transform:uppercase;font-size:0.68rem;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:8px">Overview</div>
+              <div id="money-overview-tickers" class="money-overview-tickers"></div>
+              <div id="money-spending-chart-wrap" style="height:80px;margin-top:8px;display:none">
+                <canvas id="money-spending-chart"></canvas>
               </div>
             </div>
-          </div>
 
-          <!-- Overview Row (tickers + spending chart) — full width -->
-          <div class="money-overview-row money-anim" id="money-overview-card">
-            <div class="money-card-title" style="margin-bottom:12px;text-transform:uppercase;font-size:0.78rem;letter-spacing:0.06em;color:var(--text-muted)">Overview</div>
-            <div id="money-overview-tickers" class="money-overview-tickers"></div>
-            <div id="money-spending-chart-wrap" style="height:120px;margin-top:14px;display:none">
-              <canvas id="money-spending-chart"></canvas>
-            </div>
-          </div>
-
-          <!-- Bottom Grid: Activity (left) + Portfolio & Goals (right) -->
-          <div class="money-bottom-grid">
             <!-- Activity Feed -->
-            <div class="money-card money-anim" id="money-feed-card">
+            <div class="money-card money-anim money-feed-stretch" id="money-feed-card">
               <div class="money-card-header" style="display:flex;align-items:center;justify-content:space-between">
                 <span class="money-card-title" id="money-feed-title">Activity</span>
-                <button class="btn-ghost btn-sm" onclick="toggleRecurringView()" id="money-recurring-toggle" style="font-size:0.75rem;padding:4px 10px;display:flex;align-items:center;gap:5px">
-                  <i data-lucide="repeat-2" style="width:13px;height:13px"></i> <span id="money-rec-toggle-text">Recurring</span>
+                <button class="btn-ghost btn-sm" onclick="toggleRecurringView()" id="money-recurring-toggle" style="font-size:0.7rem;padding:3px 8px;display:flex;align-items:center;gap:4px">
+                  <i data-lucide="repeat-2" style="width:12px;height:12px"></i> <span id="money-rec-toggle-text">Recurring</span>
                 </button>
               </div>
               <div id="money-tab-bar-wrap">
@@ -613,55 +614,47 @@
                   <div class="money-tab-indicator" id="money-tab-indicator"></div>
                 </div>
               </div>
-              <div id="money-feed">
-                <div class="empty-state" style="padding:3rem 2rem">
-                  <div class="empty-state-icon"><i data-lucide="wallet" style="width:48px;height:48px;opacity:0.4"></i></div>
-                  <div class="empty-state-text">No transactions yet</div>
-                  <div class="empty-state-sub">Tap the + button to log your first expense or deposit</div>
+              <div id="money-feed" class="money-feed-scroll">
+                <div class="empty-state" style="padding:1.5rem 1rem">
+                  <div class="empty-state-icon"><i data-lucide="wallet" style="width:32px;height:32px;opacity:0.4"></i></div>
+                  <div class="empty-state-text" style="font-size:0.82rem">No transactions yet</div>
                 </div>
               </div>
               <div id="money-recurring-view" style="display:none">
-                <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-                  <button class="btn-primary btn-sm" onclick="openModal('money-recurring-modal')">+ Add</button>
+                <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+                  <button class="btn-primary btn-sm" onclick="openModal('money-recurring-modal')" style="font-size:0.72rem;padding:4px 10px">+ Add</button>
                 </div>
-                <div id="money-recurring-list">
-                  <div class="empty-state" style="padding:2rem"><div class="empty-state-icon"><i data-lucide="repeat" style="width:40px;height:40px;opacity:0.4"></i></div><div class="empty-state-text">No recurring bills</div></div>
-                </div>
+                <div id="money-recurring-list"></div>
               </div>
             </div>
+          </div>
 
-            <!-- Right Column: Portfolio + Goals -->
-            <div class="money-right-col">
-              <!-- Savings Goals -->
-              <div class="money-card money-anim" id="money-goals-card">
-                <div class="money-card-header">
-                  <span class="money-card-title">Savings Goals</span>
-                </div>
-                <div id="money-goals" class="goals-grid">
-                  <div class="empty-state" style="padding:2rem">
-                    <div class="empty-state-icon"><i data-lucide="target" style="width:40px;height:40px;opacity:0.4"></i></div>
-                    <div class="empty-state-text">No goals yet</div>
-                  </div>
+          <!-- Right Column (spans both rows) -->
+          <div class="money-right-col">
+            <!-- Savings Goals -->
+            <div class="money-card money-anim" id="money-goals-card">
+              <div class="money-card-header">
+                <span class="money-card-title">Savings Goals</span>
+              </div>
+              <div id="money-goals" class="goals-grid goals-grid-compact"></div>
+            </div>
+
+            <!-- Portfolio Card -->
+            <div class="money-card money-anim money-portfolio-stretch" id="money-portfolio-card">
+              <div class="money-card-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+                <span class="money-card-title">Portfolio</span>
+                <div style="text-align:right">
+                  <div class="portfolio-total" id="portfolio-total">$0.00</div>
+                  <div class="portfolio-ticker" id="portfolio-ticker"></div>
                 </div>
               </div>
-
-              <!-- Portfolio Card -->
-              <div class="money-card money-anim" id="money-portfolio-card">
-                <div class="money-card-header" style="display:flex;justify-content:space-between;align-items:flex-start">
-                  <span class="money-card-title">Portfolio</span>
-                  <div style="text-align:right">
-                    <div class="portfolio-total" id="portfolio-total">$0.00</div>
-                    <div class="portfolio-ticker" id="portfolio-ticker"></div>
-                  </div>
-                </div>
-                <div id="portfolio-chart-wrap" style="height:80px;margin-bottom:10px;display:none">
-                  <canvas id="portfolio-chart"></canvas>
-                </div>
-                <div id="portfolio-chart-empty" style="display:none;text-align:center;padding:8px;font-size:0.72rem;color:var(--text-muted);font-style:italic">Chart appears after 2 days of data</div>
-                <div id="portfolio-holdings"></div>
-                <div class="goal-new" onclick="openAddInvestment()" style="min-height:44px;margin-top:10px;font-size:0.78rem">
-                  <i data-lucide="plus" style="width:16px;height:16px"></i> Add Holding
-                </div>
+              <div id="portfolio-chart-wrap" style="height:65px;margin-bottom:6px;display:none">
+                <canvas id="portfolio-chart"></canvas>
+              </div>
+              <div id="portfolio-chart-empty" style="display:none;text-align:center;padding:4px;font-size:0.68rem;color:var(--text-muted);font-style:italic">Chart after 2 days</div>
+              <div id="portfolio-holdings" class="portfolio-holdings-scroll"></div>
+              <div class="goal-new" onclick="openAddInvestment()" style="min-height:34px;margin-top:6px;font-size:0.72rem">
+                <i data-lucide="plus" style="width:14px;height:14px"></i> Add Holding
               </div>
             </div>
           </div>
@@ -669,7 +662,7 @@
 
         <!-- FAB -->
         <button class="money-fab" id="money-fab" onclick="openQuickAdd()" title="Add transaction">
-          <i data-lucide="plus" style="width:24px;height:24px"></i>
+          <i data-lucide="plus" style="width:22px;height:22px"></i>
         </button>
       </div>
     </section>
@@ -2258,6 +2251,6 @@
 <!-- Scripts -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js?v=4"></script>
-<script src="/js/app.js?v=portfolio4"></script>
+<script src="/js/app.js?v=compact1"></script>
 </body>
 </html>
