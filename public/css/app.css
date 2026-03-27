@@ -3531,8 +3531,8 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 }
 .money-feed-stretch { flex: 1; min-height: 0; }
 .money-feed-scroll { flex: 1; overflow-y: auto; min-height: 0; }
-.money-portfolio-stretch { flex: 1; min-height: 0; }
-.portfolio-holdings-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+.money-portfolio-stretch { flex: 1; min-height: 0; overflow: hidden; }
+.portfolio-holdings-scroll { overflow-y: auto; max-height: 200px; }
 .money-content-grid {
   display: grid;
   grid-template-columns: 1.4fr 1fr;

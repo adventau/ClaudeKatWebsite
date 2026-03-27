@@ -8849,7 +8849,8 @@ function renderPortfolio(data) {
   const container = document.getElementById('portfolio-holdings');
   if (!container) return;
   if (!holdings.length) {
-    container.innerHTML = '<div style="text-align:center;padding:12px;font-size:0.78rem;color:var(--text-muted)">No holdings yet</div>';
+    container.innerHTML = '<div style="text-align:center;padding:20px 12px;font-size:0.78rem;color:var(--text-muted)"><i data-lucide="trending-up" style="width:28px;height:28px;opacity:0.3;margin-bottom:6px"></i><div>No holdings yet</div></div>';
+    if (window.lucide) lucide.createIcons();
     return;
   }
   container.innerHTML = holdings.map(h => {

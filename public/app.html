@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
-  <link rel="stylesheet" href="/css/app.css?v=compact3">
+  <link rel="stylesheet" href="/css/app.css?v=compact4">
   <script src="/js/lucide.min.js" defer></script>
 </head>
 <body class="theme-dark">
@@ -601,7 +601,7 @@
             <!-- Activity Feed -->
             <div class="money-card money-anim money-feed-stretch" id="money-feed-card">
               <div class="money-card-header" style="display:flex;align-items:center;justify-content:space-between">
-                <span class="money-card-title" id="money-feed-title">Activity</span>
+                <span class="money-card-title" id="money-feed-title" style="text-transform:uppercase;font-size:0.72rem;letter-spacing:0.05em;color:var(--text-muted)">Activity</span>
                 <button class="btn-ghost btn-sm" onclick="toggleRecurringView()" id="money-recurring-toggle" style="font-size:0.7rem;padding:3px 8px;display:flex;align-items:center;gap:4px">
                   <i data-lucide="repeat-2" style="width:12px;height:12px"></i> <span id="money-rec-toggle-text">Recurring</span>
                 </button>
@@ -632,9 +632,9 @@
           <!-- Right Column (spans both rows) -->
           <div class="money-right-col">
             <!-- Savings Goals -->
-            <div class="money-card money-anim" id="money-goals-card">
+            <div class="money-card money-anim money-feed-stretch" id="money-goals-card">
               <div class="money-card-header">
-                <span class="money-card-title">Savings Goals</span>
+                <span class="money-card-title" style="text-transform:uppercase;font-size:0.72rem;letter-spacing:0.05em;color:var(--text-muted)">Savings Goals</span>
               </div>
               <div id="money-goals" class="goals-grid goals-grid-compact"></div>
             </div>
@@ -642,7 +642,7 @@
             <!-- Portfolio Card -->
             <div class="money-card money-anim money-portfolio-stretch" id="money-portfolio-card">
               <div class="money-card-header" style="display:flex;justify-content:space-between;align-items:flex-start">
-                <span class="money-card-title">Portfolio</span>
+                <span class="money-card-title" style="text-transform:uppercase;font-size:0.72rem;letter-spacing:0.05em;color:var(--text-muted)">Portfolio</span>
                 <div style="text-align:right">
                   <div class="portfolio-total" id="portfolio-total">$0.00</div>
                   <div class="portfolio-ticker" id="portfolio-ticker"></div>
@@ -654,7 +654,7 @@
               <div id="portfolio-chart-empty" style="display:none;text-align:center;padding:4px;font-size:0.68rem;color:var(--text-muted);font-style:italic">Chart after 2 days</div>
               <div id="portfolio-holdings" class="portfolio-holdings-scroll"></div>
               <div class="goal-new" onclick="openAddInvestment()" style="min-height:34px;margin-top:6px;font-size:0.72rem">
-                <i data-lucide="plus" style="width:14px;height:14px"></i> Add Holding
+                <i data-lucide="plus" style="width:14px;height:14px"></i> + add holding
               </div>
             </div>
           </div>
@@ -2251,6 +2251,6 @@
 <!-- Scripts -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js?v=4"></script>
-<script src="/js/app.js?v=compact3"></script>
+<script src="/js/app.js?v=compact4"></script>
 </body>
 </html>
