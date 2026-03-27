@@ -8980,23 +8980,17 @@ function renderSpendingChart(snapshots) {
     data: {
       labels: snapshots.map(s => { const d = new Date(s.date + 'T12:00:00'); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }),
       datasets: [{
-        label: 'Kaliph',
-        data: snapshots.map(s => s.kaliph),
+        label: 'Combined',
+        data: snapshots.map(s => s.kaliph + s.kathrine),
         borderColor: '#6366f1',
-        backgroundColor: 'rgba(99,102,241,0.08)',
+        backgroundColor: 'rgba(99,102,241,0.1)',
         fill: true, tension: 0.35, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#6366f1',
-      }, {
-        label: 'Kathrine',
-        data: snapshots.map(s => s.kathrine),
-        borderColor: '#c084fc',
-        backgroundColor: 'rgba(192,132,252,0.08)',
-        fill: true, tension: 0.35, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#c084fc',
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 }, color: 'rgba(255,255,255,0.5)' } }, tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': $' + ctx.parsed.y.toFixed(2) } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '$' + ctx.parsed.y.toFixed(2) } } },
       scales: {
         x: { grid: { display: false }, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.4)' } },
         y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.4)', callback: v => '$' + v } },
