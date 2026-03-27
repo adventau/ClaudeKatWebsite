@@ -3112,6 +3112,10 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser) {
     if (!user) return lines('Usage: stealth <user> — opens the app in visual stealth mode', 'warn');
     const users = rd(F.users);
     if (!users[user]) return lines(`User "${user}" not found`, 'error');
+    // Ensure the session is authenticated for the app so stealth tab doesn't redirect to login
+    req.session.authenticated = true;
+    if (!req.session.user) req.session.user = user;
+    await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve()));
     return {
       lines: [
         { text: `Opening visual stealth preview as ${users[user].displayName || user}...`, cls: 'highlight' },
