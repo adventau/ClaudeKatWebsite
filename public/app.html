@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
-  <link rel="stylesheet" href="/css/app.css?v=totp8">
+  <link rel="stylesheet" href="/css/app.css?v=money4">
   <script src="/js/lucide.min.js" defer></script>
 </head>
 <body class="theme-dark">
@@ -576,10 +576,6 @@
 
       <!-- Dashboard (shown when setup: true) -->
       <div id="money-dashboard" style="display:none">
-        <div class="section-header">
-          <span class="section-title">Money</span>
-        </div>
-
         <div class="money-scroll" id="money-grid">
           <!-- Balance Bar — full width -->
           <div class="money-balance-bar money-anim" id="money-snapshot-card">
@@ -1703,7 +1699,7 @@
 
 <!-- ── Money: Quick-Add Modal ── -->
 <div class="modal-overlay" id="money-add-modal">
-  <div class="modal-content money-modal-inner" style="max-width:420px">
+  <div class="modal money-modal-inner" style="max-width:420px">
     <div class="modal-header">
       <div class="money-modal-tabs">
         <button class="money-modal-tab active" onclick="switchMoneyModalTab('expense',this)">Expense</button>
@@ -1781,7 +1777,7 @@
 
 <!-- ── Money: Goal Modal ── -->
 <div class="modal-overlay" id="money-goal-modal">
-  <div class="modal-content" style="max-width:380px">
+  <div class="modal" style="max-width:380px">
     <div class="modal-header">
       <span class="modal-title" id="money-goal-modal-title">New Savings Goal</span>
       <button class="btn-icon" onclick="closeModal('money-goal-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
@@ -1837,7 +1833,7 @@
 
 <!-- ── Money: Contribute Modal ── -->
 <div class="modal-overlay" id="money-contribute-modal">
-  <div class="modal-content" style="max-width:340px">
+  <div class="modal" style="max-width:340px">
     <div class="modal-header">
       <span class="modal-title">Contribute</span>
       <button class="btn-icon" onclick="closeModal('money-contribute-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
@@ -1858,7 +1854,7 @@
 
 <!-- ── Money: Recurring Modal ── -->
 <div class="modal-overlay" id="money-recurring-modal">
-  <div class="modal-content" style="max-width:380px">
+  <div class="modal" style="max-width:380px">
     <div class="modal-header">
       <span class="modal-title">New Recurring Bill</span>
       <button class="btn-icon" onclick="closeModal('money-recurring-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
@@ -2199,6 +2195,6 @@
 <!-- Scripts -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js?v=4"></script>
-<script src="/js/app.js?v=totp11"></script>
+<script src="/js/app.js?v=money4"></script>
 </body>
 </html>

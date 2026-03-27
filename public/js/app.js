@@ -8131,12 +8131,26 @@ function renderSnapshot(data) {
 
   // Weekly/monthly spend calcs
   const now = Date.now();
+  const nowDate = new Date();
   const weekAgo = now - 7 * 86400000;
   const twoWeeksAgo = now - 14 * 86400000;
   const txns = data.transactions || [];
   const thisWeekSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= weekAgo).reduce((s, t) => s + t.amount, 0);
   const lastWeekSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= twoWeeksAgo && t.createdAt < weekAgo).reduce((s, t) => s + t.amount, 0);
   const weekTick = calcTicker(thisWeekSpend, lastWeekSpend);
+
+  // Monthly spend
+  const thisMonthStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
+  const lastMonthStart = new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1).getTime();
+  const thisMonthSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= thisMonthStart).reduce((s, t) => s + t.amount, 0);
+  const lastMonthSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= lastMonthStart && t.createdAt < thisMonthStart).reduce((s, t) => s + t.amount, 0);
+  const monthTick = calcTicker(thisMonthSpend, lastMonthSpend);
+
+  // Monthly savings (goal contributions)
+  const goals = data.goals || [];
+  const thisMonthSaved = goals.reduce((s, g) => s + (g.contributions || []).filter(c => c.createdAt >= thisMonthStart).reduce((a, c) => a + c.amount, 0), 0);
+  const lastMonthSaved = goals.reduce((s, g) => s + (g.contributions || []).filter(c => c.createdAt >= lastMonthStart && c.createdAt < thisMonthStart).reduce((a, c) => a + c.amount, 0), 0);
+  const savedTick = calcTicker(thisMonthSaved, lastMonthSaved);
 
   function tickerHtml(tick, label, invertColor) {
     if (!tick) return `<div class="ticker"><span class="ticker-label">${label}</span> —</div>`;
@@ -8179,6 +8193,8 @@ function renderSnapshot(data) {
     </div>
     <div class="money-tickers">
       ${tickerHtml(weekTick, 'Spent this week', true)}
+      ${tickerHtml(monthTick, 'Spent this month', true)}
+      ${tickerHtml(savedTick, 'Saved this month', false)}
     </div>
   `;
 }
