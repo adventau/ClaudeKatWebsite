@@ -3884,22 +3884,28 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 }
 .feed-amount.deposit { color: #22c55e; }
 .feed-amount.expense { color: var(--text-primary); }
-.feed-delete {
+.feed-actions {
   position: absolute;
   right: 4px;
   top: 50%;
   transform: translateY(-50%);
+  display: flex;
+  gap: 2px;
   opacity: 0;
   transition: opacity 0.15s;
+}
+.feed-item:hover .feed-actions { opacity: 1; }
+.feed-action-btn {
   background: none;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
   padding: 4px;
   border-radius: 6px;
+  transition: color 0.12s, background 0.12s;
 }
-.feed-item:hover .feed-delete { opacity: 1; }
-.feed-delete:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
+.feed-action-btn:hover { color: var(--accent); background: var(--bg-active); }
+.feed-delete-btn:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
 .feed-load-more {
   text-align: center;
   padding: 12px;

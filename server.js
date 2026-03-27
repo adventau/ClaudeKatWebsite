@@ -1811,6 +1811,33 @@ app.post('/api/money/transactions', mainAuth, (req, res) => {
   res.json({ success: true, transaction: txn });
 });
 
+// ── Money: Edit Transaction ──
+app.put('/api/money/transactions/:id', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const idx = money.transactions.findIndex(t => t.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: 'Transaction not found' });
+  const old = money.transactions[idx];
+  // Reverse the old transaction's balance effect
+  reverseTransaction(money, old);
+  // Update fields
+  const updated = {
+    ...old,
+    type: req.body.type || old.type,
+    description: req.body.description !== undefined ? req.body.description : old.description,
+    amount: req.body.amount !== undefined ? parseFloat(req.body.amount) : old.amount,
+    category: req.body.category || old.category,
+    paidBy: req.body.paidBy || old.paidBy,
+    split: req.body.split !== undefined ? (req.body.split === true || req.body.split === 'true') : old.split,
+    date: req.body.date || old.date,
+  };
+  // Apply the new transaction's balance effect
+  applyTransaction(money, updated);
+  money.transactions[idx] = updated;
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, transaction: updated });
+});
+
 // ── Money: Delete Transaction ──
 app.delete('/api/money/transactions/:id', mainAuth, (req, res) => {
   const money = rd(F.money) || {};

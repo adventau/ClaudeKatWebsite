@@ -8128,6 +8128,8 @@ function renderSnapshot(data) {
   const prev = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
   const kTick = prev ? calcTicker(k, prev.kaliph) : null;
   const kaTick = prev ? calcTicker(ka, prev.kathrine) : null;
+  const combinedPrev = prev ? (prev.kaliph + prev.kathrine) : null;
+  const combinedTick = combinedPrev != null ? calcTicker(combined, combinedPrev) : null;
 
   // Weekly/monthly spend calcs
   const now = Date.now();
@@ -8163,8 +8165,8 @@ function renderSnapshot(data) {
     </div>`;
   }
 
-  function balTickerHtml(tick) {
-    if (!tick) return '';
+  function balTickerHtml(tick, label) {
+    if (!tick) return `<span class="ticker" style="font-size:0.75rem;margin-left:8px;color:var(--text-muted)">—</span>`;
     const cls = tick.direction === 'up' ? 'ticker-up' : 'ticker-down';
     const arrow = tick.direction === 'up' ? '↑' : '↓';
     return `<span class="ticker ${cls}" style="font-size:0.75rem;margin-left:8px">
@@ -8174,7 +8176,10 @@ function renderSnapshot(data) {
   }
 
   container.innerHTML = `
-    <div class="money-combined" id="money-combined">$${combined.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <div class="money-combined" id="money-combined" style="margin-bottom:0">$${combined.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+      ${balTickerHtml(combinedTick)}
+    </div>
     <div class="money-balances">
       <div class="money-bal-card">
         <div class="money-bal-name">Kaliph</div>
@@ -8237,7 +8242,10 @@ function renderFeed(data) {
         </div>
       </div>
       <span class="feed-amount ${isDeposit ? 'deposit' : 'expense'}">${amtStr}</span>
-      <button class="feed-delete" onclick="deleteTransaction('${t.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
+      <div class="feed-actions">
+        <button class="feed-action-btn" onclick="editTransaction('${t.id}')" title="Edit"><i data-lucide="pencil" style="width:13px;height:13px"></i></button>
+        <button class="feed-action-btn feed-delete-btn" onclick="deleteTransaction('${t.id}')" title="Delete"><i data-lucide="trash-2" style="width:13px;height:13px"></i></button>
+      </div>
     </div>`;
   });
   html += '</div>';
@@ -8331,6 +8339,7 @@ function openQuickAdd() {
   fab.classList.add('open');
   openModal('money-add-modal');
   // Reset form
+  document.getElementById('money-txn-edit-id').value = '';
   document.getElementById('money-txn-type').value = 'expense';
   document.getElementById('money-txn-amount').value = '';
   document.getElementById('money-txn-desc').value = '';
@@ -8343,6 +8352,53 @@ function openQuickAdd() {
   document.getElementById('money-category-section').style.display = '';
   document.getElementById('money-split-row').style.display = '';
   document.getElementById('money-paidby-label').textContent = 'Paid by';
+  // Reset submit button text
+  const submitBtn = document.querySelector('#money-add-modal .btn-primary:last-child');
+  if (submitBtn) submitBtn.textContent = 'Add';
+  updateMoneyModalTabIndicator();
+  setTimeout(() => document.getElementById('money-txn-amount')?.focus(), 100);
+}
+
+function editTransaction(id) {
+  const txn = (_moneyData?.transactions || []).find(t => t.id === id);
+  if (!txn) return;
+  const fab = document.getElementById('money-fab');
+  fab?.classList.add('open');
+  openModal('money-add-modal');
+
+  const isDeposit = txn.type === 'deposit';
+  document.getElementById('money-txn-edit-id').value = id;
+  document.getElementById('money-txn-type').value = txn.type;
+  document.getElementById('money-txn-amount').value = txn.amount;
+  document.getElementById('money-txn-desc').value = txn.description || '';
+  document.getElementById('money-txn-split').checked = txn.split || false;
+  document.getElementById('money-txn-date').value = txn.date || '';
+  if (txn.date) {
+    const d = new Date(txn.date + 'T12:00:00');
+    document.getElementById('money-date-text').textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } else {
+    document.getElementById('money-date-text').textContent = 'Today';
+  }
+
+  // Set tabs
+  document.querySelectorAll('#money-add-modal .money-modal-tab').forEach(t => {
+    t.classList.toggle('active', (t.textContent.trim().toLowerCase() === txn.type));
+  });
+  // Category
+  document.querySelectorAll('#money-add-modal .category-pill').forEach(p => {
+    p.classList.toggle('selected', p.dataset.cat === (txn.category || 'other'));
+  });
+  // Paid by
+  document.querySelectorAll('#money-paidby-seg .seg-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === txn.paidBy);
+  });
+  // Show/hide sections based on type
+  document.getElementById('money-category-section').style.display = isDeposit ? 'none' : '';
+  document.getElementById('money-split-row').style.display = isDeposit ? 'none' : '';
+  document.getElementById('money-paidby-label').textContent = isDeposit ? 'Received by' : 'Paid by';
+  // Change button text
+  const submitBtn = document.querySelector('#money-add-modal .btn-primary:last-child');
+  if (submitBtn) submitBtn.textContent = 'Save Changes';
   updateMoneyModalTabIndicator();
   setTimeout(() => document.getElementById('money-txn-amount')?.focus(), 100);
 }
@@ -8383,23 +8439,27 @@ function selectSeg(el) {
 }
 
 async function submitTransaction() {
+  const editId = document.getElementById('money-txn-edit-id').value;
   const type = document.getElementById('money-txn-type').value;
   const amount = parseFloat(document.getElementById('money-txn-amount').value);
   if (!amount || amount <= 0) { showToast('Enter an amount'); return; }
   const description = document.getElementById('money-txn-desc').value.trim();
-  const category = document.querySelector('.category-pill.selected')?.dataset.cat || 'other';
+  const category = document.querySelector('#money-category-grid .category-pill.selected')?.dataset.cat || 'other';
   const paidBy = document.querySelector('#money-paidby-seg .seg-btn.active')?.dataset.val || 'kaliph';
   const split = document.getElementById('money-txn-split').checked;
   const date = document.getElementById('money-txn-date').value || new Date().toISOString().split('T')[0];
 
+  const url = editId ? `/api/money/transactions/${editId}` : '/api/money/transactions';
+  const method = editId ? 'PUT' : 'POST';
+
   try {
-    await fetch('/api/money/transactions', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    await fetch(url, {
+      method, headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, amount, description, category, paidBy, split, date }),
     });
     closeQuickAdd();
-    showToast(type === 'deposit' ? 'Deposit added!' : 'Expense logged!');
-  } catch { showToast('Failed to add transaction'); }
+    showToast(editId ? 'Transaction updated!' : (type === 'deposit' ? 'Deposit added!' : 'Expense logged!'));
+  } catch { showToast('Failed to save transaction'); }
 }
 
 async function deleteTransaction(id) {
