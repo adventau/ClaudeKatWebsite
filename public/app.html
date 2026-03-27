@@ -562,11 +562,6 @@
       <div id="money-dashboard" style="display:none">
         <div class="section-header">
           <span class="section-title">Money</span>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn-ghost btn-sm" onclick="toggleRecurringView()" id="money-recurring-toggle">
-              <i data-lucide="repeat" style="width:14px;height:14px"></i> Recurring
-            </button>
-          </div>
         </div>
 
         <div class="money-scroll" id="money-grid">
@@ -584,19 +579,33 @@
             <!-- Activity Feed -->
             <div class="money-card money-anim" id="money-feed-card">
               <div class="money-card-header" style="display:flex;align-items:center;justify-content:space-between">
-                <span class="money-card-title">Activity</span>
+                <span class="money-card-title" id="money-feed-title">Activity</span>
+                <button class="btn-ghost btn-sm" onclick="toggleRecurringView()" id="money-recurring-toggle" style="font-size:0.75rem;padding:4px 10px;display:flex;align-items:center;gap:5px">
+                  <i data-lucide="repeat-2" style="width:13px;height:13px"></i> <span id="money-rec-toggle-text">Recurring</span>
+                </button>
               </div>
-              <div class="money-tab-bar" id="money-tab-bar">
-                <button class="money-tab active" data-tab="week" onclick="switchMoneyTab('week',this)">This Week</button>
-                <button class="money-tab" data-tab="month" onclick="switchMoneyTab('month',this)">This Month</button>
-                <button class="money-tab" data-tab="all" onclick="switchMoneyTab('all',this)">All Time</button>
-                <div class="money-tab-indicator" id="money-tab-indicator"></div>
+              <div id="money-tab-bar-wrap">
+                <div class="money-tab-bar" id="money-tab-bar">
+                  <button class="money-tab active" data-tab="week" onclick="switchMoneyTab('week',this)">This Week</button>
+                  <button class="money-tab" data-tab="month" onclick="switchMoneyTab('month',this)">This Month</button>
+                  <button class="money-tab" data-tab="all" onclick="switchMoneyTab('all',this)">All Time</button>
+                  <div class="money-tab-indicator" id="money-tab-indicator"></div>
+                </div>
               </div>
               <div id="money-feed">
                 <div class="empty-state" style="padding:3rem 2rem">
-                  <div class="empty-state-icon">📊</div>
+                  <div class="empty-state-icon"><i data-lucide="wallet" style="width:48px;height:48px;opacity:0.4"></i></div>
                   <div class="empty-state-text">No transactions yet</div>
                   <div class="empty-state-sub">Tap the + button to log your first expense or deposit</div>
+                </div>
+              </div>
+              <!-- Recurring list (hidden by default, toggled inside same card) -->
+              <div id="money-recurring-view" style="display:none">
+                <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+                  <button class="btn-primary btn-sm" onclick="openModal('money-recurring-modal')">+ Add</button>
+                </div>
+                <div id="money-recurring-list">
+                  <div class="empty-state" style="padding:2rem"><div class="empty-state-icon"><i data-lucide="repeat" style="width:40px;height:40px;opacity:0.4"></i></div><div class="empty-state-text">No recurring bills</div></div>
                 </div>
               </div>
             </div>
@@ -608,23 +617,10 @@
               </div>
               <div id="money-goals" class="goals-grid">
                 <div class="empty-state" style="padding:2rem">
-                  <div class="empty-state-icon">🎯</div>
+                  <div class="empty-state-icon"><i data-lucide="target" style="width:40px;height:40px;opacity:0.4"></i></div>
                   <div class="empty-state-text">No goals yet</div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Recurring View (hidden by default) -->
-        <div id="money-recurring-view" style="display:none">
-          <div class="money-card" style="margin:20px">
-            <div class="money-card-header" style="display:flex;justify-content:space-between;align-items:center">
-              <span class="money-card-title">Recurring Bills</span>
-              <button class="btn-primary btn-sm" onclick="openModal('money-recurring-modal')">+ Add</button>
-            </div>
-            <div id="money-recurring-list">
-              <div class="empty-state" style="padding:3rem"><div class="empty-state-icon">📋</div><div class="empty-state-text">No recurring bills</div></div>
             </div>
           </div>
         </div>
@@ -1796,7 +1792,27 @@
       </div>
 
       <label class="modal-label" style="margin-top:12px">Target Date (optional)</label>
-      <input type="date" id="money-goal-date" class="input" style="margin-bottom:12px">
+      <div class="custom-datetime-wrap" id="money-goal-date-wrap" style="margin-bottom:12px">
+        <button class="custom-datetime-btn" id="money-goal-date-btn" onclick="toggleMoneyGoalDatePicker()" type="button">
+          <i data-lucide="calendar" style="width:15px;height:15px;opacity:0.5"></i>
+          <span class="custom-datetime-text" id="money-goal-date-text">No date set</span>
+        </button>
+        <input type="hidden" id="money-goal-date">
+        <div class="custom-datetime-picker" id="money-goal-date-picker" style="display:none">
+          <div class="cdtp-header">
+            <button class="btn-icon cdtp-nav" onclick="moneyGoalDateNav(-1)" type="button">&#8249;</button>
+            <span class="cdtp-month" id="money-goal-date-month"></span>
+            <button class="btn-icon cdtp-nav" onclick="moneyGoalDateNav(1)" type="button">&#8250;</button>
+          </div>
+          <div class="cdtp-grid" id="money-goal-date-grid">
+            <div class="cdtp-day-header">S</div><div class="cdtp-day-header">M</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">W</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">F</div><div class="cdtp-day-header">S</div>
+          </div>
+          <div class="cdtp-actions" style="display:flex;gap:6px;justify-content:flex-end">
+            <button class="btn-ghost btn-sm" onclick="clearMoneyGoalDate()" type="button">Clear</button>
+            <button class="btn-ghost btn-sm" onclick="closeMoneyGoalDatePicker()" type="button">Done</button>
+          </div>
+        </div>
+      </div>
 
       <button class="btn-primary" onclick="saveGoal()" style="width:100%;margin-top:4px" id="money-goal-save-btn">Create Goal</button>
     </div>
@@ -1848,17 +1864,56 @@
         <button class="seg-btn" data-val="yearly" onclick="selectSeg(this)">Yearly</button>
       </div>
 
-      <label class="modal-label">Paid by</label>
-      <div class="money-segmented" id="money-rec-paidby">
-        <button class="seg-btn" data-val="kaliph" onclick="selectSeg(this)">Kaliph</button>
-        <button class="seg-btn" data-val="kathrine" onclick="selectSeg(this)">Kathrine</button>
-        <button class="seg-btn active" data-val="shared" onclick="selectSeg(this)">Shared</button>
+      <label class="modal-label">Category</label>
+      <div class="money-category-grid" id="money-rec-category-grid">
+        <button class="category-pill" data-cat="food" onclick="selectRecCategory(this)"><i data-lucide="utensils" style="width:14px;height:14px"></i> Food</button>
+        <button class="category-pill" data-cat="groceries" onclick="selectRecCategory(this)"><i data-lucide="shopping-basket" style="width:14px;height:14px"></i> Groceries</button>
+        <button class="category-pill" data-cat="transport" onclick="selectRecCategory(this)"><i data-lucide="car" style="width:14px;height:14px"></i> Transport</button>
+        <button class="category-pill selected" data-cat="bills" onclick="selectRecCategory(this)"><i data-lucide="receipt" style="width:14px;height:14px"></i> Bills</button>
+        <button class="category-pill" data-cat="entertainment" onclick="selectRecCategory(this)"><i data-lucide="tv" style="width:14px;height:14px"></i> Fun</button>
+        <button class="category-pill" data-cat="health" onclick="selectRecCategory(this)"><i data-lucide="heart-pulse" style="width:14px;height:14px"></i> Health</button>
+        <button class="category-pill" data-cat="shopping" onclick="selectRecCategory(this)"><i data-lucide="shopping-bag" style="width:14px;height:14px"></i> Shopping</button>
+        <button class="category-pill" data-cat="other" onclick="selectRecCategory(this)"><i data-lucide="circle-dot" style="width:14px;height:14px"></i> Other</button>
       </div>
 
-      <label class="modal-label" style="margin-top:12px">Next Due Date</label>
-      <input type="date" id="money-rec-next" class="input" style="margin-bottom:12px">
+      <label class="modal-label">Paid by</label>
+      <div class="money-segmented" id="money-rec-paidby">
+        <button class="seg-btn" data-val="kaliph" onclick="selectRecSeg(this)">Kaliph</button>
+        <button class="seg-btn" data-val="kathrine" onclick="selectRecSeg(this)">Kathrine</button>
+        <button class="seg-btn active" data-val="shared" onclick="selectRecSeg(this)">Shared</button>
+      </div>
 
-      <button class="btn-primary" onclick="submitRecurring()" style="width:100%">Add Recurring</button>
+      <div id="money-rec-split-row" style="display:none;align-items:center;justify-content:space-between;margin:0 0 12px">
+        <span style="font-size:0.85rem;color:var(--text-secondary)">Split 50/50</span>
+        <label class="toggle">
+          <input type="checkbox" id="money-rec-split">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <label class="modal-label">Next Due Date</label>
+      <div class="custom-datetime-wrap" id="money-rec-date-wrap" style="margin-bottom:12px">
+        <button class="custom-datetime-btn" id="money-rec-date-btn" onclick="toggleMoneyRecDatePicker()" type="button">
+          <i data-lucide="calendar" style="width:15px;height:15px;opacity:0.5"></i>
+          <span class="custom-datetime-text" id="money-rec-date-text">Today</span>
+        </button>
+        <input type="hidden" id="money-rec-next">
+        <div class="custom-datetime-picker" id="money-rec-date-picker" style="display:none">
+          <div class="cdtp-header">
+            <button class="btn-icon cdtp-nav" onclick="moneyRecDateNav(-1)" type="button">&#8249;</button>
+            <span class="cdtp-month" id="money-rec-date-month"></span>
+            <button class="btn-icon cdtp-nav" onclick="moneyRecDateNav(1)" type="button">&#8250;</button>
+          </div>
+          <div class="cdtp-grid" id="money-rec-date-grid">
+            <div class="cdtp-day-header">S</div><div class="cdtp-day-header">M</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">W</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">F</div><div class="cdtp-day-header">S</div>
+          </div>
+          <div class="cdtp-actions">
+            <button class="btn-ghost btn-sm" onclick="closeMoneyRecDatePicker()" type="button">Done</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="submitRecurring()" style="width:100%;margin-top:12px">Add Recurring</button>
     </div>
   </div>
 </div>

@@ -3542,6 +3542,23 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   color: var(--text-primary);
 }
 
+/* ── Form Input (shared) ───────────────────────────────────────────────── */
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-input);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-input, 10px);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  font-size: 0.9rem;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.input:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--glow); }
+.input::placeholder { color: var(--text-muted); }
+
 /* ── Modal Labels (used across money modals) ───────────────────────────── */
 .modal-label {
   display: block;
@@ -3570,6 +3587,8 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   text-align: center;
   box-shadow: var(--shadow-card);
   backdrop-filter: blur(12px);
+  box-sizing: border-box;
+  overflow: hidden;
 }
 .money-setup-icon { font-size: 3rem; margin-bottom: 12px; }
 .money-setup-title {
@@ -3611,7 +3630,9 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   padding: 0 12px;
   transition: border-color 0.2s;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
+  box-sizing: border-box;
 }
 .money-input-prefix:focus-within { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--glow); }
 .money-input-prefix span {
@@ -3632,6 +3653,10 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   padding: 10px 0;
   min-width: 0;
 }
+/* Hide native number spinners */
+.money-input-prefix input[type=number]::-webkit-inner-spin-button,
+.money-input-prefix input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.money-input-prefix input[type=number] { -moz-appearance: textfield; }
 
 /* ── Balance Bar ───────────────────────────────────────────────────────── */
 .money-balance-bar {

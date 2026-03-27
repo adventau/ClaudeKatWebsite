@@ -8004,7 +8004,13 @@ async function loadMoney() {
     dash.style.display = 'flex';
     _moneyRecurringView = false;
     document.getElementById('money-recurring-view').style.display = 'none';
-    document.getElementById('money-grid').style.display = '';
+    document.getElementById('money-feed').style.display = '';
+    const tabWrap = document.getElementById('money-tab-bar-wrap');
+    if (tabWrap) tabWrap.style.display = '';
+    const feedTitle = document.getElementById('money-feed-title');
+    if (feedTitle) feedTitle.textContent = 'Activity';
+    const recToggleText = document.getElementById('money-rec-toggle-text');
+    if (recToggleText) recToggleText.textContent = 'Recurring';
     renderMoney(_moneyData);
   }
   if (window.lucide) lucide.createIcons();
@@ -8169,7 +8175,8 @@ function renderFeed(data) {
   const hasMore = filtered.length > page.length;
 
   if (!page.length) {
-    container.innerHTML = '<div class="empty-state" style="padding:2rem"><div class="empty-state-icon">📊</div><div class="empty-state-text">No transactions yet</div></div>';
+    container.innerHTML = '<div class="empty-state" style="padding:2rem"><div class="empty-state-icon"><i data-lucide="wallet" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">No transactions yet</div><div class="empty-state-sub">Tap the + button to log your first expense or deposit</div></div>';
+    if (window.lucide) lucide.createIcons();
     return;
   }
 
@@ -8372,6 +8379,8 @@ function openNewGoal() {
   document.getElementById('money-goal-name').value = '';
   document.getElementById('money-goal-target').value = '';
   document.getElementById('money-goal-date').value = '';
+  document.getElementById('money-goal-date-text').textContent = 'No date set';
+  _goalDateState.selectedDate = null;
   document.querySelectorAll('.color-swatch').forEach((s, i) => s.classList.toggle('active', i === 0));
   document.getElementById('money-goal-modal-title').textContent = 'New Savings Goal';
   document.getElementById('money-goal-save-btn').textContent = 'Create Goal';
@@ -8385,6 +8394,14 @@ function editGoal(id) {
   document.getElementById('money-goal-name').value = goal.name;
   document.getElementById('money-goal-target').value = goal.targetAmount;
   document.getElementById('money-goal-date').value = goal.targetDate || '';
+  if (goal.targetDate) {
+    _goalDateState.selectedDate = goal.targetDate;
+    const d = new Date(goal.targetDate + 'T12:00:00');
+    document.getElementById('money-goal-date-text').textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } else {
+    _goalDateState.selectedDate = null;
+    document.getElementById('money-goal-date-text').textContent = 'No date set';
+  }
   document.querySelectorAll('.color-swatch').forEach(s => s.classList.toggle('active', s.dataset.color === goal.color));
   document.getElementById('money-goal-modal-title').textContent = 'Edit Goal';
   document.getElementById('money-goal-save-btn').textContent = 'Save Changes';
@@ -8460,17 +8477,34 @@ async function submitContribution() {
 // ── Recurring ──
 function toggleRecurringView() {
   _moneyRecurringView = !_moneyRecurringView;
-  document.getElementById('money-grid').style.display = _moneyRecurringView ? 'none' : '';
-  document.getElementById('money-recurring-view').style.display = _moneyRecurringView ? '' : 'none';
-  document.getElementById('money-fab').style.display = _moneyRecurringView ? 'none' : '';
-  if (_moneyRecurringView) renderRecurring();
+  const feedEl = document.getElementById('money-feed');
+  const recEl = document.getElementById('money-recurring-view');
+  const tabWrap = document.getElementById('money-tab-bar-wrap');
+  const titleEl = document.getElementById('money-feed-title');
+  const toggleText = document.getElementById('money-rec-toggle-text');
+
+  if (_moneyRecurringView) {
+    feedEl.style.display = 'none';
+    recEl.style.display = '';
+    if (tabWrap) tabWrap.style.display = 'none';
+    if (titleEl) titleEl.textContent = 'Recurring Bills';
+    if (toggleText) toggleText.textContent = 'Activity';
+    renderRecurring();
+  } else {
+    feedEl.style.display = '';
+    recEl.style.display = 'none';
+    if (tabWrap) tabWrap.style.display = '';
+    if (titleEl) titleEl.textContent = 'Activity';
+    if (toggleText) toggleText.textContent = 'Recurring';
+  }
 }
 
 function renderRecurring() {
   const list = document.getElementById('money-recurring-list');
   const recs = _moneyData?.recurring || [];
   if (!recs.length) {
-    list.innerHTML = '<div class="empty-state" style="padding:2rem"><div class="empty-state-icon">📋</div><div class="empty-state-text">No recurring bills</div></div>';
+    list.innerHTML = '<div class="empty-state" style="padding:2rem"><div class="empty-state-icon"><i data-lucide="repeat" style="width:40px;height:40px;opacity:0.4"></i></div><div class="empty-state-text">No recurring bills</div></div>';
+    if (window.lucide) lucide.createIcons();
     return;
   }
   list.innerHTML = recs.map(r => {
@@ -8490,19 +8524,35 @@ function renderRecurring() {
   if (window.lucide) lucide.createIcons();
 }
 
+function selectRecCategory(el) {
+  el.closest('.money-category-grid').querySelectorAll('.category-pill').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function selectRecSeg(el) {
+  el.parentElement.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  // Show/hide split toggle based on selection
+  const paidBy = el.dataset.val;
+  const splitRow = document.getElementById('money-rec-split-row');
+  if (splitRow) splitRow.style.display = paidBy === 'shared' ? 'none' : 'flex';
+}
+
 async function submitRecurring() {
   const description = document.getElementById('money-rec-desc').value.trim();
   const amount = parseFloat(document.getElementById('money-rec-amount').value);
   if (!description) { showToast('Enter a description'); return; }
   if (!amount || amount <= 0) { showToast('Enter an amount'); return; }
-  const frequency = document.querySelector('#money-recurring-modal .seg-btn.active')?.dataset.val || 'monthly';
+  const frequency = document.querySelector('#money-recurring-modal .money-segmented:first-of-type .seg-btn.active')?.dataset.val || 'monthly';
   const paidBy = document.querySelector('#money-rec-paidby .seg-btn.active')?.dataset.val || 'shared';
+  const category = document.querySelector('#money-rec-category-grid .category-pill.selected')?.dataset.cat || 'bills';
+  const split = paidBy === 'shared' ? true : (document.getElementById('money-rec-split')?.checked || false);
   const nextDate = document.getElementById('money-rec-next').value || new Date().toISOString().split('T')[0];
 
   try {
     await fetch('/api/money/recurring', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description, amount, category: 'bills', paidBy, split: paidBy === 'shared', frequency, nextDate }),
+      body: JSON.stringify({ description, amount, category, paidBy, split, frequency, nextDate }),
     });
     closeModal('money-recurring-modal');
     showToast('Recurring bill added!');
@@ -8566,6 +8616,97 @@ function selectMoneyDate(dateStr) {
   document.getElementById('money-date-text').textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   renderMoneyDateGrid();
   closeMoneyDatePicker();
+}
+
+// ── Goal Date Picker ──
+let _goalDateState = { year: getNow().getFullYear(), month: getNow().getMonth(), selectedDate: null };
+
+function toggleMoneyGoalDatePicker() {
+  const picker = document.getElementById('money-goal-date-picker');
+  if (picker.style.display !== 'none') { picker.style.display = 'none'; return; }
+  picker.style.display = '';
+  renderMoneyGoalDateGrid();
+}
+function closeMoneyGoalDatePicker() { document.getElementById('money-goal-date-picker').style.display = 'none'; }
+function moneyGoalDateNav(dir) {
+  _goalDateState.month += dir;
+  if (_goalDateState.month > 11) { _goalDateState.month = 0; _goalDateState.year++; }
+  if (_goalDateState.month < 0) { _goalDateState.month = 11; _goalDateState.year--; }
+  renderMoneyGoalDateGrid();
+}
+function renderMoneyGoalDateGrid() {
+  const { year, month } = _goalDateState;
+  document.getElementById('money-goal-date-month').textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+  const grid = document.getElementById('money-goal-date-grid');
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date().toISOString().split('T')[0];
+  let html = '<div class="cdtp-day-header">S</div><div class="cdtp-day-header">M</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">W</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">F</div><div class="cdtp-day-header">S</div>';
+  for (let i = 0; i < firstDay; i++) html += '<div></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const sel = _goalDateState.selectedDate === dateStr ? ' cdtp-selected' : '';
+    const isToday = dateStr === today ? ' style="font-weight:700"' : '';
+    html += `<div class="cdtp-day${sel}"${isToday} onclick="selectGoalDate('${dateStr}')">${d}</div>`;
+  }
+  grid.innerHTML = html;
+}
+function selectGoalDate(dateStr) {
+  _goalDateState.selectedDate = dateStr;
+  document.getElementById('money-goal-date').value = dateStr;
+  const d = new Date(dateStr + 'T12:00:00');
+  document.getElementById('money-goal-date-text').textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  renderMoneyGoalDateGrid();
+  closeMoneyGoalDatePicker();
+}
+function clearMoneyGoalDate() {
+  _goalDateState.selectedDate = null;
+  document.getElementById('money-goal-date').value = '';
+  document.getElementById('money-goal-date-text').textContent = 'No date set';
+  renderMoneyGoalDateGrid();
+  closeMoneyGoalDatePicker();
+}
+
+// ── Recurring Date Picker ──
+let _recDateState = { year: getNow().getFullYear(), month: getNow().getMonth(), selectedDate: null };
+
+function toggleMoneyRecDatePicker() {
+  const picker = document.getElementById('money-rec-date-picker');
+  if (picker.style.display !== 'none') { picker.style.display = 'none'; return; }
+  picker.style.display = '';
+  renderMoneyRecDateGrid();
+}
+function closeMoneyRecDatePicker() { document.getElementById('money-rec-date-picker').style.display = 'none'; }
+function moneyRecDateNav(dir) {
+  _recDateState.month += dir;
+  if (_recDateState.month > 11) { _recDateState.month = 0; _recDateState.year++; }
+  if (_recDateState.month < 0) { _recDateState.month = 11; _recDateState.year--; }
+  renderMoneyRecDateGrid();
+}
+function renderMoneyRecDateGrid() {
+  const { year, month } = _recDateState;
+  document.getElementById('money-rec-date-month').textContent = new Date(year, month).toLocaleString('default', { month: 'long', year: 'numeric' });
+  const grid = document.getElementById('money-rec-date-grid');
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date().toISOString().split('T')[0];
+  let html = '<div class="cdtp-day-header">S</div><div class="cdtp-day-header">M</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">W</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">F</div><div class="cdtp-day-header">S</div>';
+  for (let i = 0; i < firstDay; i++) html += '<div></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const sel = _recDateState.selectedDate === dateStr ? ' cdtp-selected' : '';
+    const isToday = dateStr === today ? ' style="font-weight:700"' : '';
+    html += `<div class="cdtp-day${sel}"${isToday} onclick="selectRecDate('${dateStr}')">${d}</div>`;
+  }
+  grid.innerHTML = html;
+}
+function selectRecDate(dateStr) {
+  _recDateState.selectedDate = dateStr;
+  document.getElementById('money-rec-next').value = dateStr;
+  const d = new Date(dateStr + 'T12:00:00');
+  document.getElementById('money-rec-date-text').textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  renderMoneyRecDateGrid();
+  closeMoneyRecDatePicker();
 }
 
 // ── Load confetti from CDN ──
