@@ -146,6 +146,9 @@ socket.on('connect', () => {
   }
 });
 
+// Configure marked.js for briefing markdown rendering
+if (window.marked) marked.setOptions({ breaks: true });
+
 // ── Init ──────────────────────────────────────────────────────────────
 async function init() {
   // Check for stealth preview mode (?stealth=username)
@@ -174,6 +177,9 @@ async function init() {
     currentUser = sessionRes.user;
     otherUser   = currentUser === 'kaliph' ? 'kathrine' : 'kaliph';
   }
+
+  // Briefing badge on login
+  if (sessionRes.briefingUnread) showBriefingBadge();
 
   applyUserData(usersRes[currentUser], usersRes[otherUser]);
   applyTheme(usersRes[currentUser].theme || 'dark');
@@ -587,6 +593,7 @@ function showSection(name, el) {
   if (name === 'contacts')  loadContacts();
   if (name === 'vault')     { if (!vaultPasscode) resetVault(); else refreshVault(); }
   if (name === 'announcements') loadAnnouncements();
+  if (name === 'briefing') loadBriefing();
   if (name === 'reminders') loadReminders();
   if (name === 'authenticator') initTotpSection();
   if (name === 'money') loadMoney();
@@ -662,6 +669,46 @@ function closeMobileSidebar() {
   const backdrop = document.getElementById('sidebar-backdrop');
   sidebar.classList.remove('mobile-open');
   if (backdrop) backdrop.classList.remove('show');
+}
+
+// ── Briefing ──────────────────────────────────────────────────────────
+function showBriefingBadge() {
+  const badge = document.getElementById('briefing-badge');
+  if (badge) badge.style.display = '';
+}
+function hideBriefingBadge() {
+  const badge = document.getElementById('briefing-badge');
+  if (badge) badge.style.display = 'none';
+}
+
+async function loadBriefing() {
+  try {
+    const res = await fetch('/api/briefings/today');
+    const data = await res.json();
+
+    if (!data.found) {
+      document.getElementById('briefing-placeholder').style.display = '';
+      document.getElementById('briefing-content').style.display = 'none';
+      document.getElementById('briefing-timestamp').textContent = '';
+      return;
+    }
+
+    document.getElementById('briefing-placeholder').style.display = 'none';
+    document.getElementById('briefing-content').style.display = '';
+    document.getElementById('briefing-content').innerHTML = marked.parse(data.content);
+
+    const t = new Date(data.generatedAt);
+    document.getElementById('briefing-timestamp').textContent =
+      'Generated at ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Mark as read
+    if (!data.isRead) {
+      await fetch('/api/briefings/read', { method: 'POST' });
+      hideBriefingBadge();
+    }
+  } catch (e) {
+    console.error('[briefing] Load error:', e);
+  }
 }
 
 // ── Messages ──────────────────────────────────────────────────────────
@@ -2323,6 +2370,14 @@ function setupSocketEvents() {
         window._lastSeenTime = Date.now();
         startLastSeenUpdater();
       }
+    }
+  });
+
+  // Briefing push
+  socket.on('briefing:new', ({ user }) => {
+    if (user === currentUser) {
+      showBriefingBadge();
+      if (currentSection === 'briefing') loadBriefing();
     }
   });
 

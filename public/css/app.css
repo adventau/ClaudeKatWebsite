@@ -4827,3 +4827,97 @@ a.totp-card-issuer:hover {
   .totp-card-code { font-size: 1.3rem; letter-spacing: 3px; }
   .totp-card-actions { opacity: 1; }
 }
+
+/* ── Briefing ─────────────────────────────────────────────────── */
+.briefing-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
+  max-width: 780px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.briefing-timestamp {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.briefing-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 60px 24px;
+}
+
+.briefing-placeholder-icon {
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.briefing-placeholder-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.briefing-placeholder-sub {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+/* Markdown content styles */
+.briefing-content.markdown-body {
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: var(--text-primary);
+}
+
+.briefing-content.markdown-body h1,
+.briefing-content.markdown-body h2 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 28px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.briefing-content.markdown-body h1 { font-size: 1.3rem; }
+.briefing-content.markdown-body h2 { font-size: 1.1rem; }
+
+.briefing-content.markdown-body p {
+  margin: 0 0 14px;
+  color: var(--text-primary);
+}
+
+.briefing-content.markdown-body ul {
+  margin: 0 0 14px;
+  padding-left: 20px;
+}
+
+.briefing-content.markdown-body li {
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+.briefing-content.markdown-body strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+@media (max-width: 600px) {
+  .briefing-body { padding: 16px; }
+}

@@ -571,12 +571,24 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/auth/session', (req, res) => {
+app.get('/api/auth/session', async (req, res) => {
+  let briefingUnread = false;
+  if (req.session?.user && db.pool) {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const r = await db.query(
+        'SELECT 1 FROM briefings WHERE user_id = $1 AND date = $2 AND read_at IS NULL',
+        [req.session.user, today]
+      );
+      briefingUnread = r.rows.length > 0;
+    } catch (_) { /* table may not exist yet */ }
+  }
   res.json({
     authenticated: !!(req.session?.authenticated && req.session?.user),
     user: req.session?.user || null,
     isGuest: !!req.session?.isGuest,
     guestId: req.session?.guestId || null,
+    briefingUnread,
   });
 });
 
@@ -612,6 +624,84 @@ app.get('/api/auth/stealth', (req, res) => {
     realUser: req.session.user,
     stealth: true,
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BRIEFINGS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Submit endpoint (Cowork → Vault) — secured by shared secret, not session auth
+app.post('/api/briefings/submit', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { user, content } = req.body;
+  if (!['kaliph', 'kathrine'].includes(user) || !content) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  try {
+    await db.query(`
+      INSERT INTO briefings (user_id, content, date, generated_at, read_at)
+      VALUES ($1, $2, $3, NOW(), NULL)
+      ON CONFLICT (user_id, date) DO UPDATE
+        SET content = $2, generated_at = NOW(), read_at = NULL
+    `, [user, content, today]);
+
+    // Push notification via existing Brrr system
+    await sendPushToUser(user, {
+      title: '📰 Your Morning Briefing is Ready',
+      body: 'Your daily briefing has been delivered. Tap to read.',
+      tag: 'briefing-daily',
+      url: '/app',
+    });
+
+    // Real-time notification via Socket.IO
+    io.emit('briefing:new', { user });
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[briefings] Submit error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Fetch today's briefing for logged-in user
+app.get('/api/briefings/today', mainAuth, async (req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const result = await db.query(
+      'SELECT content, generated_at, read_at FROM briefings WHERE user_id = $1 AND date = $2',
+      [req.session.user, today]
+    );
+    if (!result.rows.length) return res.json({ found: false });
+    const row = result.rows[0];
+    res.json({
+      found: true,
+      content: row.content,
+      generatedAt: row.generated_at,
+      isRead: !!row.read_at,
+    });
+  } catch (e) {
+    console.error('[briefings] Fetch error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Mark today's briefing as read
+app.post('/api/briefings/read', mainAuth, async (req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    await db.query(
+      'UPDATE briefings SET read_at = NOW() WHERE user_id = $1 AND date = $2 AND read_at IS NULL',
+      [req.session.user, today]
+    );
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[briefings] Read error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

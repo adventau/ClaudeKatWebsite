@@ -8,7 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
-  <link rel="stylesheet" href="/css/app.css?v=feedscroll6">
+  <link rel="stylesheet" href="/css/app.css?v=briefing1">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
   <script src="/js/lucide.min.js" defer></script>
 </head>
 <body class="theme-dark">
@@ -89,6 +90,11 @@
       </div>
       <div class="nav-item" data-section="announcements" onclick="showSection('announcements',this)">
         <span class="nav-icon"><i data-lucide="megaphone"></i></span><span class="nav-label">Announcements</span>
+      </div>
+      <div class="nav-item" data-section="briefing" onclick="showSection('briefing',this)">
+        <span class="nav-icon"><i data-lucide="newspaper"></i></span>
+        <span class="nav-label">Briefing</span>
+        <span class="nav-badge" id="briefing-badge" style="display:none">1</span>
       </div>
 
       <div class="nav-section-label">Personal</div>
@@ -505,6 +511,22 @@
             <div class="empty-state-sub">Post an announcement to notify the other person when they log on.</div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ── BRIEFING ───────────────────────────────────────────── -->
+    <section id="section-briefing" class="section">
+      <div class="section-header">
+        <span class="section-title">Daily Briefing</span>
+        <span id="briefing-timestamp" class="briefing-timestamp"></span>
+      </div>
+      <div class="briefing-body" id="briefing-body">
+        <div class="briefing-placeholder" id="briefing-placeholder">
+          <div class="briefing-placeholder-icon"><i data-lucide="newspaper" style="width:48px;height:48px;opacity:0.4"></i></div>
+          <p class="briefing-placeholder-title">No briefing yet today</p>
+          <p class="briefing-placeholder-sub">Your daily briefing is generated each morning and delivered here automatically.</p>
+        </div>
+        <div class="briefing-content markdown-body" id="briefing-content" style="display:none"></div>
       </div>
     </section>
 

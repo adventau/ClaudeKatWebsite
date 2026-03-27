@@ -52,6 +52,7 @@ async function createSchema() {
   `);
   await createSessionsTable();
   await createMessagesTable();
+  await createBriefingsTable();
 }
 
 // ── Sessions table (for Postgres-backed express-session store) ────────────────
@@ -97,6 +98,21 @@ async function createMessagesTable() {
     )
   `);
   await query(`CREATE INDEX IF NOT EXISTS messages_timestamp_idx ON messages (timestamp)`);
+}
+
+// ── Briefings table ─────────────────────────────────────────────────────────
+async function createBriefingsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS briefings (
+      id           SERIAL PRIMARY KEY,
+      user_id      TEXT      NOT NULL,
+      content      TEXT      NOT NULL,
+      date         DATE      NOT NULL,
+      generated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      read_at      TIMESTAMP,
+      UNIQUE (user_id, date)
+    )
+  `);
 }
 
 // Convert a DB row to the camelCase message object shape the frontend expects
@@ -285,7 +301,7 @@ async function clearMessages() {
 }
 
 module.exports = {
-  pool, query, read, write, createSchema, rowToMsg,
+  pool, query, read, write, createSchema, createBriefingsTable, rowToMsg,
   insertMessage, getMessages, getMessagesAround, getMessageById, updateMessage,
   deleteMessage, getPinnedMessages, clearMessages,
 };
