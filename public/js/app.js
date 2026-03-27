@@ -8298,7 +8298,8 @@ function renderGoals(data) {
         ${countdownText ? `<div class="goal-row-countdown">${countdownText}</div>` : ''}
       </div>
       <div class="goal-row-actions">
-        ${!completed ? `<button class="feed-action-btn" onclick="openContribute('${g.id}')" title="Contribute"><i data-lucide="plus" style="width:12px;height:12px"></i></button>` : ''}
+        ${!completed ? `<button class="feed-action-btn" onclick="openContribute('${g.id}')" title="Contribute"><i data-lucide="plus" style="width:11px;height:11px"></i></button>` : ''}
+        ${g.currentAmount > 0 ? `<button class="feed-action-btn" onclick="withdrawFromGoal('${g.id}')" title="Withdraw"><i data-lucide="arrow-down-left" style="width:11px;height:11px"></i></button>` : ''}
         <button class="feed-action-btn" onclick="editGoal('${g.id}')" title="Edit"><i data-lucide="pencil" style="width:11px;height:11px"></i></button>
         <button class="feed-action-btn feed-delete-btn" onclick="deleteGoal('${g.id}')" title="Delete"><i data-lucide="trash-2" style="width:11px;height:11px"></i></button>
       </div>
@@ -8564,6 +8565,23 @@ async function submitContribution() {
       showToast('🎉 Goal reached! ' + (res.goal?.name || '') + ' complete!');
     }
   } catch { showToast('Failed to contribute'); }
+}
+
+async function withdrawFromGoal(goalId) {
+  const goal = (_moneyData?.goals || []).find(g => g.id === goalId);
+  if (!goal || goal.currentAmount <= 0) { showToast('Nothing to withdraw'); return; }
+  const amount = prompt(`Withdraw from "${goal.name}" ($${goal.currentAmount.toFixed(2)} available):\nEnter amount:`);
+  if (!amount) return;
+  const val = parseFloat(amount);
+  if (!val || val <= 0) { showToast('Invalid amount'); return; }
+  if (val > goal.currentAmount) { showToast('Amount exceeds goal balance'); return; }
+  try {
+    await fetch(`/api/money/goals/${goalId}/withdraw`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: val }),
+    });
+    showToast(`Withdrew $${val.toFixed(2)} from ${goal.name}`);
+  } catch { showToast('Failed to withdraw'); }
 }
 
 // ── Recurring ──
@@ -8882,7 +8900,10 @@ function renderPortfolio(data) {
     const changeAbs = ((p.change || 0) * h.shares).toFixed(2);
     const cls = changePct >= 0 ? 'ticker-up' : 'ticker-down';
     const arrow = changePct >= 0 ? '↑' : '↓';
+    const ownerCls = (h.owner === 'kathrine') ? 'feed-avatar-ka' : 'feed-avatar-k';
+    const ownerInit = (h.owner === 'kathrine') ? 'Ka' : 'K';
     return `<div class="holding-item">
+      <div class="feed-avatar ${ownerCls}" style="width:22px;height:22px;font-size:0.55rem;flex-shrink:0">${ownerInit}</div>
       <span class="holding-symbol">${h.symbol}</span>
       <div class="holding-info">
         <div class="holding-name">${escapeHtml(h.name)}</div>

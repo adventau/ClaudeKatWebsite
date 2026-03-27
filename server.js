@@ -1887,6 +1887,23 @@ app.put('/api/money/goals/:id', mainAuth, (req, res) => {
 // ── Money: Delete Goal ──
 app.delete('/api/money/goals/:id', mainAuth, (req, res) => {
   const money = rd(F.money) || {};
+  const goal = money.goals.find(g => g.id === req.params.id);
+  if (!goal) return res.status(404).json({ error: 'Goal not found' });
+  // Refund currentAmount back to the deleting user's balance
+  const user = req.session.user;
+  if (goal.currentAmount > 0 && money.balances[user]) {
+    money.balances[user].amount = Math.round((money.balances[user].amount + goal.currentAmount) * 100) / 100;
+    money.balances[user].updatedAt = Date.now();
+    // Create a deposit transaction for the refund
+    const refundTxn = {
+      id: uuidv4(), type: 'deposit', description: `${goal.name} (goal deleted)`,
+      amount: goal.currentAmount, category: 'other', paidBy: user, split: false,
+      date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: 'system',
+    };
+    money.transactions.push(refundTxn);
+  }
+  // Remove contribution expense logs for this goal
+  money.transactions = money.transactions.filter(t => t._goalId !== goal.id);
   money.goals = money.goals.filter(g => g.id !== req.params.id);
   wd(F.money, money);
   io.emit('money:updated', money);
@@ -1913,12 +1930,47 @@ app.post('/api/money/goals/:id/contribute', mainAuth, (req, res) => {
     money.balances[user].amount = Math.round((money.balances[user].amount - contrib.amount) * 100) / 100;
     money.balances[user].updatedAt = Date.now();
   }
+  // Create an expense transaction log for the contribution
+  const txn = {
+    id: uuidv4(), type: 'expense', description: `${goal.name} (savings)`,
+    amount: contrib.amount, category: 'other', paidBy: user, split: false,
+    date: contrib.date, createdAt: Date.now(), createdBy: user, _goalId: goal.id,
+  };
+  money.transactions.push(txn);
   if (goal.currentAmount >= goal.targetAmount && !goal.completedAt) {
     goal.completedAt = Date.now();
   }
   wd(F.money, money);
   io.emit('money:updated', money);
   res.json({ success: true, goal, justCompleted: goal.completedAt && !req.body._wasCompleted });
+});
+
+// ── Money: Withdraw from Goal ──
+app.post('/api/money/goals/:id/withdraw', mainAuth, (req, res) => {
+  const money = rd(F.money) || {};
+  const goal = money.goals.find(g => g.id === req.params.id);
+  if (!goal) return res.status(404).json({ error: 'Goal not found' });
+  const amount = Math.min(parseFloat(req.body.amount) || 0, goal.currentAmount);
+  if (amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
+  goal.currentAmount = Math.round((goal.currentAmount - amount) * 100) / 100;
+  // Reset completed status if withdrawn below target
+  if (goal.currentAmount < goal.targetAmount) goal.completedAt = null;
+  // Add back to user's balance
+  const user = req.session.user;
+  if (money.balances[user]) {
+    money.balances[user].amount = Math.round((money.balances[user].amount + amount) * 100) / 100;
+    money.balances[user].updatedAt = Date.now();
+  }
+  // Create a deposit transaction for the withdrawal
+  const txn = {
+    id: uuidv4(), type: 'deposit', description: `${goal.name} (withdrawn)`,
+    amount, category: 'other', paidBy: user, split: false,
+    date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: user, _goalId: goal.id,
+  };
+  money.transactions.push(txn);
+  wd(F.money, money);
+  io.emit('money:updated', money);
+  res.json({ success: true, goal });
 });
 
 // ── Money: Create Recurring ──
@@ -2037,15 +2089,29 @@ app.post('/api/money/investments', mainAuth, async (req, res) => {
   if (!money.investments) money.investments = { holdings: [], snapshots: [] };
   const { symbol, name, shares, costBasis } = req.body;
   if (!symbol || !shares) return res.status(400).json({ error: 'Symbol and shares required' });
+  const cost = parseFloat(costBasis) || 0;
+  const user = req.session.user;
   const holding = {
     id: uuidv4(),
     symbol: symbol.toUpperCase(),
     name: name || symbol.toUpperCase(),
     shares: parseFloat(shares) || 0,
-    costBasis: parseFloat(costBasis) || 0,
+    costBasis: cost,
+    owner: user,
     addedAt: Date.now(),
   };
   money.investments.holdings.push(holding);
+  // Deduct costBasis from user's balance
+  if (cost > 0 && money.balances[user]) {
+    money.balances[user].amount = Math.round((money.balances[user].amount - cost) * 100) / 100;
+    money.balances[user].updatedAt = Date.now();
+    // Log as expense
+    money.transactions.push({
+      id: uuidv4(), type: 'expense', description: `${holding.symbol} (investment)`,
+      amount: cost, category: 'other', paidBy: user, split: false,
+      date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: user,
+    });
+  }
   wd(F.money, money);
   io.emit('money:updated', money);
   res.json({ success: true, holding });
@@ -2068,7 +2134,18 @@ app.delete('/api/money/investments/:id', mainAuth, (req, res) => {
   if (!money.investments) return res.status(404).json({ error: 'Not found' });
   const idx = money.investments.holdings.findIndex(h => h.id === req.params.id);
   if (idx < 0) return res.status(404).json({ error: 'Holding not found' });
-  money.investments.holdings.splice(idx, 1);
+  const [removed] = money.investments.holdings.splice(idx, 1);
+  // Refund costBasis back to owner's balance
+  const owner = removed.owner || req.session.user;
+  if (removed.costBasis > 0 && money.balances[owner]) {
+    money.balances[owner].amount = Math.round((money.balances[owner].amount + removed.costBasis) * 100) / 100;
+    money.balances[owner].updatedAt = Date.now();
+    money.transactions.push({
+      id: uuidv4(), type: 'deposit', description: `${removed.symbol} (sold)`,
+      amount: removed.costBasis, category: 'other', paidBy: owner, split: false,
+      date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: 'system',
+    });
+  }
   wd(F.money, money);
   io.emit('money:updated', money);
   res.json({ success: true });
