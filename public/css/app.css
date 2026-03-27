@@ -3838,12 +3838,12 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   flex-shrink: 0;
 }
 .money-balance-row {
-  display: flex;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 12px;
+  align-items: stretch;
 }
 .money-balance-main {
-  flex: 1.2;
   min-width: 0;
 }
 .money-bal-label {
@@ -3862,7 +3862,6 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   margin-bottom: 2px;
 }
 .money-bal-card {
-  flex: 1;
   background: var(--bg-hover);
   border: 1px solid var(--border);
   border-radius: 12px;
