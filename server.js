@@ -1752,10 +1752,16 @@ function reverseTransaction(money, txn) {
 function takeMoneySnapshot(money) {
   const today = new Date().toISOString().split('T')[0];
   if (money.dailySnapshots.some(s => s.date === today)) return;
+  // Calculate invested value per user from holdings
+  const holdings = money.investments?.holdings || [];
+  const kInvested = holdings.filter(h => h.owner === 'kaliph').reduce((s, h) => s + h.costBasis, 0);
+  const kaInvested = holdings.filter(h => h.owner === 'kathrine').reduce((s, h) => s + h.costBasis, 0);
   money.dailySnapshots.push({
     date: today,
     kaliph: money.balances.kaliph.amount,
     kathrine: money.balances.kathrine.amount,
+    kaliphInvested: Math.round(kInvested * 100) / 100,
+    kathrineInvested: Math.round(kaInvested * 100) / 100,
   });
   if (money.dailySnapshots.length > 60) money.dailySnapshots = money.dailySnapshots.slice(-60);
 }

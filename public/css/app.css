@@ -3868,6 +3868,12 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   justify-content: center;
 }
 .money-bal-card.kathrine { border-left-color: #c084fc; }
+.money-bal-breakdown {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  opacity: 0.8;
+}
 .money-bal-name {
   font-size: 0.72rem;
   font-weight: 700;

@@ -8135,48 +8135,71 @@ function calcTicker(current, previous) {
 
 function renderSnapshot(data) {
   const container = document.getElementById('money-snapshot');
-  const k = data.balances?.kaliph?.amount ?? 0;
-  const ka = data.balances?.kathrine?.amount ?? 0;
-  const combined = k + ka;
+  const kCash = data.balances?.kaliph?.amount ?? 0;
+  const kaCash = data.balances?.kathrine?.amount ?? 0;
 
-  // Find previous snapshot for tickers
+  // Calculate invested value per user from portfolio prices
+  const holdings = data.investments?.holdings || [];
+  const kInvested = holdings.filter(h => h.owner === 'kaliph').reduce((s, h) => {
+    const price = _portfolioPrices[h.symbol]?.price || 0;
+    return s + (h.shares * price);
+  }, 0);
+  const kaInvested = holdings.filter(h => h.owner === 'kathrine').reduce((s, h) => {
+    const price = _portfolioPrices[h.symbol]?.price || 0;
+    return s + (h.shares * price);
+  }, 0);
+  // If no live prices yet, fall back to costBasis
+  const kInv = kInvested || holdings.filter(h => h.owner === 'kaliph').reduce((s, h) => s + h.costBasis, 0);
+  const kaInv = kaInvested || holdings.filter(h => h.owner === 'kathrine').reduce((s, h) => s + h.costBasis, 0);
+
+  const kTotal = kCash + kInv;
+  const kaTotal = kaCash + kaInv;
+  const netWorth = kTotal + kaTotal;
+
+  // Tickers compare total (cash + invested) vs yesterday's snapshot
   const snaps = data.dailySnapshots || [];
   const prev = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
-  const kTick = prev ? calcTicker(k, prev.kaliph) : null;
-  const kaTick = prev ? calcTicker(ka, prev.kathrine) : null;
-  const combinedPrev = prev ? (prev.kaliph + prev.kathrine) : null;
-  const combinedTick = combinedPrev != null ? calcTicker(combined, combinedPrev) : null;
+  const kPrevTotal = prev ? ((prev.kaliph || 0) + (prev.kaliphInvested || 0)) : null;
+  const kaPrevTotal = prev ? ((prev.kathrine || 0) + (prev.kathrineInvested || 0)) : null;
+  const kTick = kPrevTotal != null ? calcTicker(kTotal, kPrevTotal) : null;
+  const kaTick = kaPrevTotal != null ? calcTicker(kaTotal, kaPrevTotal) : null;
+  const prevNetWorth = (kPrevTotal != null && kaPrevTotal != null) ? (kPrevTotal + kaPrevTotal) : null;
+  const netTick = prevNetWorth != null ? calcTicker(netWorth, prevNetWorth) : null;
 
-  function balTickerHtml(tick, label) {
-    if (!tick) return `<span class="ticker" style="font-size:0.75rem;margin-left:8px;color:var(--text-muted)">—</span>`;
+  function balTickerHtml(tick) {
+    if (!tick) return `<span class="ticker" style="font-size:0.68rem;color:var(--text-muted)">—</span>`;
     const cls = tick.direction === 'up' ? 'ticker-up' : 'ticker-down';
     const arrow = tick.direction === 'up' ? '↑' : '↓';
-    return `<span class="ticker ${cls}" style="font-size:0.75rem;margin-left:8px">
+    return `<span class="ticker ${cls}" style="font-size:0.68rem">
       <span class="ticker-arrow">${arrow}</span> ${tick.pct}%
       <span class="tick-delta">(${tick.sign}$${tick.absDelta})</span>
     </span>`;
   }
 
+  function fmtAmt(v) { return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
   container.innerHTML = `
     <div class="money-balance-row">
       <div class="money-balance-main">
-        <div class="money-bal-label">Combined Balance</div>
-        <div class="money-combined" id="money-combined">$${combined.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
-        ${balTickerHtml(combinedTick)}
+        <div class="money-bal-label">Net Worth</div>
+        <div class="money-combined" id="money-combined">${fmtAmt(netWorth)}</div>
+        ${balTickerHtml(netTick)}
       </div>
       <div class="money-bal-card">
         <div class="money-bal-name">Kaliph</div>
-        <div style="display:flex;align-items:center">
-          <span class="money-bal-amount" id="money-bal-kaliph">$${k.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-          ${balTickerHtml(kTick)}
+        <span class="money-bal-amount" id="money-bal-kaliph">${fmtAmt(kTotal)}</span>
+        <div class="money-bal-breakdown">
+          <span>Cash ${fmtAmt(kCash)}</span>${kInv > 0 ? ` · <span>Invested ${fmtAmt(kInv)}</span>` : ''}
         </div>
+        ${balTickerHtml(kTick)}
       </div>
       <div class="money-bal-card kathrine">
         <div class="money-bal-name">Kathrine</div>
-        <div style="display:flex;align-items:center">
-          <span class="money-bal-amount" id="money-bal-kathrine">$${ka.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-          ${balTickerHtml(kaTick)}
+        <span class="money-bal-amount" id="money-bal-kathrine">${fmtAmt(kaTotal)}</span>
+        <div class="money-bal-breakdown">
+          <span>Cash ${fmtAmt(kaCash)}</span>${kaInv > 0 ? ` · <span>Invested ${fmtAmt(kaInv)}</span>` : ''}
         </div>
+        ${balTickerHtml(kaTick)}
       </div>
     </div>
   `;
