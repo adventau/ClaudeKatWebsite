@@ -3529,11 +3529,11 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   gap: 12px;
   min-height: 0;
 }
-.money-feed-stretch { min-height: 0; flex: 1; }
+.money-feed-stretch { min-height: 0; }
 .money-feed-scroll {
   overflow-y: auto;
-  flex: 1;
-  min-height: 0;
+  max-height: calc(100vh - 460px);
+  min-height: 120px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
@@ -4465,9 +4465,8 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .money-content-grid { grid-template-columns: 1fr; }
-  .money-main-grid { grid-template-columns: 1fr; flex: unset; min-height: unset; }
-  .money-feed-stretch { flex: unset; }
-  .money-feed-scroll { flex: unset; max-height: 45vh; }
+  .money-main-grid { grid-template-columns: 1fr; }
+  .money-feed-scroll { max-height: 40vh; }
   .money-scroll { padding: 10px; }
   #money-dashboard { padding: 6px 10px; }
 }
