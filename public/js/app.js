@@ -7109,13 +7109,19 @@ async function syncMissedMessages() {
 // ── Modal helpers ─────────────────────────────────────────────────────
 function openModal(id)  { document.getElementById(id)?.classList.add('open'); SoundSystem.modalOpen(); }
 function closeModal(id) { document.getElementById(id)?.classList.remove('open'); SoundSystem.modalClose(); }
-function closeAllModals() { document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); SoundSystem.modalClose(); }
+function closeAllModals() {
+  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  document.getElementById('money-fab')?.classList.remove('open');
+  SoundSystem.modalClose();
+}
 
 // Click outside modal
 document.addEventListener('click', e => {
   if (e.target.classList.contains('modal-overlay')) {
     // Persist update log dismissal when clicking overlay
     if (e.target.id === 'update-log-modal') { dismissUpdateLog(); return; }
+    // Reset FAB state when money modal is closed via overlay click
+    if (e.target.id === 'money-add-modal') { closeQuickAdd(); return; }
     closeModal(e.target.id);
   }
   if (!e.target.closest('#context-menu')) closeContextMenu();
@@ -8257,38 +8263,54 @@ function updateMoneyTabIndicator() {
 function renderGoals(data) {
   const container = document.getElementById('money-goals');
   const goals = data.goals || [];
-  const R = 38; // radius for 90px arc
+  const R = 16; // radius for 40px arc
   const circ = 2 * Math.PI * R;
 
   let html = '';
+  if (!goals.length) {
+    html += '<div style="text-align:center;padding:10px 0;font-size:0.75rem;color:var(--text-muted)">No goals yet</div>';
+  }
   goals.forEach((g, i) => {
     const pct = g.targetAmount > 0 ? Math.min(100, Math.round((g.currentAmount / g.targetAmount) * 100)) : 0;
     const offset = circ - (circ * pct / 100);
     const completed = g.completedAt != null;
     const daysLeft = g.targetDate ? Math.max(0, Math.ceil((new Date(g.targetDate) - new Date()) / 86400000)) : null;
+    let countdownText = '';
+    if (completed) countdownText = 'completed!';
+    else if (pct >= 95) countdownText = 'almost there!';
+    else if (daysLeft !== null) countdownText = `in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`;
 
-    html += `<div class="goal-card${completed ? ' completed' : ''}">
-      <div class="goal-arc-wrap">
-        <svg viewBox="0 0 90 90">
-          <circle class="goal-arc-track" cx="45" cy="45" r="${R}"/>
-          <circle class="goal-arc" cx="45" cy="45" r="${R}"
-            stroke="${g.color}" stroke-dasharray="${circ}" stroke-dashoffset="${circ}"
-            data-target-offset="${offset}" style="transition-delay:${i * 120}ms"/>
+    html += `<div class="goal-row">
+      <div class="goal-row-circle">
+        <svg viewBox="0 0 40 40" width="40" height="40">
+          <circle class="goal-arc-track" cx="20" cy="20" r="${R}" fill="none" stroke="var(--border)" stroke-width="3"/>
+          <circle class="goal-arc" cx="20" cy="20" r="${R}" fill="none"
+            stroke="${g.color}" stroke-width="3" stroke-linecap="round"
+            stroke-dasharray="${circ}" stroke-dashoffset="${circ}"
+            data-target-offset="${offset}" style="transform:rotate(-90deg);transform-origin:center;transition:stroke-dashoffset 1s cubic-bezier(0.22,1,0.36,1);transition-delay:${i * 120}ms"/>
         </svg>
-        <div class="goal-pct">${completed ? '✓' : pct + '%'}</div>
+        <span class="goal-row-pct">${completed ? '✓' : pct + '%'}</span>
       </div>
-      <div class="goal-name">${escapeHtml(g.name)}</div>
-      <div class="goal-progress-text">$${g.currentAmount.toFixed(2)} / $${g.targetAmount.toFixed(2)}</div>
-      ${daysLeft !== null && !completed ? `<div class="goal-countdown">in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}</div>` : ''}
-      <div class="goal-actions">
-        ${!completed ? `<button class="goal-action-btn" onclick="openContribute('${g.id}')">+ Contribute</button>` : ''}
-        <button class="goal-action-btn" onclick="editGoal('${g.id}')"><i data-lucide="pencil" style="width:12px;height:12px"></i></button>
-        <button class="goal-action-btn" onclick="deleteGoal('${g.id}')"><i data-lucide="trash-2" style="width:12px;height:12px"></i></button>
+      <div class="goal-row-info">
+        <div class="goal-row-name">${escapeHtml(g.name)}</div>
+        <div class="goal-row-amount">$${g.currentAmount.toFixed(0)} / $${g.targetAmount.toFixed(0)}</div>
+        <div class="goal-row-bar"><div class="goal-row-bar-fill" style="width:${pct}%;background:${g.color}"></div></div>
+        ${countdownText ? `<div class="goal-row-countdown">${countdownText}</div>` : ''}
+      </div>
+      <div class="goal-row-actions">
+        ${!completed ? `<button class="feed-action-btn" onclick="openContribute('${g.id}')" title="Contribute"><i data-lucide="plus" style="width:12px;height:12px"></i></button>` : ''}
+        <button class="feed-action-btn" onclick="editGoal('${g.id}')" title="Edit"><i data-lucide="pencil" style="width:11px;height:11px"></i></button>
+        <button class="feed-action-btn feed-delete-btn" onclick="deleteGoal('${g.id}')" title="Delete"><i data-lucide="trash-2" style="width:11px;height:11px"></i></button>
       </div>
     </div>`;
   });
 
-  html += `<div class="goal-new" onclick="openNewGoal()"><i data-lucide="plus" style="width:24px;height:24px"></i> New Goal</div>`;
+  // New goal row
+  html += `<div class="goal-row goal-row-new" onclick="openNewGoal()">
+    <div class="goal-row-circle-new"><i data-lucide="plus" style="width:16px;height:16px"></i></div>
+    <span style="font-size:0.75rem;color:var(--text-muted)">New Goal</span>
+  </div>`;
+
   container.innerHTML = html;
   if (window.lucide) lucide.createIcons();
 
@@ -8958,19 +8980,39 @@ function renderOverviewTickers(data) {
     overviewCard('spent this month', thisMonthSpend, monthTick, true) +
     overviewCard('saved this month', thisMonthSaved, savedTick, false);
 
-  // Spending chart from daily snapshots
-  const snaps = data.dailySnapshots || [];
+  // Spending chart from weekly expense totals
   const chartWrap = document.getElementById('money-spending-chart-wrap');
-  if (snaps.length >= 1 && chartWrap) {
+  const weeklyData = calcWeeklyExpenses(txns);
+  if (weeklyData.length >= 1 && chartWrap) {
     chartWrap.style.display = '';
-    renderSpendingChart(snaps.slice(-14));
+    renderSpendingChart(weeklyData);
   } else if (chartWrap) {
     chartWrap.style.display = 'none';
   }
 }
 
+function calcWeeklyExpenses(txns) {
+  // Group expenses by ISO week, last 8 weeks
+  const now = new Date();
+  const weeks = [];
+  for (let i = 7; i >= 0; i--) {
+    const weekEnd = new Date(now);
+    weekEnd.setDate(weekEnd.getDate() - (i * 7));
+    const weekStart = new Date(weekEnd);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const startTs = weekStart.getTime();
+    const endTs = weekEnd.getTime() + 86400000;
+    const total = txns
+      .filter(t => t.type === 'expense' && t.createdAt >= startTs && t.createdAt < endTs)
+      .reduce((s, t) => s + t.amount, 0);
+    const label = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    weeks.push({ label, total: Math.round(total * 100) / 100 });
+  }
+  return weeks;
+}
+
 let _spendingChart = null;
-function renderSpendingChart(snapshots) {
+function renderSpendingChart(weeklyData) {
   const canvas = document.getElementById('money-spending-chart');
   if (!canvas || !window.Chart) return;
   const ctx = canvas.getContext('2d');
@@ -8978,10 +9020,10 @@ function renderSpendingChart(snapshots) {
   _spendingChart = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: snapshots.map(s => { const d = new Date(s.date + 'T12:00:00'); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }),
+      labels: weeklyData.map(w => w.label),
       datasets: [{
-        label: 'Combined',
-        data: snapshots.map(s => s.kaliph + s.kathrine),
+        label: 'Spent',
+        data: weeklyData.map(w => w.total),
         borderColor: '#6366f1',
         backgroundColor: 'rgba(99,102,241,0.1)',
         fill: true, tension: 0.35, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#6366f1',
@@ -8993,7 +9035,7 @@ function renderSpendingChart(snapshots) {
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '$' + ctx.parsed.y.toFixed(2) } } },
       scales: {
         x: { grid: { display: false }, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.4)' } },
-        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.4)', callback: v => '$' + v } },
+        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.4)', callback: v => '$' + v } },
       }
     }
   });
