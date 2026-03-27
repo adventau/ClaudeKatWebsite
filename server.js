@@ -1907,6 +1907,12 @@ app.post('/api/money/goals/:id/contribute', mainAuth, (req, res) => {
   };
   goal.contributions.push(contrib);
   goal.currentAmount = Math.round((goal.currentAmount + contrib.amount) * 100) / 100;
+  // Deduct from the contributing user's balance
+  const user = req.session.user;
+  if (money.balances[user]) {
+    money.balances[user].amount = Math.round((money.balances[user].amount - contrib.amount) * 100) / 100;
+    money.balances[user].updatedAt = Date.now();
+  }
   if (goal.currentAmount >= goal.targetAmount && !goal.completedAt) {
     goal.completedAt = Date.now();
   }

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
-  <link rel="stylesheet" href="/css/app.css?v=compact7">
+  <link rel="stylesheet" href="/css/app.css?v=compact8">
   <script src="/js/lucide.min.js" defer></script>
 </head>
 <body class="theme-dark">
@@ -653,9 +653,9 @@
               </div>
               <div id="portfolio-chart-empty" style="display:none;text-align:center;padding:4px;font-size:0.68rem;color:var(--text-muted);font-style:italic">Chart after 2 days</div>
               <div id="portfolio-holdings" class="portfolio-holdings-scroll"></div>
-              <div class="goal-new" onclick="openAddInvestment()" style="min-height:34px;margin-top:6px;font-size:0.72rem">
-                <i data-lucide="plus" style="width:14px;height:14px"></i> + add holding
-              </div>
+              <button class="btn-ghost btn-sm" onclick="openAddInvestment()" style="width:100%;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:0.75rem;padding:8px 0">
+                <i data-lucide="plus" style="width:14px;height:14px"></i> Add Holding
+              </button>
             </div>
           </div>
         </div>

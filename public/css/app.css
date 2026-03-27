@@ -4057,17 +4057,22 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  flex: 1;
   overflow-y: auto;
   align-content: start;
+  max-height: 300px;
 }
-.goals-grid-compact .goal-card { padding: 10px 8px; }
-.goals-grid-compact .goal-arc-wrap { width: 56px; height: 56px; margin-bottom: 6px; }
-.goals-grid-compact .goal-arc-wrap svg { width: 56px; height: 56px; }
-.goals-grid-compact .goal-pct { font-size: 0.72rem; }
-.goals-grid-compact .goal-name { font-size: 0.75rem; }
-.goals-grid-compact .goal-progress-text { font-size: 0.65rem; }
-.goals-grid-compact .goal-new { min-height: 80px; font-size: 0.78rem; }
+.goals-grid-compact { gap: 6px; }
+.goals-grid-compact .goal-card { padding: 8px 6px; }
+.goals-grid-compact .goal-arc-wrap { width: 40px; height: 40px; margin-bottom: 4px; }
+.goals-grid-compact .goal-arc-wrap svg { width: 40px; height: 40px; }
+.goals-grid-compact .goal-pct { font-size: 0.6rem; }
+.goals-grid-compact .goal-name { font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.goals-grid-compact .goal-progress-text { font-size: 0.58rem; }
+.goals-grid-compact .goal-countdown { font-size: 0.55rem; margin-bottom: 4px; }
+.goals-grid-compact .goal-actions { gap: 2px; }
+.goals-grid-compact .goal-action-btn { padding: 2px 6px; font-size: 0.62rem; }
+.goals-grid-compact .goal-card { border-radius: 10px; }
+.goals-grid-compact .goal-new { min-height: 60px; font-size: 0.7rem; border-radius: 10px; }
 .goal-card {
   background: var(--bg-hover);
   border: 1px solid var(--border);
