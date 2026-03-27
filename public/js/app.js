@@ -8919,6 +8919,8 @@ async function fetchPortfolioPrices() {
   try {
     _portfolioPrices = await fetch('/api/money/portfolio/prices').then(r => r.json());
     renderPortfolio(_moneyData);
+    // Re-render net worth so it reflects updated portfolio prices
+    if (_moneyData) renderSnapshot(_moneyData);
   } catch (e) { console.error('Portfolio price fetch error:', e); }
 }
 
