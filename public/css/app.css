@@ -3827,7 +3827,6 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   gap: 12px;
   padding: 11px 8px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
-  position: relative;
   transition: background 0.12s;
   border-radius: 8px;
 }
@@ -3885,12 +3884,10 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .feed-amount.deposit { color: #22c55e; }
 .feed-amount.expense { color: var(--text-primary); }
 .feed-actions {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   gap: 2px;
+  flex-shrink: 0;
+  margin-left: 6px;
   opacity: 0;
   transition: opacity 0.15s;
 }
