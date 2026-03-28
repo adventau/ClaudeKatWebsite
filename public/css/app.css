@@ -4987,12 +4987,12 @@ h2:hover .briefing-reaction-toolbar {
 }
 
 .briefing-reaction-btn {
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 5px;
+  background: var(--bg-input, rgba(255,255,255,0.06));
+  border: 1px solid var(--border);
+  border-radius: 6px;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 2px 5px;
+  padding: 4px 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5002,7 +5002,7 @@ h2:hover .briefing-reaction-toolbar {
 
 .briefing-reaction-btn:hover {
   background: var(--bg-hover);
-  border-color: var(--border);
+  border-color: var(--text-muted);
   color: var(--text-primary);
 }
 
@@ -5068,10 +5068,10 @@ h2:hover .briefing-reaction-toolbar {
 }
 
 .briefing-feedback-btn {
-  background: none;
+  background: var(--bg-input, rgba(255,255,255,0.06));
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 8px 18px;
   font-size: 0.82rem;
@@ -5085,7 +5085,7 @@ h2:hover .briefing-reaction-toolbar {
 .briefing-feedback-btn:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
-  border-color: var(--text-muted);
+  border-color: var(--text-secondary);
 }
 
 .briefing-feedback-btn svg {
