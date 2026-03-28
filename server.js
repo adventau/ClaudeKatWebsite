@@ -656,9 +656,11 @@ app.post('/api/briefings/submit', async (req, res) => {
     `, [user, content, today]);
 
     // Push notification via existing Brrr system
+    const users = rd(F.users) || {};
+    const displayName = users[user]?.displayName || users[user]?.name || user;
     await sendPushToUser(user, {
-      title: '📰 Your Morning Briefing is Ready',
-      body: 'Your daily briefing has been delivered. Tap to read.',
+      title: `Hi ${displayName}! ☀️`,
+      body: 'Your morning briefing is ready — tap to read.',
       tag: 'briefing-daily',
       url: '/app',
     });
