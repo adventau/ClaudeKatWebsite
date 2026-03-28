@@ -2222,6 +2222,39 @@
   </div>
 </div>
 
+<!-- Briefing feedback modal -->
+<div class="modal-overlay" id="briefing-feedback-modal" onclick="if(event.target===this)closeModal('briefing-feedback-modal')">
+  <div class="modal" style="max-width:440px;width:100%">
+    <div class="modal-header">
+      <span class="modal-title">Briefing Feedback</span>
+      <button class="btn-icon" onclick="closeModal('briefing-feedback-modal')"><i data-lucide="x"></i></button>
+    </div>
+    <div style="padding:16px 20px">
+      <textarea id="briefing-feedback-text" class="input" rows="4" placeholder="Anything to fix for tomorrow?" style="width:100%;resize:vertical;font-size:0.9rem"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('briefing-feedback-modal')">Cancel</button>
+      <button class="btn-primary" onclick="submitBriefingFreeText()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Briefing highlight popover -->
+<div id="briefing-highlight-popover" class="briefing-highlight-popover" style="display:none">
+  <button class="briefing-popover-btn briefing-popover-positive" onclick="submitHighlightFeedback('highlight_positive')" title="More like this">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    <span>More like this</span>
+  </button>
+  <button class="briefing-popover-btn briefing-popover-negative" onclick="submitHighlightFeedback('highlight_negative')" title="Less like this">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    <span>Less like this</span>
+  </button>
+  <button class="briefing-popover-btn briefing-popover-never" onclick="submitHighlightFeedback('highlight_never')" title="Never again">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+    <span>Never again</span>
+  </button>
+</div>
+
 <!-- Toast container -->
 <div id="toast-container" style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:300;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none"></div>
 

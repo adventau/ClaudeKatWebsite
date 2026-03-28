@@ -724,6 +724,155 @@ app.post('/api/briefings/read', mainAuth, async (req, res) => {
   }
 });
 
+// Save briefing feedback from the app
+app.post('/api/briefings/feedback', mainAuth, async (req, res) => {
+  const { feedback_type, section, highlighted_text, note, permanent } = req.body;
+  const validTypes = ['thumbs_up', 'thumbs_down', 'highlight_positive', 'highlight_negative', 'highlight_never', 'free_text'];
+  if (!feedback_type || !validTypes.includes(feedback_type)) {
+    return res.status(400).json({ error: 'Invalid feedback_type' });
+  }
+  const isPermanent = feedback_type === 'highlight_never' ? true : !!permanent;
+  const today = todayCentral();
+  try {
+    await db.query(`
+      INSERT INTO briefing_feedback (user_id, briefing_date, feedback_type, section, highlighted_text, note, permanent)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [req.session.user, today, feedback_type, section || null, highlighted_text || null, note || null, isPermanent]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[briefings] Feedback save error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Serve feedback summary to Cowork each morning
+app.get('/api/briefings/feedback', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const user = req.query.user;
+  if (!user) return res.status(400).json({ error: 'Missing user param' });
+  try {
+    // Permanent preferences
+    const permResult = await db.query(
+      `SELECT feedback_type, section, highlighted_text, note, created_at
+       FROM briefing_feedback WHERE user_id = $1 AND permanent = TRUE
+       ORDER BY created_at ASC`,
+      [user]
+    );
+    // Recent non-permanent, non-consolidated feedback from last 7 days
+    const recentResult = await db.query(
+      `SELECT feedback_type, section, highlighted_text, note, briefing_date, created_at
+       FROM briefing_feedback
+       WHERE user_id = $1 AND permanent = FALSE AND consolidated = FALSE
+         AND created_at >= NOW() - INTERVAL '7 days'
+       ORDER BY created_at ASC`,
+      [user]
+    );
+
+    if (!permResult.rows.length && !recentResult.rows.length) {
+      return res.json({ feedback: null });
+    }
+
+    let output = '';
+
+    if (permResult.rows.length) {
+      output += 'PERMANENT PREFERENCES (apply every day, no exceptions):\n';
+      for (const row of permResult.rows) {
+        const parts = [];
+        if (row.feedback_type === 'highlight_never' && row.highlighted_text) {
+          parts.push(`Never include: "${row.highlighted_text}"`);
+        } else {
+          parts.push(row.feedback_type.replace(/_/g, ' '));
+          if (row.section) parts.push(`[${row.section}]`);
+          if (row.highlighted_text) parts.push(`"${row.highlighted_text}"`);
+          if (row.note) parts.push(`- ${row.note}`);
+        }
+        output += `- ${parts.join(' ')}\n`;
+      }
+    }
+
+    if (recentResult.rows.length) {
+      if (output) output += '\n';
+      output += 'RECENT FEEDBACK (last 7 days — reader\'s actual reactions to delivered briefings):\n';
+      for (const row of recentResult.rows) {
+        const dateStr = new Date(row.briefing_date).toISOString().slice(0, 10);
+        const parts = [dateStr];
+        if (row.section) parts.push(`[${row.section}]`);
+        parts.push(row.feedback_type.replace(/_/g, ' '));
+        if (row.highlighted_text) parts.push(`"${row.highlighted_text}"`);
+        if (row.note) parts.push(`- ${row.note}`);
+        output += `- ${parts.join(' ')}\n`;
+      }
+    }
+
+    res.type('text/plain').send(output);
+  } catch (e) {
+    console.error('[briefings] Feedback fetch error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Weekly consolidation endpoint — summarize old feedback and mark as consolidated
+app.post('/api/briefings/consolidate', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { user } = req.body;
+  if (!user) return res.status(400).json({ error: 'Missing user' });
+  try {
+    // Fetch non-consolidated, non-permanent feedback older than 7 days
+    const result = await db.query(
+      `SELECT id, feedback_type, section, highlighted_text, note, briefing_date, created_at
+       FROM briefing_feedback
+       WHERE user_id = $1 AND consolidated = FALSE AND permanent = FALSE
+         AND created_at < NOW() - INTERVAL '7 days'
+       ORDER BY created_at ASC`,
+      [user]
+    );
+
+    if (!result.rows.length) {
+      return res.type('text/plain').send('No feedback to consolidate.');
+    }
+
+    // Build a summary of the raw feedback for the LLM
+    let rawSummary = '';
+    for (const row of result.rows) {
+      const dateStr = new Date(row.briefing_date).toISOString().slice(0, 10);
+      rawSummary += `- ${dateStr} ${row.feedback_type}`;
+      if (row.section) rawSummary += ` [${row.section}]`;
+      if (row.highlighted_text) rawSummary += ` "${row.highlighted_text}"`;
+      if (row.note) rawSummary += ` — ${row.note}`;
+      rawSummary += '\n';
+    }
+
+    // Use Anthropic SDK to summarize
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const resp = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: 'You are a briefing preference analyst. Given raw feedback items from a user about their daily briefing, produce concise standing instructions that a briefing-generation AI should follow going forward. Output only the instructions, one per line, as bullet points. Be specific and actionable.',
+      messages: [{ role: 'user', content: `Summarize these feedback items into standing briefing preferences:\n\n${rawSummary}` }],
+    });
+    const summary = resp.content[0].text;
+
+    // Mark all processed rows as consolidated
+    const ids = result.rows.map(r => r.id);
+    await db.query(
+      `UPDATE briefing_feedback SET consolidated = TRUE WHERE id = ANY($1)`,
+      [ids]
+    );
+
+    res.type('text/plain').send(summary);
+  } catch (e) {
+    console.error('[briefings] Consolidate error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // USERS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -4490,6 +4639,91 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     users[user].perfMode = !users[user].perfMode;
     wd(F.users, users);
     return lines(`Performance mode for ${user}: ${users[user].perfMode ? 'ON' : 'OFF'}`, 'success');
+  }
+
+  // ── BRIEFING FEEDBACK ──
+  if (cmd === 'feedback') {
+    const sub = parts[1]?.toLowerCase();
+
+    if (sub === 'delete') {
+      const id = parts[2];
+      if (!id) return lines('Usage: feedback delete <id>', 'warn');
+      if (!db.pool) return lines('No database configured', 'error');
+      try {
+        const result = await db.query('DELETE FROM briefing_feedback WHERE id = $1 RETURNING id, feedback_type, section, highlighted_text', [id]);
+        if (!result.rows.length) return lines(`Feedback #${id} not found`, 'error');
+        const r = result.rows[0];
+        const desc = r.section || r.highlighted_text || r.feedback_type;
+        return lines(`Deleted feedback #${r.id}: ${desc}`, 'success');
+      } catch (e) {
+        return lines('DB error: ' + e.message, 'error');
+      }
+    }
+
+    if (sub === 'clear') {
+      const who = parts[2]?.toLowerCase();
+      if (!who || !['kaliph', 'kathrine', 'all'].includes(who)) return lines('Usage: feedback clear <kaliph|kathrine|all>', 'warn');
+      if (!db.pool) return lines('No database configured', 'error');
+      try {
+        let result;
+        if (who === 'all') {
+          result = await db.query('DELETE FROM briefing_feedback RETURNING id');
+        } else {
+          result = await db.query('DELETE FROM briefing_feedback WHERE user_id = $1 RETURNING id', [who]);
+        }
+        return lines(`Deleted ${result.rowCount} feedback entries${who !== 'all' ? ' for ' + who : ''}`, 'success');
+      } catch (e) {
+        return lines('DB error: ' + e.message, 'error');
+      }
+    }
+
+    // Default: list feedback — returns HTML for popup
+    const who = sub?.toLowerCase();
+    if (who && !['kaliph', 'kathrine'].includes(who)) return lines('Usage: feedback [kaliph|kathrine]', 'warn');
+    if (!db.pool) return lines('No database configured', 'error');
+    try {
+      let result;
+      if (who) {
+        result = await db.query(
+          `SELECT id, user_id, briefing_date, feedback_type, section, highlighted_text, note, permanent, consolidated, created_at
+           FROM briefing_feedback WHERE user_id = $1 ORDER BY created_at DESC LIMIT 100`, [who]
+        );
+      } else {
+        result = await db.query(
+          `SELECT id, user_id, briefing_date, feedback_type, section, highlighted_text, note, permanent, consolidated, created_at
+           FROM briefing_feedback ORDER BY created_at DESC LIMIT 100`
+        );
+      }
+      if (!result.rows.length) return lines(who ? `No feedback for ${who}` : 'No feedback found', 'dim');
+
+      // Build HTML popup content
+      let rows = '';
+      for (const r of result.rows) {
+        const date = new Date(r.briefing_date).toISOString().slice(0, 10);
+        const type = r.feedback_type.replace(/_/g, ' ');
+        const flags = [];
+        if (r.permanent) flags.push('PERM');
+        if (r.consolidated) flags.push('CONS');
+        const flagStr = flags.length ? `<span class="fb-flags">${flags.join(' ')}</span>` : '';
+        const section = r.section ? `<span class="fb-section">[${r.section}]</span>` : '';
+        const highlight = r.highlighted_text ? `<span class="fb-highlight">"${r.highlighted_text.length > 60 ? r.highlighted_text.slice(0, 60) + '...' : r.highlighted_text}"</span>` : '';
+        const note = r.note ? `<span class="fb-note">${r.note.length > 80 ? r.note.slice(0, 80) + '...' : r.note}</span>` : '';
+        rows += `<tr>
+          <td class="fb-id">${r.id}</td>
+          <td class="fb-user">${r.user_id}</td>
+          <td class="fb-date">${date}</td>
+          <td class="fb-type fb-type-${r.feedback_type}">${type}</td>
+          <td>${section}${highlight}${note}</td>
+          <td>${flagStr}</td>
+          <td><button class="fb-del-btn" onclick="execFeedbackDelete(${r.id})">del</button></td>
+        </tr>`;
+      }
+
+      const html = `__FEEDBACK_POPUP__${result.rows.length}|${who || 'all'}|${rows}`;
+      return { html };
+    } catch (e) {
+      return lines('DB error: ' + e.message, 'error');
+    }
   }
 
   return lines(`Unknown command: "${raw}". Type "help" for commands.`, 'error');

@@ -757,6 +757,9 @@ async function loadBriefingForDate(date) {
     document.getElementById('briefing-content').style.display = '';
     document.getElementById('briefing-content').innerHTML = marked.parse(data.content);
 
+    // Inject section reaction toolbars and feedback button
+    injectBriefingFeedbackUI();
+
     const t = new Date(data.generatedAt);
     document.getElementById('briefing-timestamp').textContent =
       'Generated at ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -768,6 +771,170 @@ async function loadBriefingForDate(date) {
     }
   } catch (e) {
     console.error('[briefing] Load error:', e);
+  }
+}
+
+// ── Briefing Feedback ─────────────────────────────────────────────────
+
+// Track which sections already have feedback today
+let briefingSectionFeedback = {};
+
+function injectBriefingFeedbackUI() {
+  const container = document.getElementById('briefing-content');
+  if (!container) return;
+  briefingSectionFeedback = {};
+
+  // Add reaction toolbars to all h1 and h2 headers
+  container.querySelectorAll('h1, h2').forEach(header => {
+    const sectionName = header.textContent.trim();
+    const toolbar = document.createElement('span');
+    toolbar.className = 'briefing-reaction-toolbar';
+    toolbar.innerHTML = `
+      <button class="briefing-reaction-btn" data-section="${escapeHtml(sectionName)}" data-type="thumbs_up" onclick="submitSectionReaction(this, 'thumbs_up')" title="Thumbs up">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+      </button>
+      <button class="briefing-reaction-btn" data-section="${escapeHtml(sectionName)}" data-type="thumbs_down" onclick="submitSectionReaction(this, 'thumbs_down')" title="Thumbs down">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg>
+      </button>
+    `;
+    header.appendChild(toolbar);
+  });
+
+  // Add "Leave feedback" button at the bottom
+  const existing = container.querySelector('.briefing-feedback-footer');
+  if (existing) existing.remove();
+  const footer = document.createElement('div');
+  footer.className = 'briefing-feedback-footer';
+  footer.innerHTML = '<button class="briefing-feedback-btn" onclick="openModal(\'briefing-feedback-modal\')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> Leave feedback</button>';
+  container.appendChild(footer);
+}
+
+async function submitSectionReaction(btn, type) {
+  const section = btn.dataset.section;
+  const key = section + ':' + type;
+  // Toggle off if already active
+  if (briefingSectionFeedback[key]) return;
+
+  try {
+    const res = await fetch('/api/briefings/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback_type: type, section })
+    });
+    if (!res.ok) throw new Error('Failed');
+    briefingSectionFeedback[key] = true;
+    btn.classList.add('active');
+    // Deactivate the opposite button
+    const opposite = type === 'thumbs_up' ? 'thumbs_down' : 'thumbs_up';
+    const oppKey = section + ':' + opposite;
+    const toolbar = btn.parentElement;
+    const oppBtn = toolbar.querySelector(`[data-type="${opposite}"]`);
+    if (oppBtn) oppBtn.classList.remove('active');
+    delete briefingSectionFeedback[oppKey];
+
+    showToast(type === 'thumbs_up' ? 'Liked this section' : 'Noted — will improve');
+  } catch (e) {
+    console.error('[briefing] Reaction error:', e);
+    showToast('Could not save feedback');
+  }
+}
+
+// Highlight popover for text selection
+let briefingSelectedText = '';
+
+document.addEventListener('mouseup', handleBriefingSelection);
+document.addEventListener('touchend', handleBriefingSelection);
+
+function handleBriefingSelection(e) {
+  const popover = document.getElementById('briefing-highlight-popover');
+  if (!popover) return;
+  const container = document.getElementById('briefing-content');
+  if (!container) return;
+
+  // If click was on the popover itself, do nothing
+  if (popover.contains(e.target)) return;
+
+  const sel = window.getSelection();
+  const text = sel ? sel.toString().trim() : '';
+
+  if (!text || text.length < 3) {
+    popover.style.display = 'none';
+    briefingSelectedText = '';
+    return;
+  }
+
+  // Check that selection is within the briefing content
+  if (!sel.anchorNode || !container.contains(sel.anchorNode)) {
+    popover.style.display = 'none';
+    briefingSelectedText = '';
+    return;
+  }
+
+  briefingSelectedText = text;
+
+  // Position the popover near the selection
+  const range = sel.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  const bodyRect = document.body.getBoundingClientRect();
+
+  popover.style.display = 'flex';
+  popover.style.top = (rect.top - bodyRect.top - popover.offsetHeight - 8) + 'px';
+  popover.style.left = Math.max(8, Math.min(rect.left + (rect.width / 2) - (popover.offsetWidth / 2), window.innerWidth - popover.offsetWidth - 8)) + 'px';
+}
+
+// Dismiss popover on outside click
+document.addEventListener('mousedown', e => {
+  const popover = document.getElementById('briefing-highlight-popover');
+  if (popover && popover.style.display !== 'none' && !popover.contains(e.target)) {
+    popover.style.display = 'none';
+    briefingSelectedText = '';
+  }
+});
+
+async function submitHighlightFeedback(type) {
+  if (!briefingSelectedText) return;
+  const popover = document.getElementById('briefing-highlight-popover');
+  if (popover) popover.style.display = 'none';
+
+  const text = briefingSelectedText;
+  briefingSelectedText = '';
+  window.getSelection()?.removeAllRanges();
+
+  try {
+    const body = { feedback_type: type, highlighted_text: text };
+    if (type === 'highlight_never') body.permanent = true;
+    const res = await fetch('/api/briefings/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error('Failed');
+    const labels = { highlight_positive: 'Preference saved', highlight_negative: 'Preference saved', highlight_never: 'Permanently excluded' };
+    showToast(labels[type] || 'Feedback saved');
+  } catch (e) {
+    console.error('[briefing] Highlight feedback error:', e);
+    showToast('Could not save feedback');
+  }
+}
+
+async function submitBriefingFreeText() {
+  const textarea = document.getElementById('briefing-feedback-text');
+  const note = textarea ? textarea.value.trim() : '';
+  if (!note) return;
+
+  try {
+    const res = await fetch('/api/briefings/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback_type: 'free_text', note })
+    });
+    if (!res.ok) throw new Error('Failed');
+    textarea.value = '';
+    closeModal('briefing-feedback-modal');
+    showToast('Feedback submitted');
+  } catch (e) {
+    console.error('[briefing] Free text error:', e);
+    showToast('Could not save feedback');
   }
 }
 

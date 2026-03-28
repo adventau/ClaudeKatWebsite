@@ -113,6 +113,20 @@ async function createBriefingsTable() {
       UNIQUE (user_id, date)
     )
   `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS briefing_feedback (
+      id              SERIAL PRIMARY KEY,
+      user_id         TEXT      NOT NULL,
+      briefing_date   DATE      NOT NULL,
+      feedback_type   TEXT      NOT NULL,
+      section         TEXT,
+      highlighted_text TEXT,
+      note            TEXT,
+      permanent       BOOLEAN   NOT NULL DEFAULT FALSE,
+      consolidated    BOOLEAN   NOT NULL DEFAULT FALSE,
+      created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
 }
 
 // Convert a DB row to the camelCase message object shape the frontend expects

@@ -4966,3 +4966,128 @@ a.totp-card-issuer:hover {
 @media (max-width: 600px) {
   .briefing-body { padding: 16px; }
 }
+
+/* ── Briefing feedback: section reaction toolbar ─────────────────────── */
+.briefing-reaction-toolbar {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 10px;
+  vertical-align: middle;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+h1:hover .briefing-reaction-toolbar,
+h2:hover .briefing-reaction-toolbar {
+  opacity: 1;
+}
+
+@media (max-width: 600px) {
+  .briefing-reaction-toolbar { opacity: 1; }
+}
+
+.briefing-reaction-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  line-height: 1;
+}
+
+.briefing-reaction-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+.briefing-reaction-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.briefing-reaction-btn svg {
+  display: block;
+}
+
+/* ── Briefing feedback: highlight popover ─────────────────────────────── */
+.briefing-highlight-popover {
+  position: absolute;
+  z-index: 200;
+  display: flex;
+  gap: 2px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+}
+
+.briefing-popover-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.briefing-popover-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.briefing-popover-positive:hover { color: #22c55e; }
+.briefing-popover-negative:hover { color: #f97316; }
+.briefing-popover-never:hover { color: #ef4444; }
+
+.briefing-popover-btn svg {
+  flex-shrink: 0;
+}
+
+/* ── Briefing feedback: footer button ─────────────────────────────────── */
+.briefing-feedback-footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: center;
+}
+
+.briefing-feedback-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 8px 18px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.briefing-feedback-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.briefing-feedback-btn svg {
+  flex-shrink: 0;
+}

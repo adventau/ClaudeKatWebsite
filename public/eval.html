@@ -677,6 +677,83 @@
 .time-set-cancel:hover { opacity: 1; }
 </style>
 
+<!-- Feedback Popup -->
+<div class="fb-overlay" id="fb-overlay" style="display:none" onclick="if(event.target===this)closeFeedbackPopup()">
+  <div class="fb-popup">
+    <div class="fb-header">
+      <span class="fb-title" id="fb-popup-title">Briefing Feedback</span>
+      <button class="fb-close" onclick="closeFeedbackPopup()">&times;</button>
+    </div>
+    <div class="fb-body" id="fb-popup-body">
+      <table class="fb-table">
+        <thead><tr><th>ID</th><th>User</th><th>Date</th><th>Type</th><th>Detail</th><th>Flags</th><th></th></tr></thead>
+        <tbody id="fb-popup-rows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+.fb-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+.fb-popup {
+  background: var(--bg, #0c0c0c); border: 1px solid var(--border, #1a3a1a);
+  border-radius: 12px; width: 780px; max-width: 95vw; max-height: 80vh;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5); display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.fb-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid var(--border, #1a3a1a);
+  flex-shrink: 0;
+}
+.fb-title { font-weight: 700; font-size: 0.9rem; color: var(--accent, #00ff88); }
+.fb-close {
+  background: none; border: none; color: var(--dim, #444);
+  font-size: 1.2rem; cursor: pointer; padding: 0 4px; transition: color 0.15s;
+}
+.fb-close:hover { color: var(--accent, #00ff88); }
+.fb-body { padding: 12px; overflow-y: auto; flex: 1; }
+.fb-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.fb-table th {
+  text-align: left; padding: 6px 8px; font-weight: 600; font-size: 0.68rem;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--dim, #666); border-bottom: 1px solid var(--border, #1a3a1a);
+}
+.fb-table td {
+  padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text, #ccc); vertical-align: top;
+}
+.fb-table tr:hover td { background: rgba(255,255,255,0.03); }
+.fb-id { color: var(--dim, #666); font-size: 0.7rem; }
+.fb-user { font-weight: 500; }
+.fb-date { color: var(--dim, #888); white-space: nowrap; }
+.fb-type { font-weight: 600; white-space: nowrap; }
+.fb-type-thumbs_up { color: #22c55e; }
+.fb-type-thumbs_down { color: #f97316; }
+.fb-type-highlight_positive { color: #22c55e; }
+.fb-type-highlight_negative { color: #f97316; }
+.fb-type-highlight_never { color: #ef4444; }
+.fb-type-free_text { color: #60a5fa; }
+.fb-section { color: var(--accent, #00ff88); margin-right: 4px; font-size: 0.72rem; }
+.fb-highlight { color: #a78bfa; font-style: italic; font-size: 0.72rem; }
+.fb-note { color: var(--text, #ccc); font-size: 0.72rem; }
+.fb-flags {
+  display: inline-block; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.05em;
+  padding: 1px 5px; border-radius: 3px; background: rgba(255,255,255,0.08);
+  color: var(--dim, #888);
+}
+.fb-del-btn {
+  background: none; border: 1px solid rgba(239,68,68,0.3); border-radius: 4px;
+  color: #ef4444; cursor: pointer; font-size: 0.68rem; padding: 2px 6px;
+  font-family: inherit; transition: all 0.15s;
+}
+.fb-del-btn:hover { background: rgba(239,68,68,0.15); border-color: #ef4444; }
+</style>
+
 <!-- Theme Builder Modal -->
 <div class="tb-overlay" id="tb-overlay">
   <div class="tb-panel">
@@ -896,6 +973,15 @@ const COMMANDS = [
   { cmd: 'theme preview kathrine', desc: 'Preview Kathrine custom theme', cat: 'Theme' },
   { cmd: 'theme reset kaliph', desc: 'Reset Kaliph custom theme to default', cat: 'Theme' },
   { cmd: 'theme reset kathrine', desc: 'Reset Kathrine custom theme to default', cat: 'Theme' },
+
+  // Briefing Feedback
+  { cmd: 'feedback', desc: 'View all briefing feedback (popup)', cat: 'Briefing' },
+  { cmd: 'feedback kaliph', desc: 'View Kaliph briefing feedback', cat: 'Briefing' },
+  { cmd: 'feedback kathrine', desc: 'View Kathrine briefing feedback', cat: 'Briefing' },
+  { cmd: 'feedback delete ', desc: 'Delete feedback by ID', cat: 'Briefing' },
+  { cmd: 'feedback clear kaliph', desc: 'Clear all Kaliph feedback', cat: 'Briefing' },
+  { cmd: 'feedback clear kathrine', desc: 'Clear all Kathrine feedback', cat: 'Briefing' },
+  { cmd: 'feedback clear all', desc: 'Clear all feedback', cat: 'Briefing' },
 
   // System
   { cmd: 'republish update-log', desc: 'Re-show update log to both users', cat: 'System' },
@@ -1161,7 +1247,13 @@ async function execCommand(raw) {
     if (d.lines) d.lines.forEach(l => print(l.text, l.cls || 'info'));
     if (d.table) printTable(d.table.headers, d.table.rows);
     if (d.messages) renderEditMessages(d.messages);
-    if (d.html) printHTML(d.html);
+    if (d.html) {
+      if (typeof d.html === 'string' && d.html.startsWith('__FEEDBACK_POPUP__')) {
+        openFeedbackPopup(d.html);
+      } else {
+        printHTML(d.html);
+      }
+    }
     if (d.openUrl) window.open(d.openUrl, '_blank');
     if (d.openThemeBuilder) tbOpen(d.themeData);
   } catch (e) {
@@ -1296,6 +1388,11 @@ function showHelp() {
     'TIME': [
       ['time set <offset>', 'Set time offset (ISO date or +2h, -30m)'],
       ['time reset', 'Reset time to normal'],
+    ],
+    'BRIEFING FEEDBACK': [
+      ['feedback [user]', 'View feedback (popup)'],
+      ['feedback delete <id>', 'Delete feedback entry'],
+      ['feedback clear <user|all>', 'Clear all feedback'],
     ],
     'SYSTEM': [
       ['republish update-log [user]', 'Re-show update log'],
@@ -1503,14 +1600,49 @@ async function resetTimeSet() {
 
 // Close popup on Escape
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && document.getElementById('time-set-overlay').style.display !== 'none') {
-    closeTimeSetPopup();
+  if (e.key === 'Escape') {
+    if (document.getElementById('time-set-overlay').style.display !== 'none') closeTimeSetPopup();
+    if (document.getElementById('fb-overlay').style.display !== 'none') closeFeedbackPopup();
   }
 });
 // Close popup on backdrop click
 document.getElementById('time-set-overlay')?.addEventListener('click', e => {
   if (e.target === document.getElementById('time-set-overlay')) closeTimeSetPopup();
 });
+
+// ── Feedback popup ──
+function openFeedbackPopup(html) {
+  // Parse: __FEEDBACK_POPUP__count|user|rows
+  const payload = html.replace('__FEEDBACK_POPUP__', '');
+  const pipeIdx = payload.indexOf('|');
+  const pipeIdx2 = payload.indexOf('|', pipeIdx + 1);
+  const count = payload.slice(0, pipeIdx);
+  const who = payload.slice(pipeIdx + 1, pipeIdx2);
+  const rowsHTML = payload.slice(pipeIdx2 + 1);
+
+  document.getElementById('fb-popup-title').textContent =
+    `Briefing Feedback — ${who === 'all' ? 'All Users' : who} (${count})`;
+  document.getElementById('fb-popup-rows').innerHTML = rowsHTML;
+  document.getElementById('fb-overlay').style.display = 'flex';
+  print(`Opened feedback popup — ${count} entries`, 'info');
+}
+
+function closeFeedbackPopup() {
+  document.getElementById('fb-overlay').style.display = 'none';
+}
+
+async function execFeedbackDelete(id) {
+  const row = document.querySelector(`button[onclick="execFeedbackDelete(${id})"]`)?.closest('tr');
+  print(`eval> feedback delete ${id}`, 'cmd');
+  await execCommand('feedback delete ' + id);
+  if (row) row.remove();
+  // Update count in title
+  const tbody = document.getElementById('fb-popup-rows');
+  const remaining = tbody.querySelectorAll('tr').length;
+  const title = document.getElementById('fb-popup-title').textContent;
+  document.getElementById('fb-popup-title').textContent = title.replace(/\(\d+\)/, `(${remaining})`);
+  if (!remaining) closeFeedbackPopup();
+}
 
 // Apply saved settings on load
 applyTheme();
