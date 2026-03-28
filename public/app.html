@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
-  <link rel="stylesheet" href="/css/app.css?v=briefing2">
+  <link rel="stylesheet" href="/css/app.css?v=budget4">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
   <script src="/js/lucide.min.js" defer></script>
 </head>
@@ -603,6 +603,15 @@
 
       <!-- Dashboard (shown when setup: true) -->
       <div id="money-dashboard" style="display:none">
+        <!-- Dashboard-Level Tabs -->
+        <div class="money-dash-tabs" id="money-dash-tabs">
+          <button class="money-dash-tab active" data-dtab="dashboard" onclick="switchMoneyDashTab('dashboard',this)">Dashboard</button>
+          <button class="money-dash-tab" data-dtab="budget" onclick="switchMoneyDashTab('budget',this)">Budget</button>
+          <div class="money-dash-tab-indicator" id="money-dash-tab-indicator"></div>
+        </div>
+
+        <!-- Dashboard View (existing content) -->
+        <div id="money-dash-view-dashboard">
         <!-- Balance Bar — compact full width -->
         <div class="money-balance-bar money-anim" id="money-snapshot-card">
           <div id="money-snapshot">
@@ -694,6 +703,12 @@
         <button class="money-fab" id="money-fab" onclick="openQuickAdd()" title="Add transaction">
           <i data-lucide="plus" style="width:22px;height:22px"></i>
         </button>
+        </div><!-- /money-dash-view-dashboard -->
+
+        <!-- Budget View -->
+        <div id="money-dash-view-budget" style="display:none">
+          <div id="budget-content"></div>
+        </div>
       </div>
     </section>
 
@@ -2004,6 +2019,82 @@
   </div>
 </div>
 
+<!-- ── Budget: Add/Edit Category Modal ── -->
+<div class="modal-overlay" id="budget-category-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <span class="modal-title" id="budget-cat-modal-title">Add Category</span>
+      <button class="btn-icon" onclick="closeModal('budget-category-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <input type="hidden" id="budget-cat-edit-id" value="">
+
+      <label class="modal-label">Name</label>
+      <input type="text" id="budget-cat-name" class="input" placeholder="Category name" style="margin-bottom:12px" maxlength="30">
+
+      <label class="modal-label">Emoji</label>
+      <input type="text" id="budget-cat-emoji" class="input" placeholder="📦" style="margin-bottom:12px;width:60px">
+
+      <label class="modal-label">Budget Amount (per period)</label>
+      <div class="money-input-prefix" style="margin-bottom:12px">
+        <span>$</span>
+        <input type="number" id="budget-cat-amount" class="input" placeholder="0.00" step="0.01" min="0">
+      </div>
+
+      <label class="modal-label">Color</label>
+      <div class="budget-color-swatches" id="budget-cat-colors" style="margin-bottom:16px">
+        <button class="color-swatch active" data-color="#f59e0b" style="background:#f59e0b" onclick="selectBudgetColor(this)"></button>
+        <button class="color-swatch" data-color="#3b82f6" style="background:#3b82f6" onclick="selectBudgetColor(this)"></button>
+        <button class="color-swatch" data-color="#8b5cf6" style="background:#8b5cf6" onclick="selectBudgetColor(this)"></button>
+        <button class="color-swatch" data-color="#ec4899" style="background:#ec4899" onclick="selectBudgetColor(this)"></button>
+        <button class="color-swatch" data-color="#6b7280" style="background:#6b7280" onclick="selectBudgetColor(this)"></button>
+        <button class="color-swatch" data-color="#10b981" style="background:#10b981" onclick="selectBudgetColor(this)"></button>
+        <button class="color-swatch" data-color="#ef4444" style="background:#ef4444" onclick="selectBudgetColor(this)"></button>
+        <button class="color-swatch" data-color="#f97316" style="background:#f97316" onclick="selectBudgetColor(this)"></button>
+        <input type="color" id="budget-cat-custom-color" class="color-swatch-custom" value="#6b7280" onchange="selectBudgetCustomColor(this)">
+      </div>
+
+      <button class="btn-primary" onclick="saveBudgetCategory()" style="width:100%">Save</button>
+      <button class="btn-danger" id="budget-cat-delete-btn" onclick="deleteBudgetCategory()" style="width:100%;margin-top:8px;display:none">Delete Category</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Budget: Override Modal ── -->
+<div class="modal-overlay" id="budget-override-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title" id="budget-override-title">Override Spend</span>
+      <button class="btn-icon" onclick="closeModal('budget-override-modal')"><i data-lucide="x" style="width:18px;height:18px"></i></button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <input type="hidden" id="budget-override-cat-id" value="">
+      <input type="hidden" id="budget-override-period" value="">
+      <input type="hidden" id="budget-override-existing-id" value="">
+
+      <div class="budget-override-auto" id="budget-override-auto" style="margin-bottom:16px">
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px">Auto-detected from transactions</div>
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <span style="font-size:1.2rem;font-weight:700;color:var(--text-primary)" id="budget-override-auto-amount">$0.00</span>
+          <span style="font-size:0.72rem;color:var(--text-muted)" id="budget-override-auto-count">0 transactions</span>
+        </div>
+      </div>
+
+      <label class="modal-label">Manual Amount</label>
+      <div class="money-input-prefix" style="margin-bottom:12px">
+        <span>$</span>
+        <input type="number" id="budget-override-amount" class="input" placeholder="0.00" step="0.01" min="0">
+      </div>
+
+      <label class="modal-label">Note (optional)</label>
+      <input type="text" id="budget-override-note" class="input" placeholder="Why override?" style="margin-bottom:16px" maxlength="120">
+
+      <button class="btn-primary" onclick="saveBudgetOverride()" style="width:100%">Save Override</button>
+      <button class="btn-ghost" id="budget-override-revert-btn" onclick="revertBudgetOverride()" style="width:100%;margin-top:8px;display:none">Revert to auto-detected</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Money: Add Investment Modal ── -->
 <div class="modal-overlay" id="money-invest-modal">
   <div class="modal" style="max-width:400px">
@@ -2360,6 +2451,6 @@
 <!-- Scripts -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js?v=4"></script>
-<script src="/js/app.js?v=networth1"></script>
+<script src="/js/app.js?v=budget4"></script>
 </body>
 </html>

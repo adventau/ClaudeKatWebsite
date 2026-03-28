@@ -151,6 +151,7 @@ const F = {
   reminders:     path.join(DATA_DIR, 'reminders.json'),
   totp:          path.join(DATA_DIR, 'totp.json'),
   money:         path.join(DATA_DIR, 'money.json'),
+  budget:        path.join(DATA_DIR, 'budget.json'),
 };
 
 // ── Web Push (VAPID) ─────────────────────────────────────────────────────────
@@ -2502,6 +2503,130 @@ app.delete('/api/money/investments/:id', mainAuth, (req, res) => {
   wd(F.money, money);
   io.emit('money:updated', money);
   res.json({ success: true });
+});
+
+// ── Budget ──────────────────────────────────────────────────────────────────
+function seedBudgetDefaults() {
+  const entertainmentId = uuidv4();
+  const shoppingId = uuidv4();
+  return {
+    anchorDate: '2025-01-03',
+    categories: [
+      { id: uuidv4(), name: 'Dining Out', emoji: '🍽️', budgetAmount: 0, color: '#f59e0b', pairedWith: null },
+      { id: uuidv4(), name: 'Transport', emoji: '🚗', budgetAmount: 0, color: '#3b82f6', pairedWith: null },
+      { id: entertainmentId, name: 'Activities', emoji: '🎬', budgetAmount: 0, color: '#8b5cf6', pairedWith: shoppingId },
+      { id: shoppingId, name: 'Shopping', emoji: '🛍️', budgetAmount: 0, color: '#ec4899', pairedWith: entertainmentId },
+      { id: uuidv4(), name: 'Miscellaneous', emoji: '📦', budgetAmount: 0, color: '#6b7280', pairedWith: null },
+    ],
+    overrides: [],
+  };
+}
+
+app.get('/api/budget', mainAuth, (req, res) => {
+  let budget = rd(F.budget);
+  if (!budget) {
+    budget = seedBudgetDefaults();
+    wd(F.budget, budget);
+  }
+  res.json(budget);
+});
+
+app.post('/api/budget/categories', mainAuth, (req, res) => {
+  let budget = rd(F.budget);
+  if (!budget) { budget = seedBudgetDefaults(); }
+  const { name, emoji, budgetAmount, color } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  const cat = {
+    id: uuidv4(),
+    name: name.trim(),
+    emoji: emoji || '📦',
+    budgetAmount: parseFloat(budgetAmount) || 0,
+    color: color || '#6b7280',
+    pairedWith: null,
+  };
+  budget.categories.push(cat);
+  wd(F.budget, budget);
+  io.emit('budget:updated', budget);
+  res.json({ success: true, budget });
+});
+
+app.put('/api/budget/categories/:id', mainAuth, (req, res) => {
+  let budget = rd(F.budget);
+  if (!budget) return res.status(404).json({ error: 'Budget not found' });
+  const cat = budget.categories.find(c => c.id === req.params.id);
+  if (!cat) return res.status(404).json({ error: 'Category not found' });
+  if (req.body.name !== undefined) cat.name = req.body.name.trim();
+  if (req.body.emoji !== undefined) cat.emoji = req.body.emoji;
+  if (req.body.budgetAmount !== undefined) cat.budgetAmount = parseFloat(req.body.budgetAmount) || 0;
+  if (req.body.color !== undefined) cat.color = req.body.color;
+  wd(F.budget, budget);
+  io.emit('budget:updated', budget);
+  res.json({ success: true, budget });
+});
+
+app.delete('/api/budget/categories/:id', mainAuth, (req, res) => {
+  let budget = rd(F.budget);
+  if (!budget) return res.status(404).json({ error: 'Budget not found' });
+  const idx = budget.categories.findIndex(c => c.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: 'Category not found' });
+  const removed = budget.categories[idx];
+  // Unlink paired category
+  if (removed.pairedWith) {
+    const paired = budget.categories.find(c => c.id === removed.pairedWith);
+    if (paired) paired.pairedWith = null;
+  }
+  budget.categories.splice(idx, 1);
+  budget.overrides = budget.overrides.filter(o => o.categoryId !== req.params.id);
+  wd(F.budget, budget);
+  io.emit('budget:updated', budget);
+  res.json({ success: true, budget });
+});
+
+app.post('/api/budget/overrides', mainAuth, (req, res) => {
+  let budget = rd(F.budget);
+  if (!budget) { budget = seedBudgetDefaults(); }
+  const { categoryId, periodStart, manualAmount, note } = req.body;
+  if (!categoryId || !periodStart) return res.status(400).json({ error: 'categoryId and periodStart required' });
+  // Upsert: find existing override for same category + period
+  const existing = budget.overrides.findIndex(o => o.categoryId === categoryId && o.periodStart === periodStart);
+  if (existing >= 0) {
+    budget.overrides[existing].manualAmount = parseFloat(manualAmount) || 0;
+    budget.overrides[existing].note = note || '';
+  } else {
+    budget.overrides.push({
+      id: uuidv4(),
+      categoryId,
+      periodStart,
+      manualAmount: parseFloat(manualAmount) || 0,
+      note: note || '',
+    });
+  }
+  wd(F.budget, budget);
+  io.emit('budget:updated', budget);
+  res.json({ success: true, budget });
+});
+
+app.delete('/api/budget/overrides/:id', mainAuth, (req, res) => {
+  let budget = rd(F.budget);
+  if (!budget) return res.status(404).json({ error: 'Budget not found' });
+  const idx = budget.overrides.findIndex(o => o.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: 'Override not found' });
+  budget.overrides.splice(idx, 1);
+  wd(F.budget, budget);
+  io.emit('budget:updated', budget);
+  res.json({ success: true, budget });
+});
+
+app.put('/api/budget/reorder', mainAuth, (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids array required' });
+  let budget = rd(F.budget);
+  if (!budget) return res.status(404).json({ error: 'Budget not found' });
+  const catMap = new Map(budget.categories.map(c => [c.id, c]));
+  budget.categories = ids.map(id => catMap.get(id)).filter(Boolean);
+  wd(F.budget, budget);
+  io.emit('budget:updated', budget);
+  res.json({ success: true, budget });
 });
 
 // ── Money: Daily snapshot + recurring auto-log intervals ──

@@ -2694,6 +2694,17 @@ function setupSocketEvents() {
     const oldData = _moneyData;
     _moneyData = data;
     if (currentSection === 'money') renderMoneyUpdate(oldData, data);
+    // Re-render budget if viewing it (transactions changed)
+    if (currentSection === 'money' && _moneyDashTab === 'budget' && _budgetData) {
+      renderBudget(_budgetData, _moneyData);
+    }
+  });
+
+  socket.on('budget:updated', (data) => {
+    _budgetData = data;
+    if (currentSection === 'money' && _moneyDashTab === 'budget') {
+      renderBudget(_budgetData, _moneyData);
+    }
   });
 
   socket.on('time-offset', ({ offset }) => {
@@ -8283,7 +8294,7 @@ let _moneyFeedPage = 1;
 let _moneyDateState = { year: getNow().getFullYear(), month: getNow().getMonth(), selectedDate: null };
 let _moneyRecurringView = false;
 
-const MONEY_CATEGORIES = {
+const MONEY_CATEGORIES_DEFAULT = {
   food: { icon: 'utensils', label: 'Food' },
   groceries: { icon: 'shopping-basket', label: 'Groceries' },
   transport: { icon: 'car', label: 'Transport' },
@@ -8293,6 +8304,80 @@ const MONEY_CATEGORIES = {
   shopping: { icon: 'shopping-bag', label: 'Shopping' },
   other: { icon: 'circle-dot', label: 'Other' },
 };
+
+const BUDGET_CATEGORY_ICONS = {
+  'dining out': 'utensils',
+  'transport': 'car',
+  'entertainment': 'tv',
+  'activities': 'tv',
+  'shopping': 'shopping-bag',
+  'miscellaneous': 'circle-dot',
+  'food': 'utensils',
+  'groceries': 'shopping-basket',
+  'bills': 'receipt',
+  'health': 'heart-pulse',
+};
+
+function getMoneyCategories() {
+  if (_budgetData && _budgetData.categories && _budgetData.categories.length > 0) {
+    const cats = {};
+    _budgetData.categories.forEach(c => {
+      const key = c.name.toLowerCase().replace(/\s+/g, '-');
+      cats[key] = { icon: BUDGET_CATEGORY_ICONS[c.name.toLowerCase()] || 'circle-dot', label: c.name };
+    });
+    return cats;
+  }
+  return MONEY_CATEGORIES_DEFAULT;
+}
+
+// Keep MONEY_CATEGORIES as a getter for backward compat
+const MONEY_CATEGORIES = new Proxy(MONEY_CATEGORIES_DEFAULT, {
+  get(target, prop) {
+    const dynamic = getMoneyCategories();
+    if (prop in dynamic) return dynamic[prop];
+    // fallback: try to find by label match
+    for (const k in dynamic) {
+      if (dynamic[k].label && dynamic[k].label.toLowerCase() === String(prop).toLowerCase()) return dynamic[k];
+    }
+    return target[prop] || target.other || { icon: 'circle-dot', label: 'Other' };
+  }
+});
+
+function renderTransactionCategories() {
+  const cats = getMoneyCategories();
+  const keys = Object.keys(cats);
+
+  // Transaction modal
+  const grid = document.getElementById('money-category-grid');
+  if (grid) {
+    let first = true;
+    grid.innerHTML = keys.map(key => {
+      const c = cats[key];
+      const sel = first ? ' selected' : '';
+      first = false;
+      return `<button class="category-pill${sel}" data-cat="${escapeHtml(key)}" onclick="selectCategory(this)"><i data-lucide="${c.icon}" style="width:14px;height:14px"></i> ${escapeHtml(c.label)}</button>`;
+    }).join('');
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // Recurring modal
+  const recGrid = document.getElementById('money-rec-category-grid');
+  if (recGrid) {
+    let html = '';
+    keys.forEach((key, i) => {
+      const c = cats[key];
+      // Default to "bills" equivalent if it exists, otherwise first
+      const isBills = c.label.toLowerCase() === 'bills';
+      html += `<button class="category-pill${isBills ? ' selected' : ''}" data-cat="${escapeHtml(key)}" onclick="selectRecCategory(this)"><i data-lucide="${c.icon}" style="width:14px;height:14px"></i> ${escapeHtml(c.label)}</button>`;
+    });
+    // If no bills category found, select the first one
+    if (!keys.some(k => cats[k].label.toLowerCase() === 'bills')) {
+      html = html.replace('class="category-pill"', 'class="category-pill selected"');
+    }
+    recGrid.innerHTML = html;
+    if (window.lucide) lucide.createIcons();
+  }
+}
 
 async function loadMoney() {
   // Set fullscreen header date
@@ -8311,6 +8396,11 @@ async function loadMoney() {
     _moneyData = await fetch('/api/money').then(r => r.json());
   } catch { _moneyData = {}; }
 
+  // Load budget data for category sync
+  try {
+    _budgetData = await fetch('/api/budget').then(r => r.json());
+  } catch { _budgetData = null; }
+
   if (!_moneyData.setup) {
     setup.style.display = '';
     dash.style.display = 'none';
@@ -8327,6 +8417,7 @@ async function loadMoney() {
     const recToggleText = document.getElementById('money-rec-toggle-text');
     if (recToggleText) recToggleText.textContent = 'Recurring';
     renderMoney(_moneyData);
+    updateMoneyDashTabIndicator();
   }
   if (window.lucide) lucide.createIcons();
 }
@@ -8643,6 +8734,8 @@ function openQuickAdd() {
   }
   fab.classList.add('open');
   openModal('money-add-modal');
+  // Dynamically render categories from budget data
+  renderTransactionCategories();
   // Reset form
   document.getElementById('money-txn-edit-id').value = '';
   document.getElementById('money-txn-type').value = 'expense';
@@ -8670,6 +8763,7 @@ function editTransaction(id) {
   const fab = document.getElementById('money-fab');
   fab?.classList.add('open');
   openModal('money-add-modal');
+  renderTransactionCategories();
 
   const isDeposit = txn.type === 'deposit';
   document.getElementById('money-txn-edit-id').value = id;
@@ -9627,6 +9721,548 @@ async function submitInvestment() {
   s.async = true;
   document.head.appendChild(s);
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BUDGET TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let _budgetData = null;
+let _currentPeriodOffset = 0;
+let _moneyDashTab = 'dashboard';
+
+function getBudgetPeriod(anchorDate, ref = new Date()) {
+  // Use UTC noon to avoid DST issues
+  const parts = anchorDate.split('-');
+  const anchorMs = Date.UTC(+parts[0], +parts[1] - 1, +parts[2], 12);
+  const refMs = Date.UTC(ref.getFullYear(), ref.getMonth(), ref.getDate(), 12);
+  const diffDays = Math.floor((refMs - anchorMs) / 86400000);
+  const periodIndex = Math.floor(diffDays / 14);
+  const startMs = anchorMs + periodIndex * 14 * 86400000;
+  const endMs = startMs + 13 * 86400000;
+  const periodStart = new Date(startMs);
+  const periodEnd = new Date(endMs);
+  return { periodStart, periodEnd };
+}
+
+function getPeriodLabel(periodStart, periodEnd) {
+  const fmt = d => {
+    const m = d.getUTCMonth();
+    const day = d.getUTCDate();
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${months[m]} ${day}`;
+  };
+  return `${fmt(periodStart)} – ${fmt(periodEnd)}`;
+}
+
+function getOffsetPeriod(anchorDate, offset) {
+  const current = getBudgetPeriod(anchorDate);
+  // Shift reference by offset * 14 days
+  const refMs = current.periodStart.getTime() + offset * 14 * 86400000;
+  const ref = new Date(refMs);
+  return getBudgetPeriod(anchorDate, ref);
+}
+
+function normalizeCatKey(name) {
+  return (name || '').toLowerCase().replace(/[\s\-_]+/g, '-').trim();
+}
+
+function utcDateStr(d) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+}
+
+function getAutoSpend(categoryName, periodStart, periodEnd, transactions) {
+  const start = utcDateStr(periodStart);
+  const end = utcDateStr(periodEnd);
+  const budgetKey = normalizeCatKey(categoryName);
+  const matching = (transactions || []).filter(t =>
+    t.type === 'expense' &&
+    t.category && categoryName &&
+    normalizeCatKey(t.category) === budgetKey &&
+    t.date >= start && t.date <= end
+  );
+  const total = matching.reduce((s, t) => s + (t.amount || 0), 0);
+  return { total: Math.round(total * 100) / 100, count: matching.length };
+}
+
+function getSpendForCategory(cat, periodStart, periodEnd, transactions, overrides) {
+  const periodKey = utcDateStr(periodStart);
+  const override = (overrides || []).find(o => o.categoryId === cat.id && o.periodStart === periodKey);
+  if (override) return { amount: override.manualAmount, isOverride: true, overrideId: override.id };
+  const auto = getAutoSpend(cat.name, periodStart, periodEnd, transactions);
+  return { amount: auto.total, isOverride: false, count: auto.count };
+}
+
+function switchMoneyDashTab(tab, el) {
+  _moneyDashTab = tab;
+  document.querySelectorAll('.money-dash-tab').forEach(t => t.classList.toggle('active', t.dataset.dtab === tab));
+  updateMoneyDashTabIndicator();
+
+  const dashView = document.getElementById('money-dash-view-dashboard');
+  const budgetView = document.getElementById('money-dash-view-budget');
+  if (tab === 'dashboard') {
+    dashView.style.display = '';
+    budgetView.style.display = 'none';
+  } else {
+    dashView.style.display = 'none';
+    budgetView.style.display = '';
+    if (!_budgetData) {
+      loadBudget();
+    } else {
+      renderBudget(_budgetData, _moneyData);
+    }
+  }
+}
+
+function updateMoneyDashTabIndicator() {
+  const bar = document.getElementById('money-dash-tabs');
+  const indicator = document.getElementById('money-dash-tab-indicator');
+  const active = bar?.querySelector('.money-dash-tab.active');
+  if (!bar || !indicator || !active) return;
+  indicator.style.left = active.offsetLeft + 'px';
+  indicator.style.width = active.offsetWidth + 'px';
+}
+
+async function loadBudget() {
+  try {
+    _budgetData = await fetch('/api/budget').then(r => r.json());
+  } catch { _budgetData = { anchorDate: '2025-01-03', categories: [], overrides: [] }; }
+  renderBudget(_budgetData, _moneyData);
+}
+
+function renderBudget(budget, money) {
+  const container = document.getElementById('budget-content');
+  if (!container || !budget) return;
+
+  const { periodStart, periodEnd } = getOffsetPeriod(budget.anchorDate, _currentPeriodOffset);
+  const label = getPeriodLabel(periodStart, periodEnd);
+  const transactions = money?.transactions || [];
+
+  // Compute spends per category
+  const catSpends = budget.categories.map(cat => {
+    const spend = getSpendForCategory(cat, periodStart, periodEnd, transactions, budget.overrides);
+    return { ...cat, spent: spend.amount, isOverride: spend.isOverride, overrideId: spend.overrideId, txnCount: spend.count || 0 };
+  });
+
+  // Build display-order groups (preserving category array order)
+  const renderedIds = new Set();
+  const groups = []; // each entry: { type: 'solo'|'paired', cats: [...] }
+  for (const cat of catSpends) {
+    if (renderedIds.has(cat.id)) continue;
+    if (cat.pairedWith) {
+      const partner = catSpends.find(c => c.id === cat.pairedWith);
+      if (partner && !renderedIds.has(partner.id)) {
+        groups.push({ type: 'paired', cats: [cat, partner] });
+        renderedIds.add(cat.id);
+        renderedIds.add(partner.id);
+      } else {
+        groups.push({ type: 'solo', cats: [cat] });
+        renderedIds.add(cat.id);
+      }
+    } else {
+      groups.push({ type: 'solo', cats: [cat] });
+      renderedIds.add(cat.id);
+    }
+  }
+
+  // Totals
+  const totalBudgeted = catSpends.reduce((s, c) => s + c.budgetAmount, 0);
+  const totalSpent = catSpends.reduce((s, c) => s + c.spent, 0);
+  const overallPct = totalBudgeted > 0 ? (totalSpent / totalBudgeted * 100) : 0;
+  const overallColor = overallPct >= 100 ? '#ef4444' : overallPct >= 75 ? '#f59e0b' : 'var(--accent)';
+
+  let html = '';
+
+  // Period Navigation Bar
+  html += `<div class="budget-period-bar">
+    <button class="budget-nav-btn" onclick="budgetPrevPeriod()">← Prev</button>
+    <div class="budget-period-center">
+      <div class="budget-period-label">${escapeHtml(label)}</div>
+      <div class="budget-period-sub">Bi-weekly budget</div>
+      <div class="budget-period-pills">
+        <span class="budget-pill">$${totalBudgeted.toFixed(2)} budgeted</span>
+        <span class="budget-pill">$${totalSpent.toFixed(2)} spent</span>
+      </div>
+    </div>
+    <button class="budget-nav-btn" onclick="budgetNextPeriod()" ${_currentPeriodOffset >= 0 ? 'disabled' : ''}>Next →</button>
+  </div>`;
+
+  // Overall Progress Bar
+  if (totalBudgeted > 0) {
+    const pctClamped = Math.min(overallPct, 100);
+    const overallLabel = overallPct >= 100
+      ? `<span style="color:#ef4444">Over budget</span>`
+      : `${Math.round(overallPct)}% of budget used`;
+    html += `<div class="budget-overall-bar">
+      <div class="budget-overall-track">
+        <div class="budget-overall-fill" style="width:${pctClamped}%;background:${overallColor}"></div>
+      </div>
+      <div class="budget-overall-label" style="color:${overallColor}">${overallLabel}</div>
+    </div>`;
+  }
+
+  html += '<div class="budget-cards">';
+
+  // Render cards in original order
+  groups.forEach((group) => {
+    if (group.type === 'paired') {
+      const [a, b] = group.cats;
+      html += renderPairedBudgetCard(a, b, periodStart, periodEnd);
+    } else {
+      html += renderBudgetCard(group.cats[0], periodStart, periodEnd);
+    }
+  });
+
+  html += '</div>';
+
+  // Add Category Button
+  html += `<button class="budget-add-category" onclick="openAddBudgetCategory()">+ Add category</button>`;
+
+  container.innerHTML = html;
+}
+
+function renderBudgetCard(cat, periodStart, periodEnd) {
+  const hasBudget = cat.budgetAmount > 0;
+  const pct = hasBudget ? (cat.spent / cat.budgetAmount * 100) : 0;
+  const barColor = pct >= 100 ? '#ef4444' : pct >= 75 ? '#f59e0b' : cat.color;
+  const pctClamped = Math.min(pct, 100);
+  const periodKey = utcDateStr(periodStart);
+
+  let rightSide = '';
+  if (hasBudget) {
+    rightSide = `<div class="budget-card-figures">
+      <span style="color:${barColor}">$${cat.spent.toFixed(2)}</span>
+      <span class="budget-slash"> / $${cat.budgetAmount.toFixed(2)}</span>
+    </div>
+    <button class="budget-override-btn" onclick="openBudgetOverride('${cat.id}','${periodKey}')">Override</button>`;
+  } else {
+    rightSide = `<button class="budget-set-btn" onclick="openEditBudgetCategory('${cat.id}')">Set budget</button>`;
+  }
+
+  let bar = '';
+  if (hasBudget) {
+    bar = `<div class="budget-progress-track">
+      <div class="budget-progress-fill" style="width:${pctClamped}%;background:${barColor}"></div>
+    </div>`;
+  } else {
+    bar = `<div class="budget-no-limit">No limit set</div>`;
+  }
+
+  return `<div class="budget-card" draggable="true" data-cat-id="${cat.id}"
+    ondragstart="budgetDragStart(event,'${cat.id}')"
+    ondragend="budgetDragEnd(event)"
+    ondragover="budgetDragOver(event,'${cat.id}')"
+    ondrop="budgetDrop(event,'${cat.id}')">
+    <div class="budget-drag-handle">⠿</div>
+    <button class="budget-edit-icon" onclick="openEditBudgetCategory('${cat.id}')">✎</button>
+    <div class="budget-card-header">
+      <div class="budget-card-left">
+        <span class="budget-card-emoji">${cat.emoji}</span>
+        <div>
+          <div class="budget-card-name">${escapeHtml(cat.name)}</div>
+          <div class="budget-card-spent-sub">$${cat.spent.toFixed(2)} spent${cat.isOverride ? ' (override)' : ''}</div>
+        </div>
+      </div>
+      <div class="budget-card-right">${rightSide}</div>
+    </div>
+    ${bar}
+  </div>`;
+}
+
+function renderPairedBudgetCard(a, b, periodStart, periodEnd) {
+  const combinedSpent = a.spent + b.spent;
+  // Shared budget: stored on whichever category has a non-zero value
+  const sharedBudget = a.budgetAmount + b.budgetAmount;
+  const hasBudget = sharedBudget > 0;
+  const pct = hasBudget ? (combinedSpent / sharedBudget * 100) : 0;
+  const barColor = pct >= 100 ? '#ef4444' : pct >= 75 ? '#f59e0b' : null;
+  const pctClamped = Math.min(pct, 100);
+  const periodKey = utcDateStr(periodStart);
+  // The "primary" category that holds the shared budget value
+  const primaryCat = a.budgetAmount >= b.budgetAmount ? a : b;
+
+  let rightSide = '';
+  if (hasBudget) {
+    rightSide = `<div style="display:flex;align-items:center;gap:8px">
+      <div class="budget-card-figures">
+        <span style="color:${barColor || a.color}">$${combinedSpent.toFixed(2)}</span>
+        <span class="budget-slash"> / $${sharedBudget.toFixed(2)}</span>
+      </div>
+      <button class="budget-override-btn" onclick="openBudgetOverride('${primaryCat.id}','${periodKey}')">Override</button>
+    </div>`;
+  } else {
+    rightSide = `<button class="budget-set-btn" onclick="openEditBudgetCategory('${a.id}')">Set budget</button>`;
+  }
+
+  const subRows = [a, b].map(cat => {
+    return `<div class="budget-sub-row">
+    <div class="budget-sub-row-left">
+      <span>${cat.emoji}</span>
+      <span>${escapeHtml(cat.name)}</span>
+      <span>· $${cat.spent.toFixed(2)}${cat.isOverride ? ' (override)' : ''}</span>
+    </div>
+    <button class="budget-edit-icon" style="position:static;opacity:0.5" onclick="openEditBudgetCategory('${cat.id}')">✎</button>
+  </div>`;
+  }).join('');
+
+  let bar = '';
+  if (hasBudget) {
+    const gradientBg = barColor || `linear-gradient(90deg, ${a.color}, ${b.color})`;
+    bar = `<div class="budget-progress-track">
+      <div class="budget-gradient-fill" style="width:${pctClamped}%;background:${gradientBg}"></div>
+    </div>`;
+  } else {
+    bar = `<div class="budget-no-limit">No limit set</div>`;
+  }
+
+  return `<div class="budget-card budget-card-paired" draggable="true" data-cat-id="${a.id}"
+    ondragstart="budgetDragStart(event,'${a.id}')"
+    ondragend="budgetDragEnd(event)"
+    ondragover="budgetDragOver(event,'${a.id}')"
+    ondrop="budgetDrop(event,'${a.id}')">
+    <div class="budget-drag-handle">⠿</div>
+    <div class="budget-card-header">
+      <div class="budget-card-left">
+        <span class="budget-card-emoji">${a.emoji}${b.emoji}</span>
+        <div><div class="budget-card-name">${escapeHtml(a.name)} + ${escapeHtml(b.name)}</div></div>
+      </div>
+      <div class="budget-card-right">${rightSide}</div>
+    </div>
+    <div class="budget-sub-rows">${subRows}</div>
+    ${bar}
+  </div>`;
+}
+
+function budgetPrevPeriod() {
+  _currentPeriodOffset--;
+  renderBudget(_budgetData, _moneyData);
+}
+
+function budgetNextPeriod() {
+  if (_currentPeriodOffset >= 0) return;
+  _currentPeriodOffset++;
+  renderBudget(_budgetData, _moneyData);
+}
+
+let _budgetDragId = null;
+
+function budgetDragStart(e, catId) {
+  _budgetDragId = catId;
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => e.currentTarget?.classList.add('budget-dragging'), 0);
+}
+
+function budgetDragEnd(e) {
+  e.currentTarget?.classList.remove('budget-dragging');
+  document.querySelectorAll('.budget-card').forEach(c => c.classList.remove('budget-drag-over'));
+  _budgetDragId = null;
+}
+
+function budgetDragOver(e, catId) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (catId === _budgetDragId) return;
+  document.querySelectorAll('.budget-card').forEach(c => {
+    c.classList.toggle('budget-drag-over', c.dataset.catId === catId);
+  });
+}
+
+async function budgetDrop(e, catId) {
+  e.preventDefault();
+  document.querySelectorAll('.budget-card').forEach(c => c.classList.remove('budget-drag-over'));
+  if (!_budgetDragId || catId === _budgetDragId) return;
+  const cats = _budgetData?.categories;
+  if (!cats) return;
+  const seen = new Set();
+  const groups = [];
+  for (const c of cats) {
+    if (seen.has(c.id)) continue;
+    if (c.pairedWith) {
+      const partner = cats.find(p => p.id === c.pairedWith);
+      if (partner && !seen.has(partner.id)) {
+        groups.push([c.id, partner.id]); seen.add(c.id); seen.add(partner.id);
+      } else { groups.push([c.id]); seen.add(c.id); }
+    } else { groups.push([c.id]); seen.add(c.id); }
+  }
+  const fromGi = groups.findIndex(g => g.includes(_budgetDragId));
+  const toGi = groups.findIndex(g => g.includes(catId));
+  if (fromGi === -1 || toGi === -1) return;
+  const [moved] = groups.splice(fromGi, 1);
+  groups.splice(toGi, 0, moved);
+  const orderedIds = groups.flat();
+  try {
+    const res = await fetch('/api/budget/reorder', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: orderedIds })
+    }).then(r => r.json());
+    if (res.success) { _budgetData = res.budget; renderBudget(_budgetData, _moneyData); }
+  } catch { showToast('Failed to reorder'); }
+}
+
+// ── Budget: Category Modal ──
+
+function selectBudgetColor(el) {
+  el.closest('.budget-color-swatches').querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function selectBudgetCustomColor(el) {
+  el.closest('.budget-color-swatches').querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+}
+
+function openAddBudgetCategory() {
+  document.getElementById('budget-cat-edit-id').value = '';
+  document.getElementById('budget-cat-name').value = '';
+  document.getElementById('budget-cat-emoji').value = '📦';
+  document.getElementById('budget-cat-amount').value = '';
+  document.getElementById('budget-cat-modal-title').textContent = 'Add Category';
+  document.getElementById('budget-cat-delete-btn').style.display = 'none';
+  // Reset color swatches - select first
+  document.querySelectorAll('#budget-cat-colors .color-swatch').forEach((s, i) => s.classList.toggle('active', i === 0));
+  openModal('budget-category-modal');
+}
+
+function openEditBudgetCategory(catId) {
+  const cat = _budgetData?.categories?.find(c => c.id === catId);
+  if (!cat) return;
+  document.getElementById('budget-cat-edit-id').value = cat.id;
+  document.getElementById('budget-cat-name').value = cat.name;
+  document.getElementById('budget-cat-emoji').value = cat.emoji;
+  document.getElementById('budget-cat-amount').value = cat.budgetAmount || '';
+  document.getElementById('budget-cat-modal-title').textContent = 'Edit Category';
+  document.getElementById('budget-cat-delete-btn').style.display = '';
+  // Set color swatch
+  const swatches = document.querySelectorAll('#budget-cat-colors .color-swatch');
+  let found = false;
+  swatches.forEach(s => {
+    const match = s.dataset.color === cat.color;
+    s.classList.toggle('active', match);
+    if (match) found = true;
+  });
+  if (!found) {
+    swatches.forEach(s => s.classList.remove('active'));
+    document.getElementById('budget-cat-custom-color').value = cat.color;
+  }
+  openModal('budget-category-modal');
+}
+
+function getSelectedBudgetColor() {
+  const active = document.querySelector('#budget-cat-colors .color-swatch.active');
+  if (active) return active.dataset.color;
+  return document.getElementById('budget-cat-custom-color').value;
+}
+
+async function saveBudgetCategory() {
+  const editId = document.getElementById('budget-cat-edit-id').value;
+  const name = document.getElementById('budget-cat-name').value.trim();
+  const emoji = document.getElementById('budget-cat-emoji').value.trim() || '📦';
+  const budgetAmount = parseFloat(document.getElementById('budget-cat-amount').value) || 0;
+  const color = getSelectedBudgetColor();
+
+  if (!name) { showToast('Name is required'); return; }
+
+  const url = editId ? `/api/budget/categories/${editId}` : '/api/budget/categories';
+  const method = editId ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, emoji, budgetAmount, color }),
+    }).then(r => r.json());
+    if (res.success) {
+      _budgetData = res.budget;
+      renderBudget(_budgetData, _moneyData);
+      closeModal('budget-category-modal');
+      showToast(editId ? 'Category updated!' : 'Category added!');
+    }
+  } catch { showToast('Failed to save category'); }
+}
+
+async function deleteBudgetCategory() {
+  const editId = document.getElementById('budget-cat-edit-id').value;
+  if (!editId) return;
+  const ok = await showConfirmDialog({
+    icon: '🗑️',
+    title: 'Delete category?',
+    msg: 'This will also remove all overrides for this category.',
+    okText: 'Delete',
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    const res = await fetch(`/api/budget/categories/${editId}`, { method: 'DELETE' }).then(r => r.json());
+    if (res.success) {
+      _budgetData = res.budget;
+      renderBudget(_budgetData, _moneyData);
+      closeModal('budget-category-modal');
+      showToast('Category deleted');
+    }
+  } catch { showToast('Failed to delete category'); }
+}
+
+// ── Budget: Override Modal ──
+
+function openBudgetOverride(catId, periodKey) {
+  const cat = _budgetData?.categories?.find(c => c.id === catId);
+  if (!cat) return;
+
+  const period = getOffsetPeriod(_budgetData.anchorDate, _currentPeriodOffset);
+  const periodLabel = getPeriodLabel(period.periodStart, period.periodEnd);
+  document.getElementById('budget-override-title').textContent = `Override · ${escapeHtml(cat.name)} · ${periodLabel}`;
+
+  const auto = getAutoSpend(cat.name, period.periodStart, period.periodEnd, _moneyData?.transactions || []);
+  document.getElementById('budget-override-auto-amount').textContent = `$${auto.total.toFixed(2)}`;
+  document.getElementById('budget-override-auto-count').textContent = `${auto.count} transaction${auto.count !== 1 ? 's' : ''}`;
+
+  document.getElementById('budget-override-cat-id').value = catId;
+  document.getElementById('budget-override-period').value = periodKey;
+
+  const existing = (_budgetData.overrides || []).find(o => o.categoryId === catId && o.periodStart === periodKey);
+  document.getElementById('budget-override-existing-id').value = existing?.id || '';
+  document.getElementById('budget-override-amount').value = existing ? existing.manualAmount : '';
+  document.getElementById('budget-override-note').value = existing?.note || '';
+  document.getElementById('budget-override-revert-btn').style.display = existing ? '' : 'none';
+  if (existing) {
+    document.getElementById('budget-override-revert-btn').textContent = `Revert to auto-detected ($${auto.total.toFixed(2)})`;
+  }
+
+  openModal('budget-override-modal');
+}
+
+async function saveBudgetOverride() {
+  const categoryId = document.getElementById('budget-override-cat-id').value;
+  const periodStart = document.getElementById('budget-override-period').value;
+  const manualAmount = parseFloat(document.getElementById('budget-override-amount').value) || 0;
+  const note = document.getElementById('budget-override-note').value.trim();
+
+  try {
+    const res = await fetch('/api/budget/overrides', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoryId, periodStart, manualAmount, note }),
+    }).then(r => r.json());
+    if (res.success) {
+      _budgetData = res.budget;
+      renderBudget(_budgetData, _moneyData);
+      closeModal('budget-override-modal');
+      showToast('Override saved');
+    }
+  } catch { showToast('Failed to save override'); }
+}
+
+async function revertBudgetOverride() {
+  const existingId = document.getElementById('budget-override-existing-id').value;
+  if (!existingId) return;
+  try {
+    const res = await fetch(`/api/budget/overrides/${existingId}`, { method: 'DELETE' }).then(r => r.json());
+    if (res.success) {
+      _budgetData = res.budget;
+      renderBudget(_budgetData, _moneyData);
+      closeModal('budget-override-modal');
+      showToast('Reverted to auto-detected');
+    }
+  } catch { showToast('Failed to revert override'); }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TOTP AUTHENTICATOR
