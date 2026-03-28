@@ -724,6 +724,33 @@ app.post('/api/briefings/read', mainAuth, async (req, res) => {
   }
 });
 
+// Fetch the most recent briefing before today for a given user (Cowork → Vault)
+app.get('/api/briefings/yesterday', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const user = req.query.user;
+  if (!user || !['kaliph', 'kathrine'].includes(user)) {
+    return res.status(400).json({ error: 'Invalid or missing user param' });
+  }
+  const today = todayCentral();
+  try {
+    const result = await db.query(
+      `SELECT content, date FROM briefings
+       WHERE user_id = $1 AND date < $2
+       ORDER BY date DESC LIMIT 1`,
+      [user, today]
+    );
+    if (!result.rows.length) return res.json({ content: null });
+    const row = result.rows[0];
+    res.json({ date: row.date.toISOString().slice(0, 10), content: row.content });
+  } catch (e) {
+    console.error('[briefings] Yesterday error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Save briefing feedback from the app
 app.post('/api/briefings/feedback', mainAuth, async (req, res) => {
   const { feedback_type, section, highlighted_text, note, permanent } = req.body;
