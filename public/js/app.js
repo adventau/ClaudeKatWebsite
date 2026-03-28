@@ -672,6 +672,9 @@ function closeMobileSidebar() {
 }
 
 // ── Briefing ──────────────────────────────────────────────────────────
+let briefingDates = [];
+let briefingDateIndex = 0; // 0 = most recent (today or latest available)
+
 function showBriefingBadge() {
   const badge = document.getElementById('briefing-badge');
   if (badge) badge.style.display = '';
@@ -681,9 +684,66 @@ function hideBriefingBadge() {
   if (badge) badge.style.display = 'none';
 }
 
+function todayStr() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+}
+
+function formatBriefingDate(dateStr) {
+  const today = todayStr();
+  if (dateStr === today) return 'Today';
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (dateStr === yesterday.toISOString().slice(0, 10)) return 'Yesterday';
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function updateBriefingNav() {
+  const prevBtn = document.getElementById('briefing-prev');
+  const nextBtn = document.getElementById('briefing-next');
+  const label = document.getElementById('briefing-date-label');
+  if (!briefingDates.length) {
+    label.textContent = 'Today';
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    return;
+  }
+  label.textContent = formatBriefingDate(briefingDates[briefingDateIndex]);
+  prevBtn.disabled = briefingDateIndex >= briefingDates.length - 1;
+  nextBtn.disabled = briefingDateIndex <= 0;
+}
+
+function briefingNav(dir) {
+  const newIdx = briefingDateIndex - dir; // dates are DESC, so -1 = newer, +1 = older
+  if (newIdx < 0 || newIdx >= briefingDates.length) return;
+  briefingDateIndex = newIdx;
+  updateBriefingNav();
+  loadBriefingForDate(briefingDates[briefingDateIndex]);
+}
+
 async function loadBriefing() {
   try {
-    const res = await fetch('/api/briefings/today');
+    const datesRes = await fetch('/api/briefings/dates');
+    const datesData = await datesRes.json();
+    briefingDates = datesData.dates || [];
+    briefingDateIndex = 0;
+    updateBriefingNav();
+
+    if (!briefingDates.length) {
+      document.getElementById('briefing-placeholder').style.display = '';
+      document.getElementById('briefing-content').style.display = 'none';
+      document.getElementById('briefing-timestamp').textContent = '';
+      return;
+    }
+    await loadBriefingForDate(briefingDates[0]);
+  } catch (e) {
+    console.error('[briefing] Load error:', e);
+  }
+}
+
+async function loadBriefingForDate(date) {
+  try {
+    const res = await fetch(`/api/briefings/today?date=${date}`);
     const data = await res.json();
 
     if (!data.found) {
@@ -701,8 +761,8 @@ async function loadBriefing() {
     document.getElementById('briefing-timestamp').textContent =
       'Generated at ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // Mark as read
-    if (!data.isRead) {
+    // Mark as read only if it's today's briefing
+    if (date === todayStr() && !data.isRead) {
       await fetch('/api/briefings/read', { method: 'POST' });
       hideBriefingBadge();
     }

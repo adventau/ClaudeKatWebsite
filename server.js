@@ -26,6 +26,11 @@ try { compression = require('compression'); } catch(e) { /* optional */ }
 const webpush = require('web-push');
 const crypto = require('crypto');
 
+// Return today's date as YYYY-MM-DD in US Central time (CDT/CST)
+function todayCentral() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+}
+
 // HEIC → JPEG conversion helper
 let heicConvert;
 try { heicConvert = require('heic-convert'); } catch(e) { console.warn('[heic-convert] not available:', e.message); }
@@ -575,7 +580,7 @@ app.get('/api/auth/session', async (req, res) => {
   let briefingUnread = false;
   if (req.session?.user && db.pool) {
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayCentral();
       const r = await db.query(
         'SELECT 1 FROM briefings WHERE user_id = $1 AND date = $2 AND read_at IS NULL',
         [req.session.user, today]
@@ -640,7 +645,7 @@ app.post('/api/briefings/submit', async (req, res) => {
   if (!['kaliph', 'kathrine'].includes(user) || !content) {
     return res.status(400).json({ error: 'Invalid payload' });
   }
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const today = todayCentral(); // YYYY-MM-DD
   try {
     await db.query(`
       INSERT INTO briefings (user_id, content, date, generated_at, read_at)
@@ -667,18 +672,19 @@ app.post('/api/briefings/submit', async (req, res) => {
   }
 });
 
-// Fetch today's briefing for logged-in user
+// Fetch briefing for a specific date (defaults to today)
 app.get('/api/briefings/today', mainAuth, async (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const date = req.query.date || todayCentral();
   try {
     const result = await db.query(
-      'SELECT content, generated_at, read_at FROM briefings WHERE user_id = $1 AND date = $2',
-      [req.session.user, today]
+      'SELECT content, generated_at, read_at, date FROM briefings WHERE user_id = $1 AND date = $2',
+      [req.session.user, date]
     );
-    if (!result.rows.length) return res.json({ found: false });
+    if (!result.rows.length) return res.json({ found: false, date });
     const row = result.rows[0];
     res.json({
       found: true,
+      date: row.date,
       content: row.content,
       generatedAt: row.generated_at,
       isRead: !!row.read_at,
@@ -689,9 +695,23 @@ app.get('/api/briefings/today', mainAuth, async (req, res) => {
   }
 });
 
+// Get list of dates that have briefings (for navigation)
+app.get('/api/briefings/dates', mainAuth, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT date FROM briefings WHERE user_id = $1 ORDER BY date DESC',
+      [req.session.user]
+    );
+    res.json({ dates: result.rows.map(r => r.date.toISOString().slice(0, 10)) });
+  } catch (e) {
+    console.error('[briefings] Dates error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Mark today's briefing as read
 app.post('/api/briefings/read', mainAuth, async (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayCentral();
   try {
     await db.query(
       'UPDATE briefings SET read_at = NOW() WHERE user_id = $1 AND date = $2 AND read_at IS NULL',

@@ -4918,6 +4918,51 @@ a.totp-card-issuer:hover {
   color: var(--text-primary);
 }
 
+/* Briefing navigation */
+.briefing-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  margin-right: 12px;
+}
+
+.briefing-nav-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.briefing-nav-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.briefing-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.briefing-nav-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.briefing-date-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  min-width: 100px;
+  text-align: center;
+}
+
 @media (max-width: 600px) {
   .briefing-body { padding: 16px; }
 }
