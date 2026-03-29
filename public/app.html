@@ -120,6 +120,7 @@
         <div class="nav-item" data-section="money" onclick="showSection('money',this)">
           <span class="nav-icon"><i data-lucide="wallet"></i></span>
           <span class="nav-label">Money</span>
+          <span class="budget-period-badge" id="money-nav-badge"></span>
         </div>
       <div class="nav-item" data-section="authenticator" id="nav-authenticator" onclick="showSection('authenticator',this)">
         <span class="nav-icon"><i data-lucide="shield-check"></i></span><span class="nav-label">Authenticator</span>
@@ -606,7 +607,7 @@
         <!-- Dashboard-Level Tabs -->
         <div class="money-dash-tabs" id="money-dash-tabs">
           <button class="money-dash-tab active" data-dtab="dashboard" onclick="switchMoneyDashTab('dashboard',this)">Dashboard</button>
-          <button class="money-dash-tab" data-dtab="budget" onclick="switchMoneyDashTab('budget',this)">Budget</button>
+          <button class="money-dash-tab" data-dtab="budget" onclick="switchMoneyDashTab('budget',this)">Budget <span class="budget-period-badge" id="budget-tab-badge"></span></button>
           <div class="money-dash-tab-indicator" id="money-dash-tab-indicator"></div>
         </div>
 

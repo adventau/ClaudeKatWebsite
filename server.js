@@ -2576,7 +2576,11 @@ async function checkAndFireBudgetBrrr(budget, money) {
   const periodStartISO = utcDateStrServer(periodStart);
   if (budget.lastBrrrPeriod === periodStartISO) return;
 
-  // Only fire if it's actually a new period (lastAllocatedPeriod !== current)
+  // Only fire on the exact period-start day (always a Friday)
+  const todayISO = utcDateStrServer(new Date());
+  if (todayISO !== periodStartISO) return;
+
+  // Only fire if allocation is still pending
   if (budget.lastAllocatedPeriod === periodStartISO) return;
 
   const surplus = computeSurplusServer(budget, money);

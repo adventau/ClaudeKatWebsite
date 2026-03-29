@@ -2706,6 +2706,8 @@ function setupSocketEvents() {
       if (_moneyDashTab === 'budget') renderBudget(_budgetData, _moneyData);
       else renderBudgetMini();
     }
+    // Update surplus badge state
+    checkAndShowSurplus();
   });
 
   socket.on('time-offset', ({ offset }) => {
@@ -8419,6 +8421,12 @@ async function loadMoney() {
     if (recToggleText) recToggleText.textContent = 'Recurring';
     renderMoney(_moneyData);
     updateMoneyDashTabIndicator();
+    // Check for period-end surplus allocation
+    checkAndShowSurplus();
+    // Auto-open surplus modal if new period
+    if (_budgetData && checkPeriodEnd(_budgetData).shouldShow) {
+      openSurplusModal();
+    }
   }
   if (window.lucide) lucide.createIcons();
 }
@@ -10079,6 +10087,7 @@ function renderPairedBudgetCard(a, b, periodStart, periodEnd) {
     ondragover="budgetDragOver(event,'${a.id}')"
     ondrop="budgetDrop(event,'${a.id}')">
     <div class="budget-drag-handle">⠿</div>
+    <button class="budget-edit-icon" onclick="openEditBudgetCategory('${primaryCat.id}')">✎</button>
     <div class="budget-card-header">
       <div class="budget-card-left">
         <span class="budget-card-emoji">${a.emoji}${b.emoji}</span>
@@ -10972,6 +10981,549 @@ async function totpConfirmDelete() {
     totpDeleteId = null;
     await loadTotpAccounts();
   } catch { showToast('Failed to delete'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BUDGET SURPLUS ALLOCATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let surplusState = {
+  flow: null,
+  surplus: 0,
+  budgeted: 0,
+  spent: 0,
+  periodStart: null,
+  periodLabel: '',
+  selectedGoalId: null,
+  selectedGoalName: null,
+  selectedInvId: null,
+  selectedInvName: null,
+  splitSavings: 0,
+  splitInv: 0,
+  splitGoalId: null,
+  splitGoalName: null,
+  splitInvId: null,
+  splitInvName: null,
+};
+
+function checkPeriodEnd(budget) {
+  if (!budget || !budget.anchorDate) return { shouldShow: false };
+  const { periodStart } = getBudgetPeriod(budget.anchorDate);
+  const periodStartISO = utcDateStr(periodStart);
+  const lastAllocated = budget.lastAllocatedPeriod || null;
+  if (periodStartISO !== lastAllocated) {
+    return { shouldShow: true, periodStart: periodStartISO };
+  }
+  return { shouldShow: false };
+}
+
+function updateBudgetBadge(shouldShow) {
+  const moneyNavBadge = document.getElementById('money-nav-badge');
+  const budgetTabBadge = document.getElementById('budget-tab-badge');
+  [moneyNavBadge, budgetTabBadge].forEach(el => {
+    if (!el) return;
+    el.style.display = shouldShow ? 'inline-block' : 'none';
+  });
+}
+
+function computePrevPeriodSurplus(budget, money) {
+  if (!budget || !budget.anchorDate) return { surplus: 0, budgeted: 0, spent: 0, periodLabel: '', prevStart: null, prevEnd: null };
+  const { periodStart: currentPS } = getBudgetPeriod(budget.anchorDate);
+  const prevRef = new Date(currentPS.getTime() - 14 * 86400000);
+  const { periodStart, periodEnd } = getBudgetPeriod(budget.anchorDate, prevRef);
+
+  const startStr = utcDateStr(periodStart);
+  const endStr = utcDateStr(periodEnd);
+  const transactions = money?.transactions || [];
+
+  let totalBudgeted = 0;
+  let totalSpent = 0;
+  for (const cat of (budget.categories || [])) {
+    totalBudgeted += cat.budgetAmount || 0;
+    const catKey = normalizeCatKey(cat.name);
+    const spent = transactions
+      .filter(t => t.type === 'expense' && t.category && normalizeCatKey(t.category) === catKey && t.date >= startStr && t.date <= endStr)
+      .reduce((s, t) => s + (t.amount || 0), 0);
+    totalSpent += spent;
+  }
+
+  return {
+    surplus: Math.max(0, Math.round((totalBudgeted - totalSpent) * 100) / 100),
+    budgeted: Math.round(totalBudgeted * 100) / 100,
+    spent: Math.round(totalSpent * 100) / 100,
+    periodLabel: getPeriodLabel(periodStart, periodEnd),
+    prevStart: periodStart,
+    prevEnd: periodEnd,
+  };
+}
+
+function openSurplusModal() {
+  if (!_budgetData || !_moneyData) return;
+  const { surplus, budgeted, spent, periodLabel, prevStart } = computePrevPeriodSurplus(_budgetData, _moneyData);
+
+  if (surplus <= 0) {
+    // No surplus — just mark as allocated silently
+    const { periodStart } = getBudgetPeriod(_budgetData.anchorDate);
+    fetch('/api/budget/allocate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ periodStart: utcDateStr(periodStart), allocations: [] }),
+    }).catch(() => {});
+    return;
+  }
+
+  surplusState = {
+    flow: null, surplus, budgeted, spent,
+    periodStart: utcDateStr(prevStart),
+    periodLabel,
+    selectedGoalId: null, selectedGoalName: null,
+    selectedInvId: null, selectedInvName: null,
+    splitSavings: Math.floor(surplus / 2),
+    splitInv: surplus - Math.floor(surplus / 2),
+    splitGoalId: null, splitGoalName: null,
+    splitInvId: null, splitInvName: null,
+  };
+
+  const half = Math.floor(surplus / 2);
+
+  const modalHtml = `
+    <div style="width:100%;max-width:400px;padding:1.5rem;">
+      <div class="surplus-progress-track">
+        <div class="surplus-progress-fill" id="surplus-progress" style="width:25%"></div>
+      </div>
+
+      <!-- Step 1: Choose -->
+      <div class="surplus-step active" id="surplus-step1">
+        <p style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px">Period ended &middot; ${escapeHtml(periodLabel)}</p>
+        <p style="font-size:1.4rem;font-weight:700;color:var(--text-primary);margin:0 0 4px">$${surplus.toFixed(2)} left over</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 20px">$${budgeted.toFixed(2)} budgeted &middot; $${spent.toFixed(2)} spent. What do you want to do with the surplus?</p>
+        <button class="surplus-choice-btn" onclick="surplusChoose('savings')">
+          <div style="font-size:0.88rem;font-weight:600;color:var(--text-primary);margin-bottom:2px">Put it into savings</div>
+          <div style="font-size:0.75rem;color:var(--text-muted)">Add to one of your savings goals</div>
+        </button>
+        <button class="surplus-choice-btn" onclick="surplusChoose('investments')">
+          <div style="font-size:0.88rem;font-weight:600;color:var(--text-primary);margin-bottom:2px">Put it into investments</div>
+          <div style="font-size:0.75rem;color:var(--text-muted)">Log it against an investment</div>
+        </button>
+        <button class="surplus-choice-btn" onclick="surplusChoose('split')">
+          <div style="font-size:0.88rem;font-weight:600;color:var(--text-primary);margin-bottom:2px">Split it</div>
+          <div style="font-size:0.75rem;color:var(--text-muted)">Divide between savings and investments</div>
+        </button>
+      </div>
+
+      <!-- Step 2a: Savings goal picker -->
+      <div class="surplus-step" id="surplus-step-savings">
+        <button class="surplus-back-btn" onclick="surplusGoTo('surplus-step1',25)">&larr; Back</button>
+        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 4px">Which savings goal?</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px">$${surplus.toFixed(2)} will be added to the goal you pick.</p>
+        <div id="surplus-goals-list"></div>
+        <button class="surplus-primary-btn" id="surplus-savings-confirm" disabled onclick="surplusGoToConfirm('savings')">Continue</button>
+      </div>
+
+      <!-- Step 2b: Investment picker -->
+      <div class="surplus-step" id="surplus-step-investments">
+        <button class="surplus-back-btn" onclick="surplusGoTo('surplus-step1',25)">&larr; Back</button>
+        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 4px">Where does it go?</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px">$${surplus.toFixed(2)} will be logged against the investment you pick.</p>
+        <div id="surplus-investments-list"></div>
+        <button class="surplus-goal-btn" onclick="surplusGoTo('surplus-step-new-investment',75)">
+          <div style="font-size:0.82rem;font-weight:600;color:var(--accent)">+ Log a new investment</div>
+        </button>
+        <button class="surplus-primary-btn" id="surplus-inv-confirm" disabled onclick="surplusGoToConfirm('investments')">Continue</button>
+      </div>
+
+      <!-- Step 2b-alt: New investment form -->
+      <div class="surplus-step" id="surplus-step-new-investment">
+        <button class="surplus-back-btn" onclick="surplusGoTo('surplus-step-investments',50)">&larr; Back</button>
+        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 16px">New investment</p>
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px">Name</label>
+        <input type="text" id="surplus-inv-name" class="surplus-input" placeholder="e.g. Bitcoin, TSLA, Roth IRA" />
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px">Platform</label>
+        <input type="text" id="surplus-inv-platform" class="surplus-input" placeholder="e.g. Coinbase, Fidelity" />
+        <button class="surplus-primary-btn" onclick="surplusSaveNewInvestment()">Continue</button>
+      </div>
+
+      <!-- Step 2c: Split slider -->
+      <div class="surplus-step" id="surplus-step-split">
+        <button class="surplus-back-btn" onclick="surplusGoTo('surplus-step1',25)">&larr; Back</button>
+        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 4px">Split $${surplus.toFixed(2)}</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px">Drag to adjust how much goes where.</p>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-size:0.8rem;color:var(--text-muted);width:90px;flex-shrink:0">Savings</span>
+          <input type="range" min="0" max="${surplus}" value="${half}" step="1" id="surplus-split-slider" class="surplus-slider" style="flex:1" oninput="surplusUpdateSplit(this.value)" />
+          <span style="font-size:0.88rem;font-weight:600;color:var(--text-primary);min-width:52px;text-align:right" id="surplus-savings-split">$${half}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <span style="font-size:0.8rem;color:var(--text-muted);width:90px;flex-shrink:0">Investments</span>
+          <div style="flex:1"></div>
+          <span style="font-size:0.88rem;font-weight:600;color:var(--text-primary);min-width:52px;text-align:right" id="surplus-inv-split">$${surplus - half}</span>
+        </div>
+        <div style="height:8px;background:var(--border);border-radius:4px;margin:4px 0 20px;overflow:hidden">
+          <div id="surplus-split-bar" style="height:8px;width:50%;background:var(--accent);border-radius:4px;transition:width 0.15s"></div>
+        </div>
+        <button class="surplus-primary-btn" onclick="surplusGoTo('surplus-step-split-savings',60)">Continue &rarr; pick savings goal</button>
+      </div>
+
+      <!-- Step 2c-i: Split savings goal -->
+      <div class="surplus-step" id="surplus-step-split-savings">
+        <button class="surplus-back-btn" onclick="surplusGoTo('surplus-step-split',50)">&larr; Back</button>
+        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 4px">Which savings goal?</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px"><span id="surplus-split-savings-label">$${half}</span> will go here.</p>
+        <div id="surplus-split-goals-list"></div>
+        <button class="surplus-primary-btn" id="surplus-split-savings-btn" disabled onclick="surplusGoTo('surplus-step-split-investments',75)">Continue &rarr; pick investment</button>
+      </div>
+
+      <!-- Step 2c-ii: Split investment -->
+      <div class="surplus-step" id="surplus-step-split-investments">
+        <button class="surplus-back-btn" onclick="surplusGoTo('surplus-step-split-savings',60)">&larr; Back</button>
+        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 4px">Which investment?</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px"><span id="surplus-split-inv-label">$${surplus - half}</span> will go here.</p>
+        <div id="surplus-split-investments-list"></div>
+        <button class="surplus-goal-btn" onclick="surplusGoTo('surplus-step-new-investment-split',75)">
+          <div style="font-size:0.82rem;font-weight:600;color:var(--accent)">+ Log a new investment</div>
+        </button>
+        <button class="surplus-primary-btn" id="surplus-split-inv-btn" disabled onclick="surplusGoToConfirm('split')">Review &amp; confirm</button>
+      </div>
+
+      <!-- Step 2c-ii-alt: New investment (split path) -->
+      <div class="surplus-step" id="surplus-step-new-investment-split">
+        <button class="surplus-back-btn" onclick="surplusGoTo('surplus-step-split-investments',75)">&larr; Back</button>
+        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 16px">New investment</p>
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px">Name</label>
+        <input type="text" id="surplus-inv-name-split" class="surplus-input" placeholder="e.g. Bitcoin, TSLA, Roth IRA" />
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px">Platform</label>
+        <input type="text" id="surplus-inv-platform-split" class="surplus-input" placeholder="e.g. Coinbase, Fidelity" />
+        <button class="surplus-primary-btn" onclick="surplusSaveNewInvestmentSplit()">Continue</button>
+      </div>
+
+      <!-- Step 3: Confirm -->
+      <div class="surplus-step" id="surplus-step-confirm">
+        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 4px">Looks good?</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px">Here's where your $${surplus.toFixed(2)} surplus is going.</p>
+        <div id="surplus-confirm-rows"></div>
+        <button class="surplus-primary-btn" onclick="surplusConfirm()">Confirm &amp; log it</button>
+        <button class="surplus-back-btn" style="display:block;margin-top:10px;text-align:center;width:100%" onclick="surplusGoTo('surplus-step1',25)">Start over</button>
+      </div>
+
+      <!-- Step 4: Done -->
+      <div class="surplus-step" id="surplus-step-done">
+        <div style="text-align:center;padding:1.5rem 0">
+          <div style="width:48px;height:48px;border-radius:50%;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M4 11l5 5L18 6" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <p style="font-size:1rem;font-weight:600;color:var(--text-primary);margin:0 0 6px">All logged</p>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 24px">Your $${surplus.toFixed(2)} surplus has been allocated. See you next period.</p>
+          <button onclick="surplusClose()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:9px 20px;font-size:0.82rem;color:var(--text-muted);cursor:pointer">Close</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  showGenericModal(modalHtml);
+}
+
+function showGenericModal(innerHtml) {
+  let overlay = document.getElementById('surplus-modal-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'surplus-modal-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `<div style="background:var(--bg-primary);border-radius:16px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">${innerHtml}</div>`;
+  overlay.style.display = 'flex';
+  SoundSystem.modalOpen();
+}
+
+function surplusGoTo(stepId, progress) {
+  document.querySelectorAll('.surplus-step').forEach(s => s.classList.remove('active'));
+  const step = document.getElementById(stepId);
+  if (step) step.classList.add('active');
+  const bar = document.getElementById('surplus-progress');
+  if (bar) bar.style.width = progress + '%';
+
+  // Render goal/investment lists when navigating to picker steps
+  if (stepId === 'surplus-step-savings') {
+    surplusRenderGoals('surplus-goals-list', (id, name) => {
+      surplusState.selectedGoalId = id;
+      surplusState.selectedGoalName = name;
+    }, 'surplus-savings-confirm');
+  }
+  if (stepId === 'surplus-step-investments') {
+    surplusRenderInvestments('surplus-investments-list', (id, name) => {
+      surplusState.selectedInvId = id;
+      surplusState.selectedInvName = name;
+    }, 'surplus-inv-confirm');
+  }
+  if (stepId === 'surplus-step-split-savings') {
+    surplusRenderGoals('surplus-split-goals-list', (id, name) => {
+      surplusState.splitGoalId = id;
+      surplusState.splitGoalName = name;
+    }, 'surplus-split-savings-btn');
+    const label = document.getElementById('surplus-split-savings-label');
+    if (label) label.textContent = '$' + surplusState.splitSavings;
+  }
+  if (stepId === 'surplus-step-split-investments') {
+    surplusRenderInvestments('surplus-split-investments-list', (id, name) => {
+      surplusState.splitInvId = id;
+      surplusState.splitInvName = name;
+    }, 'surplus-split-inv-btn');
+    const label = document.getElementById('surplus-split-inv-label');
+    if (label) label.textContent = '$' + surplusState.splitInv;
+  }
+}
+
+function surplusChoose(type) {
+  surplusState.flow = type;
+  if (type === 'savings') surplusGoTo('surplus-step-savings', 50);
+  else if (type === 'investments') surplusGoTo('surplus-step-investments', 50);
+  else if (type === 'split') surplusGoTo('surplus-step-split', 50);
+}
+
+function surplusUpdateSplit(val) {
+  const v = parseInt(val, 10);
+  surplusState.splitSavings = v;
+  surplusState.splitInv = surplusState.surplus - v;
+  const savLabel = document.getElementById('surplus-savings-split');
+  const invLabel = document.getElementById('surplus-inv-split');
+  const bar = document.getElementById('surplus-split-bar');
+  if (savLabel) savLabel.textContent = '$' + v;
+  if (invLabel) invLabel.textContent = '$' + surplusState.splitInv;
+  if (bar) bar.style.width = (surplusState.surplus > 0 ? (v / surplusState.surplus * 100) : 50) + '%';
+}
+
+function surplusRenderGoals(containerId, onSelect, confirmBtnId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const goals = _moneyData?.goals || [];
+  if (goals.length === 0) {
+    container.innerHTML = '<p style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:20px 0">No savings goals yet. Create one in the Money dashboard first.</p>';
+    return;
+  }
+  container.innerHTML = goals.map(g => {
+    const pct = g.targetAmount > 0 ? Math.round(g.currentAmount / g.targetAmount * 100) : 0;
+    return `<button class="surplus-goal-btn" data-goal-id="${g.id}" data-goal-name="${escapeHtml(g.name)}">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text-primary)">${escapeHtml(g.name)}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted)">$${g.currentAmount.toFixed(2)} / $${g.targetAmount.toFixed(2)} (${pct}%)</div>
+    </button>`;
+  }).join('');
+
+  container.querySelectorAll('.surplus-goal-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.surplus-goal-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      const goalId = btn.dataset.goalId;
+      const goalName = btn.dataset.goalName;
+      if (containerId === 'surplus-goals-list') {
+        surplusState.selectedGoalId = goalId;
+        surplusState.selectedGoalName = goalName;
+      } else {
+        surplusState.splitGoalId = goalId;
+        surplusState.splitGoalName = goalName;
+      }
+      const confirmBtn = document.getElementById(confirmBtnId);
+      if (confirmBtn) confirmBtn.disabled = false;
+    });
+  });
+}
+
+function surplusRenderInvestments(containerId, onSelect, confirmBtnId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const investments = _budgetData?.investments || [];
+  if (investments.length === 0) {
+    container.innerHTML = '<p style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:10px 0">No investments logged yet.</p>';
+    return;
+  }
+  container.innerHTML = investments.map(inv =>
+    `<button class="surplus-goal-btn" data-inv-id="${inv.id}" data-inv-name="${escapeHtml(inv.name)}">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text-primary)">${escapeHtml(inv.name)}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted)">${escapeHtml(inv.platform || 'No platform')} &middot; $${(inv.totalContributed || 0).toFixed(2)} contributed</div>
+    </button>`
+  ).join('');
+
+  container.querySelectorAll('.surplus-goal-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.surplus-goal-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      const invId = btn.dataset.invId;
+      const invName = btn.dataset.invName;
+      if (containerId === 'surplus-investments-list') {
+        surplusState.selectedInvId = invId;
+        surplusState.selectedInvName = invName;
+      } else {
+        surplusState.splitInvId = invId;
+        surplusState.splitInvName = invName;
+      }
+      const confirmBtn = document.getElementById(confirmBtnId);
+      if (confirmBtn) confirmBtn.disabled = false;
+    });
+  });
+}
+
+async function surplusSaveNewInvestment() {
+  const nameEl = document.getElementById('surplus-inv-name');
+  const platEl = document.getElementById('surplus-inv-platform');
+  const name = nameEl?.value?.trim();
+  const platform = platEl?.value?.trim();
+  if (!name) { showToast('Please enter an investment name'); return; }
+  try {
+    const res = await fetch('/api/budget/investments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, platform }),
+    }).then(r => r.json());
+    if (res.success) {
+      _budgetData = res.budget;
+      const newInv = res.budget.investments[res.budget.investments.length - 1];
+      surplusState.selectedInvId = newInv.id;
+      surplusState.selectedInvName = newInv.name;
+      surplusGoTo('surplus-step-investments', 50);
+      // Auto-select the new investment
+      setTimeout(() => {
+        const btns = document.querySelectorAll('#surplus-investments-list .surplus-goal-btn');
+        btns.forEach(b => {
+          if (b.dataset.invId === newInv.id) b.classList.add('selected');
+        });
+        const confirmBtn = document.getElementById('surplus-inv-confirm');
+        if (confirmBtn) confirmBtn.disabled = false;
+      }, 50);
+    }
+  } catch { showToast('Failed to create investment'); }
+}
+
+async function surplusSaveNewInvestmentSplit() {
+  const nameEl = document.getElementById('surplus-inv-name-split');
+  const platEl = document.getElementById('surplus-inv-platform-split');
+  const name = nameEl?.value?.trim();
+  const platform = platEl?.value?.trim();
+  if (!name) { showToast('Please enter an investment name'); return; }
+  try {
+    const res = await fetch('/api/budget/investments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, platform }),
+    }).then(r => r.json());
+    if (res.success) {
+      _budgetData = res.budget;
+      const newInv = res.budget.investments[res.budget.investments.length - 1];
+      surplusState.splitInvId = newInv.id;
+      surplusState.splitInvName = newInv.name;
+      surplusGoTo('surplus-step-split-investments', 75);
+      setTimeout(() => {
+        const btns = document.querySelectorAll('#surplus-split-investments-list .surplus-goal-btn');
+        btns.forEach(b => {
+          if (b.dataset.invId === newInv.id) b.classList.add('selected');
+        });
+        const confirmBtn = document.getElementById('surplus-split-inv-btn');
+        if (confirmBtn) confirmBtn.disabled = false;
+      }, 50);
+    }
+  } catch { showToast('Failed to create investment'); }
+}
+
+function surplusGoToConfirm(type) {
+  const rows = document.getElementById('surplus-confirm-rows');
+  if (!rows) return;
+  let html = '';
+
+  if (type === 'savings') {
+    html += `<div class="surplus-confirm-row">
+      <span class="surplus-confirm-label">Savings &rarr; ${escapeHtml(surplusState.selectedGoalName || '')}</span>
+      <span class="surplus-confirm-value">$${surplusState.surplus.toFixed(2)}</span>
+    </div>`;
+  } else if (type === 'investments') {
+    html += `<div class="surplus-confirm-row">
+      <span class="surplus-confirm-label">Investment &rarr; ${escapeHtml(surplusState.selectedInvName || '')}</span>
+      <span class="surplus-confirm-value">$${surplusState.surplus.toFixed(2)}</span>
+    </div>`;
+  } else if (type === 'split') {
+    html += `<div class="surplus-confirm-row">
+      <span class="surplus-confirm-label">Savings &rarr; ${escapeHtml(surplusState.splitGoalName || '')}</span>
+      <span class="surplus-confirm-value">$${surplusState.splitSavings.toFixed(2)}</span>
+    </div>`;
+    html += `<div class="surplus-confirm-row">
+      <span class="surplus-confirm-label">Investment &rarr; ${escapeHtml(surplusState.splitInvName || '')}</span>
+      <span class="surplus-confirm-value">$${surplusState.splitInv.toFixed(2)}</span>
+    </div>`;
+  }
+
+  html += `<div class="surplus-confirm-row" style="border-bottom:none">
+    <span class="surplus-confirm-label" style="font-weight:600">Total</span>
+    <span class="surplus-confirm-value">$${surplusState.surplus.toFixed(2)}</span>
+  </div>`;
+
+  rows.innerHTML = html;
+  surplusGoTo('surplus-step-confirm', 90);
+}
+
+async function surplusConfirm() {
+  const allocations = [];
+
+  if (surplusState.flow === 'savings') {
+    allocations.push({
+      type: 'savings',
+      goalId: surplusState.selectedGoalId,
+      goalName: surplusState.selectedGoalName,
+      amount: surplusState.surplus,
+    });
+  } else if (surplusState.flow === 'investments') {
+    allocations.push({
+      type: 'investment',
+      investmentId: surplusState.selectedInvId,
+      investmentName: surplusState.selectedInvName,
+      amount: surplusState.surplus,
+    });
+  } else if (surplusState.flow === 'split') {
+    allocations.push({
+      type: 'savings',
+      goalId: surplusState.splitGoalId,
+      goalName: surplusState.splitGoalName,
+      amount: surplusState.splitSavings,
+    });
+    allocations.push({
+      type: 'investment',
+      investmentId: surplusState.splitInvId,
+      investmentName: surplusState.splitInvName,
+      amount: surplusState.splitInv,
+    });
+  }
+
+  try {
+    const res = await fetch('/api/budget/allocate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        periodStart: surplusState.periodStart,
+        allocations,
+      }),
+    }).then(r => r.json());
+
+    if (res.success) {
+      _budgetData = res.budget;
+      updateBudgetBadge(false);
+      surplusGoTo('surplus-step-done', 100);
+    } else {
+      showToast('Failed to allocate surplus');
+    }
+  } catch {
+    showToast('Failed to allocate surplus');
+  }
+}
+
+function surplusClose() {
+  const overlay = document.getElementById('surplus-modal-overlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+    overlay.innerHTML = '';
+  }
+  SoundSystem.modalClose();
+}
+
+function checkAndShowSurplus() {
+  if (!_budgetData) return;
+  const check = checkPeriodEnd(_budgetData);
+  updateBudgetBadge(check.shouldShow);
 }
 
 // ── Start ─────────────────────────────────────────────────────────────

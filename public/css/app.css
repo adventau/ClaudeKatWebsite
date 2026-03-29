@@ -4859,6 +4859,85 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   min-width: 0;
 }
 
+/* Budget period badge (surplus allocation indicator) */
+.budget-period-badge {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: none;
+  animation: budgetPulse 2s infinite;
+  flex-shrink: 0;
+}
+.money-dash-tab .budget-period-badge {
+  display: none;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+@keyframes budgetPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* Surplus allocation modal */
+.surplus-step { display: none; }
+.surplus-step.active { display: block; }
+.surplus-choice-btn {
+  width: 100%; padding: 14px 16px; margin-bottom: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer; text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+  color: inherit;
+}
+.surplus-choice-btn:hover { background: var(--bg-hover); border-color: var(--accent); }
+.surplus-choice-btn.selected { border: 2px solid var(--accent); background: var(--bg-hover); }
+.surplus-goal-btn {
+  width: 100%; padding: 12px 14px; margin-bottom: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer; text-align: left;
+  transition: background 0.15s;
+  color: inherit;
+}
+.surplus-goal-btn:hover { background: var(--bg-hover); }
+.surplus-goal-btn.selected { border: 2px solid var(--accent); }
+.surplus-primary-btn {
+  width: 100%; padding: 11px;
+  background: var(--accent);
+  color: #fff;
+  border: none; border-radius: 8px;
+  font-size: 0.88rem; font-weight: 600; cursor: pointer;
+  margin-top: 12px; transition: opacity 0.15s;
+}
+.surplus-primary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.surplus-back-btn {
+  background: none; border: none; color: var(--text-muted);
+  font-size: 0.8rem; cursor: pointer; padding: 0; margin-bottom: 16px;
+}
+.surplus-progress-track {
+  height: 4px; background: var(--border);
+  border-radius: 2px; margin-bottom: 20px;
+}
+.surplus-progress-fill {
+  height: 4px; border-radius: 2px; background: var(--accent);
+  transition: width 0.3s ease;
+}
+.surplus-confirm-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.surplus-confirm-label { font-size: 0.8rem; color: var(--text-muted); }
+.surplus-confirm-value { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); }
+.surplus-input {
+  width: 100%; padding: 10px 12px; margin-bottom: 12px; box-sizing: border-box;
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-primary); font-size: 0.85rem;
+}
+.surplus-input:focus { border-color: var(--accent); outline: none; }
+.surplus-slider { width: 100%; accent-color: var(--accent); }
+
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .money-content-grid { grid-template-columns: 1fr; }
