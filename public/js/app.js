@@ -9488,60 +9488,70 @@ function renderOverviewTickers(data) {
     overviewCard('spent this month', thisMonthSpend, monthTick, true) +
     overviewCard('saved this month', thisMonthSaved, savedTick, false);
 
-  // Spending chart from weekly expense totals
+  // Spending chart — daily for the last 30 days
   const chartWrap = document.getElementById('money-spending-chart-wrap');
-  const weeklyData = calcWeeklyExpenses(txns);
-  if (weeklyData.length >= 1 && chartWrap) {
+  const dailyData = calcDailyExpenses(txns);
+  const hasSpending = dailyData.some(d => d.total > 0);
+  if (hasSpending && chartWrap) {
     chartWrap.style.display = '';
-    renderSpendingChart(weeklyData);
+    renderSpendingChart(dailyData);
   } else if (chartWrap) {
     chartWrap.style.display = 'none';
   }
 }
 
-function calcWeeklyExpenses(txns) {
-  // Group expenses by week (date string comparison), last 8 weeks
+function calcDailyExpenses(txns) {
+  // Daily expense totals for the last 30 days, only include days with data or
+  // trim leading zeros so the chart starts at the first day with a transaction.
   const now = new Date();
-  const weeks = [];
-  for (let i = 7; i >= 0; i--) {
-    const weekEndDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (i * 7)));
-    const weekStartDate = new Date(weekEndDate);
-    weekStartDate.setUTCDate(weekStartDate.getUTCDate() - 6);
-    const startStr = utcDateStr(weekStartDate);
-    const endStr = utcDateStr(weekEndDate);
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+    const dateStr = utcDateStr(d);
     const total = txns
-      .filter(t => t.type === 'expense' && t.date >= startStr && t.date <= endStr)
+      .filter(t => t.type === 'expense' && t.date === dateStr)
       .reduce((s, t) => s + t.amount, 0);
-    const label = weekStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-    weeks.push({ label, total: Math.round(total * 100) / 100 });
+    const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    days.push({ label, total: Math.round(total * 100) / 100 });
   }
-  return weeks;
+  // Trim leading zero days so the chart doesn't start with a long flat empty section
+  let firstNonZero = days.findIndex(d => d.total > 0);
+  if (firstNonZero < 0) firstNonZero = days.length - 7; // show at least last 7 days
+  return days.slice(Math.max(0, firstNonZero - 1)); // keep one zero before first spend for context
 }
 
 let _spendingChart = null;
-function renderSpendingChart(weeklyData) {
+function renderSpendingChart(dailyData) {
   const canvas = document.getElementById('money-spending-chart');
   if (!canvas || !window.Chart) return;
   const ctx = canvas.getContext('2d');
   if (_spendingChart) _spendingChart.destroy();
+  // Show every Nth label so the x-axis isn't overcrowded
+  const step = dailyData.length > 14 ? 4 : dailyData.length > 7 ? 2 : 1;
   _spendingChart = new Chart(ctx, {
-    type: 'line',
+    type: 'bar',
     data: {
-      labels: weeklyData.map(w => w.label),
+      labels: dailyData.map(d => d.label),
       datasets: [{
         label: 'Spent',
-        data: weeklyData.map(w => w.total),
+        data: dailyData.map(d => d.total),
+        backgroundColor: dailyData.map(d => d.total > 0 ? 'rgba(99,102,241,0.7)' : 'rgba(99,102,241,0.15)'),
         borderColor: '#6366f1',
-        backgroundColor: 'rgba(99,102,241,0.1)',
-        fill: true, tension: 0.35, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#6366f1',
+        borderWidth: 1, borderRadius: 4,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '$' + ctx.parsed.y.toFixed(2) } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => '$' + c.parsed.y.toFixed(2) } } },
       scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.4)' } },
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: { size: 9 }, color: 'rgba(255,255,255,0.4)',
+            callback: function(val, idx) { return idx % step === 0 ? this.getLabelForValue(val) : ''; },
+          }
+        },
         y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { font: { size: 9 }, color: 'rgba(255,255,255,0.4)', callback: v => '$' + v } },
       }
     }
