@@ -658,8 +658,9 @@ app.post('/api/briefings/submit', async (req, res) => {
     // Push notification via existing Brrr system
     const users = rd(F.users) || {};
     const displayName = users[user]?.displayName || users[user]?.name || user;
+    const isKathrine = user === 'kathrine';
     await sendPushToUser(user, {
-      title: `Hi ${displayName}! ☀️`,
+      title: isKathrine ? 'Good Morning, Your Majesty 👑' : `Hi ${displayName}! ☀️`,
       body: 'Your morning briefing is ready.',
       tag: 'briefing-daily',
       url: '/app',

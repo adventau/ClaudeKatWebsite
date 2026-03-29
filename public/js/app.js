@@ -2702,8 +2702,9 @@ function setupSocketEvents() {
 
   socket.on('budget:updated', (data) => {
     _budgetData = data;
-    if (currentSection === 'money' && _moneyDashTab === 'budget') {
-      renderBudget(_budgetData, _moneyData);
+    if (currentSection === 'money') {
+      if (_moneyDashTab === 'budget') renderBudget(_budgetData, _moneyData);
+      else renderBudgetMini();
     }
   });
 
@@ -8452,9 +8453,67 @@ function renderMoney(data) {
   renderFeed(data);
   renderGoals(data);
   renderPortfolio(data);
+  renderBudgetMini();
   updateMoneyTabIndicator();
   startPortfolioRefresh();
   if (window.lucide) lucide.createIcons();
+}
+
+function renderBudgetMini() {
+  const el = document.getElementById('money-budget-mini');
+  if (!el || !_budgetData?.categories?.length) { if (el) el.innerHTML = ''; return; }
+  const { periodStart, periodEnd } = getOffsetPeriod(_budgetData.anchorDate, 0);
+  const transactions = _moneyData?.transactions || [];
+  const label = getPeriodLabel(periodStart, periodEnd);
+
+  const catSpends = _budgetData.categories.map(cat => {
+    const spend = getSpendForCategory(cat, periodStart, periodEnd, transactions, _budgetData.overrides);
+    return { ...cat, spent: spend.amount };
+  });
+
+  const totalBudgeted = catSpends.reduce((s, c) => s + c.budgetAmount, 0);
+  const totalSpent = catSpends.reduce((s, c) => s + c.spent, 0);
+  const pct = totalBudgeted > 0 ? Math.min(totalSpent / totalBudgeted * 100, 100) : 0;
+  const barColor = pct >= 100 ? '#ef4444' : pct >= 75 ? '#f59e0b' : 'var(--accent)';
+
+  // Build category pills (skip paired duplicates)
+  const seen = new Set();
+  const pills = catSpends.map(cat => {
+    if (seen.has(cat.id)) return '';
+    if (cat.pairedWith) {
+      const partner = catSpends.find(c => c.id === cat.pairedWith);
+      seen.add(cat.id);
+      if (partner) {
+        seen.add(partner.id);
+        const combined = cat.spent + partner.spent;
+        const combinedBudget = cat.budgetAmount + partner.budgetAmount;
+        const cpct = combinedBudget > 0 ? Math.min(combined / combinedBudget * 100, 100) : 0;
+        const cColor = cpct >= 100 ? '#ef4444' : cpct >= 75 ? '#f59e0b' : cat.color;
+        return `<div class="bm-pill" onclick="switchMoneyDashTab('budget',null)" title="${escapeHtml(cat.name)} + ${escapeHtml(partner.name)}">
+          <span>${cat.emoji}${partner.emoji}</span>
+          <span style="color:${cColor}">$${combined.toFixed(0)}</span>
+          ${combinedBudget > 0 ? `<span class="bm-pill-budget">/$${combinedBudget.toFixed(0)}</span>` : ''}
+        </div>`;
+      }
+    }
+    seen.add(cat.id);
+    const cpct = cat.budgetAmount > 0 ? Math.min(cat.spent / cat.budgetAmount * 100, 100) : 0;
+    const cColor = cpct >= 100 ? '#ef4444' : cpct >= 75 ? '#f59e0b' : cat.color;
+    return `<div class="bm-pill" onclick="switchMoneyDashTab('budget',null)" title="${escapeHtml(cat.name)}">
+      <span>${cat.emoji}</span>
+      <span style="color:${cColor}">$${cat.spent.toFixed(0)}</span>
+      ${cat.budgetAmount > 0 ? `<span class="bm-pill-budget">/$${cat.budgetAmount.toFixed(0)}</span>` : ''}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="budget-mini-card" onclick="switchMoneyDashTab('budget',null)">
+    <div class="bm-header">
+      <span class="bm-label">Budget · ${escapeHtml(label)}</span>
+      <span class="bm-totals" style="color:${barColor}">$${totalSpent.toFixed(0)}${totalBudgeted > 0 ? ' / $' + totalBudgeted.toFixed(0) : ' spent'}</span>
+    </div>
+    ${totalBudgeted > 0 ? `<div class="bm-track"><div class="bm-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ''}
+    <div class="bm-pills">${pills}</div>
+  </div>`;
 }
 
 function renderMoneyUpdate(oldData, newData) {
