@@ -2522,7 +2522,84 @@ function seedBudgetDefaults() {
       { id: uuidv4(), name: 'Miscellaneous', emoji: '📦', budgetAmount: 0, color: '#6b7280', pairedWith: null },
     ],
     overrides: [],
+    lastAllocatedPeriod: null,
+    lastBrrrPeriod: null,
+    surplusLog: [],
+    investments: [],
   };
+}
+
+// Budget period calculation (server-side mirror of client getBudgetPeriod)
+function getBudgetPeriodServer(anchorDate, ref = new Date()) {
+  const parts = anchorDate.split('-');
+  const anchorMs = Date.UTC(+parts[0], +parts[1] - 1, +parts[2], 12);
+  const refMs = Date.UTC(ref.getFullYear(), ref.getMonth(), ref.getDate(), 12);
+  const diffDays = Math.floor((refMs - anchorMs) / 86400000);
+  const periodIndex = Math.floor(diffDays / 14);
+  const startMs = anchorMs + periodIndex * 14 * 86400000;
+  const endMs = startMs + 13 * 86400000;
+  return { periodStart: new Date(startMs), periodEnd: new Date(endMs) };
+}
+
+function getPrevPeriodServer(anchorDate) {
+  const current = getBudgetPeriodServer(anchorDate);
+  const prevRef = new Date(current.periodStart.getTime() - 14 * 86400000);
+  return getBudgetPeriodServer(anchorDate, prevRef);
+}
+
+function utcDateStrServer(d) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+}
+
+function computeSurplusServer(budget, money) {
+  const { periodStart, periodEnd } = getPrevPeriodServer(budget.anchorDate);
+  const startStr = utcDateStrServer(periodStart);
+  const endStr = utcDateStrServer(periodEnd);
+  const transactions = money?.transactions || [];
+
+  let totalBudgeted = 0;
+  let totalSpent = 0;
+  for (const cat of (budget.categories || [])) {
+    totalBudgeted += cat.budgetAmount || 0;
+    const catKey = (cat.name || '').toLowerCase().replace(/[\s\-_]+/g, '-').trim();
+    const spent = transactions
+      .filter(t => t.type === 'expense' && t.category && (t.category.toLowerCase().replace(/[\s\-_]+/g, '-').trim()) === catKey && t.date >= startStr && t.date <= endStr)
+      .reduce((s, t) => s + (t.amount || 0), 0);
+    totalSpent += spent;
+  }
+  return Math.max(0, Math.round((totalBudgeted - totalSpent) * 100) / 100);
+}
+
+// Brrr budget notification — fires once per period
+async function checkAndFireBudgetBrrr(budget, money) {
+  const { periodStart } = getBudgetPeriodServer(budget.anchorDate);
+  const periodStartISO = utcDateStrServer(periodStart);
+  if (budget.lastBrrrPeriod === periodStartISO) return;
+
+  // Only fire if it's actually a new period (lastAllocatedPeriod !== current)
+  if (budget.lastAllocatedPeriod === periodStartISO) return;
+
+  const surplus = computeSurplusServer(budget, money);
+  if (surplus <= 0) return; // no surplus to allocate
+
+  const msg = `New budget period just started \u2014 you have $${surplus.toFixed(0)} left over from last period. Time to allocate!`;
+
+  const BRRR_WEBHOOKS = {
+    kaliph: process.env.BRRR_WEBHOOK_KALIPH,
+    kathrine: process.env.BRRR_WEBHOOK_KATHRINE,
+  };
+
+  const promises = Object.values(BRRR_WEBHOOKS).filter(Boolean).map(secret =>
+    fetch(`https://api.brrr.now/v1/${secret}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Kat & Kai \u{1F48C}', message: msg, sound: 'bubble_ding', 'interruption-level': 'active' }),
+    }).catch(err => console.error('[brrr] budget notification error:', err.message))
+  );
+
+  await Promise.all(promises);
+  budget.lastBrrrPeriod = periodStartISO;
+  wd(F.budget, budget);
 }
 
 app.get('/api/budget', mainAuth, (req, res) => {
@@ -2531,6 +2608,16 @@ app.get('/api/budget', mainAuth, (req, res) => {
     budget = seedBudgetDefaults();
     wd(F.budget, budget);
   }
+  // Ensure new surplus fields exist on older data
+  if (!budget.surplusLog) budget.surplusLog = [];
+  if (!budget.investments) budget.investments = [];
+  if (budget.lastAllocatedPeriod === undefined) budget.lastAllocatedPeriod = null;
+  if (budget.lastBrrrPeriod === undefined) budget.lastBrrrPeriod = null;
+
+  // Fire Brrr notification if new period (non-blocking)
+  const money = rd(F.money);
+  checkAndFireBudgetBrrr(budget, money).catch(e => console.error('[brrr] budget check error:', e.message));
+
   res.json(budget);
 });
 
@@ -2627,6 +2714,104 @@ app.put('/api/budget/reorder', mainAuth, (req, res) => {
   if (!budget) return res.status(404).json({ error: 'Budget not found' });
   const catMap = new Map(budget.categories.map(c => [c.id, c]));
   budget.categories = ids.map(id => catMap.get(id)).filter(Boolean);
+  wd(F.budget, budget);
+  io.emit('budget:updated', budget);
+  res.json({ success: true, budget });
+});
+
+// ── Budget: Surplus allocation ──
+app.post('/api/budget/allocate', mainAuth, (req, res) => {
+  let budget = rd(F.budget);
+  if (!budget) return res.status(404).json({ error: 'Budget not found' });
+  const { periodStart, allocations } = req.body;
+  if (!periodStart || !Array.isArray(allocations) || allocations.length === 0) {
+    return res.status(400).json({ error: 'periodStart and allocations[] required' });
+  }
+
+  // Compute period end from periodStart
+  const psParts = periodStart.split('-');
+  const psMs = Date.UTC(+psParts[0], +psParts[1] - 1, +psParts[2], 12);
+  const peMs = psMs + 13 * 86400000;
+  const periodEnd = utcDateStrServer(new Date(peMs));
+
+  // Calculate surplus amount from allocations
+  const surplusAmount = allocations.reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
+
+  // Append to surplusLog
+  if (!budget.surplusLog) budget.surplusLog = [];
+  budget.surplusLog.push({
+    id: uuidv4(),
+    periodStart,
+    periodEnd,
+    surplusAmount: Math.round(surplusAmount * 100) / 100,
+    allocations: allocations.map(a => ({
+      type: a.type,
+      goalId: a.goalId || null,
+      goalName: a.goalName || null,
+      investmentId: a.investmentId || null,
+      investmentName: a.investmentName || null,
+      amount: Math.round((parseFloat(a.amount) || 0) * 100) / 100,
+    })),
+    loggedAt: Date.now(),
+  });
+
+  // Set lastAllocatedPeriod to current period start
+  const { periodStart: currentPS } = getBudgetPeriodServer(budget.anchorDate);
+  budget.lastAllocatedPeriod = utcDateStrServer(currentPS);
+
+  // Update savings goal balances
+  const money = rd(F.money);
+  if (money && money.goals) {
+    for (const alloc of allocations) {
+      if (alloc.type === 'savings' && alloc.goalId) {
+        const goal = money.goals.find(g => g.id === alloc.goalId);
+        if (goal) {
+          const amt = parseFloat(alloc.amount) || 0;
+          goal.currentAmount = Math.round((goal.currentAmount + amt) * 100) / 100;
+          if (!goal.contributions) goal.contributions = [];
+          goal.contributions.push({
+            id: uuidv4(),
+            amount: amt,
+            note: 'Budget surplus allocation',
+            date: new Date().toISOString().split('T')[0],
+            createdAt: Date.now(),
+          });
+        }
+      }
+    }
+    wd(F.money, money);
+    io.emit('money:updated', money);
+  }
+
+  // Update investment totalContributed
+  if (!budget.investments) budget.investments = [];
+  for (const alloc of allocations) {
+    if (alloc.type === 'investment' && alloc.investmentId) {
+      const inv = budget.investments.find(i => i.id === alloc.investmentId);
+      if (inv) {
+        inv.totalContributed = Math.round(((inv.totalContributed || 0) + (parseFloat(alloc.amount) || 0)) * 100) / 100;
+      }
+    }
+  }
+
+  wd(F.budget, budget);
+  io.emit('budget:updated', budget);
+  res.json({ success: true, budget });
+});
+
+app.post('/api/budget/investments', mainAuth, (req, res) => {
+  let budget = rd(F.budget);
+  if (!budget) { budget = seedBudgetDefaults(); }
+  const { name, platform } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  if (!budget.investments) budget.investments = [];
+  const inv = {
+    id: uuidv4(),
+    name: name.trim(),
+    platform: (platform || '').trim(),
+    totalContributed: 0,
+  };
+  budget.investments.push(inv);
   wd(F.budget, budget);
   io.emit('budget:updated', budget);
   res.json({ success: true, budget });
@@ -5361,6 +5546,30 @@ app.get('/app',      (_, res) => res.sendFile(path.join(__dirname, 'public', 'ap
 app.get('/guest',    (_, res) => res.sendFile(path.join(__dirname, 'public', 'guest.html')));
 app.get('/backdoor', (_, res) => res.sendFile(path.join(__dirname, 'public', 'backdoor.html')));
 app.get('/eval',     (_, res) => res.sendFile(path.join(__dirname, 'public', 'eval.html')));
+app.get('/kemari',   (_, res) => res.sendFile(path.join(__dirname, 'public', 'kemari.html')));
+
+// Kemari — request more slides (sends brrr notification to Kaliph)
+app.post('/api/kemari/request-slides', async (req, res) => {
+  const secret = process.env.BRRR_WEBHOOK_KALIPH;
+  if (!secret) return res.status(500).json({ error: 'Webhook not configured' });
+  try {
+    const r = await fetch(`https://api.brrr.now/v1/${secret}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Kemari needs more slides! \u{1F3AD}',
+        message: 'Kemari finished all 20 slides and is requesting more annunciation practice material.',
+        sound: 'bubble_ding',
+        'interruption-level': 'active',
+      }),
+    });
+    if (!r.ok) throw new Error(`brrr responded ${r.status}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[kemari] brrr notification failed:', err.message);
+    res.status(500).json({ error: 'Failed to send notification' });
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SOCKET.IO

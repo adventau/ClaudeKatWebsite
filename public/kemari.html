@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kemari — Annunciation Practice</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap');
+
+  body{
+    font-family:'Inter',sans-serif;
+    background:#0a0a0f;
+    color:#e0e0e0;
+    overflow:hidden;
+    height:100vh;
+    width:100vw;
+    user-select:none;
+  }
+
+  /* ── Rain Canvas ── */
+  #rain-canvas{
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    z-index:0;pointer-events:none;
+  }
+
+  /* ── Main Container ── */
+  .container{
+    position:relative;z-index:1;
+    height:100vh;width:100vw;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+  }
+
+  /* ── Progress Bar Top ── */
+  .progress-bar-container{
+    position:fixed;top:0;left:0;right:0;height:3px;
+    background:rgba(255,255,255,0.05);z-index:10;
+  }
+  .progress-bar{
+    height:100%;background:linear-gradient(90deg,#4a9eff,#7c5cff);
+    transition:width 0.4s ease;border-radius:0 2px 2px 0;
+  }
+
+  /* ── Header ── */
+  .header{
+    position:fixed;top:12px;left:0;right:0;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;z-index:10;
+  }
+  .header-left{
+    display:flex;align-items:center;gap:12px;
+  }
+  .header h1{
+    font-family:'Playfair Display',serif;
+    font-size:1.1rem;font-weight:400;
+    color:rgba(255,255,255,0.6);letter-spacing:1px;
+  }
+  .slide-counter{
+    font-size:0.75rem;color:rgba(255,255,255,0.3);
+    font-weight:300;
+  }
+  .header-right{
+    display:flex;align-items:center;gap:8px;
+  }
+
+  /* ── Streak/Stats ── */
+  .stats-badge{
+    display:flex;align-items:center;gap:6px;
+    background:rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:20px;padding:4px 12px;
+    font-size:0.7rem;color:rgba(255,255,255,0.4);
+  }
+  .stats-badge .fire{color:#ff6b35;}
+
+  /* ── Slide Area ── */
+  .slide-wrapper{
+    width:90%;max-width:720px;
+    max-height:65vh;
+    position:relative;
+  }
+  .slide{
+    display:none;flex-direction:column;
+    animation:fadeIn 0.5s ease;
+  }
+  .slide.active{display:flex;}
+
+  @keyframes fadeIn{
+    from{opacity:0;transform:translateY(12px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+
+  .slide-label{
+    font-size:0.65rem;text-transform:uppercase;
+    letter-spacing:2px;margin-bottom:12px;
+    font-weight:500;
+  }
+  .slide-label.paragraph{color:#4a9eff;}
+  .slide-label.play{color:#ff6b9d;}
+
+  .slide-title{
+    font-family:'Playfair Display',serif;
+    font-size:1.3rem;font-weight:700;
+    margin-bottom:16px;color:rgba(255,255,255,0.85);
+  }
+
+  .slide-content{
+    font-size:1.05rem;line-height:1.85;
+    color:rgba(255,255,255,0.75);
+    max-height:50vh;overflow-y:auto;
+    padding-right:8px;
+    cursor:default;
+    white-space:pre-line;
+  }
+  .slide-content::-webkit-scrollbar{width:3px}
+  .slide-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:3px}
+
+  .slide-content .stage-direction{
+    font-style:italic;color:rgba(255,255,255,0.35);
+    font-size:0.9rem;
+  }
+  .slide-content .character-name{
+    font-weight:600;color:#ff6b9d;
+    text-transform:uppercase;font-size:0.85rem;
+    letter-spacing:1px;margin-top:12px;display:block;
+  }
+
+  /* Word highlight on tap */
+  .slide-content span.word{
+    cursor:pointer;border-radius:3px;
+    transition:background 0.2s,color 0.2s;
+    padding:0 1px;
+  }
+  .slide-content span.word:hover{
+    background:rgba(74,158,255,0.15);color:#fff;
+  }
+  .slide-content span.word.speaking{
+    background:rgba(74,158,255,0.3);color:#fff;
+  }
+
+  /* ── Word Definition Popup ── */
+  .word-popup{
+    position:fixed;z-index:50;
+    max-width:320px;width:90vw;
+    background:rgba(12,12,22,0.95);
+    backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:14px;
+    padding:16px 18px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.5);
+    animation:popIn 0.25s ease;
+    pointer-events:auto;
+  }
+  @keyframes popIn{
+    from{opacity:0;transform:scale(0.92) translateY(6px)}
+    to{opacity:1;transform:scale(1) translateY(0)}
+  }
+  .word-popup .popup-word{
+    font-family:'Playfair Display',serif;
+    font-size:1.2rem;font-weight:700;
+    color:#fff;margin-bottom:2px;
+  }
+  .word-popup .popup-phonetic{
+    font-size:0.75rem;color:rgba(74,158,255,0.7);
+    margin-bottom:10px;font-style:italic;
+  }
+  .word-popup .popup-pos{
+    font-size:0.6rem;text-transform:uppercase;
+    letter-spacing:1px;color:rgba(255,107,157,0.7);
+    margin-bottom:4px;margin-top:8px;
+  }
+  .word-popup .popup-def{
+    font-size:0.85rem;line-height:1.5;
+    color:rgba(255,255,255,0.7);
+  }
+  .word-popup .popup-loading{
+    font-size:0.8rem;color:rgba(255,255,255,0.3);
+    font-style:italic;
+  }
+  .word-popup .popup-error{
+    font-size:0.8rem;color:rgba(255,255,255,0.3);
+  }
+  .word-popup .popup-close{
+    position:absolute;top:8px;right:12px;
+    background:none;border:none;color:rgba(255,255,255,0.25);
+    cursor:pointer;font-size:1rem;padding:4px;
+  }
+  .word-popup .popup-close:hover{color:rgba(255,255,255,0.6)}
+  .word-popup .popup-speak{
+    display:inline-flex;align-items:center;gap:4px;
+    margin-left:8px;background:none;border:none;
+    color:rgba(74,158,255,0.6);cursor:pointer;
+    font-size:0.85rem;vertical-align:middle;
+  }
+  .word-popup .popup-speak:hover{color:rgba(74,158,255,1)}
+
+  /* ── Navigation ── */
+  .nav{
+    position:fixed;bottom:0;left:0;right:0;
+    display:flex;align-items:center;justify-content:center;
+    gap:16px;padding:20px;z-index:10;
+    background:linear-gradient(transparent,rgba(10,10,15,0.9));
+  }
+  .nav-btn{
+    width:44px;height:44px;border-radius:50%;
+    border:1px solid rgba(255,255,255,0.1);
+    background:rgba(255,255,255,0.03);
+    color:rgba(255,255,255,0.5);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:all 0.2s;font-size:1.1rem;
+  }
+  .nav-btn:hover{
+    background:rgba(255,255,255,0.08);
+    color:rgba(255,255,255,0.8);
+    border-color:rgba(255,255,255,0.2);
+  }
+  .nav-btn:disabled{opacity:0.2;cursor:default}
+  .nav-btn:disabled:hover{background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.5)}
+
+  .slide-dots{
+    display:flex;gap:4px;align-items:center;
+  }
+  .dot{
+    width:6px;height:6px;border-radius:50%;
+    background:rgba(255,255,255,0.12);
+    transition:all 0.3s;cursor:pointer;
+  }
+  .dot.active{
+    background:#4a9eff;width:18px;border-radius:3px;
+  }
+  .dot.completed{background:rgba(74,158,255,0.35)}
+
+  /* ── Controls Bar ── */
+  .controls{
+    position:fixed;bottom:80px;left:0;right:0;
+    display:flex;align-items:center;justify-content:center;
+    gap:12px;z-index:10;
+  }
+  .ctrl-btn{
+    width:40px;height:40px;border-radius:12px;
+    border:1px solid rgba(255,255,255,0.08);
+    background:rgba(255,255,255,0.03);
+    color:rgba(255,255,255,0.4);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:all 0.2s;font-size:0.85rem;
+    position:relative;
+  }
+  .ctrl-btn:hover{
+    background:rgba(255,255,255,0.08);
+    color:rgba(255,255,255,0.7);
+  }
+  .ctrl-btn.recording{
+    border-color:#ff4444;color:#ff4444;
+    animation:pulse 1.5s infinite;
+  }
+  @keyframes pulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(255,68,68,0.3)}
+    50%{box-shadow:0 0 0 8px rgba(255,68,68,0)}
+  }
+  .ctrl-btn.has-recording{border-color:rgba(74,158,255,0.3)}
+
+  .ctrl-btn .tooltip{
+    position:absolute;bottom:48px;
+    background:rgba(20,20,30,0.95);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:8px;padding:4px 10px;
+    font-size:0.65rem;white-space:nowrap;
+    opacity:0;pointer-events:none;
+    transition:opacity 0.2s;color:rgba(255,255,255,0.6);
+  }
+  .ctrl-btn:hover .tooltip{opacity:1}
+
+  /* ── Metronome/Pace ── */
+  .pace-indicator{
+    position:fixed;right:20px;top:50%;transform:translateY(-50%);
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+    z-index:10;opacity:0;transition:opacity 0.3s;pointer-events:none;
+  }
+  .pace-indicator.active{opacity:1;pointer-events:auto}
+  .pace-dot{
+    width:8px;height:8px;border-radius:50%;
+    background:rgba(255,255,255,0.08);
+    transition:all 0.15s;
+  }
+  .pace-dot.lit{
+    background:#4a9eff;
+    box-shadow:0 0 8px rgba(74,158,255,0.4);
+  }
+  .pace-label{
+    font-size:0.6rem;color:rgba(255,255,255,0.3);
+    writing-mode:vertical-lr;text-orientation:mixed;
+    letter-spacing:1px;margin-top:8px;
+  }
+
+  /* ── Slide Complete Check ── */
+  .complete-check{
+    position:absolute;top:12px;right:0;
+    width:28px;height:28px;border-radius:50%;
+    border:1px solid rgba(255,255,255,0.1);
+    background:rgba(255,255,255,0.03);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:all 0.2s;
+    font-size:0.75rem;color:rgba(255,255,255,0.2);
+  }
+  .complete-check.done{
+    border-color:rgba(74,158,255,0.4);
+    background:rgba(74,158,255,0.1);
+    color:#4a9eff;
+  }
+
+  /* ── Sound Toggle ── */
+  .sound-toggle{
+    position:fixed;top:12px;right:24px;z-index:20;
+    width:32px;height:32px;border-radius:50%;
+    border:1px solid rgba(255,255,255,0.08);
+    background:rgba(255,255,255,0.03);
+    color:rgba(255,255,255,0.3);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;font-size:0.8rem;
+  }
+
+  /* ── Tap to Start Overlay ── */
+  .start-overlay{
+    position:fixed;inset:0;z-index:100;
+    background:rgba(10,10,15,0.95);
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    cursor:pointer;
+  }
+  .start-overlay h2{
+    font-family:'Playfair Display',serif;
+    font-size:2rem;font-weight:400;
+    color:rgba(255,255,255,0.7);
+    margin-bottom:8px;
+  }
+  .start-overlay p{
+    font-size:0.8rem;color:rgba(255,255,255,0.25);
+  }
+  .start-overlay.hidden{display:none}
+
+  /* ── Responsive ── */
+  @media(max-width:600px){
+    .header{padding:0 14px;top:8px}
+    .header h1{font-size:0.95rem}
+    .slide-counter{font-size:0.65rem}
+    .stats-badge{font-size:0.6rem;padding:3px 8px}
+    .container{justify-content:flex-start;padding-top:60px}
+    .slide-wrapper{
+      width:92%;
+      max-height:calc(100vh - 180px);
+      overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
+    }
+    .slide-content{
+      font-size:0.92rem;line-height:1.7;
+      max-height:none;overflow:visible;
+    }
+    .slide-title{font-size:1.05rem}
+    .slide-label{font-size:0.6rem;margin-bottom:8px}
+    .controls{bottom:64px;gap:6px}
+    .ctrl-btn{width:36px;height:36px;font-size:0.75rem;border-radius:10px}
+    .nav{padding:12px 16px;gap:10px}
+    .nav-btn{width:38px;height:38px;font-size:1rem}
+    .dot{width:5px;height:5px}
+    .dot.active{width:14px}
+    .complete-check{width:24px;height:24px;font-size:0.65rem;top:0;right:-4px}
+    .pace-indicator{right:6px}
+    .word-popup{
+      max-width:calc(100vw - 24px);
+      left:12px !important;
+      right:12px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- Tap to start (needed for audio autoplay) -->
+<div class="start-overlay" id="startOverlay">
+  <h2>Kemari's Stage</h2>
+  <p>tap anywhere to begin</p>
+</div>
+
+<!-- Rain -->
+<canvas id="rain-canvas"></canvas>
+
+<!-- Progress bar -->
+<div class="progress-bar-container">
+  <div class="progress-bar" id="progressBar" style="width:5%"></div>
+</div>
+
+<!-- Word Definition Popup -->
+<div class="word-popup" id="wordPopup" style="display:none"></div>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <h1>KEMARI</h1>
+    <span class="slide-counter" id="slideCounter">1 / 20</span>
+  </div>
+  <div class="header-right">
+    <div class="stats-badge" id="statsBadge">
+      <span class="fire">&#9733;</span>
+      <span id="streakCount">0</span> day streak
+      &nbsp;|&nbsp;
+      <span id="sessionCount">0</span> sessions
+    </div>
+  </div>
+</div>
+
+<!-- Slides -->
+<div class="container">
+  <div class="slide-wrapper" id="slideWrapper">
+    <!-- Slides injected by JS -->
+  </div>
+</div>
+
+<!-- Pace Indicator -->
+<div class="pace-indicator" id="paceIndicator">
+  <div class="pace-dot" data-i="0"></div>
+  <div class="pace-dot" data-i="1"></div>
+  <div class="pace-dot" data-i="2"></div>
+  <div class="pace-dot" data-i="3"></div>
+  <div class="pace-dot" data-i="4"></div>
+  <div class="pace-dot" data-i="5"></div>
+  <div class="pace-dot" data-i="6"></div>
+  <span class="pace-label">PACE</span>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <button class="ctrl-btn" id="btnRecord" title="Record">
+    <span>&#9679;</span>
+    <span class="tooltip">Record yourself</span>
+  </button>
+  <button class="ctrl-btn" id="btnPlay" title="Play recording" style="display:none">
+    <span>&#9654;</span>
+    <span class="tooltip">Play recording</span>
+  </button>
+  <button class="ctrl-btn" id="btnPace" title="Pace guide">
+    <span>&#9834;</span>
+    <span class="tooltip">Pace guide</span>
+  </button>
+  <button class="ctrl-btn" id="btnTTS" title="TTS info">
+    <span>Aa</span>
+    <span class="tooltip">Tap any word to hear it</span>
+  </button>
+</div>
+
+<!-- Navigation -->
+<nav class="nav">
+  <button class="nav-btn" id="btnPrev" disabled>&#8592;</button>
+  <div class="slide-dots" id="slideDots"></div>
+  <button class="nav-btn" id="btnNext">&#8594;</button>
+</nav>
+
+<!-- Rain Audio -->
+<audio id="rainAudio" loop preload="auto">
+  <source src="https://cdn.freesound.org/previews/531/531947_6180466-lq.mp3" type="audio/mpeg">
+</audio>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// SLIDE DATA
+// ══════════════════════════════════════════════════════════════════
+const slides = [
+  // ── Slide 1: Paragraph ──
+  {
+    type: 'paragraph',
+    title: 'The Cathedral of Sound',
+    content: `Beneath the vaulted arches of the ancient cathedral, the reverberating echo of each precisely articulated syllable cascaded through the cavernous nave. The choirmaster demanded impeccable diction — every consonant crisp, every vowel resonant and full-bodied. "Enunciate!" he thundered, his baritone bouncing between the buttresses. "Let each word be a sculpture carved from breath and intention. The congregation must comprehend every sacred utterance, from the gentlest whisper to the most thunderous proclamation."`
+  },
+  // ── Slide 2: Play ──
+  {
+    type: 'play',
+    title: 'Hamlet — Act III, Scene I',
+    author: 'William Shakespeare',
+    content: `<span class="character-name">Hamlet</span>
+To be, or not to be — that is the question:
+Whether 'tis nobler in the mind to suffer
+The slings and arrows of outrageous fortune,
+Or to take arms against a sea of troubles
+And, by opposing, end them. To die, to sleep —
+No more — and by a sleep to say we end
+The heartache and the thousand natural shocks
+That flesh is heir to — 'tis a consummation
+Devoutly to be wished. To die, to sleep —
+To sleep, perchance to dream. Ay, there's the rub,
+For in that sleep of death what dreams may come,
+When we have shuffled off this mortal coil,
+Must give us pause.`
+  },
+  // ── Slide 3: Paragraph ──
+  {
+    type: 'paragraph',
+    title: 'Precision in the Tempest',
+    content: `The meteorologist stood before the trembling teleprompter, her words threading through the catastrophic forecast with surgical precision. "A particularly perilous perturbation of atmospheric pressure precipitates unprecedented precipitation across the metropolitan periphery," she announced, her articulation unwavering despite the gravity of the situation. Every labial, dental, and velar consonant landed with deliberate force. The viewers at home could distinguish each morpheme, each carefully constructed clause communicating the complexity of the converging weather systems barreling toward the vulnerable coastline.`
+  },
+  // ── Slide 4: Play ──
+  {
+    type: 'play',
+    title: 'Fences — Act I, Scene III',
+    author: 'August Wilson',
+    content: `<span class="character-name">Troy</span>
+I ain't worried about Death. I done seen him. I done wrestled with him. You can't tell me nothing about Death. Death ain't nothing but a fastball on the outside corner. And you know what I'll do to that! I'll take it out over the left field fence... right through the heart of the diamond! Death ain't nothing! I done faced him once, and I ain't scared of him again!
+
+<span class="stage-direction">(He moves around the yard, animated by his own mythology.)</span>
+
+That's all Death is to me. A fastball on the outside corner.`
+  },
+  // ── Slide 5: Paragraph ──
+  {
+    type: 'paragraph',
+    title: 'Architect of Articulation',
+    content: `The distinguished linguistics professor methodically demonstrated the physiological mechanisms of speech production. "Observe," she instructed, "how the alveolar ridge facilitates the production of dental fricatives and lateral approximants. The tongue, that remarkably dexterous muscular hydrostat, must collaborate with the velum, the pharyngeal walls, and the precisely calibrated subglottal pressure to manufacture the extraordinary repertoire of phonemes that constitute human language." Her students scribbled furiously, their own tongues unconsciously mimicking the elaborate choreography she described with such crystalline clarity.`
+  },
+  // ── Slide 6: Play ──
+  {
+    type: 'play',
+    title: 'A Raisin in the Sun — Act I, Scene II',
+    author: 'Lorraine Hansberry',
+    content: `<span class="character-name">Beneatha</span>
+That money belongs to Mama, Walter, and it is for her to decide how she wants to use it. I don't care if she wants to buy a house or a rocket ship or just nail it up somewhere and look at it. It's hers. Not ours — hers.
+
+<span class="character-name">Walter</span>
+<span class="stage-direction">(bitterly)</span>
+Now ain't that fine! You just got your mother's interest at heart, ain't you, girl? You such a nice girl — but if Mama got that money she can always take a few thousand and help you through school too — can't she?
+
+<span class="character-name">Beneatha</span>
+I have never asked anyone around here to do anything for me!`
+  },
+  // ── Slide 7: Paragraph ──
+  {
+    type: 'paragraph',
+    title: 'The Auctioneer\'s Cadence',
+    content: `Percival Bartholomew Worthington III, the most celebrated auctioneer in the southeastern territories, possessed an extraordinary capacity for rapid yet comprehensible elocution. His sentences cascaded like controlled avalanches — "Thirty-three thousand three hundred thirty-three, do I hear thirty-four? Thirty-four thousand from the distinguished gentleman in the burgundy brocade waistcoat!" Each numeral emerged pristine, each adjective embroidered with theatrical flourish. His contemporaries marveled at his ability to simultaneously accelerate tempo while maintaining crystalline consonantal precision, a paradoxical achievement that lesser practitioners found thoroughly insurmountable.`
+  },
+  // ── Slide 8: Play ──
+  {
+    type: 'play',
+    title: 'Othello — Act III, Scene III',
+    author: 'William Shakespeare',
+    content: `<span class="character-name">Othello</span>
+Her father loved me, oft invited me,
+Still questioned me the story of my life
+From year to year — the battles, sieges, fortunes
+That I have passed. I ran it through, even from
+My boyish days to the very moment that
+He bade me tell it; wherein I spoke of most
+Disastrous chances, of moving accidents
+By flood and field, of hair-breadth scapes
+I'th' imminent deadly breach, of being taken
+By the insolent foe and sold to slavery,
+Of my redemption thence, and portance in
+My traveler's history.`
+  },
+  // ── Slide 9: Paragraph ──
+  {
+    type: 'paragraph',
+    title: 'Navigating the Labyrinth',
+    content: `Through the serpentine corridors of the subterranean pharmaceutical laboratory, Dr. Chrysanthemum Aleksejevna Petrova dictated her observations with meticulous phonetic precision. "The synthesized compound — specifically, the dihydroxyphenylacetaldehyde derivative — demonstrates remarkable thermoluminescent properties when subjected to electromagnetic radiation at approximately four hundred seventy-five nanometers wavelength." Her research assistant, struggling to transcribe, begged her to slow down. She obliged, though her natural speaking rhythm already embodied the rare combination of velocity and verbal transparency that distinguished truly exceptional scientific communicators.`
+  },
+  // ── Slide 10: Play ──
+  {
+    type: 'play',
+    title: 'The Piano Lesson — Act I, Scene II',
+    author: 'August Wilson',
+    content: `<span class="character-name">Boy Willie</span>
+See now... I'll tell you something about me. I done strung along and strung along. Going this way and that. Whatever way would lead me to a moment of peace. That's all I want. I wants to be comfortable. But I got to get something out of life. I ain't gonna just pass through it.
+
+<span class="stage-direction">(He crosses to the piano and runs a finger across the keys.)</span>
+
+See, that piano... it's just a piece of wood to me. But the land... the land is something you can build on. Put something down on. Something you can walk on and know it belongs to you.`
+  },
+  // ── Slide 11: Paragraph ──
+  {
+    type: 'paragraph',
+    title: 'The Broadcaster\'s Discipline',
+    content: `Every morning at precisely four-seventeen, Cassandra rehearsed the treacherous terminology that peppered her broadcast script. "Worcestershire," she pronounced slowly, then faster. "Isthmus. Otorhinolaryngologist. Seventeenth. February. Particularly. Brewery. Quinquagenarian." She had learned, through years of embarrassing on-air stumbles, that the mouth required the same disciplined preparation as any athletic endeavor. The jaw must be loosened, the lips warmed with exaggerated vowel stretches, the tongue liberated through rapid repetitions of lateral and retroflex consonants. Only then could she face the merciless microphone with confidence.`
+  },
+  // ── Slide 12: Play ──
+  {
+    type: 'play',
+    title: 'Julius Caesar — Act III, Scene II',
+    author: 'William Shakespeare',
+    content: `<span class="character-name">Mark Antony</span>
+Friends, Romans, countrymen, lend me your ears!
+I come to bury Caesar, not to praise him.
+The evil that men do lives after them;
+The good is oft interred with their bones.
+So let it be with Caesar. The noble Brutus
+Hath told you Caesar was ambitious.
+If it were so, it was a grievous fault,
+And grievously hath Caesar answered it.
+Here, under leave of Brutus and the rest —
+For Brutus is an honorable man;
+So are they all, all honorable men —
+Come I to speak in Caesar's funeral.`
+  },
+  // ── Slide 13: Paragraph ──
+  {
+    type: 'paragraph',
+    title: 'Voices in the Archive',
+    content: `The oral historian leaned toward the vintage microphone, her recording capturing the vanishing dialect of the Appalachian hollows. "What distinguishes extraordinary speakers," she explained to her documentary crew, "is their willingness to inhabit each syllable completely. They don't swallow the difficult clusters — the 'sts' in 'exists,' the 'ngths' in 'strengths,' the 'sks' in 'asks.' They give each consonant its full acoustic space. This isn't pretension; it's generosity. Clear articulation is fundamentally an act of respect toward your listener, an acknowledgment that your words carry enough weight to deserve precise delivery."`
+  },
+  // ── Slide 14: Play ──
+  {
+    type: 'play',
+    title: 'Topdog/Underdog — Scene Six',
+    author: 'Suzan-Lori Parks',
+    content: `<span class="character-name">Lincoln</span>
+I am a brother to the cards. I am the cards. Cards are me. I look at a hand and I can see it. I can feel it. The rhythm of them. The way they fall. Like music, you know what I'm saying? And the thing about three-card monte, the thing that makes it beautiful, is that it's not about the cards at all.
+
+<span class="stage-direction">(He demonstrates the shuffle with invisible cards.)</span>
+
+It's about the hands. It's about the story you're telling while your hands are doing something else entirely. That's the art of it.`
+  },
+  // ── Slide 15: Paragraph ──
+  {
+    type: 'paragraph',
+    title: 'The Diplomat\'s Tongue',
+    content: `Ambassador Theodora Evangelina Christodoulopoulos navigated the multilingual reception with characteristic linguistic agility. Transitioning seamlessly between carefully enunciated English, melodious Greek, and precisely articulated French, she demonstrated that clear diction transcends any single language. "The fundamental architecture of persuasive speech," she would later reflect, "rests upon three pillars: deliberate pacing that grants your audience time to absorb meaning, consonantal clarity that eliminates ambiguity, and strategic pauses that transform ordinary statements into memorable declarations. A diplomat who mumbles is a diplomat who fails — and a failed diplomat is a danger to everyone."`
+  },
+  // ── Slide 16: Play ──
+  {
+    type: 'play',
+    title: 'The Tempest — Act IV, Scene I',
+    author: 'William Shakespeare',
+    content: `<span class="character-name">Prospero</span>
+Our revels now are ended. These our actors,
+As I foretold you, were all spirits and
+Are melted into air, into thin air;
+And, like the baseless fabric of this vision,
+The cloud-capped towers, the gorgeous palaces,
+The solemn temples, the great globe itself —
+Yea, all which it inherit — shall dissolve,
+And, like this insubstantial pageant faded,
+Leave not a rack behind. We are such stuff
+As dreams are made on, and our little life
+Is rounded with a sleep.`
+  },
+  // ── Slide 17: Paragraph ──
+  {
+    type: 'paragraph',
+    title: 'Rhythm of the Ironworkers',
+    content: `High above the metropolitan skyline, balanced on a skeletal lattice of structural steel, the foreman bellowed instructions that had to penetrate the cacophonous symphony of pneumatic riveting, howling wind, and grinding machinery. His secret was not volume alone — any fool could shout — but rather the percussive staccato of impeccably separated syllables. "SE-CURE the NORTH-EAST GIRD-ER to the TER-TI-AR-Y CROSS-BEAM!" Each chunk of meaning arrived independently, like cargo containers offloaded one at a time. Clarity on the beam was not an aesthetic preference; it was the difference between a perfectly erected skyscraper and catastrophic structural failure.`
+  },
+  // ── Slide 18: Play ──
+  {
+    type: 'play',
+    title: 'Ma Rainey\'s Black Bottom — Act I',
+    author: 'August Wilson',
+    content: `<span class="character-name">Levee</span>
+I knows how to play real music. Not that jug-band stuff Ma wants. I got my own style. I got something to say with this horn. I got ideas, man! I got things burning up inside of me that got to come out. And ain't nobody gonna tell me how to let it out.
+
+<span class="stage-direction">(He lifts his trumpet defiantly.)</span>
+
+This horn... this horn is my voice. When I can't find the words, when the words get stuck — the horn speaks for me. It says everything I can't say. Everything they won't let me say.`
+  },
+  // ── Slide 19: Paragraph ──
+  {
+    type: 'paragraph',
+    title: 'The Final Rehearsal',
+    content: `Standing in the wings, heart hammering an irregular polyrhythm against his sternum, the young actor whispered his technique like a sacred incantation: breathe from the diaphragm, ground each phrase in physical sensation, let the vowels resonate through the sinus cavities and the consonants snap with intentional muscular precision. "Specificity," his voice coach had drilled relentlessly, "is the soul of communication. A generalized mumble communicates nothing. But a precisely articulated thought — each diphthong sculpted, each plosive purposeful, each fricative given its full sibilant glory — that transforms mere words into an experience that permanently alters the consciousness of every listener in that auditorium."`
+  },
+  // ── Slide 20: Play ──
+  {
+    type: 'play',
+    title: 'King Lear — Act III, Scene II',
+    author: 'William Shakespeare',
+    content: `<span class="character-name">Lear</span>
+Blow, winds, and crack your cheeks! Rage, blow,
+You cataracts and hurricanoes, spout
+Till you have drenched our steeples, drowned the cocks!
+You sulfurous and thought-executing fires,
+Vaunt-couriers of oak-cleaving thunderbolts,
+Singe my white head! And thou, all-shaking thunder,
+Strike flat the thick rotundity o' the world!
+Crack nature's molds, all germens spill at once
+That makes ingrateful man!
+
+<span class="stage-direction">(Storm continues. The FOOL shivers beside him.)</span>
+
+Rumble thy bellyful! Spit, fire! Spout, rain!
+Nor rain, wind, thunder, fire are my daughters.`
+  },
+  // ── Slide 21: Request More ──
+  {
+    type: 'request',
+    title: 'Want More Slides?',
+    content: `You've made it through all 20 slides. Hit the button below to send Kaliph a notification — he'll add more for you.`
+  }
+];
+
+// ══════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════
+let currentSlide = 0;
+let completedSlides = new Set();
+let mediaRecorder = null;
+let audioChunks = [];
+let recordings = {}; // per-slide recordings
+let isRecording = false;
+let paceActive = false;
+let paceInterval = null;
+let paceBPM = 72;
+let rainPlaying = false;
+
+// Load progress from localStorage
+function loadProgress() {
+  try {
+    const data = JSON.parse(localStorage.getItem('kemari_progress') || '{}');
+    completedSlides = new Set(data.completed || []);
+    const sessions = data.sessions || 0;
+    const lastDate = data.lastDate || '';
+    const streak = data.streak || 0;
+    document.getElementById('sessionCount').textContent = sessions;
+    document.getElementById('streakCount').textContent = streak;
+    return data;
+  } catch { return {}; }
+}
+
+function saveProgress() {
+  const today = new Date().toISOString().slice(0, 10);
+  const data = JSON.parse(localStorage.getItem('kemari_progress') || '{}');
+  data.completed = [...completedSlides];
+
+  // Update streak
+  const lastDate = data.lastDate || '';
+  if (lastDate !== today) {
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    if (lastDate === yesterday) {
+      data.streak = (data.streak || 0) + 1;
+    } else if (lastDate !== today) {
+      data.streak = 1;
+    }
+    data.sessions = (data.sessions || 0) + 1;
+    data.lastDate = today;
+  }
+
+  localStorage.setItem('kemari_progress', JSON.stringify(data));
+  document.getElementById('sessionCount').textContent = data.sessions || 0;
+  document.getElementById('streakCount').textContent = data.streak || 0;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// RENDER SLIDES
+// ══════════════════════════════════════════════════════════════════
+function wrapWords(text) {
+  // Don't wrap HTML tags
+  return text.replace(/(<[^>]+>)|(\S+)/g, (match, tag, word) => {
+    if (tag) return tag;
+    return `<span class="word">${word}</span>`;
+  });
+}
+
+function renderSlides() {
+  const wrapper = document.getElementById('slideWrapper');
+  const dots = document.getElementById('slideDots');
+  wrapper.innerHTML = '';
+  dots.innerHTML = '';
+
+  slides.forEach((s, i) => {
+    const div = document.createElement('div');
+    div.className = 'slide' + (i === 0 ? ' active' : '');
+    div.dataset.index = i;
+
+    const isPlay = s.type === 'play';
+    const isRequest = s.type === 'request';
+    const label = isPlay ? 'play excerpt' : isRequest ? '' : 'paragraph';
+    const labelClass = isPlay ? 'play' : 'paragraph';
+    const authorLine = s.author ? `<div style="font-size:0.75rem;color:rgba(255,255,255,0.3);margin-bottom:4px;font-style:italic">— ${s.author}</div>` : '';
+
+    if (isRequest) {
+      div.innerHTML = `
+        <div style="text-align:center;padding:40px 20px">
+          <div style="font-size:2.5rem;margin-bottom:16px">&#128588;</div>
+          <div class="slide-title" style="text-align:center">${s.title}</div>
+          <div class="slide-content" style="text-align:center;margin:16px 0 28px;color:rgba(255,255,255,0.5)">${s.content}</div>
+          <button id="requestSlidesBtn" style="
+            padding:14px 36px;border-radius:12px;border:none;
+            background:linear-gradient(135deg,#6366f1,#8b5cf6);
+            color:#fff;font-size:1rem;font-weight:600;
+            cursor:pointer;transition:all 0.2s;
+            box-shadow:0 4px 20px rgba(99,102,241,0.3);
+            font-family:'Inter',sans-serif;
+          ">Ask Kaliph for More Slides</button>
+          <div id="requestStatus" style="margin-top:14px;font-size:0.8rem;color:rgba(255,255,255,0.3)"></div>
+        </div>
+      `;
+    } else {
+      div.innerHTML = `
+        <div class="slide-label ${labelClass}">${label}</div>
+        <div class="slide-title">${s.title}</div>
+        ${authorLine}
+        <div class="slide-content">${wrapWords(s.content)}</div>
+        <div class="complete-check ${completedSlides.has(i) ? 'done' : ''}" data-slide="${i}" title="Mark complete">&#10003;</div>
+      `;
+    }
+    wrapper.appendChild(div);
+
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 0 ? ' active' : '') + (completedSlides.has(i) ? ' completed' : '');
+    dot.addEventListener('click', () => goToSlide(i));
+    dots.appendChild(dot);
+  });
+
+  // Complete check listeners
+  wrapper.querySelectorAll('.complete-check').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.slide);
+      if (completedSlides.has(idx)) completedSlides.delete(idx);
+      else completedSlides.add(idx);
+      el.classList.toggle('done');
+      document.querySelectorAll('.dot')[idx].classList.toggle('completed');
+      saveProgress();
+      updateProgressBar();
+    });
+  });
+
+  // Word tap → definition + TTS
+  wrapper.querySelectorAll('.word').forEach(w => {
+    w.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeWordPopup();
+      showWordPopup(w);
+    });
+  });
+
+  // Request more slides button
+  const reqBtn = document.getElementById('requestSlidesBtn');
+  if (reqBtn) {
+    reqBtn.addEventListener('click', async () => {
+      const status = document.getElementById('requestStatus');
+      reqBtn.disabled = true;
+      reqBtn.style.opacity = '0.6';
+      reqBtn.textContent = 'Sending...';
+      try {
+        const res = await fetch('/api/kemari/request-slides', { method: 'POST' });
+        if (res.ok) {
+          status.textContent = 'Kaliph has been notified! He\'ll add more slides soon.';
+          status.style.color = 'rgba(99,210,151,0.7)';
+          reqBtn.textContent = 'Sent!';
+        } else {
+          throw new Error();
+        }
+      } catch {
+        status.textContent = 'Couldn\'t send — try again in a bit.';
+        status.style.color = 'rgba(255,100,100,0.6)';
+        reqBtn.textContent = 'Ask Kaliph for More Slides';
+        reqBtn.disabled = false;
+        reqBtn.style.opacity = '1';
+      }
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════════════
+function goToSlide(idx) {
+  if (idx < 0 || idx >= slides.length) return;
+  document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.dot').forEach(d => d.classList.remove('active'));
+  document.querySelectorAll('.slide')[idx].classList.add('active');
+  document.querySelectorAll('.dot')[idx].classList.add('active');
+  currentSlide = idx;
+  document.getElementById('slideCounter').textContent = `${idx + 1} / ${slides.length}`;
+  document.getElementById('btnPrev').disabled = idx === 0;
+  document.getElementById('btnNext').disabled = idx === slides.length - 1;
+  updateProgressBar();
+  updatePlayButton();
+}
+
+function updateProgressBar() {
+  const pct = ((currentSlide + 1) / slides.length) * 100;
+  document.getElementById('progressBar').style.width = pct + '%';
+}
+
+document.getElementById('btnPrev').addEventListener('click', () => goToSlide(currentSlide - 1));
+document.getElementById('btnNext').addEventListener('click', () => goToSlide(currentSlide + 1));
+
+// Keyboard nav
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goToSlide(currentSlide + 1);
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') goToSlide(currentSlide - 1);
+});
+
+// Touch swipe
+let touchStartX = 0;
+document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  const diff = touchStartX - e.changedTouches[0].clientX;
+  if (Math.abs(diff) > 60) {
+    if (diff > 0) goToSlide(currentSlide + 1);
+    else goToSlide(currentSlide - 1);
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// RECORDING
+// ══════════════════════════════════════════════════════════════════
+const btnRecord = document.getElementById('btnRecord');
+const btnPlay = document.getElementById('btnPlay');
+
+btnRecord.addEventListener('click', async () => {
+  if (isRecording) {
+    stopRecording();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      recordings[currentSlide] = URL.createObjectURL(blob);
+      stream.getTracks().forEach(t => t.stop());
+      updatePlayButton();
+    };
+    mediaRecorder.start();
+    isRecording = true;
+    btnRecord.classList.add('recording');
+  } catch (err) {
+    console.error('Mic access denied', err);
+  }
+});
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+  isRecording = false;
+  btnRecord.classList.remove('recording');
+}
+
+function updatePlayButton() {
+  if (recordings[currentSlide]) {
+    btnPlay.style.display = 'flex';
+    btnRecord.classList.add('has-recording');
+  } else {
+    btnPlay.style.display = 'none';
+    btnRecord.classList.remove('has-recording');
+  }
+}
+
+btnPlay.addEventListener('click', () => {
+  if (recordings[currentSlide]) {
+    const audio = new Audio(recordings[currentSlide]);
+    audio.play();
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// WORD TAP — TTS + Definition Lookup
+// ══════════════════════════════════════════════════════════════════
+const wordPopup = document.getElementById('wordPopup');
+let activeWord = null;
+
+function speakWord(el) {
+  const text = el.textContent.replace(/[^a-zA-Z'-]/g, '');
+  if (!text) return;
+  el.classList.add('speaking');
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 0.85;
+  utter.onend = () => el.classList.remove('speaking');
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
+}
+
+function speakText(text) {
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 0.85;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
+}
+
+function showWordPopup(el) {
+  const raw = el.textContent.replace(/[^a-zA-Z'-]/g, '');
+  if (!raw || raw.length < 2) return;
+  activeWord = el;
+
+  // Position popup near the word
+  const rect = el.getBoundingClientRect();
+  const popupW = 300;
+  let left = Math.min(rect.left, window.innerWidth - popupW - 16);
+  left = Math.max(12, left);
+  let top = rect.bottom + 8;
+  if (top + 200 > window.innerHeight) top = rect.top - 200;
+
+  wordPopup.style.left = left + 'px';
+  wordPopup.style.top = top + 'px';
+  wordPopup.style.display = 'block';
+  wordPopup.innerHTML = `
+    <button class="popup-close" onclick="closeWordPopup()">&times;</button>
+    <div class="popup-word">${raw} <button class="popup-speak" onclick="speakText('${raw}')">&#9654; hear it</button></div>
+    <div class="popup-loading">Looking up definition...</div>
+  `;
+
+  // Speak it
+  speakWord(el);
+
+  // Fetch definition
+  fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(raw.toLowerCase()))
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(data => {
+      const entry = data[0];
+      const phonetic = entry.phonetic || (entry.phonetics && entry.phonetics.find(p => p.text))?.text || '';
+      let html = `<button class="popup-close" onclick="closeWordPopup()">&times;</button>`;
+      html += `<div class="popup-word">${raw} <button class="popup-speak" onclick="speakText('${raw}')">&#9654; hear it</button></div>`;
+      if (phonetic) html += `<div class="popup-phonetic">${phonetic}</div>`;
+
+      // Show up to 3 meanings
+      const meanings = entry.meanings.slice(0, 3);
+      meanings.forEach(m => {
+        html += `<div class="popup-pos">${m.partOfSpeech}</div>`;
+        const defs = m.definitions.slice(0, 2);
+        defs.forEach(d => {
+          html += `<div class="popup-def">${d.definition}</div>`;
+        });
+      });
+      wordPopup.innerHTML = html;
+    })
+    .catch(() => {
+      wordPopup.innerHTML = `
+        <button class="popup-close" onclick="closeWordPopup()">&times;</button>
+        <div class="popup-word">${raw} <button class="popup-speak" onclick="speakText('${raw}')">&#9654; hear it</button></div>
+        <div class="popup-error">No definition found — try tapping a simpler form of the word.</div>
+      `;
+    });
+}
+
+function closeWordPopup() {
+  wordPopup.style.display = 'none';
+  if (activeWord) activeWord.classList.remove('speaking');
+  activeWord = null;
+}
+
+// Close popup when clicking outside
+document.addEventListener('click', (e) => {
+  if (wordPopup.style.display === 'block' && !wordPopup.contains(e.target) && !e.target.classList.contains('word')) {
+    closeWordPopup();
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// PACE GUIDE
+// ══════════════════════════════════════════════════════════════════
+const paceEl = document.getElementById('paceIndicator');
+const btnPace = document.getElementById('btnPace');
+let paceStep = 0;
+
+btnPace.addEventListener('click', () => {
+  paceActive = !paceActive;
+  paceEl.classList.toggle('active', paceActive);
+  btnPace.style.borderColor = paceActive ? 'rgba(74,158,255,0.4)' : '';
+  if (paceActive) startPace();
+  else stopPace();
+});
+
+function startPace() {
+  const ms = (60 / paceBPM) * 1000;
+  paceStep = 0;
+  paceInterval = setInterval(() => {
+    const dots = paceEl.querySelectorAll('.pace-dot');
+    dots.forEach(d => d.classList.remove('lit'));
+    dots[paceStep % dots.length].classList.add('lit');
+    paceStep++;
+  }, ms);
+}
+
+function stopPace() {
+  clearInterval(paceInterval);
+  paceEl.querySelectorAll('.pace-dot').forEach(d => d.classList.remove('lit'));
+}
+
+// ══════════════════════════════════════════════════════════════════
+// RAINY MOUNTAINSCAPE — Rain over layered mountain silhouettes
+// ══════════════════════════════════════════════════════════════════
+const canvas = document.getElementById('rain-canvas');
+const ctx = canvas.getContext('2d');
+
+let drops = [];
+let mountains = [];
+let frame = 0;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  generateMountains();
+  initDrops();
+}
+
+// Midpoint displacement for natural ridgelines
+function ridgeLine(startY, endY, roughness, detail) {
+  let points = [startY, endY];
+  for (let d = 0; d < detail; d++) {
+    const newPoints = [points[0]];
+    for (let i = 0; i < points.length - 1; i++) {
+      const mid = (points[i] + points[i + 1]) / 2;
+      const range = roughness / Math.pow(2, d * 0.65);
+      newPoints.push(mid + (Math.random() - 0.5) * range);
+      newPoints.push(points[i + 1]);
+    }
+    points = newPoints;
+  }
+  return points;
+}
+
+function generateMountains() {
+  const W = canvas.width, H = canvas.height;
+  mountains = [];
+
+  // Each layer: further back = lighter color, smaller, less rough
+  const layers = [
+    { baseY: 0.50, roughness: H * 0.22, color: [28, 32, 52],  colorTop: [35, 40, 62],  parallax: 0.015, detail: 7 },
+    { baseY: 0.57, roughness: H * 0.25, color: [22, 25, 42],  colorTop: [28, 32, 50],  parallax: 0.035, detail: 7 },
+    { baseY: 0.64, roughness: H * 0.28, color: [16, 18, 32],  colorTop: [22, 24, 40],  parallax: 0.06,  detail: 7 },
+    { baseY: 0.73, roughness: H * 0.20, color: [10, 12, 24],  colorTop: [15, 17, 30],  parallax: 0.08,  detail: 7 },
+    { baseY: 0.83, roughness: H * 0.13, color: [5, 7, 14],    colorTop: [8, 10, 20],   parallax: 0.1,   detail: 6 },
+  ];
+
+  layers.forEach(layer => {
+    const baseY = H * layer.baseY;
+    const ridge = ridgeLine(baseY, baseY, layer.roughness, layer.detail);
+    const points = [];
+    const step = (W + 120) / (ridge.length - 1);
+    for (let i = 0; i < ridge.length; i++) {
+      points.push({
+        x: -60 + i * step,
+        y: Math.min(ridge[i], baseY + 20) // don't go below baseline much
+      });
+    }
+    mountains.push({
+      points,
+      color: layer.color,
+      colorTop: layer.colorTop,
+      parallax: layer.parallax,
+      baseY
+    });
+  });
+}
+
+function initDrops() {
+  drops = [];
+  const count = Math.floor(canvas.width * 0.3);
+  for (let i = 0; i < count; i++) {
+    drops.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      len: 14 + Math.random() * 20,
+      speed: 9 + Math.random() * 8,
+      opacity: 0.06 + Math.random() * 0.1,
+      width: 0.4 + Math.random() * 0.7
+    });
+  }
+}
+
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function drawScene() {
+  frame++;
+  const W = canvas.width, H = canvas.height;
+
+  // Night sky gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, H * 0.7);
+  sky.addColorStop(0, '#060810');
+  sky.addColorStop(0.3, '#0b0e1a');
+  sky.addColorStop(0.5, '#101525');
+  sky.addColorStop(0.7, '#151a2a');
+  sky.addColorStop(1, '#1a1e30');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle cloud glow on horizon
+  const horizonGlow = ctx.createRadialGradient(W * 0.4, H * 0.5, 0, W * 0.4, H * 0.5, W * 0.5);
+  horizonGlow.addColorStop(0, 'rgba(40,50,80,0.12)');
+  horizonGlow.addColorStop(0.5, 'rgba(30,35,60,0.06)');
+  horizonGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = horizonGlow;
+  ctx.fillRect(0, 0, W, H);
+
+  // Warm glow accent
+  const warmGlow = ctx.createRadialGradient(W * 0.7, H * 0.55, 0, W * 0.7, H * 0.55, W * 0.35);
+  warmGlow.addColorStop(0, 'rgba(60,40,50,0.06)');
+  warmGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = warmGlow;
+  ctx.fillRect(0, 0, W, H);
+
+  // Mountains with parallax
+  const sway = Math.sin(frame * 0.001) * 5;
+  mountains.forEach((m, mi) => {
+    const offsetX = sway * m.parallax * 10;
+    const pts = m.points;
+
+    // Find the highest peak for gradient
+    let minY = H;
+    pts.forEach(p => { if (p.y < minY) minY = p.y; });
+
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x + offsetX, pts[0].y);
+
+    // Smooth curve through points using cardinal spline
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(i - 1, 0)];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[Math.min(i + 2, pts.length - 1)];
+      const tension = 0.4;
+      const cp1x = p1.x + (p2.x - p0.x) * tension / 3 + offsetX;
+      const cp1y = p1.y + (p2.y - p0.y) * tension / 3;
+      const cp2x = p2.x - (p3.x - p1.x) * tension / 3 + offsetX;
+      const cp2y = p2.y - (p3.y - p1.y) * tension / 3;
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x + offsetX, p2.y);
+    }
+
+    // Close the shape along the bottom
+    ctx.lineTo(W + 80 + offsetX, H + 10);
+    ctx.lineTo(-80 + offsetX, H + 10);
+    ctx.closePath();
+
+    // Vertical gradient from peak color to base color
+    const mGrad = ctx.createLinearGradient(0, minY, 0, H);
+    const ct = m.colorTop;
+    const cb = m.color;
+    mGrad.addColorStop(0, `rgb(${ct[0]},${ct[1]},${ct[2]})`);
+    mGrad.addColorStop(0.4, `rgb(${Math.floor((ct[0]+cb[0])/2)},${Math.floor((ct[1]+cb[1])/2)},${Math.floor((ct[2]+cb[2])/2)})`);
+    mGrad.addColorStop(1, `rgb(${cb[0]},${cb[1]},${cb[2]})`);
+    ctx.fillStyle = mGrad;
+    ctx.fill();
+
+    // Atmospheric mist after the 2nd and 4th layers
+    if (mi === 1 || mi === 3) {
+      const mistY = m.baseY * H;
+      const mist = ctx.createLinearGradient(0, mistY - 20, 0, mistY + 40);
+      mist.addColorStop(0, 'rgba(18,22,38,0)');
+      mist.addColorStop(0.5, `rgba(20,25,42,${mi === 1 ? 0.08 : 0.12})`);
+      mist.addColorStop(1, 'rgba(15,18,30,0)');
+      ctx.fillStyle = mist;
+      ctx.fillRect(0, mistY - 20, W, 60);
+    }
+  });
+
+  // Rain
+  drops.forEach(d => {
+    ctx.beginPath();
+    ctx.moveTo(d.x, d.y);
+    ctx.lineTo(d.x + 0.5, d.y + d.len);
+    ctx.strokeStyle = `rgba(160,180,210,${d.opacity})`;
+    ctx.lineWidth = d.width;
+    ctx.stroke();
+    d.y += d.speed;
+    if (d.y > H) {
+      d.y = -d.len;
+      d.x = Math.random() * W;
+    }
+  });
+
+  requestAnimationFrame(drawScene);
+}
+drawScene();
+
+// ══════════════════════════════════════════════════════════════════
+// START OVERLAY & AUDIO
+// ══════════════════════════════════════════════════════════════════
+const rainAudio = document.getElementById('rainAudio');
+rainAudio.volume = 0.3;
+
+document.getElementById('startOverlay').addEventListener('click', () => {
+  document.getElementById('startOverlay').classList.add('hidden');
+  rainAudio.play().catch(() => {});
+  rainPlaying = true;
+  saveProgress(); // count session
+});
+
+// Sound toggle (reuse header area)
+document.querySelector('.stats-badge').addEventListener('dblclick', () => {
+  if (rainPlaying) { rainAudio.pause(); rainPlaying = false; }
+  else { rainAudio.play(); rainPlaying = true; }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+loadProgress();
+renderSlides();
+updateProgressBar();
+</script>
+</body>
+</html>
