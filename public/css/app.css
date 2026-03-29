@@ -4748,6 +4748,7 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   border: 1px solid var(--border-card);
   border-radius: var(--radius-card);
   padding: 10px 14px 12px;
+  margin-top: 10px;
   margin-bottom: 14px;
   cursor: pointer;
   transition: border-color 0.15s;
