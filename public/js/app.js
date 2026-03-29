@@ -9526,18 +9526,17 @@ function renderSpendingChart(dailyData) {
   if (!canvas || !window.Chart) return;
   const ctx = canvas.getContext('2d');
   if (_spendingChart) _spendingChart.destroy();
-  // Show every Nth label so the x-axis isn't overcrowded
   const step = dailyData.length > 14 ? 4 : dailyData.length > 7 ? 2 : 1;
   _spendingChart = new Chart(ctx, {
-    type: 'bar',
+    type: 'line',
     data: {
       labels: dailyData.map(d => d.label),
       datasets: [{
         label: 'Spent',
         data: dailyData.map(d => d.total),
-        backgroundColor: dailyData.map(d => d.total > 0 ? 'rgba(99,102,241,0.7)' : 'rgba(99,102,241,0.15)'),
         borderColor: '#6366f1',
-        borderWidth: 1, borderRadius: 4,
+        backgroundColor: 'rgba(99,102,241,0.1)',
+        fill: true, tension: 0.35, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#6366f1',
       }]
     },
     options: {
