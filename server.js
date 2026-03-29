@@ -660,7 +660,7 @@ app.post('/api/briefings/submit', async (req, res) => {
     const displayName = users[user]?.displayName || users[user]?.name || user;
     await sendPushToUser(user, {
       title: `Hi ${displayName}! ☀️`,
-      body: 'Your morning briefing is ready — tap to read.',
+      body: 'Your morning briefing is ready.',
       tag: 'briefing-daily',
       url: '/app',
     });
