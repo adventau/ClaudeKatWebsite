@@ -4875,6 +4875,18 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   cursor: pointer; white-space: nowrap; flex-shrink: 0;
 }
 
+/* Surplus header pill (shown in money header on period-start day) */
+.surplus-header-pill {
+  background: rgba(var(--accent-rgb, 99,102,241), 0.15);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 20px; padding: 4px 12px;
+  font-size: 0.72rem; font-weight: 600; cursor: pointer;
+  white-space: nowrap; transition: background 0.15s;
+  margin-right: 6px;
+}
+.surplus-header-pill:hover { background: rgba(var(--accent-rgb, 99,102,241), 0.28); }
+
 /* Budget period badge (surplus allocation indicator) */
 .budget-period-badge {
   width: 8px; height: 8px;

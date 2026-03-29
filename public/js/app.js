@@ -8422,7 +8422,7 @@ async function loadMoney() {
     renderMoney(_moneyData);
     updateMoneyDashTabIndicator();
     // Check for period-end surplus allocation
-    checkAndShowSurplus();
+    checkAndShowSurplus(true);
   }
   if (window.lucide) lucide.createIcons();
 }
@@ -8509,14 +8509,7 @@ function renderBudgetMini() {
       ${cat.budgetAmount > 0 ? `<span class="bm-pill-budget">/$${cat.budgetAmount.toFixed(0)}</span>` : ''}
     </div>`;
   }).join('');
-
-  const surplusPending = _budgetData && checkPeriodEnd(_budgetData).shouldShow;
-  const reviewBanner = surplusPending ? `<div class="surplus-review-banner" onclick="openSurplusModal()">
-    <span>💰 Last period's surplus needs allocating</span>
-    <button class="surplus-review-btn">Review →</button>
-  </div>` : '';
-
-  el.innerHTML = reviewBanner + `<div class="budget-mini-card" onclick="switchMoneyDashTab('budget',null)">
+  el.innerHTML = `<div class="budget-mini-card" onclick="switchMoneyDashTab('budget',null)">
     <div class="bm-header">
       <span class="bm-label">Budget · ${escapeHtml(label)}</span>
       <span class="bm-totals" style="color:${barColor}">$${totalSpent.toFixed(0)}${totalBudgeted > 0 ? ' / $' + totalBudgeted.toFixed(0) : ' spent'}</span>
@@ -9871,6 +9864,11 @@ function switchMoneyDashTab(tab, el) {
   if (tab === 'dashboard') {
     dashView.style.display = '';
     budgetView.style.display = 'none';
+    // Re-render charts so they reflect current dates after being hidden
+    if (_moneyData) {
+      renderOverviewTickers(_moneyData);
+      renderPortfolio(_moneyData);
+    }
   } else {
     dashView.style.display = 'none';
     budgetView.style.display = '';
@@ -9940,15 +9938,6 @@ function renderBudget(budget, money) {
   const overallColor = overallPct >= 100 ? '#ef4444' : overallPct >= 75 ? '#f59e0b' : 'var(--accent)';
 
   let html = '';
-
-  // Surplus review banner (only on current period view)
-  if (_currentPeriodOffset === 0 && checkPeriodEnd(budget).shouldShow) {
-    html += `<div class="surplus-review-banner" onclick="openSurplusModal()" style="cursor:pointer">
-      <span>💰 Last period's surplus needs allocating</span>
-      <button class="surplus-review-btn">Review →</button>
-    </div>`;
-  }
-
   // Period Navigation Bar
   html += `<div class="budget-period-bar">
     <button class="budget-nav-btn" onclick="budgetPrevPeriod()">← Prev</button>
@@ -11017,14 +11006,17 @@ let surplusState = {
 };
 
 function checkPeriodEnd(budget) {
-  if (!budget || !budget.anchorDate) return { shouldShow: false };
+  if (!budget || !budget.anchorDate) return { shouldShow: false, isPeriodStartToday: false };
   const { periodStart } = getBudgetPeriod(budget.anchorDate);
   const periodStartISO = utcDateStr(periodStart);
   const lastAllocated = budget.lastAllocatedPeriod || null;
-  if (periodStartISO !== lastAllocated) {
-    return { shouldShow: true, periodStart: periodStartISO };
+  const todayISO = utcDateStr(new Date());
+  const unallocated = periodStartISO !== lastAllocated;
+  const isPeriodStartToday = todayISO === periodStartISO;
+  if (unallocated) {
+    return { shouldShow: true, periodStart: periodStartISO, isPeriodStartToday };
   }
-  return { shouldShow: false };
+  return { shouldShow: false, isPeriodStartToday: false };
 }
 
 function updateBudgetBadge(shouldShow) {
@@ -11693,10 +11685,16 @@ function surplusClose() {
   SoundSystem.modalClose();
 }
 
-function checkAndShowSurplus() {
+function checkAndShowSurplus(autoOpen = false) {
   if (!_budgetData) return;
   const check = checkPeriodEnd(_budgetData);
   updateBudgetBadge(check.shouldShow);
+  // Header pill + auto-open only on the actual period-start day
+  const pill = document.getElementById('money-surplus-pill');
+  if (pill) pill.style.display = (check.shouldShow && check.isPeriodStartToday) ? '' : 'none';
+  if (autoOpen && check.shouldShow && check.isPeriodStartToday) {
+    setTimeout(() => openSurplusModal(), 600);
+  }
 }
 
 // ── Start ─────────────────────────────────────────────────────────────
