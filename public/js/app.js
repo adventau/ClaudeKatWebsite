@@ -11177,23 +11177,31 @@ function openSurplusModal() {
         <button class="surplus-primary-btn" id="surplus-inv-add-btn" style="display:none" onclick="surplusSaveNewInvestment()">Add &amp; continue</button>
       </div>
 
-      <!-- Step 2c: Split slider -->
+      <!-- Step 2c: Split -->
       <div class="surplus-step" id="surplus-step-split">
         <button class="surplus-back-btn" onclick="surplusGoTo('surplus-step1',25)">&larr; Back</button>
         <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 4px">Split $${surplus.toFixed(2)}</p>
-        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px">Drag to adjust how much goes where.</p>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px">Type a percentage for each &mdash; they&apos;ll balance to 100%.</p>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
           <span style="font-size:0.8rem;color:var(--text-muted);width:90px;flex-shrink:0">Savings</span>
-          <input type="range" min="0" max="${surplus}" value="${half}" step="1" id="surplus-split-slider" class="surplus-slider" style="flex:1" oninput="surplusUpdateSplit(this.value)" />
-          <span style="font-size:0.88rem;font-weight:600;color:var(--text-primary);min-width:52px;text-align:right" id="surplus-savings-split">$${half}</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          <span style="font-size:0.8rem;color:var(--text-muted);width:90px;flex-shrink:0">Investments</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" min="0" max="100" value="50" id="surplus-split-pct-savings" class="surplus-input" style="width:60px;text-align:center" oninput="surplusUpdateSplitPct('savings',this.value)" />
+            <span style="font-size:0.75rem;color:var(--text-muted)">%</span>
+          </div>
           <div style="flex:1"></div>
-          <span style="font-size:0.88rem;font-weight:600;color:var(--text-primary);min-width:52px;text-align:right" id="surplus-inv-split">$${surplus - half}</span>
+          <span style="font-size:0.88rem;font-weight:600;color:var(--text-primary);min-width:60px;text-align:right" id="surplus-savings-split">$${half}</span>
         </div>
-        <div style="height:8px;background:var(--border);border-radius:4px;margin:4px 0 20px;overflow:hidden">
-          <div id="surplus-split-bar" style="height:8px;width:50%;background:var(--accent);border-radius:4px;transition:width 0.15s"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="font-size:0.8rem;color:var(--text-muted);width:90px;flex-shrink:0">Investments</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <input type="number" min="0" max="100" value="50" id="surplus-split-pct-inv" class="surplus-input" style="width:60px;text-align:center" oninput="surplusUpdateSplitPct('inv',this.value)" />
+            <span style="font-size:0.75rem;color:var(--text-muted)">%</span>
+          </div>
+          <div style="flex:1"></div>
+          <span style="font-size:0.88rem;font-weight:600;color:var(--text-primary);min-width:60px;text-align:right" id="surplus-inv-split">$${surplus - half}</span>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:4px;margin:0 0 20px;overflow:hidden">
+          <div id="surplus-split-bar" style="height:6px;width:50%;background:var(--accent);border-radius:4px;transition:width 0.2s"></div>
         </div>
         <button class="surplus-primary-btn" onclick="surplusGoTo('surplus-step-split-savings',60)">Continue &rarr; pick savings goal</button>
       </div>
@@ -11308,7 +11316,7 @@ function surplusGoTo(stepId, progress) {
       surplusState.splitGoalName = name;
     }, 'surplus-split-savings-btn');
     const label = document.getElementById('surplus-split-savings-label');
-    if (label) label.textContent = '$' + surplusState.splitSavings;
+    if (label) label.textContent = '$' + surplusState.splitSavings.toFixed(2);
   }
   if (stepId === 'surplus-step-split-investments') {
     surplusRenderInvestments('surplus-split-investments-list', (id, name) => {
@@ -11316,7 +11324,7 @@ function surplusGoTo(stepId, progress) {
       surplusState.splitInvName = name;
     }, 'surplus-split-inv-btn');
     const label = document.getElementById('surplus-split-inv-label');
-    if (label) label.textContent = '$' + surplusState.splitInv;
+    if (label) label.textContent = '$' + surplusState.splitInv.toFixed(2);
   }
 }
 
@@ -11327,16 +11335,28 @@ function surplusChoose(type) {
   else if (type === 'split') surplusGoTo('surplus-step-split', 50);
 }
 
-function surplusUpdateSplit(val) {
-  const v = parseInt(val, 10);
-  surplusState.splitSavings = v;
-  surplusState.splitInv = surplusState.surplus - v;
+function surplusUpdateSplitPct(side, rawVal) {
+  let pct = Math.min(100, Math.max(0, parseInt(rawVal, 10) || 0));
+  const otherPct = 100 - pct;
+  // Mirror the other input
+  if (side === 'savings') {
+    const invInput = document.getElementById('surplus-split-pct-inv');
+    if (invInput) invInput.value = otherPct;
+    surplusState.splitSavings = Math.round(surplusState.surplus * pct / 100 * 100) / 100;
+    surplusState.splitInv = Math.round((surplusState.surplus - surplusState.splitSavings) * 100) / 100;
+  } else {
+    const savInput = document.getElementById('surplus-split-pct-savings');
+    if (savInput) savInput.value = otherPct;
+    surplusState.splitInv = Math.round(surplusState.surplus * pct / 100 * 100) / 100;
+    surplusState.splitSavings = Math.round((surplusState.surplus - surplusState.splitInv) * 100) / 100;
+  }
   const savLabel = document.getElementById('surplus-savings-split');
   const invLabel = document.getElementById('surplus-inv-split');
   const bar = document.getElementById('surplus-split-bar');
-  if (savLabel) savLabel.textContent = '$' + v;
-  if (invLabel) invLabel.textContent = '$' + surplusState.splitInv;
-  if (bar) bar.style.width = (surplusState.surplus > 0 ? (v / surplusState.surplus * 100) : 50) + '%';
+  if (savLabel) savLabel.textContent = '$' + surplusState.splitSavings.toFixed(2);
+  if (invLabel) invLabel.textContent = '$' + surplusState.splitInv.toFixed(2);
+  const savPct = surplusState.surplus > 0 ? (surplusState.splitSavings / surplusState.surplus * 100) : 50;
+  if (bar) bar.style.width = savPct + '%';
 }
 
 function surplusRenderGoals(containerId, onSelect, confirmBtnId) {
