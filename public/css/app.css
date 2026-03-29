@@ -4859,6 +4859,22 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
   min-width: 0;
 }
 
+/* Surplus review banner */
+.surplus-review-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(var(--accent-rgb, 99,102,241), 0.1);
+  border: 1px solid var(--accent);
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 10px;
+  font-size: 0.82rem; color: var(--text-primary); cursor: pointer;
+  transition: background 0.15s;
+}
+.surplus-review-banner:hover { background: rgba(var(--accent-rgb, 99,102,241), 0.18); }
+.surplus-review-btn {
+  background: var(--accent); color: #fff; border: none;
+  border-radius: 6px; padding: 5px 12px; font-size: 0.75rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+}
+
 /* Budget period badge (surplus allocation indicator) */
 .budget-period-badge {
   width: 8px; height: 8px;

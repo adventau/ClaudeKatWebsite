@@ -8423,10 +8423,6 @@ async function loadMoney() {
     updateMoneyDashTabIndicator();
     // Check for period-end surplus allocation
     checkAndShowSurplus();
-    // Auto-open surplus modal if new period
-    if (_budgetData && checkPeriodEnd(_budgetData).shouldShow) {
-      openSurplusModal();
-    }
   }
   if (window.lucide) lucide.createIcons();
 }
@@ -8514,7 +8510,13 @@ function renderBudgetMini() {
     </div>`;
   }).join('');
 
-  el.innerHTML = `<div class="budget-mini-card" onclick="switchMoneyDashTab('budget',null)">
+  const surplusPending = _budgetData && checkPeriodEnd(_budgetData).shouldShow;
+  const reviewBanner = surplusPending ? `<div class="surplus-review-banner" onclick="openSurplusModal()">
+    <span>💰 Last period's surplus needs allocating</span>
+    <button class="surplus-review-btn">Review →</button>
+  </div>` : '';
+
+  el.innerHTML = reviewBanner + `<div class="budget-mini-card" onclick="switchMoneyDashTab('budget',null)">
     <div class="bm-header">
       <span class="bm-label">Budget · ${escapeHtml(label)}</span>
       <span class="bm-totals" style="color:${barColor}">$${totalSpent.toFixed(0)}${totalBudgeted > 0 ? ' / $' + totalBudgeted.toFixed(0) : ' spent'}</span>
@@ -9939,6 +9941,14 @@ function renderBudget(budget, money) {
 
   let html = '';
 
+  // Surplus review banner (only on current period view)
+  if (_currentPeriodOffset === 0 && checkPeriodEnd(budget).shouldShow) {
+    html += `<div class="surplus-review-banner" onclick="openSurplusModal()" style="cursor:pointer">
+      <span>💰 Last period's surplus needs allocating</span>
+      <button class="surplus-review-btn">Review →</button>
+    </div>`;
+  }
+
   // Period Navigation Bar
   html += `<div class="budget-period-bar">
     <button class="budget-nav-btn" onclick="budgetPrevPeriod()">← Prev</button>
@@ -11132,15 +11142,18 @@ function openSurplusModal() {
         <button class="surplus-primary-btn" id="surplus-inv-confirm" disabled onclick="surplusGoToConfirm('investments')">Continue</button>
       </div>
 
-      <!-- Step 2b-alt: New investment form -->
+      <!-- Step 2b-alt: New investment (add to portfolio) -->
       <div class="surplus-step" id="surplus-step-new-investment">
         <button class="surplus-back-btn" onclick="surplusGoTo('surplus-step-investments',50)">&larr; Back</button>
-        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 16px">New investment</p>
-        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px">Name</label>
-        <input type="text" id="surplus-inv-name" class="surplus-input" placeholder="e.g. Bitcoin, TSLA, Roth IRA" />
-        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px">Platform</label>
-        <input type="text" id="surplus-inv-platform" class="surplus-input" placeholder="e.g. Coinbase, Fidelity" />
-        <button class="surplus-primary-btn" onclick="surplusSaveNewInvestment()">Continue</button>
+        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 4px">Add to portfolio</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px">Enter a ticker to look it up, then add it to your portfolio.</p>
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px">Ticker symbol</label>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" id="surplus-inv-symbol" class="surplus-input" placeholder="e.g. TSLA, VOO, BTC-USD" style="margin-bottom:0;flex:1;text-transform:uppercase" />
+          <button class="surplus-primary-btn" style="margin-top:0;width:auto;padding:0 14px;flex-shrink:0" onclick="surplusLookupSymbol('surplus-inv-symbol','surplus-inv-preview')">Look up</button>
+        </div>
+        <div id="surplus-inv-preview" style="display:none;margin-bottom:12px"></div>
+        <button class="surplus-primary-btn" id="surplus-inv-add-btn" style="display:none" onclick="surplusSaveNewInvestment()">Add &amp; continue</button>
       </div>
 
       <!-- Step 2c: Split slider -->
@@ -11188,12 +11201,15 @@ function openSurplusModal() {
       <!-- Step 2c-ii-alt: New investment (split path) -->
       <div class="surplus-step" id="surplus-step-new-investment-split">
         <button class="surplus-back-btn" onclick="surplusGoTo('surplus-step-split-investments',75)">&larr; Back</button>
-        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 16px">New investment</p>
-        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px">Name</label>
-        <input type="text" id="surplus-inv-name-split" class="surplus-input" placeholder="e.g. Bitcoin, TSLA, Roth IRA" />
-        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px">Platform</label>
-        <input type="text" id="surplus-inv-platform-split" class="surplus-input" placeholder="e.g. Coinbase, Fidelity" />
-        <button class="surplus-primary-btn" onclick="surplusSaveNewInvestmentSplit()">Continue</button>
+        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 4px">Add to portfolio</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px">Enter a ticker to look it up, then add it to your portfolio.</p>
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:6px">Ticker symbol</label>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" id="surplus-inv-symbol-split" class="surplus-input" placeholder="e.g. TSLA, VOO, BTC-USD" style="margin-bottom:0;flex:1;text-transform:uppercase" />
+          <button class="surplus-primary-btn" style="margin-top:0;width:auto;padding:0 14px;flex-shrink:0" onclick="surplusLookupSymbol('surplus-inv-symbol-split','surplus-inv-preview-split')">Look up</button>
+        </div>
+        <div id="surplus-inv-preview-split" style="display:none;margin-bottom:12px"></div>
+        <button class="surplus-primary-btn" id="surplus-inv-add-btn-split" style="display:none" onclick="surplusSaveNewInvestmentSplit()">Add &amp; continue</button>
       </div>
 
       <!-- Step 3: Confirm -->
@@ -11205,7 +11221,16 @@ function openSurplusModal() {
         <button class="surplus-back-btn" style="display:block;margin-top:10px;text-align:center;width:100%" onclick="surplusGoTo('surplus-step1',25)">Start over</button>
       </div>
 
-      <!-- Step 4: Done -->
+      <!-- Step 4: Set new period budgets -->
+      <div class="surplus-step" id="surplus-step-new-budget">
+        <p style="font-size:0.95rem;font-weight:600;color:var(--text-primary);margin:0 0 4px">Set budgets for the new period</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 16px">Adjust any categories before the period locks in.</p>
+        <div id="surplus-budget-category-list"></div>
+        <button class="surplus-primary-btn" onclick="surplusSetNewBudgets()">Save &amp; done</button>
+        <button class="surplus-back-btn" style="display:block;margin-top:10px;text-align:center;width:100%" onclick="surplusGoTo('surplus-step-done',100)">Skip &rarr;</button>
+      </div>
+
+      <!-- Step 5: Done -->
       <div class="surplus-step" id="surplus-step-done">
         <div style="text-align:center;padding:1.5rem 0">
           <div style="width:48px;height:48px;border-radius:50%;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
@@ -11227,11 +11252,12 @@ function showGenericModal(innerHtml) {
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.id = 'surplus-modal-overlay';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+    overlay.className = 'modal-overlay';
+    overlay.addEventListener('click', e => { if (e.target === overlay) surplusClose(); });
     document.body.appendChild(overlay);
   }
-  overlay.innerHTML = `<div style="background:var(--bg-primary);border-radius:16px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">${innerHtml}</div>`;
-  overlay.style.display = 'flex';
+  overlay.innerHTML = `<div class="modal" style="max-width:440px;padding:0">${innerHtml}</div>`;
+  overlay.classList.add('open');
   SoundSystem.modalOpen();
 }
 
@@ -11296,17 +11322,26 @@ function surplusRenderGoals(containerId, onSelect, confirmBtnId) {
   const container = document.getElementById(containerId);
   if (!container) return;
   const goals = _moneyData?.goals || [];
-  if (goals.length === 0) {
-    container.innerHTML = '<p style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:20px 0">No savings goals yet. Create one in the Money dashboard first.</p>';
-    return;
-  }
-  container.innerHTML = goals.map(g => {
+
+  const goalBtns = goals.map(g => {
     const pct = g.targetAmount > 0 ? Math.round(g.currentAmount / g.targetAmount * 100) : 0;
     return `<button class="surplus-goal-btn" data-goal-id="${g.id}" data-goal-name="${escapeHtml(g.name)}">
       <div style="font-size:0.85rem;font-weight:600;color:var(--text-primary)">${escapeHtml(g.name)}</div>
       <div style="font-size:0.72rem;color:var(--text-muted)">$${g.currentAmount.toFixed(2)} / $${g.targetAmount.toFixed(2)} (${pct}%)</div>
     </button>`;
   }).join('');
+
+  // Always show an inline "create goal" form at the bottom
+  const createForm = `<div id="${containerId}-create" style="margin-top:${goals.length ? '8px' : '0'}">
+    <p style="font-size:0.78rem;font-weight:600;color:var(--accent);margin:0 0 8px;cursor:pointer" onclick="surplusToggleCreateGoal('${containerId}')">+ Create a new savings goal</p>
+    <div id="${containerId}-form" style="display:none;background:var(--bg-hover);border-radius:10px;padding:12px;margin-bottom:8px">
+      <input type="text" id="${containerId}-goal-name" class="surplus-input" placeholder="Goal name (e.g. NYC Trip)" style="margin-bottom:8px" />
+      <input type="number" id="${containerId}-goal-target" class="surplus-input" placeholder="Target amount" step="0.01" min="0" style="margin-bottom:8px" />
+      <button class="surplus-primary-btn" style="margin-top:0" onclick="surplusCreateGoalInline('${containerId}','${confirmBtnId}')">Create &amp; select</button>
+    </div>
+  </div>`;
+
+  container.innerHTML = goalBtns + createForm;
 
   container.querySelectorAll('.surplus-goal-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -11327,20 +11362,61 @@ function surplusRenderGoals(containerId, onSelect, confirmBtnId) {
   });
 }
 
+function surplusToggleCreateGoal(containerId) {
+  const form = document.getElementById(containerId + '-form');
+  if (form) form.style.display = form.style.display === 'none' ? '' : 'none';
+}
+
+async function surplusCreateGoalInline(containerId, confirmBtnId) {
+  const name = document.getElementById(containerId + '-goal-name')?.value?.trim();
+  const target = parseFloat(document.getElementById(containerId + '-goal-target')?.value);
+  if (!name) { showToast('Enter a goal name'); return; }
+  if (!target || target <= 0) { showToast('Enter a target amount'); return; }
+  try {
+    const res = await fetch('/api/money/goals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, targetAmount: target, color: '#4f46e5' }),
+    }).then(r => r.json());
+    if (res.goal) {
+      if (!_moneyData.goals) _moneyData.goals = [];
+      if (!_moneyData.goals.find(g => g.id === res.goal.id)) _moneyData.goals.push(res.goal);
+      const newGoal = res.goal;
+      // Re-render the list with new goal pre-selected
+      surplusRenderGoals(containerId, null, confirmBtnId);
+      setTimeout(() => {
+        document.querySelectorAll('#' + containerId + ' .surplus-goal-btn').forEach(b => {
+          if (b.dataset.goalId === newGoal.id) {
+            b.classList.add('selected');
+            b.click();
+          }
+        });
+      }, 30);
+    }
+  } catch { showToast('Failed to create goal'); }
+}
+
 function surplusRenderInvestments(containerId, onSelect, confirmBtnId) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  const investments = _budgetData?.investments || [];
-  if (investments.length === 0) {
-    container.innerHTML = '<p style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:10px 0">No investments logged yet.</p>';
+  const holdings = _moneyData?.investments?.holdings || [];
+  if (holdings.length === 0) {
+    container.innerHTML = '<p style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:10px 0">No portfolio holdings yet — add one below.</p>';
     return;
   }
-  container.innerHTML = investments.map(inv =>
-    `<button class="surplus-goal-btn" data-inv-id="${inv.id}" data-inv-name="${escapeHtml(inv.name)}">
-      <div style="font-size:0.85rem;font-weight:600;color:var(--text-primary)">${escapeHtml(inv.name)}</div>
-      <div style="font-size:0.72rem;color:var(--text-muted)">${escapeHtml(inv.platform || 'No platform')} &middot; $${(inv.totalContributed || 0).toFixed(2)} contributed</div>
-    </button>`
-  ).join('');
+  container.innerHTML = holdings.map(h => {
+    const price = _portfolioPrices?.[h.symbol]?.price || 0;
+    const val = price > 0 ? `$${(h.shares * price).toFixed(2)}` : `${h.shares.toFixed(4)} shares`;
+    return `<button class="surplus-goal-btn" data-inv-id="${h.id}" data-inv-name="${escapeHtml(h.symbol)}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary)">${escapeHtml(h.symbol)}</span>
+          <span style="font-size:0.72rem;color:var(--text-muted);margin-left:6px">${escapeHtml(h.name || '')}</span>
+        </div>
+        <span style="font-size:0.78rem;color:var(--text-muted)">${val}</span>
+      </div>
+    </button>`;
+  }).join('');
 
   container.querySelectorAll('.surplus-goal-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -11361,65 +11437,101 @@ function surplusRenderInvestments(containerId, onSelect, confirmBtnId) {
   });
 }
 
-async function surplusSaveNewInvestment() {
-  const nameEl = document.getElementById('surplus-inv-name');
-  const platEl = document.getElementById('surplus-inv-platform');
-  const name = nameEl?.value?.trim();
-  const platform = platEl?.value?.trim();
-  if (!name) { showToast('Please enter an investment name'); return; }
+let _surplusNewInvPrice = 0;
+let _surplusNewInvName = '';
+
+async function surplusLookupSymbol(inputId, previewId) {
+  const sym = document.getElementById(inputId)?.value?.trim().toUpperCase();
+  if (!sym) { showToast('Enter a ticker symbol'); return; }
+  const preview = document.getElementById(previewId);
+  const addBtnId = inputId === 'surplus-inv-symbol' ? 'surplus-inv-add-btn' : 'surplus-inv-add-btn-split';
+  if (preview) { preview.style.display = ''; preview.innerHTML = '<div style="font-size:0.78rem;color:var(--text-muted)">Looking up…</div>'; }
+  _surplusNewInvPrice = 0;
+  _surplusNewInvName = '';
   try {
-    const res = await fetch('/api/budget/investments', {
+    const res = await fetch('/api/money/portfolio/prices?validate=' + sym).then(r => r.json());
+    const p = res[sym];
+    if (p && (p.price > 0 || p.noKey)) {
+      _surplusNewInvPrice = p.price || 0;
+      _surplusNewInvName = p.name || sym;
+      const cls = (p.changePct || 0) >= 0 ? 'ticker-up' : 'ticker-down';
+      const arrow = (p.changePct || 0) >= 0 ? '↑' : '↓';
+      if (preview) {
+        preview.style.display = '';
+        preview.innerHTML = `<div style="padding:10px 12px;background:var(--bg-hover);border-radius:10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div><strong style="color:var(--text-primary)">${sym}</strong> <span style="color:var(--text-muted);font-size:0.78rem">${escapeHtml(p.name || sym)}</span></div>
+          ${p.price > 0 ? `<div style="text-align:right"><div style="font-weight:700;color:var(--text-primary)">$${p.price.toFixed(2)}</div><div class="${cls}" style="font-size:0.72rem">${arrow} ${Math.abs(p.changePct || 0).toFixed(2)}%</div></div>` : '<span style="font-size:0.72rem;color:var(--text-muted)">No live price</span>'}
+        </div>`;
+      }
+      const addBtn = document.getElementById(addBtnId);
+      if (addBtn) addBtn.style.display = '';
+    } else {
+      if (preview) { preview.style.display = ''; preview.innerHTML = '<div style="color:#ef4444;font-size:0.78rem">Symbol not found — check the ticker and try again</div>'; }
+    }
+  } catch {
+    if (preview) { preview.style.display = ''; preview.innerHTML = '<div style="color:#ef4444;font-size:0.78rem">Lookup failed — try again</div>'; }
+  }
+}
+
+async function surplusSaveNewInvestment() {
+  const sym = document.getElementById('surplus-inv-symbol')?.value?.trim().toUpperCase();
+  if (!sym) { showToast('Enter a ticker symbol'); return; }
+  const amount = surplusState.surplus;
+  const shares = _surplusNewInvPrice > 0 ? amount / _surplusNewInvPrice : 0;
+  try {
+    const res = await fetch('/api/money/investments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, platform }),
+      body: JSON.stringify({ symbol: sym, name: _surplusNewInvName || sym, shares, costBasis: amount }),
     }).then(r => r.json());
-    if (res.success) {
-      _budgetData = res.budget;
-      const newInv = res.budget.investments[res.budget.investments.length - 1];
-      surplusState.selectedInvId = newInv.id;
-      surplusState.selectedInvName = newInv.name;
+    if (res.holding) {
+      // Optimistically add to local moneyData
+      if (!_moneyData.investments) _moneyData.investments = { holdings: [], snapshots: [] };
+      if (!_moneyData.investments.holdings.find(h => h.id === res.holding.id)) {
+        _moneyData.investments.holdings.push(res.holding);
+      }
+      surplusState.selectedInvId = res.holding.id;
+      surplusState.selectedInvName = res.holding.symbol;
       surplusGoTo('surplus-step-investments', 50);
-      // Auto-select the new investment
       setTimeout(() => {
-        const btns = document.querySelectorAll('#surplus-investments-list .surplus-goal-btn');
-        btns.forEach(b => {
-          if (b.dataset.invId === newInv.id) b.classList.add('selected');
+        document.querySelectorAll('#surplus-investments-list .surplus-goal-btn').forEach(b => {
+          if (b.dataset.invId === res.holding.id) { b.classList.add('selected'); }
         });
-        const confirmBtn = document.getElementById('surplus-inv-confirm');
-        if (confirmBtn) confirmBtn.disabled = false;
+        const btn = document.getElementById('surplus-inv-confirm');
+        if (btn) btn.disabled = false;
       }, 50);
     }
-  } catch { showToast('Failed to create investment'); }
+  } catch { showToast('Failed to add holding'); }
 }
 
 async function surplusSaveNewInvestmentSplit() {
-  const nameEl = document.getElementById('surplus-inv-name-split');
-  const platEl = document.getElementById('surplus-inv-platform-split');
-  const name = nameEl?.value?.trim();
-  const platform = platEl?.value?.trim();
-  if (!name) { showToast('Please enter an investment name'); return; }
+  const sym = document.getElementById('surplus-inv-symbol-split')?.value?.trim().toUpperCase();
+  if (!sym) { showToast('Enter a ticker symbol'); return; }
+  const amount = surplusState.splitInv;
+  const shares = _surplusNewInvPrice > 0 ? amount / _surplusNewInvPrice : 0;
   try {
-    const res = await fetch('/api/budget/investments', {
+    const res = await fetch('/api/money/investments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, platform }),
+      body: JSON.stringify({ symbol: sym, name: _surplusNewInvName || sym, shares, costBasis: amount }),
     }).then(r => r.json());
-    if (res.success) {
-      _budgetData = res.budget;
-      const newInv = res.budget.investments[res.budget.investments.length - 1];
-      surplusState.splitInvId = newInv.id;
-      surplusState.splitInvName = newInv.name;
+    if (res.holding) {
+      if (!_moneyData.investments) _moneyData.investments = { holdings: [], snapshots: [] };
+      if (!_moneyData.investments.holdings.find(h => h.id === res.holding.id)) {
+        _moneyData.investments.holdings.push(res.holding);
+      }
+      surplusState.splitInvId = res.holding.id;
+      surplusState.splitInvName = res.holding.symbol;
       surplusGoTo('surplus-step-split-investments', 75);
       setTimeout(() => {
-        const btns = document.querySelectorAll('#surplus-split-investments-list .surplus-goal-btn');
-        btns.forEach(b => {
-          if (b.dataset.invId === newInv.id) b.classList.add('selected');
+        document.querySelectorAll('#surplus-split-investments-list .surplus-goal-btn').forEach(b => {
+          if (b.dataset.invId === res.holding.id) { b.classList.add('selected'); }
         });
-        const confirmBtn = document.getElementById('surplus-split-inv-btn');
-        if (confirmBtn) confirmBtn.disabled = false;
+        const btn = document.getElementById('surplus-split-inv-btn');
+        if (btn) btn.disabled = false;
       }, 50);
     }
-  } catch { showToast('Failed to create investment'); }
+  } catch { showToast('Failed to add holding'); }
 }
 
 function surplusGoToConfirm(type) {
@@ -11470,8 +11582,8 @@ async function surplusConfirm() {
   } else if (surplusState.flow === 'investments') {
     allocations.push({
       type: 'investment',
-      investmentId: surplusState.selectedInvId,
-      investmentName: surplusState.selectedInvName,
+      holdingId: surplusState.selectedInvId,
+      holdingSymbol: surplusState.selectedInvName,
       amount: surplusState.surplus,
     });
   } else if (surplusState.flow === 'split') {
@@ -11483,8 +11595,8 @@ async function surplusConfirm() {
     });
     allocations.push({
       type: 'investment',
-      investmentId: surplusState.splitInvId,
-      investmentName: surplusState.splitInvName,
+      holdingId: surplusState.splitInvId,
+      holdingSymbol: surplusState.splitInvName,
       amount: surplusState.splitInv,
     });
   }
@@ -11502,13 +11614,74 @@ async function surplusConfirm() {
     if (res.success) {
       _budgetData = res.budget;
       updateBudgetBadge(false);
-      surplusGoTo('surplus-step-done', 100);
+      // Show new period budget setup step
+      surplusRenderNewBudgetStep();
+      surplusGoTo('surplus-step-new-budget', 95);
     } else {
       showToast('Failed to allocate surplus');
     }
   } catch {
     showToast('Failed to allocate surplus');
   }
+}
+
+function surplusRenderNewBudgetStep() {
+  const container = document.getElementById('surplus-budget-category-list');
+  if (!container || !_budgetData?.categories) return;
+  const cats = _budgetData.categories;
+  const seen = new Set();
+  let html = '';
+  for (const cat of cats) {
+    if (seen.has(cat.id)) continue;
+    if (cat.pairedWith) {
+      const partner = cats.find(c => c.id === cat.pairedWith);
+      if (partner && !seen.has(partner.id)) {
+        const shared = cat.budgetAmount + partner.budgetAmount;
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:0.82rem;color:var(--text-primary)">${cat.emoji}${partner.emoji} ${escapeHtml(cat.name)} + ${escapeHtml(partner.name)}</span>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:0.75rem;color:var(--text-muted)">$</span>
+            <input type="number" class="surplus-input" data-cat-id="${cat.id}" value="${shared}" step="1" min="0" style="width:72px;margin-bottom:0;padding:5px 8px;font-size:0.82rem;text-align:right" />
+          </div>
+        </div>`;
+        seen.add(cat.id); seen.add(partner.id);
+        continue;
+      }
+    }
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:0.82rem;color:var(--text-primary)">${cat.emoji} ${escapeHtml(cat.name)}</span>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:0.75rem;color:var(--text-muted)">$</span>
+        <input type="number" class="surplus-input" data-cat-id="${cat.id}" value="${cat.budgetAmount}" step="1" min="0" style="width:72px;margin-bottom:0;padding:5px 8px;font-size:0.82rem;text-align:right" />
+      </div>
+    </div>`;
+    seen.add(cat.id);
+  }
+  container.innerHTML = html;
+}
+
+async function surplusSetNewBudgets() {
+  const inputs = document.querySelectorAll('#surplus-budget-category-list input[data-cat-id]');
+  const updates = [];
+  inputs.forEach(inp => {
+    const catId = inp.dataset.catId;
+    const cat = _budgetData?.categories?.find(c => c.id === catId);
+    const newAmt = parseFloat(inp.value) || 0;
+    if (cat && newAmt !== cat.budgetAmount) {
+      updates.push({ id: catId, budgetAmount: newAmt });
+    }
+  });
+  if (updates.length === 0) { surplusGoTo('surplus-step-done', 100); return; }
+  try {
+    await Promise.all(updates.map(u =>
+      fetch(`/api/budget/categories/${u.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ budgetAmount: u.budgetAmount }),
+      })
+    ));
+    surplusGoTo('surplus-step-done', 100);
+  } catch { showToast('Failed to save budgets'); }
 }
 
 function surplusClose() {

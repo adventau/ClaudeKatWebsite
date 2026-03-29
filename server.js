@@ -2728,7 +2728,7 @@ app.post('/api/budget/allocate', mainAuth, (req, res) => {
   let budget = rd(F.budget);
   if (!budget) return res.status(404).json({ error: 'Budget not found' });
   const { periodStart, allocations } = req.body;
-  if (!periodStart || !Array.isArray(allocations) || allocations.length === 0) {
+  if (!periodStart || !Array.isArray(allocations)) {
     return res.status(400).json({ error: 'periodStart and allocations[] required' });
   }
 
@@ -2787,14 +2787,23 @@ app.post('/api/budget/allocate', mainAuth, (req, res) => {
     io.emit('money:updated', money);
   }
 
-  // Update investment totalContributed
-  if (!budget.investments) budget.investments = [];
-  for (const alloc of allocations) {
-    if (alloc.type === 'investment' && alloc.investmentId) {
-      const inv = budget.investments.find(i => i.id === alloc.investmentId);
-      if (inv) {
-        inv.totalContributed = Math.round(((inv.totalContributed || 0) + (parseFloat(alloc.amount) || 0)) * 100) / 100;
+  // Update portfolio holding costBasis for investment allocations
+  const moneyForInv = money || rd(F.money);
+  if (moneyForInv) {
+    let moneyChanged = false;
+    for (const alloc of allocations) {
+      if (alloc.type === 'investment' && alloc.holdingId) {
+        const holdings = moneyForInv?.investments?.holdings || [];
+        const holding = holdings.find(h => h.id === alloc.holdingId);
+        if (holding) {
+          holding.costBasis = Math.round(((holding.costBasis || 0) + (parseFloat(alloc.amount) || 0)) * 100) / 100;
+          moneyChanged = true;
+        }
       }
+    }
+    if (moneyChanged) {
+      wd(F.money, moneyForInv);
+      io.emit('money:updated', moneyForInv);
     }
   }
 
