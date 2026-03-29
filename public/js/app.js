@@ -9969,7 +9969,12 @@ function renderBudget(budget, money) {
         ${totalCash > 0 ? `<span class="budget-pill budget-pill-unbudgeted">$${unbudgetedCash.toFixed(2)} unbudgeted</span>` : ''}
       </div>
     </div>
-    <button class="budget-nav-btn" onclick="budgetNextPeriod()" ${_currentPeriodOffset >= 0 ? 'disabled' : ''}>Next →</button>
+    <div class="budget-nav-right">
+      <button class="budget-nav-btn budget-download-btn" onclick="downloadBudgetStatement()" ${_currentPeriodOffset >= 0 ? 'disabled' : ''} title="${_currentPeriodOffset >= 0 ? 'Available at period end' : 'Download PDF statement'}">
+        <i data-lucide="download" style="width:14px;height:14px"></i>
+      </button>
+      <button class="budget-nav-btn" onclick="budgetNextPeriod()" ${_currentPeriodOffset >= 0 ? 'disabled' : ''}>Next →</button>
+    </div>
   </div>`;
 
   // Overall Progress Bar
@@ -10004,6 +10009,7 @@ function renderBudget(budget, money) {
   html += `<button class="budget-add-category" onclick="openAddBudgetCategory()">+ Add category</button>`;
 
   container.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
 }
 
 function renderBudgetCard(cat, periodStart, periodEnd) {
@@ -10128,6 +10134,25 @@ function budgetNextPeriod() {
   if (_currentPeriodOffset >= 0) return;
   _currentPeriodOffset++;
   renderBudget(_budgetData, _moneyData);
+}
+
+async function downloadBudgetStatement() {
+  if (_currentPeriodOffset >= 0) return;
+  const { periodStart } = getOffsetPeriod(_budgetData.anchorDate, _currentPeriodOffset);
+  const psISO = utcDateStr(periodStart);
+  showToast('Generating statement...');
+  try {
+    const resp = await fetch(`/api/budget/statement/${psISO}`);
+    if (!resp.ok) throw new Error('Failed');
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vault-budget-${psISO}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Statement downloaded!');
+  } catch { showToast('Failed to generate statement'); }
 }
 
 let _budgetDragId = null;

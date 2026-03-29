@@ -4567,6 +4567,13 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 }
 .budget-nav-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
 .budget-nav-btn:disabled { opacity: 0.3; cursor: default; }
+.budget-nav-right {
+  display: flex; gap: 6px; align-items: center;
+}
+.budget-download-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0;
+}
 
 .budget-overall-bar {
   margin-bottom: 20px;

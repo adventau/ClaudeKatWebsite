@@ -20,7 +20,7 @@ const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 const { sendMessageNotification } = require('./utils/notifications');
-// nodemailer removed — using EmailJS HTTP API instead
+const { generateStatementPDF } = require('./utils/generate-statement-pdf');
 let compression;
 try { compression = require('compression'); } catch(e) { /* optional */ }
 const webpush = require('web-push');
@@ -152,6 +152,7 @@ const F = {
   totp:          path.join(DATA_DIR, 'totp.json'),
   money:         path.join(DATA_DIR, 'money.json'),
   budget:        path.join(DATA_DIR, 'budget.json'),
+  budgetSnapshots: path.join(DATA_DIR, 'budget-snapshots.json'),
 };
 
 // ── Web Push (VAPID) ─────────────────────────────────────────────────────────
@@ -2524,6 +2525,7 @@ function seedBudgetDefaults() {
     overrides: [],
     lastAllocatedPeriod: null,
     lastBrrrPeriod: null,
+    lastStatementEmailedPeriod: null,
     surplusLog: [],
     investments: [],
   };
@@ -2609,6 +2611,237 @@ async function checkAndFireBudgetBrrr(budget, money) {
   wd(F.budget, budget);
 }
 
+function captureBudgetSnapshotIfNeeded(budget, money) {
+  const { periodStart } = getBudgetPeriodServer(budget.anchorDate);
+  const psISO = utcDateStrServer(periodStart);
+  const snapshots = rd(F.budgetSnapshots) || {};
+  if (snapshots[psISO]) return;
+  const holdings = money?.investments?.holdings || [];
+  const holdingSnaps = holdings.map(h => ({
+    symbol: h.symbol, name: h.name, shares: h.shares, costBasis: h.costBasis || 0,
+  }));
+  const kalBal = money?.balances?.kaliph?.amount || 0;
+  const katBal = money?.balances?.kathrine?.amount || 0;
+  const goalTotal = (money?.goals || []).reduce((s, g) => s + (g.currentAmount || 0), 0);
+  snapshots[psISO] = {
+    periodStart: psISO,
+    capturedAt: Date.now(),
+    kaliph: { balance: kalBal },
+    kathrine: { balance: katBal },
+    netWorth: kalBal + katBal + goalTotal,
+    holdings: holdingSnaps,
+  };
+  wd(F.budgetSnapshots, snapshots);
+}
+
+// ── Statement PDF: data assembly ─────────────────────────────────────────────
+function normCatServer(name) { return (name || '').toLowerCase().replace(/[\s\-_]+/g, '-').trim(); }
+
+function getPeriodLabelServer(ps, pe) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[ps.getUTCMonth()]} ${ps.getUTCDate()} – ${months[pe.getUTCMonth()]} ${pe.getUTCDate()}`;
+}
+
+function assembleStatementData(periodStartISO) {
+  const budget = rd(F.budget);
+  const money = rd(F.money) || {};
+  const snapshots = rd(F.budgetSnapshots) || {};
+
+  // Compute period
+  const psParts = periodStartISO.split('-');
+  const psDate = new Date(Date.UTC(+psParts[0], +psParts[1] - 1, +psParts[2], 12));
+  const peDate = new Date(psDate.getTime() + 13 * 86400000);
+  const peISO = utcDateStrServer(peDate);
+  const periodLabel = getPeriodLabelServer(psDate, peDate);
+
+  // Snapshots for start/end
+  const startSnap = snapshots[periodStartISO] || {};
+  const endSnap = snapshots[peISO] || {};
+  const kaliphStart = startSnap.kaliph?.balance ?? (money.balances?.kaliph?.amount || 0);
+  const kathrineStart = startSnap.kathrine?.balance ?? (money.balances?.kathrine?.amount || 0);
+  const kaliphEnd = endSnap.kaliph?.balance ?? (money.balances?.kaliph?.amount || 0);
+  const kathrineEnd = endSnap.kathrine?.balance ?? (money.balances?.kathrine?.amount || 0);
+  const netWorthStart = startSnap.netWorth ?? (kaliphStart + kathrineStart);
+  const goalTotal = (money.goals || []).reduce((s, g) => s + (g.currentAmount || 0), 0);
+  const netWorthEnd = endSnap.netWorth ?? (kaliphEnd + kathrineEnd + goalTotal);
+
+  // Transactions in this period
+  const txns = (money.transactions || []).filter(t =>
+    t.type === 'expense' && t.date >= periodStartISO && t.date <= peISO
+  );
+
+  // Budget totals
+  const cats = budget?.categories || [];
+  let totalBudgeted = 0;
+  for (const c of cats) totalBudgeted += c.budgetAmount || 0;
+  const totalSpent = txns.reduce((s, t) => s + (t.amount || 0), 0);
+  const cashBalance = kaliphEnd + kathrineEnd;
+  const totalUnbudgeted = Math.max(0, cashBalance - totalBudgeted);
+  const surplus = Math.max(0, totalBudgeted - totalSpent);
+  const overallPct = totalBudgeted > 0 ? Math.round(totalSpent / totalBudgeted * 100) : 0;
+
+  // Category spends
+  const overrides = budget?.overrides || [];
+  const processedPairs = new Set();
+  const categories = [];
+  for (const cat of cats) {
+    if (processedPairs.has(cat.id)) continue;
+    const catKey = normCatServer(cat.name);
+    const override = overrides.find(o => o.categoryId === cat.id && o.periodStart === periodStartISO);
+    let spent;
+    if (override) {
+      spent = override.manualAmount;
+    } else {
+      spent = txns.filter(t => t.category && normCatServer(t.category) === catKey).reduce((s, t) => s + (t.amount || 0), 0);
+    }
+
+    if (cat.pairedWith) {
+      const partner = cats.find(c => c.id === cat.pairedWith);
+      if (partner && !processedPairs.has(partner.id)) {
+        const partnerKey = normCatServer(partner.name);
+        const pOverride = overrides.find(o => o.categoryId === partner.id && o.periodStart === periodStartISO);
+        const partnerSpent = pOverride ? pOverride.manualAmount : txns.filter(t => t.category && normCatServer(t.category) === partnerKey).reduce((s, t) => s + (t.amount || 0), 0);
+        const combinedBudget = (cat.budgetAmount || 0) + (partner.budgetAmount || 0);
+        const combinedSpent = spent + partnerSpent;
+        categories.push({
+          emoji: cat.emoji + partner.emoji,
+          name: cat.name, displayName: `${cat.name} + ${partner.name}`,
+          color: cat.color, budgeted: combinedBudget, spent: combinedSpent,
+          overUnder: combinedBudget - combinedSpent, pctUsed: combinedBudget > 0 ? Math.round(combinedSpent / combinedBudget * 100) : 0,
+          paired: true, partnerName: partner.name, partnerSpent,
+        });
+        processedPairs.add(cat.id);
+        processedPairs.add(partner.id);
+        continue;
+      }
+    }
+    categories.push({
+      emoji: cat.emoji, name: cat.name, displayName: cat.name,
+      color: cat.color, budgeted: cat.budgetAmount || 0, spent,
+      overUnder: (cat.budgetAmount || 0) - spent, pctUsed: cat.budgetAmount > 0 ? Math.round(spent / cat.budgetAmount * 100) : 0,
+      paired: false,
+    });
+    processedPairs.add(cat.id);
+  }
+
+  // Per person
+  const kaliphSpent = txns.filter(t => t.paidBy === 'kaliph').reduce((s, t) => s + (t.amount || 0), 0);
+  const kathrineSpent = txns.filter(t => t.paidBy === 'kathrine').reduce((s, t) => s + (t.amount || 0), 0);
+  const kaliphTxnCount = txns.filter(t => t.paidBy === 'kaliph').length;
+  const kathrineTxnCount = txns.filter(t => t.paidBy === 'kathrine').length;
+
+  // Transactions for log
+  const transactions = txns.sort((a, b) => a.date.localeCompare(b.date)).map(t => {
+    const cat = cats.find(c => normCatServer(c.name) === normCatServer(t.category));
+    return {
+      date: t.date, who: t.paidBy || t.createdBy || '', description: t.description || '',
+      category: t.category || 'other', categoryColor: cat?.color || '#6b7280', amount: t.amount || 0,
+    };
+  });
+
+  // Previous period surplus allocation
+  const prevPsDate = new Date(psDate.getTime() - 14 * 86400000);
+  const prevPsISO = utcDateStrServer(prevPsDate);
+  const prevPeDate = new Date(prevPsDate.getTime() + 13 * 86400000);
+  const logEntry = (budget?.surplusLog || []).find(e => e.periodStart === prevPsISO);
+  let prevAllocation = null;
+  if (logEntry && logEntry.allocations?.length > 0) {
+    prevAllocation = {
+      periodLabel: getPeriodLabelServer(prevPsDate, prevPeDate),
+      surplus: logEntry.surplusAmount || 0,
+      allocations: logEntry.allocations.map(a => ({
+        name: a.goalName || a.investmentName || 'Unknown',
+        type: a.type === 'savings' ? 'Savings goal' : 'Investment',
+        platform: a.holdingSymbol || '',
+        amount: a.amount || 0,
+      })),
+    };
+  }
+
+  // Savings goals
+  const goals = (money.goals || []).map(g => {
+    const periodContribs = (g.contributions || []).filter(c => c.date >= periodStartISO && c.date <= peISO);
+    const addedThisPeriod = periodContribs.reduce((s, c) => s + (c.amount || 0), 0);
+    return {
+      name: g.name, target: g.targetAmount || 0, current: g.currentAmount || 0,
+      pctDone: g.targetAmount > 0 ? Math.round((g.currentAmount || 0) / g.targetAmount * 100) : 0,
+      addedThisPeriod, color: g.color || '#8b5cf6',
+    };
+  });
+
+  // Portfolio holdings
+  const startHoldings = startSnap.holdings || [];
+  const currentHoldings = money.investments?.holdings || [];
+  const holdings = currentHoldings.map(h => {
+    const sh = startHoldings.find(s => s.symbol === h.symbol);
+    const startVal = sh?.costBasis || 0;
+    const endVal = h.costBasis || 0;
+    const change = startVal > 0 ? ((endVal - startVal) / startVal * 100) : 0;
+    return {
+      symbol: h.symbol, name: h.name, shares: h.shares || 0,
+      startValue: startVal, endValue: endVal,
+      changePct: Math.abs(Math.round(change * 10) / 10),
+      changeDir: change >= 0 ? 'up' : 'down',
+    };
+  });
+  const portfolioTotalEnd = holdings.reduce((s, h) => s + h.endValue, 0);
+  const portfolioTotalStart = holdings.reduce((s, h) => s + h.startValue, 0);
+  const portfolioChange = portfolioTotalStart > 0
+    ? { val: Math.abs(Math.round((portfolioTotalEnd - portfolioTotalStart) / portfolioTotalStart * 1000) / 10), dir: portfolioTotalEnd >= portfolioTotalStart ? 'up' : 'down' }
+    : { val: 0, dir: 'flat' };
+
+  const now = new Date();
+  return {
+    periodLabel, periodStart: periodStartISO, periodEnd: peISO,
+    generatedDate: now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+    netWorthStart, netWorthEnd, kaliphStart, kaliphEnd, kathrineStart, kathrineEnd,
+    totalBudgeted, totalSpent, totalUnbudgeted, surplus, overallPct,
+    prevAllocation, categories,
+    kaliphSpent, kaliphTxnCount, kathrineSpent, kathrineTxnCount,
+    transactions, goals, holdings, portfolioTotalEnd, portfolioChange,
+  };
+}
+
+// ── Statement email notification ──────────────────────────────────────────────
+async function sendStatementNotification(periodLabel) {
+  const html = `<p>Your bi-weekly budget statement for <strong>${periodLabel}</strong> is ready. Open the Budget tab and navigate to the period to download it.</p>`;
+  return sendMail('cyanbydesigner@gmail.com', `Kat & Kai Vault · Budget Statement · ${periodLabel}`, html);
+}
+
+// Auto-email + Brrr on period-start Friday
+async function checkAndSendBudgetStatement(budget, money) {
+  const { periodStart } = getBudgetPeriodServer(budget.anchorDate);
+  const periodStartISO = utcDateStrServer(periodStart);
+  if (budget.lastStatementEmailedPeriod === periodStartISO) return;
+  const todayISO = utcDateStrServer(new Date());
+  if (todayISO !== periodStartISO) return;
+
+  // Generate PDF for the PREVIOUS period
+  const prevPsDate = new Date(periodStart.getTime() - 14 * 86400000);
+  const prevPsISO = utcDateStrServer(prevPsDate);
+  const prevPeDate = new Date(prevPsDate.getTime() + 13 * 86400000);
+  const prevLabel = getPeriodLabelServer(prevPsDate, prevPeDate);
+
+  try {
+    await sendStatementNotification(prevLabel);
+
+    // Brrr to Kaliph confirming statement was sent
+    const kaliphWebhook = process.env.BRRR_WEBHOOK_KALIPH;
+    if (kaliphWebhook) {
+      fetch(`https://api.brrr.now/v1/${kaliphWebhook}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Kat & Kai \u{1F4C4}', message: `Budget statement for ${prevLabel} has been emailed`, sound: 'bubble_ding', 'interruption-level': 'active' }),
+      }).catch(() => {});
+    }
+
+    budget.lastStatementEmailedPeriod = periodStartISO;
+    wd(F.budget, budget);
+  } catch (e) {
+    console.error('[statement] Failed to send statement:', e.message);
+  }
+}
+
 app.get('/api/budget', mainAuth, (req, res) => {
   let budget = rd(F.budget);
   if (!budget) {
@@ -2620,10 +2853,17 @@ app.get('/api/budget', mainAuth, (req, res) => {
   if (!budget.investments) budget.investments = [];
   if (budget.lastAllocatedPeriod === undefined) budget.lastAllocatedPeriod = null;
   if (budget.lastBrrrPeriod === undefined) budget.lastBrrrPeriod = null;
+  if (budget.lastStatementEmailedPeriod === undefined) budget.lastStatementEmailedPeriod = null;
 
   // Fire Brrr notification if new period (non-blocking)
   const money = rd(F.money);
   checkAndFireBudgetBrrr(budget, money).catch(e => console.error('[brrr] budget check error:', e.message));
+
+  // Capture balance snapshot for this period if not yet captured
+  try { captureBudgetSnapshotIfNeeded(budget, money); } catch (e) { console.error('[snapshot] error:', e.message); }
+
+  // Auto-email statement for previous period (non-blocking)
+  checkAndSendBudgetStatement(budget, money).catch(e => console.error('[statement] email error:', e.message));
 
   res.json(budget);
 });
@@ -2831,6 +3071,35 @@ app.post('/api/budget/investments', mainAuth, (req, res) => {
   wd(F.budget, budget);
   io.emit('budget:updated', budget);
   res.json({ success: true, budget });
+});
+
+// ── Statement PDF endpoints ──────────────────────────────────────────────────
+app.get('/api/budget/statement/:periodStart', mainAuth, async (req, res) => {
+  const ps = req.params.periodStart;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ps)) return res.status(400).json({ error: 'Invalid date format' });
+  try {
+    const data = assembleStatementData(ps);
+    const pdfBuffer = await generateStatementPDF(data);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="vault-budget-${ps}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (e) {
+    console.error('[statement] PDF generation error:', e.message);
+    res.status(500).json({ error: 'Failed to generate statement' });
+  }
+});
+
+app.post('/api/budget/statement/email/:periodStart', mainAuth, async (req, res) => {
+  const ps = req.params.periodStart;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ps)) return res.status(400).json({ error: 'Invalid date format' });
+  try {
+    const data = assembleStatementData(ps);
+    const ok = await sendStatementNotification(data.periodLabel);
+    res.json({ success: ok });
+  } catch (e) {
+    console.error('[statement] Email error:', e.message);
+    res.status(500).json({ error: 'Failed to email statement' });
+  }
 });
 
 // ── Money: Daily snapshot + recurring auto-log intervals ──
