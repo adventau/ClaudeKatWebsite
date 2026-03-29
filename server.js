@@ -2557,17 +2557,20 @@ function computeSurplusServer(budget, money) {
   const endStr = utcDateStrServer(periodEnd);
   const transactions = money?.transactions || [];
 
+  // Total budgeted across all categories
   let totalBudgeted = 0;
-  let totalSpent = 0;
-  for (const cat of (budget.categories || [])) {
-    totalBudgeted += cat.budgetAmount || 0;
-    const catKey = (cat.name || '').toLowerCase().replace(/[\s\-_]+/g, '-').trim();
-    const spent = transactions
-      .filter(t => t.type === 'expense' && t.category && (t.category.toLowerCase().replace(/[\s\-_]+/g, '-').trim()) === catKey && t.date >= startStr && t.date <= endStr)
-      .reduce((s, t) => s + (t.amount || 0), 0);
-    totalSpent += spent;
-  }
-  return Math.max(0, Math.round((totalBudgeted - totalSpent) * 100) / 100);
+  for (const cat of (budget.categories || [])) totalBudgeted += cat.budgetAmount || 0;
+
+  // Total spent = ALL expenses in the previous period
+  const totalSpent = transactions
+    .filter(t => t.type === 'expense' && t.date >= startStr && t.date <= endStr)
+    .reduce((s, t) => s + (t.amount || 0), 0);
+
+  // Cash balance (excludes investments and savings goals)
+  const cashBalance = (money?.balances?.kaliph?.amount || 0) + (money?.balances?.kathrine?.amount || 0);
+
+  // Total surplus = cashBalance - totalSpent (unspent budget + unbudgeted cash)
+  return Math.max(0, Math.round((cashBalance - totalSpent) * 100) / 100);
 }
 
 // Brrr budget notification — fires once per period

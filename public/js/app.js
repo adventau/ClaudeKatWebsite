@@ -8643,13 +8643,20 @@ function renderSnapshot(data) {
 
 function renderFeed(data) {
   const container = document.getElementById('money-feed');
-  const txns = [...(data.transactions || [])].sort((a, b) => b.createdAt - a.createdAt);
+  const txns = [...(data.transactions || [])].sort((a, b) => {
+    const da = a.date || ''; const db = b.date || '';
+    if (db !== da) return db.localeCompare(da);
+    return (b.createdAt || 0) - (a.createdAt || 0);
+  });
 
-  // Filter by tab
-  const now = Date.now();
+  // Filter by tab using date strings
+  const _now = new Date();
+  const _todayStr = utcDateStr(_now);
+  const _d7 = new Date(_now); _d7.setUTCDate(_d7.getUTCDate() - 7);   const _weekAgoStr = utcDateStr(_d7);
+  const _d30 = new Date(_now); _d30.setUTCDate(_d30.getUTCDate() - 30); const _monthAgoStr = utcDateStr(_d30);
   let filtered = txns;
-  if (_moneyTab === 'week') filtered = txns.filter(t => t.createdAt >= now - 7 * 86400000);
-  else if (_moneyTab === 'month') filtered = txns.filter(t => t.createdAt >= now - 30 * 86400000);
+  if (_moneyTab === 'week') filtered = txns.filter(t => t.date >= _weekAgoStr && t.date <= _todayStr);
+  else if (_moneyTab === 'month') filtered = txns.filter(t => t.date >= _monthAgoStr && t.date <= _todayStr);
 
   const page = filtered.slice(0, _moneyFeedPage * 20);
   const hasMore = filtered.length > page.length;
@@ -9442,20 +9449,22 @@ function renderOverviewTickers(data) {
   const container = document.getElementById('money-overview-tickers');
   if (!container) return;
   const txns = data.transactions || [];
-  const now = Date.now();
-  const nowDate = new Date();
-  const weekAgo = now - 7 * 86400000;
-  const twoWeeksAgo = now - 14 * 86400000;
-  const thisMonthStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
-  const lastMonthStart = new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1).getTime();
+  const now = new Date();
+  const todayStr = utcDateStr(now);
+  const d7 = new Date(now); d7.setUTCDate(d7.getUTCDate() - 7);   const weekAgoStr = utcDateStr(d7);
+  const d14 = new Date(now); d14.setUTCDate(d14.getUTCDate() - 14); const twoWeeksAgoStr = utcDateStr(d14);
+  const thisMonthStartStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-01`;
+  const prevMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const lastMonthStartStr = utcDateStr(prevMonthDate);
+  const lastMonthEndStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-01`; // exclusive
 
-  const thisWeekSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= weekAgo).reduce((s, t) => s + t.amount, 0);
-  const lastWeekSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= twoWeeksAgo && t.createdAt < weekAgo).reduce((s, t) => s + t.amount, 0);
-  const thisMonthSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= thisMonthStart).reduce((s, t) => s + t.amount, 0);
-  const lastMonthSpend = txns.filter(t => t.type === 'expense' && t.createdAt >= lastMonthStart && t.createdAt < thisMonthStart).reduce((s, t) => s + t.amount, 0);
+  const thisWeekSpend = txns.filter(t => t.type === 'expense' && t.date >= weekAgoStr && t.date <= todayStr).reduce((s, t) => s + t.amount, 0);
+  const lastWeekSpend = txns.filter(t => t.type === 'expense' && t.date >= twoWeeksAgoStr && t.date < weekAgoStr).reduce((s, t) => s + t.amount, 0);
+  const thisMonthSpend = txns.filter(t => t.type === 'expense' && t.date >= thisMonthStartStr && t.date <= todayStr).reduce((s, t) => s + t.amount, 0);
+  const lastMonthSpend = txns.filter(t => t.type === 'expense' && t.date >= lastMonthStartStr && t.date < lastMonthEndStr).reduce((s, t) => s + t.amount, 0);
   const goals = data.goals || [];
-  const thisMonthSaved = goals.reduce((s, g) => s + (g.contributions || []).filter(c => c.createdAt >= thisMonthStart).reduce((a, c) => a + c.amount, 0), 0);
-  const lastMonthSaved = goals.reduce((s, g) => s + (g.contributions || []).filter(c => c.createdAt >= lastMonthStart && c.createdAt < thisMonthStart).reduce((a, c) => a + c.amount, 0), 0);
+  const thisMonthSaved = goals.reduce((s, g) => s + (g.contributions || []).filter(c => c.date >= thisMonthStartStr && c.date <= todayStr).reduce((a, c) => a + c.amount, 0), 0);
+  const lastMonthSaved = goals.reduce((s, g) => s + (g.contributions || []).filter(c => c.date >= lastMonthStartStr && c.date < lastMonthEndStr).reduce((a, c) => a + c.amount, 0), 0);
 
   const weekTick = calcTicker(thisWeekSpend, lastWeekSpend);
   const monthTick = calcTicker(thisMonthSpend, lastMonthSpend);
@@ -9491,20 +9500,19 @@ function renderOverviewTickers(data) {
 }
 
 function calcWeeklyExpenses(txns) {
-  // Group expenses by ISO week, last 8 weeks
+  // Group expenses by week (date string comparison), last 8 weeks
   const now = new Date();
   const weeks = [];
   for (let i = 7; i >= 0; i--) {
-    const weekEnd = new Date(now);
-    weekEnd.setDate(weekEnd.getDate() - (i * 7));
-    const weekStart = new Date(weekEnd);
-    weekStart.setDate(weekStart.getDate() - 6);
-    const startTs = weekStart.getTime();
-    const endTs = weekEnd.getTime() + 86400000;
+    const weekEndDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (i * 7)));
+    const weekStartDate = new Date(weekEndDate);
+    weekStartDate.setUTCDate(weekStartDate.getUTCDate() - 6);
+    const startStr = utcDateStr(weekStartDate);
+    const endStr = utcDateStr(weekEndDate);
     const total = txns
-      .filter(t => t.type === 'expense' && t.createdAt >= startTs && t.createdAt < endTs)
+      .filter(t => t.type === 'expense' && t.date >= startStr && t.date <= endStr)
       .reduce((s, t) => s + t.amount, 0);
-    const label = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const label = weekStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
     weeks.push({ label, total: Math.round(total * 100) / 100 });
   }
   return weeks;
@@ -9936,6 +9944,8 @@ function renderBudget(budget, money) {
   const totalSpent = catSpends.reduce((s, c) => s + c.spent, 0);
   const overallPct = totalBudgeted > 0 ? (totalSpent / totalBudgeted * 100) : 0;
   const overallColor = overallPct >= 100 ? '#ef4444' : overallPct >= 75 ? '#f59e0b' : 'var(--accent)';
+  const totalCash = (money?.balances?.kaliph?.amount || 0) + (money?.balances?.kathrine?.amount || 0);
+  const unbudgetedCash = Math.max(0, totalCash - totalBudgeted);
 
   let html = '';
   // Period Navigation Bar
@@ -9947,6 +9957,7 @@ function renderBudget(budget, money) {
       <div class="budget-period-pills">
         <span class="budget-pill">$${totalBudgeted.toFixed(2)} budgeted</span>
         <span class="budget-pill">$${totalSpent.toFixed(2)} spent</span>
+        ${totalCash > 0 ? `<span class="budget-pill budget-pill-unbudgeted">$${unbudgetedCash.toFixed(2)} unbudgeted</span>` : ''}
       </div>
     </div>
     <button class="budget-nav-btn" onclick="budgetNextPeriod()" ${_currentPeriodOffset >= 0 ? 'disabled' : ''}>Next →</button>
@@ -11029,7 +11040,7 @@ function updateBudgetBadge(shouldShow) {
 }
 
 function computePrevPeriodSurplus(budget, money) {
-  if (!budget || !budget.anchorDate) return { surplus: 0, budgeted: 0, spent: 0, periodLabel: '', prevStart: null, prevEnd: null };
+  if (!budget || !budget.anchorDate) return { surplus: 0, budgeted: 0, spent: 0, unbudgeted: 0, cashBalance: 0, periodLabel: '', prevStart: null, prevEnd: null };
   const { periodStart: currentPS } = getBudgetPeriod(budget.anchorDate);
   const prevRef = new Date(currentPS.getTime() - 14 * 86400000);
   const { periodStart, periodEnd } = getBudgetPeriod(budget.anchorDate, prevRef);
@@ -11038,21 +11049,30 @@ function computePrevPeriodSurplus(budget, money) {
   const endStr = utcDateStr(periodEnd);
   const transactions = money?.transactions || [];
 
+  // Total budgeted across all categories
   let totalBudgeted = 0;
-  let totalSpent = 0;
-  for (const cat of (budget.categories || [])) {
-    totalBudgeted += cat.budgetAmount || 0;
-    const catKey = normalizeCatKey(cat.name);
-    const spent = transactions
-      .filter(t => t.type === 'expense' && t.category && normalizeCatKey(t.category) === catKey && t.date >= startStr && t.date <= endStr)
-      .reduce((s, t) => s + (t.amount || 0), 0);
-    totalSpent += spent;
-  }
+  for (const cat of (budget.categories || [])) totalBudgeted += cat.budgetAmount || 0;
+
+  // Total spent = ALL expenses in the previous period (budgeted + unbudgeted spending)
+  const totalSpent = transactions
+    .filter(t => t.type === 'expense' && t.date >= startStr && t.date <= endStr)
+    .reduce((s, t) => s + (t.amount || 0), 0);
+
+  // Cash balance (excludes investments and savings goals)
+  const cashBalance = (money?.balances?.kaliph?.amount || 0) + (money?.balances?.kathrine?.amount || 0);
+
+  // Unbudgeted = cash beyond what was categorised in the budget
+  const unbudgeted = Math.max(0, cashBalance - totalBudgeted);
+
+  // Total surplus = unspent budget + unbudgeted cash = cashBalance - totalSpent
+  const surplus = Math.max(0, Math.round((cashBalance - totalSpent) * 100) / 100);
 
   return {
-    surplus: Math.max(0, Math.round((totalBudgeted - totalSpent) * 100) / 100),
+    surplus,
     budgeted: Math.round(totalBudgeted * 100) / 100,
     spent: Math.round(totalSpent * 100) / 100,
+    unbudgeted: Math.round(unbudgeted * 100) / 100,
+    cashBalance: Math.round(cashBalance * 100) / 100,
     periodLabel: getPeriodLabel(periodStart, periodEnd),
     prevStart: periodStart,
     prevEnd: periodEnd,
@@ -11061,7 +11081,7 @@ function computePrevPeriodSurplus(budget, money) {
 
 function openSurplusModal() {
   if (!_budgetData || !_moneyData) return;
-  const { surplus, budgeted, spent, periodLabel, prevStart } = computePrevPeriodSurplus(_budgetData, _moneyData);
+  const { surplus, budgeted, spent, unbudgeted, cashBalance, periodLabel, prevStart } = computePrevPeriodSurplus(_budgetData, _moneyData);
 
   if (surplus <= 0) {
     // No surplus — just mark as allocated silently
@@ -11098,7 +11118,7 @@ function openSurplusModal() {
       <div class="surplus-step active" id="surplus-step1">
         <p style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px">Period ended &middot; ${escapeHtml(periodLabel)}</p>
         <p style="font-size:1.4rem;font-weight:700;color:var(--text-primary);margin:0 0 4px">$${surplus.toFixed(2)} left over</p>
-        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 20px">$${budgeted.toFixed(2)} budgeted &middot; $${spent.toFixed(2)} spent. What do you want to do with the surplus?</p>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 20px">$${budgeted.toFixed(2)} budgeted &middot; $${spent.toFixed(2)} spent &middot; $${unbudgeted.toFixed(2)} unbudgeted. Where should the surplus go?</p>
         <button class="surplus-choice-btn" onclick="surplusChoose('savings')">
           <div style="font-size:0.88rem;font-weight:600;color:var(--text-primary);margin-bottom:2px">Put it into savings</div>
           <div style="font-size:0.75rem;color:var(--text-muted)">Add to one of your savings goals</div>
@@ -11688,10 +11708,11 @@ function surplusClose() {
 function checkAndShowSurplus(autoOpen = false) {
   if (!_budgetData) return;
   const check = checkPeriodEnd(_budgetData);
-  updateBudgetBadge(check.shouldShow);
+  const showUI = check.shouldShow && check.isPeriodStartToday;
+  updateBudgetBadge(showUI);
   // Header pill + auto-open only on the actual period-start day
   const pill = document.getElementById('money-surplus-pill');
-  if (pill) pill.style.display = (check.shouldShow && check.isPeriodStartToday) ? '' : 'none';
+  if (pill) pill.style.display = showUI ? '' : 'none';
   if (autoOpen && check.shouldShow && check.isPeriodStartToday) {
     setTimeout(() => openSurplusModal(), 600);
   }
