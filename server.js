@@ -5832,6 +5832,125 @@ app.get('/guest',    (_, res) => res.sendFile(path.join(__dirname, 'public', 'gu
 app.get('/backdoor', (_, res) => res.sendFile(path.join(__dirname, 'public', 'backdoor.html')));
 app.get('/eval',     (_, res) => res.sendFile(path.join(__dirname, 'public', 'eval.html')));
 app.get('/kemari',   (_, res) => res.sendFile(path.join(__dirname, 'public', 'kemari.html')));
+app.get('/kaliph',   (_, res) => res.sendFile(path.join(__dirname, 'public', 'bingo-kaliph.html')));
+app.get('/naomi',    (_, res) => res.sendFile(path.join(__dirname, 'public', 'bingo-naomi.html')));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BINGO DAY (temporary — remove after Monday)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const BINGO_SQUARES = [
+  "Andy pisses Kaliph off",
+  "Allison trickin' on everyone",
+  "Zari says she misses Kaliph so much",
+  "Security guards tell us to go back",
+  "Martin says shut up",
+  "Kaliph steals food from Culinary",
+  "Andy caresses one of us",
+  "We get Dunkin'",
+  "Noah flirts with Kaliph",
+  '"You got yo phone back" — Jzirah',
+  "Brian says the N word",
+  "Brian pisses off Naomi",
+  "Jzirah or Zari catches an attitude",
+  "Zari plays What I Say — Queen Key",
+  "Zari doesn't come to school",
+  "Security questions where we're going",
+  "Martini pulls Kaliph's hair",
+  "Noah says you look tea",
+  "Canon cries",
+  "One of David's friends comes to the table",
+  "Naomi's mom comes late",
+  "Someone gets an ice cream sandwich",
+  "Noah touches Naomi",
+  "Jzirah pisses Naomi off",
+  "Andy talks about Androfsky",
+];
+
+function shuffleBingoSquares() {
+  const pool = [...BINGO_SQUARES];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const picked = pool.slice(0, 24);
+  picked.splice(12, 0, 'FREE');
+  return picked;
+}
+
+const BINGO_LINES = [
+  [0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22,23,24],
+  [0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],
+  [0,6,12,18,24],[4,8,12,16,20],
+];
+
+function countBingoLines(marked) {
+  return BINGO_LINES.filter(line => line.every(i => marked[i])).length;
+}
+
+async function getBingoCounts() {
+  const r = await db.query('SELECT user_id, bingo_count FROM bingo_state');
+  const counts = { kaliph: 0, naomi: 0 };
+  for (const row of r.rows) counts[row.user_id] = row.bingo_count;
+  return counts;
+}
+
+async function getOrCreateBingoState(user) {
+  let r = await db.query('SELECT squares, marked, bingo_count FROM bingo_state WHERE user_id = $1', [user]);
+  if (r.rows.length === 0) {
+    const squares = shuffleBingoSquares();
+    const marked = Array(25).fill(false);
+    marked[12] = true; // FREE
+    await db.query(
+      'INSERT INTO bingo_state (user_id, squares, marked, bingo_count) VALUES ($1, $2, $3, 0)',
+      [user, JSON.stringify(squares), JSON.stringify(marked)]
+    );
+    return { squares, marked, bingoCount: 0 };
+  }
+  const row = r.rows[0];
+  return { squares: row.squares, marked: row.marked, bingoCount: row.bingo_count };
+}
+
+app.get('/api/bingo/state/:user', async (req, res) => {
+  const user = req.params.user;
+  if (user !== 'kaliph' && user !== 'naomi') return res.status(400).json({ error: 'Invalid user' });
+  try {
+    const state = await getOrCreateBingoState(user);
+    const counts = await getBingoCounts();
+    res.json({ squares: state.squares, marked: state.marked, kaliphCount: counts.kaliph, naomiCount: counts.naomi });
+  } catch (err) {
+    console.error('[bingo] state error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/bingo/mark', async (req, res) => {
+  const { user, index, marked: isMarked } = req.body;
+  if (user !== 'kaliph' && user !== 'naomi') return res.status(400).json({ error: 'Invalid user' });
+  if (typeof index !== 'number' || index < 0 || index > 24 || index === 12) return res.status(400).json({ error: 'Invalid index' });
+  try {
+    const state = await getOrCreateBingoState(user);
+    state.marked[index] = !!isMarked;
+    const newLines = countBingoLines(state.marked);
+    let newBingo = false;
+    if (newLines > state.bingoCount) {
+      await db.query('UPDATE bingo_state SET marked = $1, bingo_count = $2 WHERE user_id = $3',
+        [JSON.stringify(state.marked), newLines, user]);
+      newBingo = true;
+    } else {
+      await db.query('UPDATE bingo_state SET marked = $1, bingo_count = $2 WHERE user_id = $3',
+        [JSON.stringify(state.marked), newLines, user]);
+    }
+    const counts = await getBingoCounts();
+    const payload = { user, marked: state.marked, kaliphCount: counts.kaliph, naomiCount: counts.naomi };
+    io.emit('bingo:state', payload);
+    if (newBingo) io.emit('bingo:hit', { user, kaliphCount: counts.kaliph, naomiCount: counts.naomi });
+    res.json(payload);
+  } catch (err) {
+    console.error('[bingo] mark error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Kemari — request more slides (sends brrr notification to Kaliph)
 app.post('/api/kemari/request-slides', async (req, res) => {
@@ -5967,6 +6086,11 @@ const PORT = process.env.PORT || 3000;
 (async () => {
   if (db.pool) {
     try { await db.createSchema(); } catch (e) { console.error('[db] Early schema error:', e.message); }
+    try { await db.query(`CREATE TABLE IF NOT EXISTS bingo_state (
+      id SERIAL PRIMARY KEY, user_id VARCHAR(20) NOT NULL UNIQUE,
+      squares JSONB NOT NULL, marked JSONB NOT NULL,
+      bingo_count INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT NOW()
+    )`); } catch (e) { console.error('[bingo] table error:', e.message); }
   }
   server.listen(PORT, async () => {
     // Load all app data from Postgres into the in-memory cache (if DATABASE_URL is set)
