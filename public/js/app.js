@@ -9362,7 +9362,8 @@ function renderPortfolio(data) {
   if (snapshots.length >= 2) {
     if (chartWrap) chartWrap.style.display = '';
     if (chartEmpty) chartEmpty.style.display = 'none';
-    renderPortfolioChart(snapshots.slice(-7));
+    const _today = todayLocal();
+    renderPortfolioChart(snapshots.filter(s => s.date <= _today).slice(-7));
   } else {
     if (chartWrap) chartWrap.style.display = 'none';
     if (chartEmpty) chartEmpty.style.display = holdings.length ? '' : 'none';
