@@ -2041,7 +2041,7 @@ function reverseTransaction(money, txn) {
 }
 
 function takeMoneySnapshot(money) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayCentral();
   if (money.dailySnapshots.some(s => s.date === today)) return;
   // Calculate invested value per user from holdings
   const holdings = money.investments?.holdings || [];
@@ -2097,7 +2097,7 @@ app.post('/api/money/transactions', mainAuth, (req, res) => {
     category: req.body.category || 'other',
     paidBy: req.body.paidBy || req.session.user,
     split: req.body.split === true || req.body.split === 'true',
-    date: req.body.date || new Date().toISOString().split('T')[0],
+    date: req.body.date || todayCentral(),
     createdAt: Date.now(),
     createdBy: req.session.user,
   };
@@ -2195,7 +2195,7 @@ app.delete('/api/money/goals/:id', mainAuth, (req, res) => {
     const refundTxn = {
       id: uuidv4(), type: 'deposit', description: `${goal.name} (goal deleted)`,
       amount: goal.currentAmount, category: 'other', paidBy: user, split: false,
-      date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: 'system',
+      date: todayCentral(), createdAt: Date.now(), createdBy: 'system',
     };
     money.transactions.push(refundTxn);
   }
@@ -2216,7 +2216,7 @@ app.post('/api/money/goals/:id/contribute', mainAuth, (req, res) => {
     id: uuidv4(),
     amount: parseFloat(req.body.amount) || 0,
     note: req.body.note || '',
-    date: new Date().toISOString().split('T')[0],
+    date: todayCentral(),
     createdAt: Date.now(),
   };
   goal.contributions.push(contrib);
@@ -2262,7 +2262,7 @@ app.post('/api/money/goals/:id/withdraw', mainAuth, (req, res) => {
   const txn = {
     id: uuidv4(), type: 'deposit', description: `${goal.name} (withdrawn)`,
     amount, category: 'other', paidBy: user, split: false,
-    date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: user, _goalId: goal.id,
+    date: todayCentral(), createdAt: Date.now(), createdBy: user, _goalId: goal.id,
   };
   money.transactions.push(txn);
   wd(F.money, money);
@@ -2281,7 +2281,7 @@ app.post('/api/money/recurring', mainAuth, (req, res) => {
     paidBy: req.body.paidBy || 'shared',
     split: req.body.split === true || req.body.split === 'true',
     frequency: req.body.frequency || 'monthly',
-    nextDate: req.body.nextDate || new Date().toISOString().split('T')[0],
+    nextDate: req.body.nextDate || todayCentral(),
     createdAt: Date.now(),
   };
   money.recurring.push(rec);
@@ -2312,7 +2312,7 @@ app.post('/api/money/recurring/:id/log', mainAuth, (req, res) => {
     category: rec.category,
     paidBy: rec.paidBy === 'shared' ? 'kaliph' : rec.paidBy,
     split: rec.split || rec.paidBy === 'shared',
-    date: new Date().toISOString().split('T')[0],
+    date: todayCentral(),
     createdAt: Date.now(),
     createdBy: req.session.user,
     recurringId: rec.id,
@@ -2406,7 +2406,7 @@ app.post('/api/money/investments', mainAuth, async (req, res) => {
     money.transactions.push({
       id: uuidv4(), type: 'expense', description: `${holding.symbol} (investment)`,
       amount: cost, category: 'other', paidBy: user, split: false,
-      date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: user,
+      date: todayCentral(), createdAt: Date.now(), createdBy: user,
     });
   }
   wd(F.money, money);
@@ -2442,7 +2442,7 @@ app.post('/api/money/investments/:id/buy', mainAuth, (req, res) => {
     money.transactions.push({
       id: uuidv4(), type: 'expense', description: `${holding.symbol} (buy more)`,
       amount: cost, category: 'other', paidBy: owner, split: false,
-      date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: req.session.user,
+      date: todayCentral(), createdAt: Date.now(), createdBy: req.session.user,
     });
   }
   holding.shares = Math.round((holding.shares + addShares) * 10000) / 10000;
@@ -2469,7 +2469,7 @@ app.post('/api/money/investments/:id/sell', mainAuth, (req, res) => {
     money.transactions.push({
       id: uuidv4(), type: 'deposit', description: `${holding.symbol} (sold)`,
       amount: proceeds, category: 'other', paidBy: owner, split: false,
-      date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: req.session.user,
+      date: todayCentral(), createdAt: Date.now(), createdBy: req.session.user,
     });
   }
   // Reduce cost basis proportionally
@@ -2501,7 +2501,7 @@ app.delete('/api/money/investments/:id', mainAuth, (req, res) => {
     money.transactions.push({
       id: uuidv4(), type: 'deposit', description: `${removed.symbol} (sold)`,
       amount: removed.costBasis, category: 'other', paidBy: owner, split: false,
-      date: new Date().toISOString().split('T')[0], createdAt: Date.now(), createdBy: 'system',
+      date: todayCentral(), createdAt: Date.now(), createdBy: 'system',
     });
   }
   wd(F.money, money);
@@ -3020,7 +3020,7 @@ app.post('/api/budget/allocate', mainAuth, (req, res) => {
             id: uuidv4(),
             amount: amt,
             note: 'Budget surplus allocation',
-            date: new Date().toISOString().split('T')[0],
+            date: todayCentral(),
             createdAt: Date.now(),
           });
         }
@@ -3108,7 +3108,7 @@ function checkMoneyIntervals() {
   if (!money || !money.setup) return;
   let changed = false;
   // Daily snapshot
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayCentral();
   if (!money.dailySnapshots.some(s => s.date === today)) {
     takeMoneySnapshot(money);
     changed = true;
