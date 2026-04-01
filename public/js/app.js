@@ -8649,11 +8649,10 @@ function renderFeed(data) {
     return (b.createdAt || 0) - (a.createdAt || 0);
   });
 
-  // Filter by tab using date strings
-  const _now = new Date();
-  const _todayStr = utcDateStr(_now);
-  const _d7 = new Date(_now); _d7.setUTCDate(_d7.getUTCDate() - 7);   const _weekAgoStr = utcDateStr(_d7);
-  const _d30 = new Date(_now); _d30.setUTCDate(_d30.getUTCDate() - 30); const _monthAgoStr = utcDateStr(_d30);
+  // Filter by tab using local date strings
+  const _todayStr = todayLocal();
+  const _weekAgoStr = localDateShift(-7);
+  const _monthAgoStr = localDateShift(-30);
   let filtered = txns;
   if (_moneyTab === 'week') filtered = txns.filter(t => t.date >= _weekAgoStr && t.date <= _todayStr);
   else if (_moneyTab === 'month') filtered = txns.filter(t => t.date >= _monthAgoStr && t.date <= _todayStr);
@@ -9449,14 +9448,12 @@ function renderOverviewTickers(data) {
   const container = document.getElementById('money-overview-tickers');
   if (!container) return;
   const txns = data.transactions || [];
-  const now = new Date();
-  const todayStr = utcDateStr(now);
-  const d7 = new Date(now); d7.setUTCDate(d7.getUTCDate() - 7);   const weekAgoStr = utcDateStr(d7);
-  const d14 = new Date(now); d14.setUTCDate(d14.getUTCDate() - 14); const twoWeeksAgoStr = utcDateStr(d14);
-  const thisMonthStartStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-01`;
-  const prevMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const lastMonthStartStr = utcDateStr(prevMonthDate);
-  const lastMonthEndStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-01`; // exclusive
+  const todayStr = todayLocal();
+  const weekAgoStr = localDateShift(-7);
+  const twoWeeksAgoStr = localDateShift(-14);
+  const thisMonthStartStr = localMonthStart(0);
+  const lastMonthStartStr = localMonthStart(-1);
+  const lastMonthEndStr = thisMonthStartStr; // exclusive
 
   const thisWeekSpend = txns.filter(t => t.type === 'expense' && t.date >= weekAgoStr && t.date <= todayStr).reduce((s, t) => s + t.amount, 0);
   const lastWeekSpend = txns.filter(t => t.type === 'expense' && t.date >= twoWeeksAgoStr && t.date < weekAgoStr).reduce((s, t) => s + t.amount, 0);
@@ -9501,23 +9498,23 @@ function renderOverviewTickers(data) {
 }
 
 function calcDailyExpenses(txns) {
-  // Daily expense totals for the last 30 days, only include days with data or
-  // trim leading zeros so the chart starts at the first day with a transaction.
-  const now = new Date();
+  // Daily expense totals for the last 30 days using local (Central) dates
   const days = [];
   for (let i = 29; i >= 0; i--) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
-    const dateStr = utcDateStr(d);
+    const dateStr = localDateShift(-i);
     const total = txns
       .filter(t => t.type === 'expense' && t.date === dateStr)
       .reduce((s, t) => s + t.amount, 0);
-    const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    // Format label from the date string
+    const [y, m, d] = dateStr.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const label = `${months[parseInt(m) - 1]} ${parseInt(d)}`;
     days.push({ label, total: Math.round(total * 100) / 100 });
   }
   // Trim leading zero days so the chart doesn't start with a long flat empty section
   let firstNonZero = days.findIndex(d => d.total > 0);
-  if (firstNonZero < 0) firstNonZero = days.length - 7; // show at least last 7 days
-  return days.slice(Math.max(0, firstNonZero - 1)); // keep one zero before first spend for context
+  if (firstNonZero < 0) firstNonZero = days.length - 7;
+  return days.slice(Math.max(0, firstNonZero - 1));
 }
 
 let _spendingChart = null;
@@ -9847,6 +9844,24 @@ function normalizeCatKey(name) {
 
 function utcDateStr(d) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+}
+
+function todayLocal() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+}
+
+function localDateShift(days) {
+  const d = new Date(Date.now() + days * 86400000);
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+}
+
+function localMonthStart(monthOffset = 0) {
+  // Returns YYYY-MM-01 for current month + monthOffset in Central time
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit' }).format(now).split('-');
+  let y = parseInt(parts[0]), m = parseInt(parts[1]) + monthOffset;
+  if (m < 1) { m += 12; y--; } else if (m > 12) { m -= 12; y++; }
+  return `${y}-${String(m).padStart(2, '0')}-01`;
 }
 
 function getAutoSpend(categoryName, periodStart, periodEnd, transactions) {
@@ -11055,7 +11070,7 @@ function checkPeriodEnd(budget) {
   const { periodStart } = getBudgetPeriod(budget.anchorDate);
   const periodStartISO = utcDateStr(periodStart);
   const lastAllocated = budget.lastAllocatedPeriod || null;
-  const todayISO = utcDateStr(new Date());
+  const todayISO = todayLocal();
   const unallocated = periodStartISO !== lastAllocated;
   const isPeriodStartToday = todayISO === periodStartISO;
   if (unallocated) {
