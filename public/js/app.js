@@ -8914,7 +8914,7 @@ async function submitTransaction() {
   const category = document.querySelector('#money-category-grid .category-pill.selected')?.dataset.cat || 'other';
   const paidBy = document.querySelector('#money-paidby-seg .seg-btn.active')?.dataset.val || 'kaliph';
   const split = document.getElementById('money-txn-split').checked;
-  const date = document.getElementById('money-txn-date').value || new Date().toISOString().split('T')[0];
+  const date = document.getElementById('money-txn-date').value || todayLocal();
 
   const url = editId ? `/api/money/transactions/${editId}` : '/api/money/transactions';
   const method = editId ? 'PUT' : 'POST';
@@ -9138,7 +9138,7 @@ async function submitRecurring() {
   const paidBy = document.querySelector('#money-rec-paidby .seg-btn.active')?.dataset.val || 'shared';
   const category = document.querySelector('#money-rec-category-grid .category-pill.selected')?.dataset.cat || 'bills';
   const split = paidBy === 'shared' ? true : (document.getElementById('money-rec-split')?.checked || false);
-  const nextDate = document.getElementById('money-rec-next').value || new Date().toISOString().split('T')[0];
+  const nextDate = document.getElementById('money-rec-next').value || todayLocal();
 
   try {
     await fetch('/api/money/recurring', {
@@ -9189,7 +9189,7 @@ function renderMoneyDateGrid() {
   const grid = document.getElementById('money-date-grid');
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocal();
   let html = '<div class="cdtp-day-header">S</div><div class="cdtp-day-header">M</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">W</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">F</div><div class="cdtp-day-header">S</div>';
   for (let i = 0; i < firstDay; i++) html += '<div></div>';
   for (let d = 1; d <= daysInMonth; d++) {
@@ -9231,7 +9231,7 @@ function renderMoneyGoalDateGrid() {
   const grid = document.getElementById('money-goal-date-grid');
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocal();
   let html = '<div class="cdtp-day-header">S</div><div class="cdtp-day-header">M</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">W</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">F</div><div class="cdtp-day-header">S</div>';
   for (let i = 0; i < firstDay; i++) html += '<div></div>';
   for (let d = 1; d <= daysInMonth; d++) {
@@ -9280,7 +9280,7 @@ function renderMoneyRecDateGrid() {
   const grid = document.getElementById('money-rec-date-grid');
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocal();
   let html = '<div class="cdtp-day-header">S</div><div class="cdtp-day-header">M</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">W</div><div class="cdtp-day-header">T</div><div class="cdtp-day-header">F</div><div class="cdtp-day-header">S</div>';
   for (let i = 0; i < firstDay; i++) html += '<div></div>';
   for (let d = 1; d <= daysInMonth; d++) {
