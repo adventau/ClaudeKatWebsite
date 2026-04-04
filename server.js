@@ -6514,17 +6514,28 @@ app.post('/api/k108/profiles', async (req, res) => {
     let r;
     if (search && search.trim()) {
       const prefix = `${search.trim()}%`;
-      const contains = `%${search.trim()}%`;
-      r = await db.query(
-        `SELECT * FROM k108_profiles WHERE
-         first_name ILIKE $1 OR last_name ILIKE $1
-         OR (first_name || ' ' || last_name) ILIKE $1
-         OR $3 = ANY(aliases) OR notes ILIKE $2 OR EXISTS (
-           SELECT 1 FROM jsonb_array_elements(social_links) s WHERE s->>'handle' ILIKE $1 OR s->>'url' ILIKE $2
-         )
-         ORDER BY updated_at DESC LIMIT 20`,
-        [prefix, contains, search.trim()]
-      );
+      const term = search.trim();
+      if (term.length >= 3) {
+        const contains = `%${term}%`;
+        r = await db.query(
+          `SELECT * FROM k108_profiles WHERE
+           first_name ILIKE $1 OR last_name ILIKE $1
+           OR (first_name || ' ' || last_name) ILIKE $1
+           OR $3 = ANY(aliases) OR notes ILIKE $2 OR EXISTS (
+             SELECT 1 FROM jsonb_array_elements(social_links) s WHERE s->>'handle' ILIKE $1 OR s->>'url' ILIKE $2
+           )
+           ORDER BY updated_at DESC LIMIT 20`,
+          [prefix, contains, term]
+        );
+      } else {
+        r = await db.query(
+          `SELECT * FROM k108_profiles WHERE
+           first_name ILIKE $1 OR last_name ILIKE $1
+           OR (first_name || ' ' || last_name) ILIKE $1
+           ORDER BY updated_at DESC LIMIT 20`,
+          [prefix]
+        );
+      }
     } else {
       r = await db.query('SELECT * FROM k108_profiles ORDER BY updated_at DESC LIMIT 20');
     }
@@ -6534,7 +6545,7 @@ app.post('/api/k108/profiles', async (req, res) => {
   let profiles = getK108Profiles();
   if (search && search.trim()) {
     const t = search.trim().toLowerCase();
-    profiles = profiles.filter(p => (p.first_name||'').toLowerCase().startsWith(t) || (p.last_name||'').toLowerCase().startsWith(t) || ((p.first_name||'')+' '+(p.last_name||'')).toLowerCase().startsWith(t) || (p.aliases||[]).some(a => a.toLowerCase().startsWith(t)) || (p.notes||'').toLowerCase().includes(t));
+    profiles = profiles.filter(p => (p.first_name||'').toLowerCase().startsWith(t) || (p.last_name||'').toLowerCase().startsWith(t) || ((p.first_name||'')+' '+(p.last_name||'')).toLowerCase().startsWith(t) || (t.length >= 3 && ((p.aliases||[]).some(a => a.toLowerCase().startsWith(t)) || (p.notes||'').toLowerCase().includes(t))));
   }
   res.json({ profiles });
 });
@@ -6549,7 +6560,7 @@ app.post('/api/k108/profiles/create', async (req, res) => {
       `INSERT INTO k108_profiles (first_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [first_name || '', last_name || '', aliases || [], relation || '', notes || '',
-       phones || [], emails || [], JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), username]
+       JSON.stringify(phones || []), JSON.stringify(emails || []), JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), username]
     );
     await k108Log(username, 'profile_create', { name: `${first_name} ${last_name}`.trim() }, req.ip);
     return res.json({ profile: r.rows[0] });
@@ -6603,7 +6614,7 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
       `UPDATE k108_profiles SET first_name=$1, last_name=$2, aliases=$3, relation=$4, notes=$5,
        phones=$6, emails=$7, social_links=$8, age=$9, birthday=$10, address=$11, updated_at=NOW() WHERE id=$12`,
       [first_name, last_name, aliases || [], relation || '', notes || '',
-       phones || [], emails || [], JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), req.params.id]
+       JSON.stringify(phones || []), JSON.stringify(emails || []), JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), req.params.id]
     );
     await k108Log(username, 'profile_change', { profileId: req.params.id, name: `${first_name} ${last_name}`.trim() }, req.ip);
     return res.json({ ok: true });

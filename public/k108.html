@@ -963,6 +963,11 @@ async function loadDashboardData() {
     const smsData = await kAuthFetch('/api/k108/sms/threads');
     if (smsData && smsData.threads) document.getElementById('dash-sms-threads').textContent = smsData.threads.length;
   } catch(e){}
+  // Load vault file count
+  try {
+    const vaultData = await kAuthFetch('/api/k108/vault/items');
+    if (vaultData && vaultData.items) document.getElementById('dash-vault-count').textContent = vaultData.items.length;
+  } catch(e){}
   // Load recent profiles for dashboard preview
   try {
     const profileData = await kAuthFetch('/api/k108/profiles', {});
@@ -1308,7 +1313,7 @@ function searchProfiles(term) {
     d.profiles.sort((a, b) => profileCompleteness(b) - profileCompleteness(a));
 
     // Check for matching labels
-    const matchedLabels = allLabels.filter(l => l.name.toLowerCase().includes(term.toLowerCase()));
+    const matchedLabels = term.length >= 3 ? allLabels.filter(l => l.name.toLowerCase().startsWith(term.toLowerCase())) : [];
 
     // Also include profiles that belong to matching labels
     if (matchedLabels.length) {
@@ -1423,9 +1428,9 @@ async function viewProfileReadonly(id) {
     h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Home Address</div><div class="profile-section-item">'+esc([addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', '))+'</div></div>';
   }
   // Phones
-  if ((p.phones||[]).length) { h += '<div class="profile-section"><div class="profile-section-title">Phone Numbers</div>'; p.phones.forEach(ph => { h += '<div class="profile-section-item">'+esc(fmtPhone(ph))+'</div>'; }); h += '</div>'; }
+  if ((p.phones||[]).length) { h += '<div class="profile-section"><div class="profile-section-title">Phone Numbers</div>'; p.phones.forEach(ph => { const num = typeof ph === 'string' ? ph : (ph.number||ph); const lbl = typeof ph === 'object' ? (ph.label||'') : ''; h += '<div class="profile-section-item">'+esc(fmtPhone(num))+(lbl?' <span style="font-size:10px;color:var(--accent-blue);opacity:0.7;margin-left:6px">'+esc(lbl)+'</span>':'')+'</div>'; }); h += '</div>'; }
   // Emails
-  if ((p.emails||[]).length) { h += '<div class="profile-section"><div class="profile-section-title">Emails</div>'; p.emails.forEach(e => { h += '<div class="profile-section-item">'+esc(e)+'</div>'; }); h += '</div>'; }
+  if ((p.emails||[]).length) { h += '<div class="profile-section"><div class="profile-section-title">Emails</div>'; p.emails.forEach(e => { const addr = typeof e === 'string' ? e : (e.address||e); const lbl = typeof e === 'object' ? (e.label||'') : ''; h += '<div class="profile-section-item">'+esc(addr)+(lbl?' <span style="font-size:10px;color:var(--accent-blue);opacity:0.7;margin-left:6px">'+esc(lbl)+'</span>':'')+'</div>'; }); h += '</div>'; }
   // Social
   if (links.length) { h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Social Media</div>'; links.forEach(l => { const pl = detectPlatform(l.url||''); h += '<a class="social-link" href="'+esc(l.url)+'" target="_blank"><span class="social-icon" style="color:'+pl.color+'">'+pl.abbr+'</span>'+esc(l.handle||l.url)+'</a>'; }); h += '</div>'; }
   // Notes
@@ -1485,20 +1490,28 @@ async function viewProfile(id) {
   // Info sections in grid
   h += '<div class="profile-sections">';
 
-  // Phones (chip input)
+  // Phones (labeled chips)
   h += '<div class="profile-section"><div class="profile-section-title">Phone Numbers</div>';
-  h += '<div class="chip-container" id="pf-phones-chips">';
-  (p.phones||[]).forEach(ph => { h += '<span class="chip" onclick="this.remove()">'+esc(fmtPhone(ph))+'<span class="chip-x">&times;</span></span>'; });
+  h += '<div id="pf-phones-list">';
+  (p.phones||[]).forEach(ph => {
+    const num = typeof ph === 'string' ? ph : (ph.number||ph);
+    const lbl = typeof ph === 'object' ? (ph.label||'') : '';
+    h += phoneChipHTML(num, lbl);
+  });
   h += '</div>';
-  h += '<input class="k-input" id="pf-phone-input" placeholder="Type number, press Enter" style="font-size:12px;margin-top:6px" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addPhoneChip();}">';
+  h += '<div style="display:flex;gap:6px;margin-top:6px"><input class="k-input" id="pf-phone-input" placeholder="Number" style="font-size:12px;flex:1" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addPhoneChip();}"><select class="k-select" id="pf-phone-label" style="font-size:11px;max-width:100px;padding:6px"><option value="">Label</option><option value="Primary">Primary</option><option value="Mobile">Mobile</option><option value="Home">Home</option><option value="Work">Work</option><option value="Other">Other</option></select></div>';
   h += '</div>';
 
-  // Emails (chip input)
+  // Emails (labeled chips)
   h += '<div class="profile-section"><div class="profile-section-title">Email Addresses</div>';
-  h += '<div class="chip-container" id="pf-emails-chips">';
-  (p.emails||[]).forEach(e => { h += '<span class="chip" onclick="this.remove()">'+esc(e)+'<span class="chip-x">&times;</span></span>'; });
+  h += '<div id="pf-emails-list">';
+  (p.emails||[]).forEach(e => {
+    const addr = typeof e === 'string' ? e : (e.address||e);
+    const lbl = typeof e === 'object' ? (e.label||'') : '';
+    h += emailChipHTML(addr, lbl);
+  });
   h += '</div>';
-  h += '<input class="k-input" id="pf-email-input" placeholder="Type email, press Enter" style="font-size:12px;margin-top:6px" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addEmailChip();}">';
+  h += '<div style="display:flex;gap:6px;margin-top:6px"><input class="k-input" id="pf-email-input" placeholder="Email" style="font-size:12px;flex:1" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addEmailChip();}"><select class="k-select" id="pf-email-label" style="font-size:11px;max-width:100px;padding:6px"><option value="">Label</option><option value="Primary">Primary</option><option value="Personal">Personal</option><option value="Work">Work</option><option value="School">School</option><option value="Other">Other</option></select></div>';
   h += '</div>';
 
   // Social Links
@@ -1637,6 +1650,8 @@ function openCropModal(file, profileId) {
   reader.readAsDataURL(file);
 }
 
+let cropZoom = 1, cropOffX = 0, cropOffY = 0, cropBaseScale = 1, cropCW = 0, cropCH = 0;
+
 function showCropUI(img) {
   const overlay = document.createElement('div');
   overlay.id = 'crop-overlay';
@@ -1644,48 +1659,72 @@ function showCropUI(img) {
 
   const maxW = Math.min(window.innerWidth - 60, 500);
   const maxH = Math.min(window.innerHeight - 180, 500);
-  const scale = Math.min(maxW / img.width, maxH / img.height, 1);
-  const cw = Math.round(img.width * scale);
-  const ch = Math.round(img.height * scale);
-  const circleR = Math.min(cw, ch) * 0.4;
+  cropBaseScale = Math.min(maxW / img.width, maxH / img.height, 1);
+  cropCW = Math.round(img.width * cropBaseScale);
+  cropCH = Math.round(img.height * cropBaseScale);
+  const circleR = Math.min(cropCW, cropCH) * 0.4;
+  cropZoom = 1;
+  cropOffX = 0;
+  cropOffY = 0;
 
-  overlay.innerHTML = '<div style="text-align:center"><div style="font-size:14px;color:#fff;margin-bottom:12px;font-weight:500">Position the circle over the face</div><canvas id="crop-canvas" width="'+cw+'" height="'+ch+'" style="border-radius:8px;cursor:move;border:1px solid rgba(255,255,255,0.1)"></canvas><div style="margin-top:16px;display:flex;gap:10px;justify-content:center"><button class="k-btn k-btn-sm" onclick="cancelCrop()" style="padding:8px 20px">Cancel</button><button class="k-btn k-btn-sm" onclick="applyCrop()" style="padding:8px 20px;background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--accent-blue)">Save Photo</button></div></div>';
+  overlay.innerHTML = '<div style="text-align:center"><div style="font-size:14px;color:#fff;margin-bottom:12px;font-weight:500">Drag to position &middot; Scroll to zoom</div><canvas id="crop-canvas" width="'+cropCW+'" height="'+cropCH+'" style="border-radius:8px;cursor:move;border:1px solid rgba(255,255,255,0.1)"></canvas><div style="display:flex;align-items:center;gap:12px;justify-content:center;margin-top:12px"><span style="font-size:11px;color:var(--text-dim)">-</span><input type="range" id="crop-zoom-slider" min="100" max="400" value="100" style="width:200px;accent-color:#38bdf8"><span style="font-size:11px;color:var(--text-dim)">+</span><span id="crop-zoom-label" style="font-size:11px;color:var(--text-muted);font-family:monospace;min-width:36px">100%</span></div><div style="margin-top:12px;display:flex;gap:10px;justify-content:center"><button class="k-btn k-btn-sm" onclick="cancelCrop()" style="padding:8px 20px">Cancel</button><button class="k-btn k-btn-sm" onclick="applyCrop()" style="padding:8px 20px;background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--accent-blue)">Save Photo</button></div></div>';
   document.body.appendChild(overlay);
 
   cropCanvas = document.getElementById('crop-canvas');
   cropCtx = cropCanvas.getContext('2d');
-  cropCircle = { x: cw / 2, y: ch / 2, r: circleR };
+  cropCircle = { x: cropCW / 2, y: cropCH / 2, r: circleR };
   cropDragging = false;
 
-  drawCrop(img, scale);
+  drawCrop(img);
 
+  // Slider zoom
+  const slider = document.getElementById('crop-zoom-slider');
+  slider.oninput = function() {
+    cropZoom = this.value / 100;
+    document.getElementById('crop-zoom-label').textContent = Math.round(cropZoom * 100) + '%';
+    drawCrop(img);
+  };
+
+  let dragStartX, dragStartY, startOffX, startOffY;
   cropCanvas.onmousedown = cropCanvas.ontouchstart = function(e) {
     e.preventDefault();
     cropDragging = true;
+    const touch = e.touches ? e.touches[0] : e;
+    dragStartX = touch.clientX;
+    dragStartY = touch.clientY;
+    startOffX = cropOffX;
+    startOffY = cropOffY;
   };
   cropCanvas.onmousemove = cropCanvas.ontouchmove = function(e) {
     if (!cropDragging) return;
     e.preventDefault();
-    const rect = cropCanvas.getBoundingClientRect();
     const touch = e.touches ? e.touches[0] : e;
-    cropCircle.x = Math.max(cropCircle.r, Math.min(cw - cropCircle.r, touch.clientX - rect.left));
-    cropCircle.y = Math.max(cropCircle.r, Math.min(ch - cropCircle.r, touch.clientY - rect.top));
-    drawCrop(img, scale);
+    cropOffX = startOffX + (touch.clientX - dragStartX);
+    cropOffY = startOffY + (touch.clientY - dragStartY);
+    drawCrop(img);
   };
   cropCanvas.onmouseup = cropCanvas.ontouchend = function() { cropDragging = false; };
-  // Scroll to resize circle
+  document.addEventListener('mouseup', function() { cropDragging = false; }, { once: false });
+
+  // Scroll to zoom
   cropCanvas.onwheel = function(e) {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? -10 : 10;
-    cropCircle.r = Math.max(30, Math.min(Math.min(cw, ch) / 2, cropCircle.r + delta));
-    drawCrop(img, scale);
+    const delta = e.deltaY > 0 ? -0.05 : 0.05;
+    cropZoom = Math.max(1, Math.min(4, cropZoom + delta));
+    slider.value = Math.round(cropZoom * 100);
+    document.getElementById('crop-zoom-label').textContent = Math.round(cropZoom * 100) + '%';
+    drawCrop(img);
   };
 }
 
-function drawCrop(img, scale) {
-  const c = cropCtx, w = cropCanvas.width, h = cropCanvas.height;
+function drawCrop(img) {
+  const c = cropCtx, w = cropCW, h = cropCH;
   c.clearRect(0, 0, w, h);
-  c.drawImage(img, 0, 0, w, h);
+  // Draw zoomed image with offset
+  const zw = w * cropZoom, zh = h * cropZoom;
+  const dx = (w - zw) / 2 + cropOffX;
+  const dy = (h - zh) / 2 + cropOffY;
+  c.drawImage(img, dx, dy, zw, zh);
   // Darken outside circle
   c.fillStyle = 'rgba(0,0,0,0.6)';
   c.fillRect(0, 0, w, h);
@@ -1700,7 +1739,7 @@ function drawCrop(img, scale) {
   c.beginPath();
   c.arc(cropCircle.x, cropCircle.y, cropCircle.r, 0, Math.PI * 2);
   c.clip();
-  c.drawImage(img, 0, 0, w, h);
+  c.drawImage(img, dx, dy, zw, zh);
   c.restore();
   // Circle border
   c.strokeStyle = 'rgba(56,189,248,0.6)';
@@ -1716,11 +1755,15 @@ function cancelCrop() {
 }
 
 async function applyCrop() {
-  // Extract the circle region at original image resolution
-  const scale = cropImg.width / cropCanvas.width;
-  const cx = cropCircle.x * scale;
-  const cy = cropCircle.y * scale;
-  const cr = cropCircle.r * scale;
+  // Map circle position back to original image coordinates, accounting for zoom and offset
+  const zw = cropCW * cropZoom, zh = cropCH * cropZoom;
+  const dx = (cropCW - zw) / 2 + cropOffX;
+  const dy = (cropCH - zh) / 2 + cropOffY;
+  // Circle center in zoomed canvas space -> original image pixel space
+  const imgScale = cropImg.width / (cropCW * cropZoom);
+  const cx = (cropCircle.x - dx) * imgScale;
+  const cy = (cropCircle.y - dy) * imgScale;
+  const cr = cropCircle.r * imgScale;
   const size = cr * 2;
 
   const out = document.createElement('canvas');
@@ -1743,31 +1786,37 @@ async function applyCrop() {
   }, 'image/png');
 }
 
+function phoneChipHTML(num, label) {
+  const lbl = label ? '<span style="font-size:9px;color:var(--accent-blue);margin-left:4px;opacity:0.7">'+esc(label)+'</span>' : '';
+  return '<div class="chip" data-number="'+esc(num)+'" data-label="'+esc(label)+'" style="display:flex;align-items:center;gap:4px" onclick="this.remove()">'+esc(fmtPhone(num))+lbl+'<span class="chip-x">&times;</span></div>';
+}
+
+function emailChipHTML(addr, label) {
+  const lbl = label ? '<span style="font-size:9px;color:var(--accent-blue);margin-left:4px;opacity:0.7">'+esc(label)+'</span>' : '';
+  return '<div class="chip" data-address="'+esc(addr)+'" data-label="'+esc(label)+'" style="display:flex;align-items:center;gap:4px" onclick="this.remove()">'+esc(addr)+lbl+'<span class="chip-x">&times;</span></div>';
+}
+
 function addPhoneChip() {
   const input = document.getElementById('pf-phone-input');
+  const labelSel = document.getElementById('pf-phone-label');
   if (!input) return;
   const v = input.value.trim();
   if (v.replace(/\D/g,'').length >= 7) {
-    const chip = document.createElement('span');
-    chip.className = 'chip';
-    chip.onclick = function() { this.remove(); };
-    chip.innerHTML = esc(v) + '<span class="chip-x">&times;</span>';
-    document.getElementById('pf-phones-chips').appendChild(chip);
+    document.getElementById('pf-phones-list').insertAdjacentHTML('beforeend', phoneChipHTML(v, labelSel.value));
     input.value = '';
+    labelSel.value = '';
   }
 }
 
 function addEmailChip() {
   const input = document.getElementById('pf-email-input');
+  const labelSel = document.getElementById('pf-email-label');
   if (!input) return;
   const v = input.value.trim();
   if (v && v.includes('@')) {
-    const chip = document.createElement('span');
-    chip.className = 'chip';
-    chip.onclick = function() { this.remove(); };
-    chip.innerHTML = esc(v) + '<span class="chip-x">&times;</span>';
-    document.getElementById('pf-emails-chips').appendChild(chip);
+    document.getElementById('pf-emails-list').insertAdjacentHTML('beforeend', emailChipHTML(v, labelSel.value));
     input.value = '';
+    labelSel.value = '';
   }
 }
 
@@ -1855,8 +1904,8 @@ async function saveProfile(id) {
     last_name: document.getElementById('pf-lname').value.trim(),
     relation: document.getElementById('pf-relation').value.trim(),
     aliases: document.getElementById('pf-aliases').value.split(',').map(s=>s.trim()).filter(Boolean),
-    phones: Array.from(document.querySelectorAll('#pf-phones-chips .chip')).map(c => c.textContent.replace('\u00d7','').trim()),
-    emails: Array.from(document.querySelectorAll('#pf-emails-chips .chip')).map(c => c.textContent.replace('\u00d7','').trim()),
+    phones: Array.from(document.querySelectorAll('#pf-phones-list .chip')).map(c => ({ number: c.dataset.number || c.textContent.replace('\u00d7','').trim(), label: c.dataset.label || '' })),
+    emails: Array.from(document.querySelectorAll('#pf-emails-list .chip')).map(c => ({ address: c.dataset.address || c.textContent.replace('\u00d7','').trim(), label: c.dataset.label || '' })),
     notes: document.getElementById('pf-notes').value,
     social_links,
     age: document.getElementById('pf-age').value.trim(),

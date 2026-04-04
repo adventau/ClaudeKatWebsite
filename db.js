@@ -184,8 +184,8 @@ async function createK108Tables() {
       photo_url TEXT,
       relation TEXT,
       notes TEXT,
-      phones TEXT[] DEFAULT '{}',
-      emails TEXT[] DEFAULT '{}',
+      phones JSONB DEFAULT '[]',
+      emails JSONB DEFAULT '[]',
       social_links JSONB DEFAULT '[]',
       age TEXT,
       birthday DATE,
@@ -201,6 +201,16 @@ async function createK108Tables() {
   await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS address JSONB DEFAULT '{}'`);
   // Migration: normalize SMS phone numbers (strip leading country code 1)
   await query(`UPDATE k108_sms SET phone = substring(phone from 2) WHERE length(phone) = 11 AND phone LIKE '1%'`);
+  // Migration: convert phones/emails from TEXT[] to JSONB for labels support
+  try {
+    const colCheck = await query(`SELECT data_type FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
+    if (colCheck.rows[0] && colCheck.rows[0].data_type === 'ARRAY') {
+      await query(`ALTER TABLE k108_profiles ALTER COLUMN phones TYPE JSONB USING array_to_json(phones)::jsonb`);
+      await query(`ALTER TABLE k108_profiles ALTER COLUMN phones SET DEFAULT '[]'::jsonb`);
+      await query(`ALTER TABLE k108_profiles ALTER COLUMN emails TYPE JSONB USING array_to_json(emails)::jsonb`);
+      await query(`ALTER TABLE k108_profiles ALTER COLUMN emails SET DEFAULT '[]'::jsonb`);
+    }
+  } catch(e) { console.log('[K108] phones/emails migration:', e.message); }
   await query(`
     CREATE TABLE IF NOT EXISTS k108_profile_files (
       id SERIAL PRIMARY KEY,
