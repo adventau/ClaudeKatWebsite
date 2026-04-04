@@ -6237,6 +6237,16 @@ app.post('/api/k108/search', async (req, res) => {
     }
 
     console.log('[K108] API result status:', apiResult.status, apiResult.error || '');
+    if (apiResult.raw) console.log('[K108] Raw response keys:', Object.keys(apiResult.raw), 'full:', JSON.stringify(apiResult.raw).substring(0, 500));
+
+    // If the API returned an error, send it to the client
+    if (apiResult.status === 'error') {
+      return res.json({ error: apiResult.error || 'Whitepages API error', results: [], meta: { duration: Date.now() - start, sources: [{ name: 'whitepages', status: 'error' }] } });
+    }
+    if (apiResult.status === 'not_configured') {
+      return res.json({ error: 'Whitepages API key not configured', results: [], meta: { duration: Date.now() - start } });
+    }
+
     const results = normalizeResults(apiResult);
     console.log('[K108] Normalized results count:', results.length);
     results.sort((a, b) => b.confidence - a.confidence);
