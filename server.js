@@ -6292,7 +6292,7 @@ app.post('/api/k108/numvalidate', async (req, res) => {
     const cleaned = phone.replace(/\D/g, '');
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 10000);
-    const resp = await fetch(`http://apilayer.net/api/validate?access_key=${NUMVERIFY_KEY}&number=${cleaned}&format=1`, { signal: ctrl.signal });
+    const resp = await nodeFetch(`http://apilayer.net/api/validate?access_key=${NUMVERIFY_KEY}&number=${cleaned}&format=1`, { signal: ctrl.signal });
     clearTimeout(timer);
     const data = await resp.json();
 
@@ -6308,7 +6308,7 @@ app.post('/api/k108/numvalidate', async (req, res) => {
 
 // ── K-108 Covert SMS ─────────────────────────────────────────────────────────
 const TEXTBELT_KEY = process.env.TEXTBELT_API_KEY || '';
-const K108_BASE_URL = process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000';
+const K108_BASE_URL = process.env.RENDER_EXTERNAL_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000');
 
 app.post('/api/k108/sms/send', async (req, res) => {
   const username = k108Auth(req, res);
@@ -6324,7 +6324,7 @@ app.post('/api/k108/sms/send', async (req, res) => {
     const cleaned = phone.replace(/\D/g, '');
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 15000);
-    const resp = await fetch('https://textbelt.com/text', {
+    const resp = await nodeFetch('https://textbelt.com/text', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -6347,6 +6347,8 @@ app.post('/api/k108/sms/send', async (req, res) => {
         );
       }
       await k108Log(username, 'sms_sent', { phone: cleaned, preview: message.substring(0, 50) }, req.ip);
+      // Emit so UI updates instantly
+      io.emit('k108:sms-sent', { phone: cleaned, message, username, timestamp: Date.now() });
     }
 
     const quota = getK108Quota('sms');
@@ -6360,7 +6362,9 @@ app.post('/api/k108/sms/send', async (req, res) => {
 app.post('/api/k108/sms-reply', async (req, res) => {
   const { fromNumber, text } = req.body;
   if (!fromNumber || !text) return res.status(400).json({ error: 'Invalid webhook data' });
-  const phone = fromNumber.replace(/\D/g, '');
+  let phone = fromNumber.replace(/\D/g, '');
+  // Strip leading country code 1 to match stored 10-digit format
+  if (phone.length === 11 && phone.startsWith('1')) phone = phone.slice(1);
   if (db.pool) {
     await db.query(
       'INSERT INTO k108_sms (direction, phone, message, username) VALUES ($1,$2,$3,$4)',

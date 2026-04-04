@@ -565,7 +565,7 @@
 
           <!-- Covert SMS -->
           <div class="dash-card dc-sms" onclick="navigateTo('#/sms')">
-            <div class="dc-head"><div class="dc-title">Covert SMS</div><div class="dc-sub">Encrypted text messaging</div><div class="dc-neon dc-neon-cyan"></div></div>
+            <div class="dc-head"><div class="dc-title" style="display:flex;align-items:center;gap:8px">Covert SMS<span id="sms-unread-badge" style="display:none;min-width:18px;height:18px;padding:0 5px;background:var(--status-red,#f87171);color:#fff;font-size:10px;font-weight:700;border-radius:9px;align-items:center;justify-content:center"></span></div><div class="dc-sub">Encrypted text messaging</div><div class="dc-neon dc-neon-cyan"></div></div>
             <div class="dc-body">
               <div class="dc-msg-preview">
                 <div class="dc-msg-bubble dc-msg-out">Message sent</div>
@@ -749,7 +749,19 @@
 <script>
 // ═══ State ═══
 let authToken = null, currentUser = null, lookupTab = 'name', searching = false, currentSmsPhone = null;
+let k108SmsUnread = 0;
 const socket = io();
+
+function updateSmsBadge() {
+  const badge = document.getElementById('sms-unread-badge');
+  if (!badge) return;
+  if (k108SmsUnread > 0) {
+    badge.textContent = k108SmsUnread;
+    badge.style.display = 'inline-flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
 
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
 const SNAMES = {AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',DC:'Washington DC'};
@@ -802,6 +814,12 @@ const VIEW_TITLES = { 'dashboard':'Dashboard', 'lookup':'People Lookup', 'sms':'
 
   // SMS socket
   socket.on('k108:sms-reply', data => {
+    if (currentSmsPhone === data.phone) loadSmsThread(data.phone);
+    else k108SmsUnread++;
+    loadSmsThreads();
+    updateSmsBadge();
+  });
+  socket.on('k108:sms-sent', data => {
     if (currentSmsPhone === data.phone) loadSmsThread(data.phone);
     loadSmsThreads();
   });
@@ -945,6 +963,14 @@ async function loadDashboardData() {
     const smsData = await kAuthFetch('/api/k108/sms/threads');
     if (smsData && smsData.threads) document.getElementById('dash-sms-threads').textContent = smsData.threads.length;
   } catch(e){}
+  // Load recent profiles for dashboard preview
+  try {
+    const profileData = await kAuthFetch('/api/k108/profiles', {});
+    if (profileData && profileData.profiles && profileData.profiles.length > 0) {
+      const pp = document.getElementById('dash-profiles-preview');
+      if (pp) pp.innerHTML = profileData.profiles.slice(0, 3).map(p => '<div class="dc-pline"><div class="dc-pline-dot" style="background:var(--accent-indigo)"></div><div class="dc-pline-text">'+esc((p.first_name||'')+' '+(p.last_name||''))+'</div></div>').join('');
+    }
+  } catch(e){}
 }
 
 // ═══ Router ═══
@@ -965,7 +991,7 @@ function handleRoute() {
   // Load data for views
   if (viewName === 'log') loadActivityLog();
   if (viewName === 'vault') loadVaultItems();
-  if (viewName === 'sms') loadSmsThreads();
+  if (viewName === 'sms') { k108SmsUnread = 0; updateSmsBadge(); loadSmsThreads(); }
   if (viewName === 'profiles') { document.getElementById('profile-detail').style.display = 'none'; document.getElementById('profiles-main').style.display = 'block'; }
 }
 
@@ -1909,6 +1935,7 @@ async function loadActivityLog() {
     const detail = e.detail || {};
     let desc = e.action_type;
     if (e.action_type==='people_search') desc = 'Searched ' + (detail.type||'') + ' (' + (detail.resultCount||0) + ' results)';
+    else if (e.action_type==='profile_search') desc = 'Profile search: ' + (detail.term||'');
     else if (e.action_type==='sms_sent') desc = 'SMS to ' + (detail.phone||'') + ': ' + (detail.preview||'');
     else if (e.action_type==='number_validate') desc = 'Validated ' + (detail.phone||'');
     else if (e.action_type==='profile_create') desc = 'Created profile: ' + (detail.name||'');
