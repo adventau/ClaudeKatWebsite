@@ -6087,6 +6087,9 @@ async function searchPeopleByAddress(street, city, state, zip) {
 function normalizeResults(apiResult) {
   if (!apiResult || apiResult.status !== 'ok' || !apiResult.raw) return [];
   const raw = apiResult.raw;
+  console.log('[K108] Whitepages raw keys:', Object.keys(raw));
+  if (raw.person) console.log('[K108] raw.person type:', typeof raw.person, Array.isArray(raw.person) ? 'array len=' + raw.person.length : '');
+  if (raw.results) console.log('[K108] raw.results type:', typeof raw.results, Array.isArray(raw.results) ? 'array len=' + raw.results.length : '');
 
   // Whitepages v3 returns person data in various structures depending on endpoint
   let people = [];
@@ -6233,7 +6236,9 @@ app.post('/api/k108/search', async (req, res) => {
       return res.status(400).json({ error: 'Invalid search type' });
     }
 
+    console.log('[K108] API result status:', apiResult.status, apiResult.error || '');
     const results = normalizeResults(apiResult);
+    console.log('[K108] Normalized results count:', results.length);
     results.sort((a, b) => b.confidence - a.confidence);
 
     if (apiResult.status === 'ok') useK108Quota('lookup');
