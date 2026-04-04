@@ -230,6 +230,144 @@ async function createK108Tables() {
       label TEXT
     )
   `);
+
+  // ── Surveillance (legacy column kept for compat) ──
+  await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS surveillance_active BOOLEAN DEFAULT FALSE`);
+
+  // ── Case Files tables ──
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_cases (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'OPEN',
+      classification TEXT NOT NULL DEFAULT 'CONFIDENTIAL',
+      summary TEXT DEFAULT '',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      last_edited_by TEXT
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_case_subjects (
+      id SERIAL PRIMARY KEY,
+      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
+      profile_id INT REFERENCES k108_profiles(id) ON DELETE CASCADE,
+      role TEXT DEFAULT 'Associate',
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(case_id, profile_id)
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_case_evidence (
+      id SERIAL PRIMARY KEY,
+      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      metadata JSONB DEFAULT '{}',
+      source_id TEXT,
+      notes TEXT DEFAULT '',
+      dismissed BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_case_findings (
+      id SERIAL PRIMARY KEY,
+      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      resolved BOOLEAN DEFAULT FALSE,
+      order_index INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_case_questions (
+      id SERIAL PRIMARY KEY,
+      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      resolved BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_case_timeline (
+      id SERIAL PRIMARY KEY,
+      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
+      event_date TIMESTAMP,
+      event_type TEXT DEFAULT 'Incident',
+      description TEXT NOT NULL,
+      evidence_ids JSONB DEFAULT '[]',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_case_canvas_nodes (
+      id SERIAL PRIMARY KEY,
+      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
+      type TEXT NOT NULL DEFAULT 'Note',
+      label TEXT NOT NULL DEFAULT '',
+      x REAL DEFAULT 200,
+      y REAL DEFAULT 200,
+      metadata JSONB DEFAULT '{}',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_case_canvas_edges (
+      id SERIAL PRIMARY KEY,
+      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
+      from_node_id INT REFERENCES k108_case_canvas_nodes(id) ON DELETE CASCADE,
+      to_node_id INT REFERENCES k108_case_canvas_nodes(id) ON DELETE CASCADE,
+      label TEXT DEFAULT '',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  // Migration: add dismissed column to evidence if missing
+  await query(`ALTER TABLE k108_case_evidence ADD COLUMN IF NOT EXISTS dismissed BOOLEAN DEFAULT FALSE`);
+
+  // ── Surveillance jobs ──
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_surveillance_jobs (
+      id SERIAL PRIMARY KEY,
+      profile_id INT REFERENCES k108_profiles(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      profile_payload JSONB DEFAULT '{}',
+      finding_count INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW(),
+      completed_at TIMESTAMP
+    )
+  `);
+
+  // ── Surveillance results ──
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_surveillance_results (
+      id SERIAL PRIMARY KEY,
+      job_id INT REFERENCES k108_surveillance_jobs(id) ON DELETE CASCADE,
+      profile_id INT REFERENCES k108_profiles(id) ON DELETE CASCADE,
+      headline TEXT,
+      source_url TEXT,
+      source_name TEXT,
+      summary TEXT,
+      confidence TEXT DEFAULT 'unverified',
+      read BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  // Migration: add columns if upgrading from old schema
+  try { await query(`ALTER TABLE k108_surveillance_results ADD COLUMN IF NOT EXISTS job_id INT`); } catch(e) {}
+  try { await query(`ALTER TABLE k108_surveillance_results ADD COLUMN IF NOT EXISTS source_name TEXT`); } catch(e) {}
+  try { await query(`ALTER TABLE k108_surveillance_results ADD COLUMN IF NOT EXISTS confidence TEXT DEFAULT 'unverified'`); } catch(e) {}
+  try { await query(`ALTER TABLE k108_surveillance_results ADD COLUMN IF NOT EXISTS read BOOLEAN DEFAULT FALSE`); } catch(e) {}
+
+  // ── K-108 Briefings ──
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_briefings (
+      id SERIAL PRIMARY KEY,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
 }
 
 // Convert a DB row to the camelCase message object shape the frontend expects

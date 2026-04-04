@@ -6820,6 +6820,903 @@ app.delete('/api/k108/labels/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── K-108 Command Bar ────────────────────────────────────────────────────────
+app.post('/api/k108/command', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { command } = req.body;
+  if (!command || typeof command !== 'string') return res.status(400).json({ error: 'Command required' });
+  const raw = command.trim();
+  const parts = raw.split(/\s+/);
+  const cmd = parts[0]?.toLowerCase();
+
+  const lines = (text, cls = 'info') => ({ lines: [{ text, cls }] });
+  const multi = (...arr) => ({ lines: arr.map(([text, cls]) => ({ text, cls: cls || 'info' })) });
+
+  try {
+    // ── Chat ──
+    if (cmd === 'broadcast') {
+      const text = parts.slice(1).join(' ');
+      if (!text) return res.json(lines('Usage: broadcast <message>', 'warn'));
+      const msg = { id: uuidv4(), sender: 'system', type: 'text', text, files: [], priority: false, replyTo: null, timestamp: Date.now(), edited: false, editedAt: null, reactions: {}, read: false, readAt: null, unsendable: false, aiGenerated: false, systemMessage: true };
+      if (db.pool) await db.insertMessage(msg); else { const msgs = rd(F.messages); if (!Array.isArray(msgs.main)) msgs.main = []; msgs.main.push(msg); wd(F.messages, msgs); }
+      io.emit('new-message', msg);
+      await k108Log(username, 'command_bar', { command: raw }, req.ip);
+      return res.json(lines(`Broadcast sent: "${text}"`, 'success'));
+    }
+
+    // ── Announcements ──
+    if (cmd === 'announcement') {
+      const sub = parts[1]?.toLowerCase();
+      if (sub === 'list') {
+        const anns = rd(F.announcements) || [];
+        if (!anns.length) return res.json(lines('No announcements', 'dim'));
+        return res.json({ lines: [{ text: `${anns.length} announcements`, cls: 'success' }], table: { headers: ['ID', 'Title', 'Target', 'Created'], rows: anns.map(a => [a.id.substring(0, 8), (a.title || '').substring(0, 30), a.targetUser || 'both', new Date(a.createdAt).toLocaleDateString()]) } });
+      }
+      if (sub === 'delete') {
+        const id = parts[2];
+        if (!id) return res.json(lines('Usage: announcement delete <id>', 'warn'));
+        let anns = rd(F.announcements) || [];
+        const idx = anns.findIndex(a => a.id.startsWith(id));
+        if (idx === -1) return res.json(lines('Announcement not found', 'error'));
+        const removed = anns.splice(idx, 1)[0];
+        wd(F.announcements, anns);
+        io.emit('announcement-removed', removed.id);
+        await k108Log(username, 'command_bar', { command: raw }, req.ip);
+        return res.json(lines(`Deleted announcement: "${removed.title}"`, 'success'));
+      }
+      if (sub === 'new') {
+        const title = parts.slice(2).join(' ');
+        if (!title) return res.json(lines('Usage: announcement new <message>', 'warn'));
+        const ann = { id: uuidv4(), title, content: '', createdBy: username, createdAt: Date.now(), active: true, targetUser: 'both' };
+        const anns = rd(F.announcements) || [];
+        anns.push(ann);
+        wd(F.announcements, anns);
+        io.emit('announcement', ann);
+        await k108Log(username, 'command_bar', { command: raw }, req.ip);
+        return res.json(lines(`Announcement created: "${title}"`, 'success'));
+      }
+      return res.json(lines('Usage: announcement list | announcement delete <id> | announcement new <message>', 'warn'));
+    }
+
+    // ── Settings ──
+    if (cmd === 'settings') {
+      const s = rd(F.settings);
+      return res.json(multi(
+        ['── Settings ──', 'header'],
+        [`  Vault Passcode: ${s.vaultPasscode || '(not set)'}`, 'data'],
+        [`  Emails: ${JSON.stringify(s.emails || {})}`, 'data'],
+        [`  Maintenance: ${maintenanceMode ? 'ON' : 'OFF'}`, 'data'],
+      ));
+    }
+
+    if (cmd === 'set') {
+      const prop = parts[1]?.toLowerCase();
+      if (prop === 'password') {
+        const pw = parts.slice(2).join(' ');
+        if (!pw) return res.json(lines('Usage: set password <new>', 'warn'));
+        const s = rd(F.settings);
+        s.sitePassword = bcrypt.hashSync(pw, 10);
+        wd(F.settings, s);
+        await k108Log(username, 'command_bar', { command: 'set password ***' }, req.ip);
+        return res.json(lines('Site password updated', 'success'));
+      }
+      if (prop === 'eval-password') {
+        const pw = parts.slice(2).join(' ');
+        if (!pw) return res.json(lines('Usage: set eval-password <new>', 'warn'));
+        const s = rd(F.settings);
+        s.evalPassword = pw;
+        wd(F.settings, s);
+        await k108Log(username, 'command_bar', { command: 'set eval-password ***' }, req.ip);
+        return res.json(lines('Eval password updated', 'success'));
+      }
+      if (prop === 'vault-code') {
+        const code = parts[2];
+        if (!code) return res.json(lines('Usage: set vault-code <code>', 'warn'));
+        const s = rd(F.settings);
+        s.vaultPasscode = code;
+        wd(F.settings, s);
+        await k108Log(username, 'command_bar', { command: 'set vault-code ***' }, req.ip);
+        return res.json(lines('Vault passcode updated', 'success'));
+      }
+      if (prop === 'email') {
+        const user = parts[2]?.toLowerCase();
+        const emails = parts[3];
+        if (!user || !emails) return res.json(lines('Usage: set email <user> <e1,e2>', 'warn'));
+        const s = rd(F.settings);
+        if (!s.emails) s.emails = {};
+        s.emails[user] = emails;
+        wd(F.settings, s);
+        await k108Log(username, 'command_bar', { command: raw }, req.ip);
+        return res.json(lines(`Email for ${user} set to: ${emails}`, 'success'));
+      }
+      return res.json(lines('Usage: set password|eval-password|vault-code|email', 'warn'));
+    }
+
+    if (cmd === 'reset' && parts[1]?.toLowerCase() === 'password') {
+      const target = parts[2]?.toLowerCase();
+      if (!target || !['kaliph', 'kathrine'].includes(target)) return res.json(lines('Usage: reset password <kaliph|kathrine>', 'warn'));
+      const users = rd(F.users);
+      if (users[target]) { delete users[target].profilePasscode; wd(F.users, users); }
+      await k108Log(username, 'command_bar', { command: raw }, req.ip);
+      return res.json(lines(`${target} profile PIN reset — will be prompted on next login`, 'success'));
+    }
+
+    // ── Briefing ──
+    if (cmd === 'feedback') {
+      if (!db.pool) return res.json(lines('No database configured', 'error'));
+      const result = await db.query('SELECT id, user_id, briefing_date, feedback_type, section, highlighted_text, note, permanent FROM briefing_feedback ORDER BY created_at DESC LIMIT 50');
+      if (!result.rows.length) return res.json(lines('No feedback found', 'dim'));
+      return res.json({ lines: [{ text: `${result.rows.length} feedback entries`, cls: 'success' }], table: { headers: ['ID', 'User', 'Date', 'Type', 'Detail'], rows: result.rows.map(r => [String(r.id), r.user_id, new Date(r.briefing_date).toISOString().slice(0, 10), r.feedback_type, (r.section || r.highlighted_text || r.note || '').substring(0, 40)]) } });
+    }
+
+    // ── System ──
+    if (cmd === 'maintenance') {
+      const sub = parts[1]?.toLowerCase();
+      if (sub === 'on') { maintenanceMode = true; io.emit('force-logout'); await k108Log(username, 'command_bar', { command: raw }, req.ip); return res.json(multi(['Maintenance mode ON', 'warn'], ['All users force-logged out', 'data'])); }
+      if (sub === 'off') { maintenanceMode = false; await k108Log(username, 'command_bar', { command: raw }, req.ip); return res.json(lines('Maintenance mode OFF', 'success')); }
+      return res.json(lines('Usage: maintenance on | maintenance off', 'warn'));
+    }
+
+    if (raw.toLowerCase() === 'force logout') { io.emit('force-logout'); await k108Log(username, 'command_bar', { command: raw }, req.ip); return res.json(lines('Force logout sent to all clients', 'success')); }
+    if (raw.toLowerCase() === 'force reload') { io.emit('force-reload'); await k108Log(username, 'command_bar', { command: raw }, req.ip); return res.json(lines('Force reload sent to all clients', 'success')); }
+
+    if (cmd === 'uptime') {
+      const secs = Math.floor(process.uptime());
+      const d = Math.floor(secs / 86400), h = Math.floor((secs % 86400) / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
+      return res.json(lines(`Server uptime: ${d}d ${h}h ${m}m ${s}s`, 'success'));
+    }
+
+    if (cmd === 'backup') {
+      const bundle = {};
+      for (const [k, file] of Object.entries(F)) { bundle[k] = rd(file) || {}; }
+      const sent = await sendMail('royalkvault@gmail.com', 'Manual Backup — K-108 Command Bar', '<p>Backup triggered from K-108 command bar.</p>', [{ filename: `vault-backup-${Date.now()}.json`, content: JSON.stringify(bundle, null, 2) }]);
+      await k108Log(username, 'command_bar', { command: raw }, req.ip);
+      return res.json(lines(sent ? 'Backup emailed' : 'Backup email failed', sent ? 'success' : 'error'));
+    }
+
+    if (raw.toLowerCase().startsWith('republish update-log')) {
+      const target = parts[2]?.toLowerCase();
+      if (target && target !== 'kaliph' && target !== 'kathrine') return res.json(lines('Usage: republish update-log [kaliph|kathrine]', 'warn'));
+      io.emit('show-update-log', { target: target || 'both' });
+      await k108Log(username, 'command_bar', { command: raw }, req.ip);
+      return res.json(lines(`Republished update log to ${target || 'both'}`, 'success'));
+    }
+
+    if (raw.toLowerCase().startsWith('custom update-log')) {
+      const rest = raw.replace(/^custom\s+update-log\s+/i, '');
+      const firstWord = rest.split(' ')[0]?.toLowerCase();
+      let target = 'both', message = rest;
+      if (firstWord === 'kaliph' || firstWord === 'kathrine') { target = firstWord; message = rest.slice(firstWord.length).trim(); }
+      if (!message) return res.json(lines('Usage: custom update-log [kaliph|kathrine] <message>', 'warn'));
+      io.emit('show-custom-update-log', { target, message });
+      await k108Log(username, 'command_bar', { command: raw }, req.ip);
+      return res.json(lines(`Custom update log sent to ${target}`, 'success'));
+    }
+
+    if (cmd === 'emit') {
+      const event = parts[1];
+      if (!event) return res.json(lines('Usage: emit <event>', 'warn'));
+      let data = {};
+      const jsonPart = parts.slice(2).join(' ');
+      if (jsonPart) { try { data = JSON.parse(jsonPart); } catch { data = jsonPart; } }
+      io.emit(event, data);
+      await k108Log(username, 'command_bar', { command: raw }, req.ip);
+      return res.json(lines(`Emitted "${event}"`, 'success'));
+    }
+
+    // ── K-108 Specific ──
+    if (cmd === 'profile') {
+      const searchTerm = parts.slice(1).join(' ');
+      if (!searchTerm) return res.json(lines('Usage: profile <name>', 'warn'));
+      if (db.pool) {
+        const r = await db.query(`SELECT id, first_name, last_name, aliases FROM k108_profiles WHERE LOWER(first_name || ' ' || last_name) LIKE $1 OR EXISTS (SELECT 1 FROM unnest(aliases) a WHERE LOWER(a) LIKE $1) ORDER BY updated_at DESC LIMIT 5`, ['%' + searchTerm.toLowerCase() + '%']);
+        if (!r.rows.length) return res.json(lines('No matching profiles found', 'warn'));
+        if (r.rows.length === 1) return res.json({ lines: [{ text: `Opening profile: ${r.rows[0].first_name} ${r.rows[0].last_name}`, cls: 'success' }], navigate: `#/profiles/${r.rows[0].id}` });
+        return res.json({ lines: [{ text: `${r.rows.length} profiles found:`, cls: 'info' }], profileResults: r.rows.map(p => ({ id: p.id, name: `${p.first_name} ${p.last_name}` })) });
+      }
+      return res.json(lines('Database required for profile search', 'error'));
+    }
+
+    if (cmd === 'case') {
+      const searchTerm = parts.slice(1).join(' ');
+      if (!searchTerm) return res.json(lines('Usage: case <name>', 'warn'));
+      if (db.pool) {
+        const r = await db.query('SELECT id, name, status FROM k108_cases WHERE LOWER(name) LIKE $1 ORDER BY updated_at DESC LIMIT 5', ['%' + searchTerm.toLowerCase() + '%']);
+        if (!r.rows.length) return res.json(lines('No matching cases found', 'warn'));
+        if (r.rows.length === 1) return res.json({ lines: [{ text: `Opening case: ${r.rows[0].name}`, cls: 'success' }], navigate: `#/cases/${r.rows[0].id}` });
+        return res.json({ lines: [{ text: `${r.rows.length} cases found:`, cls: 'info' }], caseResults: r.rows.map(c => ({ id: c.id, name: c.name, status: c.status })) });
+      }
+      return res.json(lines('Database required for case search', 'error'));
+    }
+
+    if (cmd === 'sms' && parts[1]?.toLowerCase() === 'quota') {
+      const q = getK108Quota('sms');
+      return res.json(lines(`SMS quota: ${q.used}/${q.total} used — ${q.total - q.used} remaining`, 'success'));
+    }
+
+    if (cmd === 'numvalidate' && parts[1]?.toLowerCase() === 'quota') {
+      const q = getK108Quota('numvalidate');
+      return res.json(lines(`Numvalidate quota: ${q.used}/${q.total} used — ${q.total - q.used} remaining`, 'success'));
+    }
+
+    if (cmd === 'activity') {
+      if (db.pool) {
+        const r = await db.query('SELECT * FROM k108_activity_log ORDER BY created_at DESC LIMIT 10');
+        if (!r.rows.length) return res.json(lines('No activity recorded', 'dim'));
+        return res.json({ lines: [{ text: 'Last 10 Activity Log entries:', cls: 'header' }], table: { headers: ['Time', 'User', 'Action', 'Detail'], rows: r.rows.map(e => [new Date(e.created_at).toLocaleString(), e.username, e.action_type, JSON.stringify(e.detail || {}).substring(0, 50)]) } });
+      }
+      const entries = getK108LogEntries().slice(0, 10);
+      if (!entries.length) return res.json(lines('No activity recorded', 'dim'));
+      return res.json({ lines: [{ text: 'Last 10 Activity Log entries:', cls: 'header' }], table: { headers: ['Time', 'User', 'Action', 'Detail'], rows: entries.map(e => [new Date(e.created_at).toLocaleString(), e.username, e.action_type, JSON.stringify(e.detail || {}).substring(0, 50)]) } });
+    }
+
+    if (cmd === 'validate') {
+      const phone = parts.slice(1).join('').replace(/\D/g, '');
+      if (!phone || phone.length < 10) return res.json(lines('Usage: validate <phone number>', 'warn'));
+      if (!process.env.NUMVERIFY_API_KEY) return res.json(lines('Numverify API key not configured', 'error'));
+      if (!useK108Quota('numvalidate')) return res.json(lines('Numvalidate quota exhausted', 'error'));
+      try {
+        const r = await nodeFetch(`http://apilayer.net/api/validate?access_key=${process.env.NUMVERIFY_API_KEY}&number=1${phone.slice(-10)}&country_code=US&format=1`);
+        const d = await r.json();
+        await k108Log(username, 'number_validate', { phone, source: 'command_bar' }, req.ip);
+        return res.json(multi(
+          ['── Validation Result ──', 'header'],
+          [`  Valid: ${d.valid ? 'YES' : 'NO'}`, d.valid ? 'success' : 'error'],
+          [`  Number: ${d.international_format || phone}`, 'data'],
+          [`  Carrier: ${d.carrier || 'Unknown'}`, 'data'],
+          [`  Line Type: ${d.line_type || 'Unknown'}`, 'data'],
+          [`  Location: ${d.location || 'Unknown'}`, 'data'],
+        ));
+      } catch (e) { return res.json(lines('Validation failed: ' + e.message, 'error')); }
+    }
+
+    if (cmd === 'goto') {
+      const target = parts[1]?.toLowerCase();
+      const validModules = ['people', 'sms', 'numvalidate', 'profiles', 'cases', 'vault', 'metadata', 'activity', 'briefing', 'mailbox', 'log'];
+      if (!target || !validModules.includes(target)) return res.json(lines(`Usage: goto <${validModules.join('|')}>`, 'warn'));
+      const hashMap = { people: '#/lookup', sms: '#/sms', numvalidate: '#/numvalidate', profiles: '#/profiles', cases: '#/cases', vault: '#/vault', metadata: '#/metadata', activity: '#/log', log: '#/log', briefing: '#/briefing', mailbox: '#/mailbox' };
+      return res.json({ lines: [{ text: `Navigating to ${target}`, cls: 'success' }], navigate: hashMap[target] || '#/' });
+    }
+
+    if (cmd === 'surveillance') {
+      const profileName = parts.slice(1).join(' ');
+      if (!profileName) return res.json(lines('Usage: surveillance <profile name> — queues a surveillance run', 'warn'));
+      if (!db.pool) return res.json(lines('Database required', 'error'));
+      const r = await db.query(`SELECT id, first_name, last_name FROM k108_profiles WHERE LOWER(first_name || ' ' || last_name) LIKE $1 LIMIT 1`, ['%' + profileName.toLowerCase() + '%']);
+      if (!r.rows.length) return res.json(lines('Profile not found', 'error'));
+      const p = r.rows[0];
+      // Check for existing pending/in_progress
+      const existing = await db.query(`SELECT id FROM k108_surveillance_jobs WHERE profile_id = $1 AND status IN ('pending','in_progress') LIMIT 1`, [p.id]);
+      if (existing.rows.length) return res.json(lines(`Surveillance already queued for ${p.first_name} ${p.last_name}`, 'warn'));
+      // Queue it
+      const prof = (await db.query('SELECT * FROM k108_profiles WHERE id = $1', [p.id])).rows[0];
+      const addr = typeof prof.address === 'string' ? JSON.parse(prof.address || '{}') : (prof.address || {});
+      const payload = { fullName: `${prof.first_name||''} ${prof.last_name||''}`.trim(), aliases: prof.aliases || [], city: addr.city || '', notes: prof.notes || '' };
+      await db.query('INSERT INTO k108_surveillance_jobs (profile_id, status, profile_payload) VALUES ($1, $2, $3)', [p.id, 'pending', JSON.stringify(payload)]);
+      await k108Log(username, 'surveillance_triggered', { profileId: p.id, name: payload.fullName }, req.ip);
+      return res.json(lines(`Surveillance queued for ${p.first_name} ${p.last_name}`, 'success'));
+    }
+
+    if (cmd === 'k108' && parts[1]?.toLowerCase() === 'reset-passcode') {
+      const target = parts[2]?.toLowerCase();
+      if (!target || !['kaliph', 'kathrine'].includes(target)) return res.json(lines('Usage: k108 reset-passcode <kaliph|kathrine>', 'warn'));
+      await deleteK108Passcode(target);
+      await k108Log(username, 'command_bar', { command: raw }, req.ip);
+      return res.json(lines(`K-108 passcode reset for ${target}`, 'success'));
+    }
+
+    if (cmd === 'help') {
+      return res.json({ helpList: true });
+    }
+
+    if (cmd === 'clear') {
+      return res.json({ clear: true });
+    }
+
+    return res.json(lines(`Unknown command: "${raw}". Type "help" for available commands.`, 'error'));
+  } catch (e) {
+    console.error('[k108 cmd]', e);
+    return res.json(lines(`Error: ${e.message}`, 'error'));
+  }
+});
+
+// ── K-108 Command Bar — autocomplete data ────────────────────────────────────
+app.post('/api/k108/command/autocomplete', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { type, query: q } = req.body;
+  try {
+    if (type === 'profiles' && db.pool) {
+      const r = await db.query(`SELECT id, first_name, last_name, aliases FROM k108_profiles WHERE LOWER(first_name || ' ' || last_name) LIKE $1 OR EXISTS (SELECT 1 FROM unnest(aliases) a WHERE LOWER(a) LIKE $1) ORDER BY updated_at DESC LIMIT 10`, ['%' + (q || '').toLowerCase() + '%']);
+      return res.json({ items: r.rows.map(p => ({ id: p.id, label: `${p.first_name} ${p.last_name}` })) });
+    }
+    if (type === 'cases' && db.pool) {
+      const r = await db.query('SELECT id, name, status FROM k108_cases WHERE LOWER(name) LIKE $1 ORDER BY updated_at DESC LIMIT 10', ['%' + (q || '').toLowerCase() + '%']);
+      return res.json({ items: r.rows.map(c => ({ id: c.id, label: c.name, status: c.status })) });
+    }
+    if (type === 'surveillance' && db.pool) {
+      const r = await db.query('SELECT id, first_name, last_name, surveillance_active FROM k108_profiles WHERE surveillance_active = true ORDER BY updated_at DESC LIMIT 20');
+      return res.json({ items: r.rows.map(p => ({ id: p.id, label: `${p.first_name} ${p.last_name}` })) });
+    }
+    res.json({ items: [] });
+  } catch (e) { res.json({ items: [] }); }
+});
+
+// ── K-108 Case Files — JSON fallback store ───────────────────────────────────
+const K108_CASES_FILE = path.join(DATA_DIR, 'k108-cases.json');
+function getCaseStore() {
+  try { if (fs.existsSync(K108_CASES_FILE)) return JSON.parse(fs.readFileSync(K108_CASES_FILE, 'utf8')); } catch(e) {}
+  return { cases: [], subjects: [], evidence: [], findings: [], questions: [], timeline: [], nodes: [], edges: [], _nextId: 1 };
+}
+function saveCaseStore(store) { fs.writeFileSync(K108_CASES_FILE, JSON.stringify(store, null, 2)); }
+function caseNextId(store) { return store._nextId++; }
+
+// ── K-108 Case Files ─────────────────────────────────────────────────────────
+app.post('/api/k108/cases', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { status } = req.body;
+  if (db.pool) {
+    let sql = 'SELECT c.*, (SELECT COUNT(*) FROM k108_case_subjects WHERE case_id=c.id) AS subject_count, (SELECT COUNT(*) FROM k108_case_evidence WHERE case_id=c.id) AS evidence_count FROM k108_cases c';
+    const params = [];
+    if (status && ['OPEN', 'COLD', 'CLOSED'].includes(status)) { sql += ' WHERE c.status = $1'; params.push(status); }
+    sql += ' ORDER BY c.updated_at DESC';
+    const r = await db.query(sql, params);
+    return res.json({ cases: r.rows });
+  }
+  const store = getCaseStore();
+  let cases = store.cases;
+  if (status) cases = cases.filter(c => c.status === status);
+  cases = cases.map(c => ({ ...c, subject_count: store.subjects.filter(s => s.case_id === c.id).length, evidence_count: store.evidence.filter(e => e.case_id === c.id).length }));
+  cases.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  res.json({ cases });
+});
+
+app.post('/api/k108/cases/create', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { name, summary, classification } = req.body;
+  if (!name) return res.status(400).json({ error: 'Case name required' });
+  if (db.pool) {
+    const r = await db.query('INSERT INTO k108_cases (name, summary, classification, last_edited_by) VALUES ($1, $2, $3, $4) RETURNING *', [name, summary || '', classification || 'CONFIDENTIAL', username]);
+    await k108Log(username, 'case_create', { name, caseId: r.rows[0].id }, req.ip);
+    return res.json({ case: r.rows[0] });
+  }
+  const store = getCaseStore();
+  const now = new Date().toISOString();
+  const c = { id: caseNextId(store), name, status: 'OPEN', classification: classification || 'CONFIDENTIAL', summary: summary || '', created_at: now, updated_at: now, last_edited_by: username };
+  store.cases.push(c);
+  saveCaseStore(store);
+  await k108Log(username, 'case_create', { name, caseId: c.id }, req.ip);
+  res.json({ case: c });
+});
+
+app.post('/api/k108/cases/:id', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const id = db.pool ? req.params.id : parseInt(req.params.id);
+  if (db.pool) {
+    const c = await db.query('SELECT * FROM k108_cases WHERE id = $1', [id]);
+    if (!c.rows.length) return res.status(404).json({ error: 'Case not found' });
+    const subjects = await db.query(`SELECT cs.*, p.first_name, p.last_name, p.photo_url, p.surveillance_active FROM k108_case_subjects cs JOIN k108_profiles p ON cs.profile_id = p.id WHERE cs.case_id = $1 ORDER BY cs.created_at`, [id]);
+    const evidence = await db.query('SELECT * FROM k108_case_evidence WHERE case_id = $1 ORDER BY created_at DESC', [id]);
+    const findings = await db.query('SELECT * FROM k108_case_findings WHERE case_id = $1 ORDER BY order_index ASC, created_at ASC', [id]);
+    const questions = await db.query('SELECT * FROM k108_case_questions WHERE case_id = $1 ORDER BY created_at ASC', [id]);
+    const timeline = await db.query('SELECT * FROM k108_case_timeline WHERE case_id = $1 ORDER BY event_date ASC', [id]);
+    const nodes = await db.query('SELECT * FROM k108_case_canvas_nodes WHERE case_id = $1', [id]);
+    const edges = await db.query('SELECT * FROM k108_case_canvas_edges WHERE case_id = $1', [id]);
+    return res.json({ case: c.rows[0], subjects: subjects.rows, evidence: evidence.rows, findings: findings.rows, questions: questions.rows, timeline: timeline.rows, nodes: nodes.rows, edges: edges.rows });
+  }
+  const store = getCaseStore();
+  const c = store.cases.find(c => c.id === id);
+  if (!c) return res.status(404).json({ error: 'Case not found' });
+  // Enrich subjects with profile data from JSON profiles store
+  const profiles = getK108Profiles();
+  const enrichedSubjects = store.subjects.filter(s => s.case_id === id).map(s => {
+    const p = profiles.find(p => String(p.id) === String(s.profile_id));
+    return { ...s, first_name: p?.first_name || 'Unknown', last_name: p?.last_name || '', photo_url: p?.photo_url || null, surveillance_active: false };
+  });
+  res.json({ case: c, subjects: enrichedSubjects, evidence: store.evidence.filter(e => e.case_id === id), findings: store.findings.filter(f => f.case_id === id).sort((a,b) => (a.order_index||0) - (b.order_index||0)), questions: store.questions.filter(q => q.case_id === id), timeline: store.timeline.filter(t => t.case_id === id), nodes: store.nodes.filter(n => n.case_id === id), edges: store.edges.filter(e => e.case_id === id) });
+});
+
+app.put('/api/k108/cases/:id', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { name, status, classification, summary } = req.body;
+  if (db.pool) {
+    const sets = []; const params = [];
+    if (name !== undefined) { params.push(name); sets.push(`name = $${params.length}`); }
+    if (status !== undefined) { params.push(status); sets.push(`status = $${params.length}`); }
+    if (classification !== undefined) { params.push(classification); sets.push(`classification = $${params.length}`); }
+    if (summary !== undefined) { params.push(summary); sets.push(`summary = $${params.length}`); }
+    params.push(username); sets.push(`last_edited_by = $${params.length}`);
+    sets.push('updated_at = NOW()');
+    params.push(req.params.id);
+    await db.query(`UPDATE k108_cases SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+  } else {
+    const store = getCaseStore();
+    const c = store.cases.find(c => c.id === parseInt(req.params.id));
+    if (c) { if (name !== undefined) c.name = name; if (status !== undefined) c.status = status; if (classification !== undefined) c.classification = classification; if (summary !== undefined) c.summary = summary; c.last_edited_by = username; c.updated_at = new Date().toISOString(); saveCaseStore(store); }
+  }
+  const detail = {};
+  if (name !== undefined) detail.name = name;
+  if (status !== undefined) detail.status = status;
+  await k108Log(username, 'case_update', { caseId: req.params.id, ...detail }, req.ip);
+  res.json({ ok: true });
+});
+
+app.delete('/api/k108/cases/:id', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (db.pool) {
+    const c = await db.query('SELECT name FROM k108_cases WHERE id = $1', [req.params.id]);
+    await db.query('DELETE FROM k108_cases WHERE id = $1', [req.params.id]);
+    await k108Log(username, 'case_delete', { caseId: req.params.id, name: c.rows[0]?.name }, req.ip);
+  } else {
+    const store = getCaseStore(); const id = parseInt(req.params.id);
+    const c = store.cases.find(c => c.id === id);
+    store.cases = store.cases.filter(c => c.id !== id);
+    store.subjects = store.subjects.filter(s => s.case_id !== id);
+    store.evidence = store.evidence.filter(e => e.case_id !== id);
+    store.findings = store.findings.filter(f => f.case_id !== id);
+    store.questions = store.questions.filter(q => q.case_id !== id);
+    store.timeline = store.timeline.filter(t => t.case_id !== id);
+    store.nodes = store.nodes.filter(n => n.case_id !== id);
+    store.edges = store.edges.filter(e => e.case_id !== id);
+    saveCaseStore(store);
+    await k108Log(username, 'case_delete', { caseId: req.params.id, name: c?.name }, req.ip);
+  }
+  res.json({ ok: true });
+});
+
+// Case subjects
+app.post('/api/k108/cases/:id/subjects', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { profileId, role } = req.body;
+  if (!profileId) return res.status(400).json({ error: 'Profile ID required' });
+  if (db.pool) {
+    try {
+      const r = await db.query('INSERT INTO k108_case_subjects (case_id, profile_id, role) VALUES ($1, $2, $3) ON CONFLICT (case_id, profile_id) DO UPDATE SET role = $3 RETURNING *', [req.params.id, profileId, role || 'Associate']);
+      await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
+      const p = await db.query('SELECT first_name, last_name FROM k108_profiles WHERE id = $1', [profileId]);
+      await k108Log(username, 'case_subject_add', { caseId: req.params.id, profileId, name: p.rows[0] ? `${p.rows[0].first_name} ${p.rows[0].last_name}` : '' }, req.ip);
+      return res.json({ subject: r.rows[0] });
+    } catch (e) { return res.status(400).json({ error: e.message }); }
+  }
+  const store = getCaseStore(); const caseId = parseInt(req.params.id);
+  const existing = store.subjects.find(s => s.case_id === caseId && s.profile_id === parseInt(profileId));
+  if (existing) { existing.role = role || 'Associate'; } else { store.subjects.push({ id: caseNextId(store), case_id: caseId, profile_id: parseInt(profileId), role: role || 'Associate', created_at: new Date().toISOString() }); }
+  saveCaseStore(store);
+  await k108Log(username, 'case_subject_add', { caseId: req.params.id, profileId }, req.ip);
+  res.json({ subject: store.subjects[store.subjects.length - 1] });
+});
+
+app.put('/api/k108/cases/:id/subjects/:sid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { role } = req.body;
+  if (db.pool) { await db.query('UPDATE k108_case_subjects SET role = $1 WHERE id = $2', [role, req.params.sid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
+  else { const store = getCaseStore(); const s = store.subjects.find(s => s.id === parseInt(req.params.sid)); if (s) s.role = role; saveCaseStore(store); }
+  res.json({ ok: true });
+});
+
+app.delete('/api/k108/cases/:id/subjects/:sid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (db.pool) { await db.query('DELETE FROM k108_case_subjects WHERE id = $1', [req.params.sid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
+  else { const store = getCaseStore(); store.subjects = store.subjects.filter(s => s.id !== parseInt(req.params.sid)); saveCaseStore(store); }
+  await k108Log(username, 'case_subject_remove', { caseId: req.params.id, subjectId: req.params.sid }, req.ip);
+  res.json({ ok: true });
+});
+
+// Case evidence
+app.post('/api/k108/cases/:id/evidence', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { type, title, metadata, sourceId, notes } = req.body;
+  if (!type || !title) return res.status(400).json({ error: 'Type and title required' });
+  if (db.pool) {
+    const r = await db.query('INSERT INTO k108_case_evidence (case_id, type, title, metadata, source_id, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.params.id, type, title, JSON.stringify(metadata || {}), sourceId || null, notes || '']);
+    await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
+    await k108Log(username, 'case_evidence_add', { caseId: req.params.id, type, title }, req.ip);
+    return res.json({ evidence: r.rows[0] });
+  }
+  const store = getCaseStore();
+  const ev = { id: caseNextId(store), case_id: parseInt(req.params.id), type, title, metadata: metadata || {}, source_id: sourceId || null, notes: notes || '', created_at: new Date().toISOString() };
+  store.evidence.push(ev);
+  saveCaseStore(store);
+  await k108Log(username, 'case_evidence_add', { caseId: req.params.id, type, title }, req.ip);
+  res.json({ evidence: ev });
+});
+
+app.put('/api/k108/cases/:id/evidence/:eid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { title, notes, metadata } = req.body;
+  if (db.pool) {
+    const sets = []; const params = [];
+    if (title !== undefined) { params.push(title); sets.push(`title = $${params.length}`); }
+    if (notes !== undefined) { params.push(notes); sets.push(`notes = $${params.length}`); }
+    if (metadata !== undefined) { params.push(JSON.stringify(metadata)); sets.push(`metadata = $${params.length}`); }
+    if (!sets.length) return res.json({ ok: true });
+    params.push(req.params.eid);
+    await db.query(`UPDATE k108_case_evidence SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+    await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
+  } else {
+    const store = getCaseStore(); const ev = store.evidence.find(e => e.id === parseInt(req.params.eid));
+    if (ev) { if (title !== undefined) ev.title = title; if (notes !== undefined) ev.notes = notes; if (metadata !== undefined) ev.metadata = metadata; saveCaseStore(store); }
+  }
+  res.json({ ok: true });
+});
+
+app.delete('/api/k108/cases/:id/evidence/:eid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (db.pool) { await db.query('DELETE FROM k108_case_evidence WHERE id = $1', [req.params.eid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
+  else { const store = getCaseStore(); store.evidence = store.evidence.filter(e => e.id !== parseInt(req.params.eid)); saveCaseStore(store); }
+  await k108Log(username, 'case_evidence_remove', { caseId: req.params.id, evidenceId: req.params.eid }, req.ip);
+  res.json({ ok: true });
+});
+
+// Case findings
+app.post('/api/k108/cases/:id/findings', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ error: 'Text required' });
+  if (db.pool) {
+    const maxIdx = await db.query('SELECT COALESCE(MAX(order_index), -1) + 1 AS next FROM k108_case_findings WHERE case_id = $1', [req.params.id]);
+    const r = await db.query('INSERT INTO k108_case_findings (case_id, text, order_index) VALUES ($1, $2, $3) RETURNING *', [req.params.id, text, maxIdx.rows[0].next]);
+    await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
+    await k108Log(username, 'case_finding_add', { caseId: req.params.id }, req.ip);
+    return res.json({ finding: r.rows[0] });
+  }
+  const store = getCaseStore(); const caseId = parseInt(req.params.id);
+  const existing = store.findings.filter(f => f.case_id === caseId);
+  const nextIdx = existing.length ? Math.max(...existing.map(f => f.order_index || 0)) + 1 : 0;
+  const f = { id: caseNextId(store), case_id: caseId, text, resolved: false, order_index: nextIdx, created_at: new Date().toISOString() };
+  store.findings.push(f);
+  saveCaseStore(store);
+  await k108Log(username, 'case_finding_add', { caseId: req.params.id }, req.ip);
+  res.json({ finding: f });
+});
+
+app.put('/api/k108/cases/:id/findings/:fid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { text, resolved, order_index } = req.body;
+  if (db.pool) {
+    const sets = []; const params = [];
+    if (text !== undefined) { params.push(text); sets.push(`text = $${params.length}`); }
+    if (resolved !== undefined) { params.push(resolved); sets.push(`resolved = $${params.length}`); }
+    if (order_index !== undefined) { params.push(order_index); sets.push(`order_index = $${params.length}`); }
+    if (!sets.length) return res.json({ ok: true });
+    params.push(req.params.fid);
+    await db.query(`UPDATE k108_case_findings SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+    await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
+  } else {
+    const store = getCaseStore(); const f = store.findings.find(f => f.id === parseInt(req.params.fid));
+    if (f) { if (text !== undefined) f.text = text; if (resolved !== undefined) f.resolved = resolved; if (order_index !== undefined) f.order_index = order_index; saveCaseStore(store); }
+  }
+  res.json({ ok: true });
+});
+
+app.delete('/api/k108/cases/:id/findings/:fid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (db.pool) { await db.query('DELETE FROM k108_case_findings WHERE id = $1', [req.params.fid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
+  else { const store = getCaseStore(); store.findings = store.findings.filter(f => f.id !== parseInt(req.params.fid)); saveCaseStore(store); }
+  await k108Log(username, 'case_finding_delete', { caseId: req.params.id }, req.ip);
+  res.json({ ok: true });
+});
+
+// Case questions
+app.post('/api/k108/cases/:id/questions', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ error: 'Text required' });
+  if (db.pool) {
+    const r = await db.query('INSERT INTO k108_case_questions (case_id, text) VALUES ($1, $2) RETURNING *', [req.params.id, text]);
+    await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
+    return res.json({ question: r.rows[0] });
+  }
+  const store = getCaseStore();
+  const q = { id: caseNextId(store), case_id: parseInt(req.params.id), text, resolved: false, created_at: new Date().toISOString() };
+  store.questions.push(q);
+  saveCaseStore(store);
+  res.json({ question: q });
+});
+
+app.put('/api/k108/cases/:id/questions/:qid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { text, resolved } = req.body;
+  if (db.pool) { const sets = []; const params = []; if (text !== undefined) { params.push(text); sets.push(`text = $${params.length}`); } if (resolved !== undefined) { params.push(resolved); sets.push(`resolved = $${params.length}`); } if (!sets.length) return res.json({ ok: true }); params.push(req.params.qid); await db.query(`UPDATE k108_case_questions SET ${sets.join(', ')} WHERE id = $${params.length}`, params); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
+  else { const store = getCaseStore(); const q = store.questions.find(q => q.id === parseInt(req.params.qid)); if (q) { if (text !== undefined) q.text = text; if (resolved !== undefined) q.resolved = resolved; saveCaseStore(store); } }
+  res.json({ ok: true });
+});
+
+app.delete('/api/k108/cases/:id/questions/:qid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (db.pool) { await db.query('DELETE FROM k108_case_questions WHERE id = $1', [req.params.qid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
+  else { const store = getCaseStore(); store.questions = store.questions.filter(q => q.id !== parseInt(req.params.qid)); saveCaseStore(store); }
+  res.json({ ok: true });
+});
+
+// Case timeline
+app.post('/api/k108/cases/:id/timeline', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { event_date, event_type, description, evidence_ids } = req.body;
+  if (!description) return res.status(400).json({ error: 'Description required' });
+  if (db.pool) { const r = await db.query('INSERT INTO k108_case_timeline (case_id, event_date, event_type, description, evidence_ids) VALUES ($1, $2, $3, $4, $5) RETURNING *', [req.params.id, event_date || null, event_type || 'Incident', description, JSON.stringify(evidence_ids || [])]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); await k108Log(username, 'case_timeline_add', { caseId: req.params.id }, req.ip); return res.json({ event: r.rows[0] }); }
+  const store = getCaseStore();
+  const t = { id: caseNextId(store), case_id: parseInt(req.params.id), event_date: event_date || null, event_type: event_type || 'Incident', description, evidence_ids: evidence_ids || [], created_at: new Date().toISOString() };
+  store.timeline.push(t); saveCaseStore(store);
+  await k108Log(username, 'case_timeline_add', { caseId: req.params.id }, req.ip);
+  res.json({ event: t });
+});
+
+app.put('/api/k108/cases/:id/timeline/:tid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { event_date, event_type, description, evidence_ids } = req.body;
+  if (db.pool) { const sets = []; const params = []; if (event_date !== undefined) { params.push(event_date); sets.push(`event_date = $${params.length}`); } if (event_type !== undefined) { params.push(event_type); sets.push(`event_type = $${params.length}`); } if (description !== undefined) { params.push(description); sets.push(`description = $${params.length}`); } if (evidence_ids !== undefined) { params.push(JSON.stringify(evidence_ids)); sets.push(`evidence_ids = $${params.length}`); } if (!sets.length) return res.json({ ok: true }); params.push(req.params.tid); await db.query(`UPDATE k108_case_timeline SET ${sets.join(', ')} WHERE id = $${params.length}`, params); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
+  else { const store = getCaseStore(); const t = store.timeline.find(t => t.id === parseInt(req.params.tid)); if (t) { if (event_date !== undefined) t.event_date = event_date; if (event_type !== undefined) t.event_type = event_type; if (description !== undefined) t.description = description; if (evidence_ids !== undefined) t.evidence_ids = evidence_ids; saveCaseStore(store); } }
+  res.json({ ok: true });
+});
+
+app.delete('/api/k108/cases/:id/timeline/:tid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (db.pool) { await db.query('DELETE FROM k108_case_timeline WHERE id = $1', [req.params.tid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
+  else { const store = getCaseStore(); store.timeline = store.timeline.filter(t => t.id !== parseInt(req.params.tid)); saveCaseStore(store); }
+  await k108Log(username, 'case_timeline_delete', { caseId: req.params.id }, req.ip);
+  res.json({ ok: true });
+});
+
+// Canvas nodes
+app.post('/api/k108/cases/:id/nodes', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { type, label, x, y, metadata } = req.body;
+  if (db.pool) { const r = await db.query('INSERT INTO k108_case_canvas_nodes (case_id, type, label, x, y, metadata) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.params.id, type || 'Note', label || '', x || 200, y || 200, JSON.stringify(metadata || {})]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); await k108Log(username, 'case_canvas_node_add', { caseId: req.params.id, type, label }, req.ip); return res.json({ node: r.rows[0] }); }
+  const store = getCaseStore();
+  const n = { id: caseNextId(store), case_id: parseInt(req.params.id), type: type || 'Note', label: label || '', x: x || 200, y: y || 200, metadata: metadata || {}, created_at: new Date().toISOString() };
+  store.nodes.push(n); saveCaseStore(store);
+  await k108Log(username, 'case_canvas_node_add', { caseId: req.params.id, type, label }, req.ip);
+  res.json({ node: n });
+});
+
+app.put('/api/k108/cases/:id/nodes/:nid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { type, label, x, y, metadata } = req.body;
+  if (db.pool) { const sets = []; const params = []; if (type !== undefined) { params.push(type); sets.push(`type = $${params.length}`); } if (label !== undefined) { params.push(label); sets.push(`label = $${params.length}`); } if (x !== undefined) { params.push(x); sets.push(`x = $${params.length}`); } if (y !== undefined) { params.push(y); sets.push(`y = $${params.length}`); } if (metadata !== undefined) { params.push(JSON.stringify(metadata)); sets.push(`metadata = $${params.length}`); } if (!sets.length) return res.json({ ok: true }); params.push(req.params.nid); await db.query(`UPDATE k108_case_canvas_nodes SET ${sets.join(', ')} WHERE id = $${params.length}`, params); }
+  else { const store = getCaseStore(); const n = store.nodes.find(n => n.id === parseInt(req.params.nid)); if (n) { if (type !== undefined) n.type = type; if (label !== undefined) n.label = label; if (x !== undefined) n.x = x; if (y !== undefined) n.y = y; if (metadata !== undefined) n.metadata = metadata; saveCaseStore(store); } }
+  res.json({ ok: true });
+});
+
+app.delete('/api/k108/cases/:id/nodes/:nid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (db.pool) { await db.query('DELETE FROM k108_case_canvas_nodes WHERE id = $1', [req.params.nid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
+  else { const store = getCaseStore(); const nid = parseInt(req.params.nid); store.nodes = store.nodes.filter(n => n.id !== nid); store.edges = store.edges.filter(e => e.from_node_id !== nid && e.to_node_id !== nid); saveCaseStore(store); }
+  await k108Log(username, 'case_canvas_node_delete', { caseId: req.params.id }, req.ip);
+  res.json({ ok: true });
+});
+
+// Canvas edges
+app.post('/api/k108/cases/:id/edges', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { from_node_id, to_node_id, label } = req.body;
+  if (!from_node_id || !to_node_id) return res.status(400).json({ error: 'From and to node IDs required' });
+  if (db.pool) { const r = await db.query('INSERT INTO k108_case_canvas_edges (case_id, from_node_id, to_node_id, label) VALUES ($1, $2, $3, $4) RETURNING *', [req.params.id, from_node_id, to_node_id, label || '']); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); return res.json({ edge: r.rows[0] }); }
+  const store = getCaseStore();
+  const e = { id: caseNextId(store), case_id: parseInt(req.params.id), from_node_id, to_node_id, label: label || '', created_at: new Date().toISOString() };
+  store.edges.push(e); saveCaseStore(store);
+  res.json({ edge: e });
+});
+
+app.put('/api/k108/cases/:id/edges/:eid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { label } = req.body;
+  if (db.pool) { await db.query('UPDATE k108_case_canvas_edges SET label = $1 WHERE id = $2', [label || '', req.params.eid]); }
+  else { const store = getCaseStore(); const e = store.edges.find(e => e.id === parseInt(req.params.eid)); if (e) { e.label = label || ''; saveCaseStore(store); } }
+  res.json({ ok: true });
+});
+
+app.delete('/api/k108/cases/:id/edges/:eid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (db.pool) { await db.query('DELETE FROM k108_case_canvas_edges WHERE id = $1', [req.params.eid]); }
+  else { const store = getCaseStore(); store.edges = store.edges.filter(e => e.id !== parseInt(req.params.eid)); saveCaseStore(store); }
+  res.json({ ok: true });
+});
+
+// ── K-108 Surveillance (job-based system) ────────────────────────────────────
+
+// Queue a surveillance job for a profile
+app.post('/api/k108/surveillance/queue', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { profileId } = req.body;
+  if (!profileId) return res.status(400).json({ error: 'Profile ID required' });
+  // Check for existing pending/in_progress job
+  const existing = await db.query(`SELECT id, status FROM k108_surveillance_jobs WHERE profile_id = $1 AND status IN ('pending', 'in_progress') LIMIT 1`, [profileId]);
+  if (existing.rows.length) return res.json({ ok: true, job: existing.rows[0], alreadyQueued: true });
+  // Fetch full profile data for payload
+  const p = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [profileId]);
+  if (!p.rows.length) return res.status(404).json({ error: 'Profile not found' });
+  const prof = p.rows[0];
+  const addr = typeof prof.address === 'string' ? JSON.parse(prof.address || '{}') : (prof.address || {});
+  const phones = typeof prof.phones === 'string' ? JSON.parse(prof.phones || '[]') : (prof.phones || []);
+  const emails = typeof prof.emails === 'string' ? JSON.parse(prof.emails || '[]') : (prof.emails || []);
+  const socials = typeof prof.social_links === 'string' ? JSON.parse(prof.social_links || '[]') : (prof.social_links || []);
+  const payload = {
+    fullName: `${prof.first_name || ''} ${prof.last_name || ''}`.trim(),
+    aliases: prof.aliases || [],
+    socialHandles: socials.map(s => s.handle || s.url).filter(Boolean),
+    city: addr.city || '', state: addr.state || '',
+    addresses: [addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', '),
+    phones: phones.map(ph => typeof ph === 'string' ? ph : (ph.number || ph)).filter(Boolean),
+    emails: emails.map(e => typeof e === 'string' ? e : (e.address || e)).filter(Boolean),
+    notes: prof.notes || '',
+  };
+  const r = await db.query('INSERT INTO k108_surveillance_jobs (profile_id, status, profile_payload) VALUES ($1, $2, $3) RETURNING *', [profileId, 'pending', JSON.stringify(payload)]);
+  await k108Log(username, 'surveillance_triggered', { profileId, name: payload.fullName }, req.ip);
+  res.json({ ok: true, job: r.rows[0] });
+});
+
+// Get surveillance status for a profile
+app.post('/api/k108/surveillance/status', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.json({ job: null, unreadCount: 0 });
+  const { profileId } = req.body;
+  if (!profileId) return res.status(400).json({ error: 'Profile ID required' });
+  // Latest job
+  const job = await db.query('SELECT * FROM k108_surveillance_jobs WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 1', [profileId]);
+  // Unread count
+  const unread = await db.query('SELECT COUNT(*) FROM k108_surveillance_results WHERE profile_id = $1 AND read = false', [profileId]);
+  res.json({ job: job.rows[0] || null, unreadCount: parseInt(unread.rows[0]?.count || 0) });
+});
+
+// Get all surveillance results for a profile (grouped by job)
+app.post('/api/k108/surveillance/results', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.json({ results: [], jobs: [] });
+  const { profileId } = req.body;
+  if (!profileId) return res.status(400).json({ error: 'Profile ID required' });
+  const jobs = await db.query('SELECT * FROM k108_surveillance_jobs WHERE profile_id = $1 AND status = $2 ORDER BY completed_at DESC', [profileId, 'completed']);
+  const results = await db.query('SELECT * FROM k108_surveillance_results WHERE profile_id = $1 ORDER BY created_at DESC', [profileId]);
+  // Mark all as read
+  await db.query('UPDATE k108_surveillance_results SET read = true WHERE profile_id = $1 AND read = false', [profileId]);
+  res.json({ results: results.rows, jobs: jobs.rows });
+});
+
+// Get profiles with unread surveillance findings (for New Intel section)
+app.post('/api/k108/surveillance/unread', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.json({ profiles: [] });
+  const r = await db.query(`SELECT DISTINCT p.id, p.first_name, p.last_name, COUNT(sr.id) as unread_count FROM k108_surveillance_results sr JOIN k108_profiles p ON sr.profile_id = p.id WHERE sr.read = false GROUP BY p.id, p.first_name, p.last_name ORDER BY MAX(sr.created_at) DESC`);
+  res.json({ profiles: r.rows });
+});
+
+// Add surveillance finding to a case
+app.post('/api/k108/surveillance/add-to-case', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { resultId, caseId } = req.body;
+  if (!resultId || !caseId) return res.status(400).json({ error: 'Result ID and Case ID required' });
+  const result = await db.query('SELECT * FROM k108_surveillance_results WHERE id = $1', [resultId]);
+  if (!result.rows.length) return res.status(404).json({ error: 'Result not found' });
+  const r = result.rows[0];
+  await db.query('INSERT INTO k108_case_evidence (case_id, type, title, metadata, source_id, notes) VALUES ($1, $2, $3, $4, $5, $6)', [caseId, 'Intel Feed Result', r.headline, JSON.stringify({ profileId: r.profile_id, sourceUrl: r.source_url, sourceName: r.source_name, confidence: r.confidence }), String(r.profile_id), r.summary || '']);
+  await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, caseId]);
+  await k108Log(username, 'surveillance_finding_to_case', { resultId, caseId, headline: r.headline }, req.ip);
+  res.json({ ok: true });
+});
+
+// ── Cowork Endpoints ──
+
+// GET pending jobs for Cowork to pick up
+app.get('/api/k108/surveillance/pending', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (secret !== process.env.BRIEFING_SECRET) return res.status(403).json({ error: 'Invalid secret' });
+  if (!db.pool) return res.json({ jobs: [] });
+  const r = await db.query(`SELECT id, profile_id, profile_payload FROM k108_surveillance_jobs WHERE status = 'pending' ORDER BY created_at ASC`);
+  // Mark them as in_progress
+  if (r.rows.length) {
+    const ids = r.rows.map(j => j.id);
+    await db.query(`UPDATE k108_surveillance_jobs SET status = 'in_progress' WHERE id = ANY($1)`, [ids]);
+  }
+  res.json({ jobs: r.rows.map(j => ({ job_id: j.id, profile_id: j.profile_id, ...j.profile_payload })) });
+});
+
+// POST results from Cowork
+app.post('/api/k108/surveillance/submit', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'] || req.body.secret;
+  if (secret !== process.env.BRIEFING_SECRET) return res.status(403).json({ error: 'Invalid secret' });
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { results } = req.body; // array of { job_id, profile_id, headline, source_url, source_name, summary, confidence }
+  if (!Array.isArray(results)) return res.status(400).json({ error: 'Results array required' });
+  // Group by job_id
+  const byJob = {};
+  for (const r of results) {
+    if (!r.profile_id || !r.headline) continue;
+    await db.query('INSERT INTO k108_surveillance_results (job_id, profile_id, headline, source_url, source_name, summary, confidence) VALUES ($1, $2, $3, $4, $5, $6, $7)', [r.job_id || null, r.profile_id, r.headline, r.source_url || '', r.source_name || '', r.summary || '', r.confidence || 'unverified']);
+    if (r.job_id) { byJob[r.job_id] = (byJob[r.job_id] || 0) + 1; }
+  }
+  // Update job statuses
+  for (const [jobId, count] of Object.entries(byJob)) {
+    await db.query(`UPDATE k108_surveillance_jobs SET status = 'completed', finding_count = $1, completed_at = NOW() WHERE id = $2`, [count, jobId]);
+    // Get profile_id for socket event
+    const job = await db.query('SELECT profile_id FROM k108_surveillance_jobs WHERE id = $1', [jobId]);
+    if (job.rows[0]) {
+      io.emit('k108:surveillance:complete', { profileId: job.rows[0].profile_id, findingCount: count });
+      await k108Log('system', 'surveillance_completed', { profileId: job.rows[0].profile_id, findingCount: count }, '');
+    }
+  }
+  // Also complete any in_progress jobs that had zero results submitted
+  const inProgress = await db.query(`SELECT id FROM k108_surveillance_jobs WHERE status = 'in_progress'`);
+  for (const ip of inProgress.rows) {
+    if (!byJob[ip.id]) {
+      await db.query(`UPDATE k108_surveillance_jobs SET status = 'completed', finding_count = 0, completed_at = NOW() WHERE id = $1`, [ip.id]);
+    }
+  }
+  res.json({ ok: true, inserted: results.length });
+});
+
+// ── Profile case files lookup (for bidirectional link) ───────────────────────
+app.post('/api/k108/profiles/:id/cases', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.json({ cases: [] });
+  const r = await db.query(`SELECT c.id, c.name, c.status, c.created_at, cs.role FROM k108_case_subjects cs JOIN k108_cases c ON cs.case_id = c.id WHERE cs.profile_id = $1 ORDER BY c.updated_at DESC`, [req.params.id]);
+  res.json({ cases: r.rows });
+});
+
+// ── K-108 Daily Briefing ─────────────────────────────────────────────────────
+app.post('/api/k108/briefing/submit', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'] || req.body.secret;
+  if (secret !== process.env.BRIEFING_SECRET) return res.status(403).json({ error: 'Invalid secret' });
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { content } = req.body;
+  if (!content) return res.status(400).json({ error: 'Content required' });
+  await db.query('INSERT INTO k108_briefings (content) VALUES ($1)', [content]);
+  io.emit('k108:briefing:new', { timestamp: new Date().toISOString() });
+  res.json({ ok: true });
+});
+
+app.post('/api/k108/briefing/latest', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.json({ briefings: [] });
+  const r = await db.query('SELECT * FROM k108_briefings ORDER BY created_at DESC LIMIT 10');
+  res.json({ briefings: r.rows });
+});
+
+app.get('/api/k108/briefing/yesterday', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (secret !== process.env.BRIEFING_SECRET) return res.status(403).json({ error: 'Invalid secret' });
+  if (!db.pool) return res.json({ content: '' });
+  const r = await db.query(`SELECT content FROM k108_briefings WHERE created_at >= NOW() - INTERVAL '2 days' ORDER BY created_at DESC LIMIT 1`);
+  res.json({ content: r.rows[0]?.content || '' });
+});
+
+// (Surveillance is now job-based via Cowork — no cron needed)
+
 // ── Serve HTML pages ──────────────────────────────────────────────────────────
 app.get('/k108',     (_, res) => res.sendFile(path.join(__dirname, 'public', 'k108.html')));
 app.get('/debrief',  (_, res) => res.sendFile(path.join(__dirname, 'public', 'debrief.html')));

@@ -6,6 +6,7 @@
   <title>K-108</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -104,6 +105,8 @@
     .dash-card:nth-child(5) { animation-delay: 0.25s; }
     .dash-card:nth-child(6) { animation-delay: 0.3s; }
     .dash-card:nth-child(7) { animation-delay: 0.35s; }
+    .dash-card:nth-child(8) { animation-delay: 0.4s; }
+    .dash-card:nth-child(9) { animation-delay: 0.45s; }
     @keyframes cardFadeIn { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
     /* Auth screen entrance */
@@ -222,6 +225,8 @@
     .dc-vault { grid-column: span 3; }
     .dc-profiles { grid-column: span 6; }
     .dc-metadata { grid-column: span 3; }
+    .dc-cases { grid-column: span 6; }
+    .dc-briefing { grid-column: span 6; }
     .dc-log { grid-column: span 12; }
 
     @media (max-width: 768px) {
@@ -229,19 +234,23 @@
       .dc-lookup, .dc-sms, .dc-numval { grid-column: span 6; }
       .dc-vault, .dc-metadata { grid-column: span 3; }
       .dc-profiles { grid-column: span 6; }
+      .dc-cases, .dc-briefing { grid-column: span 6; }
       .dc-log { grid-column: span 6; }
       .dash-header { flex-direction: column; align-items: flex-start; gap: 4px; }
     }
     @media (max-width: 480px) {
       .dash-grid { grid-template-columns: 1fr; }
-      .dc-lookup, .dc-sms, .dc-numval, .dc-vault, .dc-profiles, .dc-metadata, .dc-log { grid-column: span 1; }
+      .dc-lookup, .dc-sms, .dc-numval, .dc-vault, .dc-profiles, .dc-metadata, .dc-log, .dc-cases, .dc-briefing { grid-column: span 1; }
     }
 
     /* ═══ Shared Components ═══ */
     .k-input { width: 100%; padding: 11px 14px; background: var(--bg-base); border: 1px solid var(--border-main); color: var(--text-primary); font-family: 'Inter'; font-size: 13px; border-radius: 8px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
     .k-input:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--glow-blue); }
     .k-input::placeholder { color: var(--text-dim); }
-    .k-select { width: 100%; padding: 11px 14px; background: var(--bg-base); border: 1px solid var(--border-main); color: var(--text-primary); font-family: 'Inter'; font-size: 13px; border-radius: 8px; outline: none; appearance: none; cursor: pointer; }
+    .k-select { width: 100%; padding: 11px 14px; background: var(--bg-base); border: 1px solid var(--border-main); color: var(--text-primary); font-family: 'Inter'; font-size: 13px; border-radius: 8px; outline: none; cursor: pointer; -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
+    .k-select:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--glow-blue); }
+    .k-select option { background: var(--bg-card); color: var(--text-primary); padding: 8px; }
+    input[type="datetime-local"].k-input { color-scheme: dark; }
     .k-btn { padding: 11px 20px; background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(129,140,248,0.08)); border: 1px solid rgba(56,189,248,0.2); color: var(--accent-blue); font-family: 'Inter'; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
     .k-btn:hover:not(:disabled) { background: linear-gradient(135deg, rgba(56,189,248,0.2), rgba(129,140,248,0.14)); box-shadow: 0 4px 20px var(--glow-blue); }
     .k-btn:disabled { opacity: 0.35; cursor: not-allowed; }
@@ -412,6 +421,195 @@
     .modal-box h2 { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
     .modal-box .fg { margin-bottom: 14px; }
 
+    /* ═══ Command Bar ═══ */
+    #cmd-bar-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(4,6,12,0.75); backdrop-filter:blur(6px); align-items:flex-start; justify-content:center; padding-top:min(18vh,160px); }
+    #cmd-bar-overlay.active { display:flex; }
+    .cmd-bar { width:620px; max-width:92vw; background:var(--bg-card); border:1px solid var(--border-main); border-radius:14px; box-shadow:0 24px 80px rgba(0,0,0,0.7),0 0 1px rgba(56,189,248,0.2); overflow:hidden; animation:modalSlideUp 0.2s ease; }
+    .cmd-bar-input { width:100%; padding:16px 20px; background:transparent; border:none; border-bottom:1px solid var(--border-main); color:var(--text-primary); font-family:'JetBrains Mono',monospace; font-size:14px; outline:none; letter-spacing:0.03em; }
+    .cmd-bar-input::placeholder { color:var(--text-dim); }
+    .cmd-bar-list { max-height:340px; overflow-y:auto; }
+    .cmd-bar-list::-webkit-scrollbar { width:4px; } .cmd-bar-list::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.06); border-radius:2px; }
+    .cmd-item { display:flex; align-items:center; justify-content:space-between; padding:10px 20px; cursor:pointer; transition:background 0.1s; }
+    .cmd-item:hover,.cmd-item.active { background:rgba(56,189,248,0.08); }
+    .cmd-item-name { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--accent-cyan); }
+    .cmd-item-desc { font-size:11px; color:var(--text-dim); max-width:55%; text-align:right; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .cmd-bar-output { border-top:1px solid var(--border-main); padding:12px 20px; max-height:260px; overflow-y:auto; font-family:'JetBrains Mono',monospace; font-size:12px; }
+    .cmd-bar-output:empty { display:none; }
+    .cmd-line { padding:2px 0; }
+    .cmd-line.success { color:var(--status-green); } .cmd-line.error { color:var(--status-red); } .cmd-line.warn { color:var(--status-amber); } .cmd-line.header { color:var(--accent-blue); font-weight:600; } .cmd-line.data { color:var(--text-secondary); } .cmd-line.dim { color:var(--text-dim); } .cmd-line.info { color:var(--text-secondary); }
+    .cmd-table { width:100%; border-collapse:collapse; margin:6px 0; font-size:11px; }
+    .cmd-table th { text-align:left; padding:4px 8px; color:var(--accent-blue); border-bottom:1px solid var(--border-main); font-weight:500; }
+    .cmd-table td { padding:3px 8px; color:var(--text-secondary); border-bottom:1px solid var(--border-subtle); }
+
+    /* ═══ Case Files — Grid ═══ */
+    .case-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+    .case-card { background:#111827; border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:18px; cursor:pointer; transition:all 0.15s ease; }
+    .case-card:hover { border-color:rgba(76,201,240,0.2); transform:translateY(-1px); }
+    .case-card-name { font-size:14px; font-weight:600; color:#e2e8f0; margin-bottom:4px; }
+    .case-status { display:inline-block; font-family:'JetBrains Mono'; font-size:9px; font-weight:600; padding:2px 8px; border-radius:10px; letter-spacing:0.06em; }
+    .case-status-OPEN { background:rgba(34,197,94,0.1); color:#22c55e; border:1px solid rgba(34,197,94,0.2); }
+    .case-status-COLD { background:rgba(76,201,240,0.1); color:#4cc9f0; border:1px solid rgba(76,201,240,0.2); }
+    .case-status-CLOSED { background:rgba(100,116,139,0.15); color:#64748b; border:1px solid rgba(100,116,139,0.2); }
+
+    /* ═══ Case Detail — Split Screen ═══ */
+    #case-detail { position:fixed !important; top:52px; left:0; right:0; bottom:0; z-index:50; background:#0d1117; overflow:hidden; max-width:none !important; padding:0 !important; margin:0 !important; width:100vw !important; height:calc(100vh - 52px) !important; }
+    .cd-wrap { display:flex; height:calc(100% - 44px); }
+    .cd-left { width:300px; flex-shrink:0; background:#0a0e14; border-right:1px solid rgba(255,255,255,0.06); padding:20px 16px; overflow-y:auto; }
+    .cd-right { flex:1; min-width:0; background:#0d1117; padding:32px 40px; overflow-y:auto; }
+    .cd-classification { font-family:'JetBrains Mono'; font-size:9px; letter-spacing:0.2em; text-transform:uppercase; padding:3px 10px; border-radius:10px; display:inline-block; color:#ef4444; border:1px solid rgba(239,68,68,0.25); margin-bottom:10px; }
+    .cd-case-name { font-size:18px; font-weight:600; color:#e2e8f0; margin-bottom:4px; background:none; border:1px solid transparent; padding:2px 6px; width:100%; outline:none; border-radius:4px; transition:border-color 0.15s; }
+    .cd-case-name:focus { border-color:rgba(76,201,240,0.4); }
+    .cd-meta { font-size:10px; color:#475569; margin-bottom:8px; }
+    .cd-section-label { font-size:10px; font-weight:600; color:#64748b; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:10px; }
+    .cd-divider { height:1px; background:rgba(255,255,255,0.06); margin:20px 0; }
+
+    /* Left panel elements */
+    .cd-subject { display:flex; align-items:center; gap:10px; padding:8px 8px; border-radius:6px; margin-bottom:4px; transition:background 0.15s; position:relative; }
+    .cd-subject:hover { background:rgba(255,255,255,0.03); }
+    .cd-subject:hover .cd-subject-remove { opacity:1; }
+    .cd-subject-avatar { width:32px; height:32px; border-radius:50%; background:#1e293b; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:#94a3b8; flex-shrink:0; overflow:hidden; }
+    .cd-subject-avatar img { width:100%; height:100%; object-fit:cover; }
+    .cd-subject-name { font-size:13px; color:#c8d8e8; cursor:pointer; }
+    .cd-subject-name:hover { color:#4cc9f0; }
+    .cd-subject-remove { position:absolute; top:4px; right:4px; width:16px; height:16px; border-radius:50%; background:none; border:none; color:#64748b; font-size:12px; cursor:pointer; opacity:0; transition:opacity 0.15s; display:flex; align-items:center; justify-content:center; }
+    .cd-subject-remove:hover { color:#ef4444; }
+    .cd-surv-dot { width:6px; height:6px; border-radius:50%; background:#4cc9f0; box-shadow:0 0 6px rgba(76,201,240,0.4); display:inline-block; margin-left:4px; }
+    .cd-evidence { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:5px; margin-bottom:3px; cursor:pointer; transition:background 0.15s; }
+    .cd-evidence:hover { background:rgba(255,255,255,0.03); }
+    .cd-evidence:hover .cd-ev-remove { opacity:1; }
+    .cd-ev-icon { width:20px; height:20px; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; flex-shrink:0; }
+    .cd-ev-remove { opacity:0; transition:opacity 0.15s; background:none; border:none; color:#64748b; font-size:11px; cursor:pointer; padding:2px; }
+    .cd-ev-remove:hover { color:#ef4444; }
+    .cd-add-input { width:100%; padding:8px 0; background:none; border:none; border-bottom:1px solid transparent; color:#94a3b8; font-size:12px; outline:none; transition:border-color 0.15s; }
+    .cd-add-input:focus { border-bottom-color:rgba(76,201,240,0.4); }
+    .cd-add-input::placeholder { color:#1e3a5f; }
+    .cd-ev-type-pills { display:flex; gap:0; margin-bottom:8px; }
+    .cd-ev-pill { padding:4px 12px; font-size:10px; font-weight:500; color:#64748b; border:1px solid rgba(255,255,255,0.06); cursor:pointer; transition:all 0.15s; background:none; }
+    .cd-ev-pill:first-child { border-radius:6px 0 0 6px; }
+    .cd-ev-pill:last-child { border-radius:0 6px 6px 0; }
+    .cd-ev-pill:not(:first-child) { border-left:none; }
+    .cd-ev-pill.active { color:#4cc9f0; border-color:rgba(76,201,240,0.3); background:rgba(76,201,240,0.05); }
+    .cd-ev-picker { max-height:140px; overflow-y:auto; margin-top:6px; }
+    .cd-ev-picker-item { padding:5px 8px; border-radius:4px; cursor:pointer; font-size:11px; color:#94a3b8; transition:background 0.1s; }
+    .cd-ev-picker-item:hover { background:rgba(76,201,240,0.06); }
+
+    /* Right panel elements */
+    .cd-summary-text { font-size:14px; color:#94a3b8; line-height:1.8; min-height:40px; padding:4px 6px; border:1px solid transparent; border-radius:4px; outline:none; cursor:text; transition:border-color 0.15s; white-space:pre-wrap; }
+    .cd-summary-text:focus { border-color:rgba(76,201,240,0.3); }
+    .cd-summary-text:empty::before { content:attr(data-placeholder); color:#1e3a5f; }
+    .cd-finding { display:flex; align-items:center; gap:8px; padding:4px 0; min-height:28px; }
+    .cd-finding:hover .cd-finding-actions { opacity:1; }
+    .cd-finding-dot { width:6px; height:6px; border-radius:50%; background:#4cc9f0; flex-shrink:0; }
+    .cd-finding-text { flex:1; font-size:13px; color:#94a3b8; line-height:1.5; }
+    .cd-finding-actions { opacity:0; display:flex; gap:6px; transition:opacity 0.15s; }
+    .cd-finding-action { background:none; border:none; color:#475569; font-size:11px; cursor:pointer; padding:2px; transition:color 0.15s; }
+    .cd-finding-action:hover { color:#e2e8f0; }
+    .cd-finding-action.danger:hover { color:#ef4444; }
+    .cd-question { display:flex; align-items:flex-start; gap:8px; padding:6px 0; }
+    .cd-question:hover .cd-q-actions { opacity:1; }
+    .cd-q-mark { font-family:'JetBrains Mono'; font-size:11px; color:#ef4444; font-weight:700; flex-shrink:0; width:14px; margin-top:1px; }
+    .cd-q-text { flex:1; font-size:13px; color:#94a3b8; line-height:1.5; }
+    .cd-q-resolved .cd-q-mark { color:#22c55e; }
+    .cd-q-resolved .cd-q-text { text-decoration:line-through; color:#475569; }
+    .cd-q-actions { opacity:0; display:flex; gap:6px; transition:opacity 0.15s; align-items:center; }
+    .cd-q-btn { background:none; border:none; font-size:10px; cursor:pointer; padding:2px 6px; transition:color 0.15s; }
+    .cd-q-btn.resolve { color:#22c55e; }
+    .cd-q-btn.resolve:hover { color:#4ade80; }
+    .cd-q-btn.danger { color:#64748b; }
+    .cd-q-btn.danger:hover { color:#ef4444; }
+
+    /* Timeline */
+    .cd-timeline { position:relative; padding-left:24px; margin-top:12px; }
+    .cd-tl-line { position:absolute; left:7px; top:0; bottom:0; width:1px; background:rgba(255,255,255,0.08); }
+    .cd-tl-event { position:relative; margin-bottom:18px; padding-left:12px; }
+    .cd-tl-event:hover .cd-tl-actions { opacity:1; }
+    .cd-tl-dot { position:absolute; left:-20px; top:4px; width:8px; height:8px; border-radius:50%; }
+    .cd-tl-dot-PERSON { background:#4cc9f0; }
+    .cd-tl-dot-INCIDENT { background:#ef4444; }
+    .cd-tl-dot-DISCOVERY { background:#f59e0b; }
+    .cd-tl-meta { font-family:'JetBrains Mono'; font-size:10px; color:#475569; margin-bottom:2px; }
+    .cd-tl-type { font-size:10px; font-weight:600; margin-left:8px; }
+    .cd-tl-type-PERSON { color:#4cc9f0; }
+    .cd-tl-type-INCIDENT { color:#ef4444; }
+    .cd-tl-type-DISCOVERY { color:#f59e0b; }
+    .cd-tl-desc { font-size:13px; color:#94a3b8; line-height:1.5; }
+    .cd-tl-actions { opacity:0; display:flex; gap:6px; margin-top:4px; transition:opacity 0.15s; }
+    .cd-tl-empty { text-align:center; color:#1e3a5f; font-size:12px; font-style:italic; padding:24px 0; }
+    .cd-tl-add { display:flex; gap:6px; align-items:center; margin-top:14px; }
+    .cd-tl-input { padding:6px 10px; height:32px; font-size:12px; background:#111827; border:1px solid rgba(255,255,255,0.08); border-radius:4px; color:#94a3b8; outline:none; transition:border-color 0.15s; }
+    .cd-tl-input:focus { border-color:rgba(76,201,240,0.3); }
+    .cd-tl-input::placeholder { color:#1e3a5f; }
+
+    /* Case detail topbar override */
+    .cd-topbar { display:flex; align-items:center; justify-content:space-between; height:44px; background:#080c12; border-bottom:1px solid rgba(255,255,255,0.06); padding:0 20px; flex-shrink:0; }
+    .cd-topbar-left { display:flex; align-items:center; gap:10px; font-size:12px; }
+    .cd-topbar-left .cd-breadcrumb { color:#475569; }
+    .cd-topbar-left .cd-breadcrumb-name { color:#64748b; }
+    .cd-topbar-right { display:flex; align-items:center; gap:10px; }
+    .cd-topbar-right:hover .cd-delete-btn { opacity:1; }
+    .cd-delete-btn { background:none; border:none; color:#ef4444; font-size:11px; cursor:pointer; opacity:0; transition:opacity 0.15s; padding:4px 8px; }
+
+    @media (max-width:768px) { .cd-wrap { flex-direction:column; } .cd-left { width:100%; border-right:none; border-bottom:1px solid rgba(255,255,255,0.06); } .cd-right { padding:20px 16px; } }
+
+    /* ═══ Surveillance ═══ */
+    .surv-btn { padding:6px 14px; font-size:11px; font-weight:500; background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.25); color:var(--status-green); border-radius:8px; cursor:pointer; transition:all 0.2s; }
+    .surv-btn:hover { background:rgba(52,211,153,0.15); box-shadow:0 0 12px rgba(52,211,153,0.2); }
+    .surv-status { font-family:'JetBrains Mono'; font-size:10px; color:var(--text-dim); padding:6px 0; }
+    .surv-run-group { display:flex; flex-direction:column; gap:8px; padding:14px; background:var(--bg-raised); border:1px solid var(--border-subtle); border-radius:10px; }
+    .surv-run-header { display:flex; align-items:center; justify-content:space-between; cursor:pointer; }
+    .surv-run-header .surv-run-date { font-family:'JetBrains Mono'; font-size:10px; color:var(--text-dim); }
+    .surv-run-header .surv-run-count { font-size:10px; color:var(--accent-cyan); }
+    .surv-finding { padding:12px; background:var(--bg-card); border:1px solid var(--border-main); border-radius:8px; margin-top:8px; }
+    .surv-finding-headline { font-size:13px; font-weight:600; color:var(--text-primary); margin-bottom:4px; }
+    .surv-finding-source { font-size:10px; color:var(--accent-blue); margin-bottom:6px; }
+    .surv-finding-summary { font-size:12px; color:var(--text-secondary); line-height:1.6; margin-bottom:8px; }
+    .surv-confidence { font-family:'JetBrains Mono'; font-size:9px; font-weight:600; padding:2px 8px; border-radius:3px; letter-spacing:0.06em; }
+    .surv-confidence-confirmed { background:rgba(52,211,153,0.1); color:var(--status-green); }
+    .surv-confidence-unverified { background:rgba(251,191,36,0.1); color:var(--status-amber); }
+    .new-intel-section { padding:16px; background:rgba(34,211,238,0.04); border:1px solid rgba(34,211,238,0.15); border-radius:10px; margin-bottom:20px; }
+    .new-intel-title { font-family:'Orbitron'; font-size:11px; font-weight:600; color:var(--accent-cyan); letter-spacing:0.12em; margin-bottom:10px; }
+    .new-intel-item { padding:6px 10px; border-radius:6px; cursor:pointer; font-size:12px; color:var(--text-secondary); transition:background 0.1s; display:flex; align-items:center; gap:8px; }
+    .new-intel-item:hover { background:rgba(34,211,238,0.08); }
+    .new-intel-dot { width:6px; height:6px; border-radius:50%; background:var(--accent-cyan); box-shadow:0 0 6px rgba(34,211,238,0.5); flex-shrink:0; }
+
+    @media (max-width:768px) { .case-columns { flex-direction:column; } .case-col-left { width:100%; border-right:none; padding-right:0; border-bottom:1px solid var(--border-subtle); padding-bottom:20px; margin-bottom:20px; } .case-col-right { padding-left:0; } }
+
+    /* ═══ K-108 Briefing ═══ */
+    .briefing-content { font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.7; color:var(--text-secondary); }
+    .briefing-content h1,.briefing-content h2,.briefing-content h3 { color:var(--accent-cyan); font-family:'Orbitron',sans-serif; letter-spacing:0.08em; }
+    .briefing-content h1 { font-size:16px; margin-bottom:12px; } .briefing-content h2 { font-size:14px; margin:16px 0 8px; } .briefing-content h3 { font-size:12px; margin:12px 0 6px; }
+    .briefing-content strong { color:var(--text-primary); }
+    .briefing-content ul { padding-left:20px; }
+    .briefing-content li { margin-bottom:4px; }
+    .briefing-card { background:var(--bg-card); border:1px solid var(--border-main); border-radius:12px; padding:24px; margin-bottom:16px; cursor:pointer; transition:border-color 0.2s; }
+    .briefing-card:hover { border-color:rgba(34,211,238,0.2); }
+    .briefing-date { font-family:'JetBrains Mono'; font-size:10px; color:var(--text-dim); letter-spacing:0.08em; }
+
+    /* ═══ Surveillance indicator ═══ */
+
+    /* Custom Dropdown (replaces native select) */
+    .k-dropdown { position:relative; display:inline-block; }
+    .k-dropdown-btn { display:flex; align-items:center; gap:6px; padding:6px 12px; background:var(--bg-base); border:1px solid var(--border-main); border-radius:8px; color:var(--text-primary); font-family:'Inter'; font-size:11px; cursor:pointer; white-space:nowrap; transition:border-color 0.2s; min-width:80px; }
+    .k-dropdown-btn:hover { border-color:rgba(56,189,248,0.3); }
+    .k-dropdown-btn::after { content:''; width:0; height:0; border-left:4px solid transparent; border-right:4px solid transparent; border-top:4px solid var(--text-muted); margin-left:auto; }
+    .k-dropdown-menu { display:none; position:absolute; top:calc(100% + 4px); left:0; min-width:100%; background:var(--bg-card); border:1px solid var(--border-main); border-radius:8px; box-shadow:0 12px 40px rgba(0,0,0,0.6); z-index:100; overflow:hidden; }
+    .k-dropdown.open .k-dropdown-menu { display:block; }
+    .k-dropdown-item { padding:8px 14px; font-size:11px; color:var(--text-secondary); cursor:pointer; transition:background 0.1s; white-space:nowrap; }
+    .k-dropdown-item:hover { background:rgba(56,189,248,0.08); color:var(--text-primary); }
+    .k-dropdown-item.selected { color:var(--accent-cyan); background:rgba(56,189,248,0.05); }
+
+    /* Toast */
+    .k108-toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--bg-card); border:1px solid var(--border-main); color:var(--text-secondary); font-family:'JetBrains Mono'; font-size:12px; padding:10px 20px; border-radius:8px; z-index:10000; animation:toastIn 0.3s ease; box-shadow:0 8px 30px rgba(0,0,0,0.4); }
+    @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+
+    /* Confirm dialog */
+    .k108-confirm-overlay { display:none; position:fixed; inset:0; z-index:10001; background:rgba(4,6,12,0.8); backdrop-filter:blur(4px); align-items:center; justify-content:center; }
+    .k108-confirm-overlay.active { display:flex; }
+    .k108-confirm-box { background:var(--bg-card); border:1px solid var(--border-main); border-radius:12px; padding:28px; width:400px; max-width:90vw; text-align:center; }
+    .k108-confirm-title { font-size:15px; font-weight:600; margin-bottom:8px; }
+    .k108-confirm-msg { font-size:12px; color:var(--text-muted); margin-bottom:20px; }
+    .k108-confirm-btns { display:flex; gap:10px; justify-content:center; }
+
     /* ═══ Mobile ═══ */
     @media (max-width: 768px) {
       .dash-grid { grid-template-columns: 1fr 1fr; }
@@ -433,6 +631,30 @@
 </head>
 <body>
   <div class="ambient"><div class="grid"></div><div class="hex"></div><div class="scanline"></div><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div><div class="orb orb-4"></div></div>
+
+  <!-- ═══ Command Bar ═══ -->
+  <div id="cmd-bar-overlay" onclick="if(event.target===this)closeCmdBar()">
+    <div class="cmd-bar">
+      <input class="cmd-bar-input" id="cmd-bar-input" placeholder="Type a command..." autocomplete="off" spellcheck="false">
+      <div class="cmd-bar-list" id="cmd-bar-list"></div>
+      <div class="cmd-bar-output" id="cmd-bar-output"></div>
+    </div>
+  </div>
+
+  <!-- ═══ Toast ═══ -->
+  <div id="k108-toast-container"></div>
+
+  <!-- ═══ Confirm Dialog ═══ -->
+  <div class="k108-confirm-overlay" id="k108-confirm-overlay">
+    <div class="k108-confirm-box">
+      <div class="k108-confirm-title" id="k108-confirm-title">Are you sure?</div>
+      <div class="k108-confirm-msg" id="k108-confirm-msg">This action cannot be undone.</div>
+      <div class="k108-confirm-btns">
+        <button class="k-btn" id="k108-confirm-ok" onclick="resolveConfirm(true)">Confirm</button>
+        <button class="k-btn k-btn-danger" onclick="resolveConfirm(false)">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ═══ Auth ═══ -->
   <div id="auth-screen">
@@ -524,6 +746,21 @@
       <div style="display:flex;gap:10px;margin-top:16px">
         <button class="k-btn" onclick="createProfile()" style="flex:1">Create</button>
         <button class="k-btn k-btn-danger" onclick="closeModal('create-profile-modal')" style="flex:1">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Case Modal -->
+  <div class="modal-overlay" id="create-case-modal">
+    <div class="modal-box">
+      <h2>Create Case File</h2>
+      <div class="fg"><label class="k-label">Case Name <span class="req">*</span></label><input class="k-input" id="cc-name" placeholder="e.g. Operation Nightfall" onkeydown="if(event.key==='Enter'){event.preventDefault();submitCreateCase();}"></div>
+      <div class="fg"><label class="k-label">Summary</label><textarea class="k-input" id="cc-summary" rows="3" style="resize:vertical" placeholder="Brief description of the investigation..."></textarea></div>
+      <div class="fg"><label class="k-label">Classification</label><select class="k-select" id="cc-classification" style="width:100%"><option value="CONFIDENTIAL">CONFIDENTIAL</option><option value="RESTRICTED">RESTRICTED</option><option value="TOP SECRET">TOP SECRET</option></select></div>
+      <div class="setup-err" id="cc-err"></div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="k-btn" onclick="submitCreateCase()" style="flex:1">Create Case</button>
+        <button class="k-btn k-btn-danger" onclick="closeModal('create-case-modal')" style="flex:1">Cancel</button>
       </div>
     </div>
   </div>
@@ -625,6 +862,29 @@
             </div>
           </div>
 
+          <!-- Case Files -->
+          <div class="dash-card dc-cases" onclick="navigateTo('#/cases')">
+            <div class="dc-head"><div class="dc-title">Case Files</div><div class="dc-sub">Investigations and dossiers</div><div class="dc-neon dc-neon-amber"></div></div>
+            <div class="dc-body">
+              <div class="dc-stat-row">
+                <div class="dc-stat"><div class="dc-stat-val" id="dash-case-count">0</div><div class="dc-stat-label">Cases</div></div>
+              </div>
+              <div class="dc-preview-lines" id="dash-case-preview" style="margin-top:6px">
+                <div class="dc-pline"><div class="dc-pline-dot" style="background:var(--text-dim)"></div><div class="dc-pline-text" style="color:var(--text-dim)">No cases opened</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Intel Briefing -->
+          <div class="dash-card dc-briefing" onclick="navigateTo('#/briefing')">
+            <div class="dc-head"><div class="dc-title" style="display:flex;align-items:center;gap:8px">Intel Briefing<span id="briefing-new-badge" style="display:none;width:6px;height:6px;border-radius:50%;background:var(--accent-cyan);box-shadow:0 0 8px var(--accent-cyan)"></span></div><div class="dc-sub">Daily intelligence report</div><div class="dc-neon dc-neon-cyan"></div></div>
+            <div class="dc-body">
+              <div class="dc-preview-lines" id="dash-briefing-preview">
+                <div class="dc-pline"><div class="dc-pline-dot" style="background:var(--text-dim)"></div><div class="dc-pline-text" style="color:var(--text-dim)">No briefings yet</div></div>
+              </div>
+            </div>
+          </div>
+
           <!-- Activity Log (full width) -->
           <div class="dash-card dc-log" onclick="navigateTo('#/log')">
             <div class="dc-head"><div class="dc-title">Activity Log</div><div class="dc-sub">Recent operations</div><div class="dc-neon dc-neon-red"></div></div>
@@ -705,6 +965,7 @@
       <!-- Intel Profiles -->
       <div class="k108-view" id="view-profiles">
         <div id="profiles-main">
+          <div id="new-intel-area" style="max-width:560px;margin:0 auto;width:100%"></div>
           <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;padding-top:40px">
             <div style="font-family:Orbitron;font-size:18px;font-weight:600;color:var(--accent-indigo);letter-spacing:0.1em;margin-bottom:6px">Intel Profiles</div>
             <div style="font-size:11px;color:var(--text-dim);margin-bottom:32px;letter-spacing:0.06em">Search by name, alias, or handle</div>
@@ -743,6 +1004,22 @@
         <div id="log-entries"><div class="k-empty">No activity recorded yet.</div></div>
       </div>
 
+      <!-- Case Files -->
+      <div class="k108-view" id="view-cases">
+        <div id="cases-main">
+          <div class="section-header"><h2 class="section-title neon-title neon-amber" style="font-size:18px;color:var(--status-amber);text-shadow:0 0 20px rgba(251,191,36,0.5)">Case Files</h2><div style="display:flex;gap:8px;align-items:center"><div class="k-dropdown" id="kd-case-filter" data-value=""><div class="k-dropdown-btn" onclick="toggleKDropdown('case-filter')">All Status</div><div class="k-dropdown-menu"><div class="k-dropdown-item selected" data-value="" onclick="selectKDropdown('case-filter','','All Status','loadCases()')">All Status</div><div class="k-dropdown-item" data-value="OPEN" onclick="selectKDropdown('case-filter','OPEN','Open','loadCases()')">Open</div><div class="k-dropdown-item" data-value="COLD" onclick="selectKDropdown('case-filter','COLD','Cold','loadCases()')">Cold</div><div class="k-dropdown-item" data-value="CLOSED" onclick="selectKDropdown('case-filter','CLOSED','Closed','loadCases()')">Closed</div></div></div><button class="k-btn k-btn-sm" onclick="openCreateCase()">New Case</button></div></div>
+          <div class="case-grid" id="case-grid"><div class="k-empty" style="grid-column:1/-1;padding:60px 20px;text-align:center"><div style="font-size:14px;color:var(--text-muted);margin-bottom:8px">No cases opened</div><div style="font-size:11px;color:var(--text-dim)">Create a new case file to begin an investigation</div></div></div>
+        </div>
+        <div id="case-detail" style="display:none"></div>
+      </div>
+
+      <!-- Intel Briefing -->
+      <div class="k108-view" id="view-briefing">
+        <div class="section-header"><h2 class="section-title neon-title neon-cyan" style="font-size:18px;color:var(--accent-cyan);text-shadow:0 0 20px rgba(34,211,238,0.5)">Intel Briefing</h2></div>
+        <div id="briefing-list"></div>
+        <div id="briefing-detail" style="display:none"></div>
+      </div>
+
     </div>
   </div>
 
@@ -766,7 +1043,7 @@ function updateSmsBadge() {
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
 const SNAMES = {AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',DC:'Washington DC'};
 
-const VIEW_TITLES = { 'dashboard':'Dashboard', 'lookup':'People Lookup', 'sms':'Covert SMS', 'numvalidate':'Number Validator', 'vault':'Document Vault', 'profiles':'Intel Profiles', 'metadata':'Metadata Extractor', 'log':'Activity Log' };
+const VIEW_TITLES = { 'dashboard':'Dashboard', 'lookup':'People Lookup', 'sms':'Covert SMS', 'numvalidate':'Number Validator', 'vault':'Document Vault', 'profiles':'Intel Profiles', 'metadata':'Metadata Extractor', 'log':'Activity Log', 'cases':'Case Files', 'briefing':'Intel Briefing' };
 
 // ═══ Init ═══
 (function(){
@@ -1002,7 +1279,12 @@ function handleRoute() {
   if (viewName === 'log') loadActivityLog();
   if (viewName === 'vault') loadVaultItems();
   if (viewName === 'sms') { k108SmsUnread = 0; updateSmsBadge(); loadSmsThreads(); }
-  if (viewName === 'profiles') { document.getElementById('profile-detail').style.display = 'none'; document.getElementById('profiles-main').style.display = 'block'; }
+  if (viewName === 'profiles') { document.getElementById('profile-detail').style.display = 'none'; document.getElementById('profiles-main').style.display = 'block'; loadNewIntel(); }
+  if (viewName === 'cases') {
+    const sub = hash.split('/')[1];
+    if (sub) { loadCaseDetail(sub); } else { document.getElementById('case-detail').style.display = 'none'; document.getElementById('cases-main').style.display = 'block'; loadCases(); }
+  }
+  if (viewName === 'briefing') loadBriefings();
 }
 
 // ═══ Helpers ═══
@@ -1404,7 +1686,7 @@ async function viewProfileReadonly(id) {
   const links = typeof p.social_links === 'string' ? JSON.parse(p.social_links||'[]') : (p.social_links||[]);
 
   let h = '<div class="profile-detail">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div>';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><div style="display:flex;gap:8px;align-items:center"><div id="surv-btn-area"></div><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div></div>';
 
   // Photo + Name + Badges
   h += '<div class="profile-top"><div class="profile-photo"'+(p.photo_url?' onclick="enlargePhoto(\''+esc(p.photo_url)+'\')" style="cursor:pointer" title="Click to enlarge"':'')+'>'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase()))+'</div>';
@@ -1445,6 +1727,12 @@ async function viewProfileReadonly(id) {
   // Relations
   if (d.relations && d.relations.length) { h += '<div class="profile-section"><div class="profile-section-title">Related Profiles</div>'; d.relations.forEach(r => { h += '<div class="related-card" onclick="viewProfileReadonly('+r.related_profile_id+')"><div class="profile-af-avatar" style="width:28px;height:28px;font-size:10px">'+(r.photo_url?'<img src="'+esc(r.photo_url)+'">':esc((r.first_name||'?')[0]+(r.last_name||'?')[0]))+'</div><div><div style="font-size:12px">'+esc(r.first_name+' '+r.last_name)+'</div><div style="font-size:10px;color:var(--text-dim)">'+esc(r.label||r.p_relation||'')+'</div></div></div>'; }); h += '</div>'; }
 
+  // Case Files (bidirectional link)
+  h += '<div class="profile-section" style="grid-column:1/-1" id="profile-cases-section"></div>';
+
+  // Surveillance section
+  h += '<div class="profile-section" style="grid-column:1/-1" id="profile-surv-section"><div class="profile-section-title">Surveillance</div><div style="font-size:11px;color:var(--text-dim)">Loading...</div></div>';
+
   // Empty sections notice
   if (!(p.phones||[]).length && !(p.emails||[]).length && !links.length && !p.notes) {
     h += '<div class="profile-section" style="grid-column:1/-1"><div style="text-align:center;color:var(--text-dim);font-size:12px;padding:20px">No details added yet. Click "Edit Profile" to add information.</div></div>';
@@ -1452,6 +1740,150 @@ async function viewProfileReadonly(id) {
 
   h += '</div></div>';
   el.innerHTML = h;
+
+  // Load case files and surveillance for this profile
+  loadProfileCases(id);
+  loadSurveillanceSection(id);
+}
+
+async function loadProfileCases(profileId) {
+  const section = document.getElementById('profile-cases-section');
+  if (!section) return;
+  try {
+    const d = await kAuthFetch('/api/k108/profiles/' + profileId + '/cases');
+    if (!d || !d.cases || !d.cases.length) { section.style.display = 'none'; return; }
+    let h = '<div class="profile-section-title">Case Files</div>';
+    d.cases.forEach(c => {
+      h += '<div class="evidence-item" onclick="navigateTo(\'#/cases/'+c.id+'\')"><div class="evidence-type-icon" style="background:rgba(251,191,36,0.15);color:var(--status-amber);font-weight:700;font-size:11px">CF</div><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500">'+esc(c.name)+'</div><div style="font-size:10px;color:var(--text-dim)">'+esc(c.role || 'Subject')+' · Opened '+esc(new Date(c.created_at).toLocaleDateString())+'</div></div><span class="case-status case-status-'+esc(c.status)+'" style="font-size:8px;padding:1px 5px">'+esc(c.status)+'</span></div>';
+    });
+    section.innerHTML = h;
+  } catch(e) { section.style.display = 'none'; }
+}
+
+async function loadSurveillanceSection(profileId) {
+  const section = document.getElementById('profile-surv-section');
+  const btnArea = document.getElementById('surv-btn-area');
+  if (!section) return;
+  try {
+    // Get status and results in parallel
+    const [statusD, resultsD] = await Promise.all([
+      kAuthFetch('/api/k108/surveillance/status', { profileId }),
+      kAuthFetch('/api/k108/surveillance/results', { profileId }),
+    ]);
+    const job = statusD?.job;
+    const results = resultsD?.results || [];
+    const jobs = resultsD?.jobs || [];
+
+    // Update button area in header
+    if (btnArea) {
+      if (!job || job.status === 'completed') {
+        btnArea.innerHTML = '<button class="surv-btn" onclick="runSurveillance('+profileId+')">Run Surveillance</button>';
+      } else if (job.status === 'pending') {
+        btnArea.innerHTML = '<div class="surv-status">Report pending · ready within the hour</div>';
+      } else if (job.status === 'in_progress') {
+        btnArea.innerHTML = '<div class="surv-status">Surveillance in progress...</div>';
+      }
+    }
+
+    // Render surveillance section
+    let h = '<div class="profile-section-title">Surveillance</div>';
+
+    // Status line
+    if (job && job.status === 'completed') {
+      const date = new Date(job.completed_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      h += '<div class="surv-status" style="margin-bottom:12px">Last run: '+esc(date)+' · '+(job.finding_count > 0 ? esc(job.finding_count)+' finding'+(job.finding_count!==1?'s':'') : 'Nothing new found')+'</div>';
+    } else if (job && job.status === 'pending') {
+      h += '<div class="surv-status" style="margin-bottom:12px">Report pending · ready within the hour</div>';
+    } else if (job && job.status === 'in_progress') {
+      h += '<div class="surv-status" style="margin-bottom:12px">Surveillance in progress...</div>';
+    }
+
+    if (!results.length && (!job || job.status !== 'pending')) {
+      h += '<div style="font-size:11px;color:var(--text-dim);padding:8px 0">No surveillance data yet. Click "Run Surveillance" to begin.</div>';
+    }
+
+    // Group results by job
+    const byJob = {};
+    results.forEach(r => {
+      const jid = r.job_id || 'unknown';
+      if (!byJob[jid]) byJob[jid] = [];
+      byJob[jid].push(r);
+    });
+
+    let groupIdx = 0;
+    for (const [jobId, findings] of Object.entries(byJob)) {
+      const jobInfo = jobs.find(j => j.id === parseInt(jobId));
+      const runDate = jobInfo?.completed_at ? new Date(jobInfo.completed_at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : 'Unknown date';
+      const isFirst = groupIdx === 0;
+      const collapseId = 'surv-group-'+jobId;
+      h += '<div class="surv-run-group" style="margin-bottom:10px">';
+      h += '<div class="surv-run-header" onclick="document.getElementById(\''+collapseId+'\').style.display=document.getElementById(\''+collapseId+'\').style.display===\'none\'?\'block\':\'none\'">';
+      h += '<span class="surv-run-date">'+esc(runDate)+'</span>';
+      h += '<span class="surv-run-count">'+findings.length+' finding'+(findings.length!==1?'s':'')+'</span>';
+      h += '</div>';
+      h += '<div id="'+collapseId+'" style="display:'+(isFirst?'block':'none')+'">';
+      findings.forEach(f => {
+        h += '<div class="surv-finding">';
+        h += '<div class="surv-finding-headline">'+esc(f.headline)+'</div>';
+        if (f.source_name || f.source_url) {
+          h += '<div class="surv-finding-source">';
+          if (f.source_url) h += '<a href="'+esc(f.source_url)+'" target="_blank" style="color:var(--accent-blue);text-decoration:none">'+esc(f.source_name || f.source_url)+'</a>';
+          else h += esc(f.source_name);
+          h += '</div>';
+        }
+        if (f.summary) h += '<div class="surv-finding-summary">'+esc(f.summary)+'</div>';
+        h += '<div style="display:flex;align-items:center;gap:8px">';
+        h += '<span class="surv-confidence surv-confidence-'+esc(f.confidence||'unverified')+'">'+esc((f.confidence||'unverified').toUpperCase())+'</span>';
+        h += '<button class="k-btn k-btn-sm" onclick="addFindingToCase('+f.id+')" style="font-size:9px;padding:2px 8px">Add to Case</button>';
+        h += '</div></div>';
+      });
+      h += '</div></div>';
+      groupIdx++;
+    }
+
+    section.innerHTML = h;
+  } catch(e) { section.innerHTML = '<div class="profile-section-title">Surveillance</div><div style="font-size:11px;color:var(--text-dim)">Could not load surveillance data</div>'; }
+}
+
+async function runSurveillance(profileId) {
+  const btnArea = document.getElementById('surv-btn-area');
+  if (btnArea) btnArea.innerHTML = '<div class="surv-status">Queuing surveillance...</div>';
+  const d = await kAuthFetch('/api/k108/surveillance/queue', { profileId });
+  if (d && d.ok) {
+    showToast('Surveillance queued');
+    if (btnArea) btnArea.innerHTML = '<div class="surv-status">Report pending · ready within the hour</div>';
+    const section = document.getElementById('profile-surv-section');
+    if (section) {
+      const title = section.querySelector('.profile-section-title');
+      if (title) title.insertAdjacentHTML('afterend', '<div class="surv-status" style="margin-bottom:12px">Report pending · ready within the hour</div>');
+    }
+  }
+}
+
+async function addFindingToCase(resultId) {
+  // Load available cases
+  const d = await kAuthFetch('/api/k108/cases', {});
+  if (!d || !d.cases || !d.cases.length) { showToast('No cases available — create a case first'); return; }
+  // Build picker HTML inline
+  const section = document.getElementById('profile-surv-section');
+  const pickerId = 'case-picker-'+resultId;
+  const existing = document.getElementById(pickerId);
+  if (existing) { existing.remove(); return; }
+  // Find the button and add picker after it
+  const btn = event.target;
+  const picker = document.createElement('div');
+  picker.id = pickerId;
+  picker.className = 'ev-picker';
+  picker.style.marginTop = '6px';
+  picker.innerHTML = d.cases.map(c => '<div class="ev-picker-item" onclick="submitFindingToCase('+resultId+','+c.id+')">'+esc(c.name)+' <span class="case-status case-status-'+esc(c.status)+'" style="font-size:7px;padding:1px 4px;margin-left:4px">'+esc(c.status)+'</span></div>').join('');
+  btn.closest('.surv-finding').appendChild(picker);
+}
+
+async function submitFindingToCase(resultId, caseId) {
+  const d = await kAuthFetch('/api/k108/surveillance/add-to-case', { resultId, caseId });
+  if (d && d.ok) showToast('Finding added to case');
+  const picker = document.getElementById('case-picker-'+resultId);
+  if (picker) picker.remove();
 }
 
 async function viewProfile(id) {
@@ -2275,6 +2707,709 @@ function removeSavedSearch(idx) {
 // ═══ Error helpers ═══
 function showErr(id, m) { const e=document.getElementById(id); e.textContent=m; e.classList.add('active'); }
 function hideErr(id) { const e=document.getElementById(id); e.textContent=''; e.classList.remove('active'); }
+
+// ═══ Toast & Confirm (K-108 native) ═══
+function showToast(msg, duration) {
+  const t = document.createElement('div');
+  t.className = 'k108-toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, duration || 3000);
+}
+
+let _k108ConfirmResolve = null;
+function showConfirmDialog({ title, msg, okText, danger } = {}) {
+  return new Promise(resolve => {
+    _k108ConfirmResolve = resolve;
+    document.getElementById('k108-confirm-title').textContent = title || 'Are you sure?';
+    document.getElementById('k108-confirm-msg').textContent = msg || 'This action cannot be undone.';
+    const ok = document.getElementById('k108-confirm-ok');
+    ok.textContent = okText || 'Confirm';
+    ok.className = danger !== false ? 'k-btn k-btn-danger' : 'k-btn';
+    document.getElementById('k108-confirm-overlay').classList.add('active');
+  });
+}
+function resolveConfirm(val) {
+  document.getElementById('k108-confirm-overlay').classList.remove('active');
+  if (_k108ConfirmResolve) { _k108ConfirmResolve(val); _k108ConfirmResolve = null; }
+}
+
+// ═══ Command Bar ═══
+const CMD_LIST = [
+  { cmd:'broadcast ', desc:'Send announcement to both users', cat:'Chat' },
+  { cmd:'announcement list', desc:'List all announcements', cat:'Announcements' },
+  { cmd:'announcement delete ', desc:'Delete an announcement', cat:'Announcements' },
+  { cmd:'announcement new ', desc:'Create new announcement', cat:'Announcements' },
+  { cmd:'settings', desc:'View all settings', cat:'Settings' },
+  { cmd:'set password ', desc:'Change site password', cat:'Settings' },
+  { cmd:'reset password ', desc:'Force profile PIN reset on next login', cat:'Settings' },
+  { cmd:'set eval-password ', desc:'Change eval password', cat:'Settings' },
+  { cmd:'set vault-code ', desc:'Change locker passcode', cat:'Settings' },
+  { cmd:'set email ', desc:'Set notification emails', cat:'Settings' },
+  { cmd:'feedback', desc:'View briefing feedback', cat:'Briefing' },
+  { cmd:'maintenance on', desc:'Lock site', cat:'System' },
+  { cmd:'maintenance off', desc:'Unlock site', cat:'System' },
+  { cmd:'force logout', desc:'Force logout all users', cat:'System' },
+  { cmd:'force reload', desc:'Force all clients to reload', cat:'System' },
+  { cmd:'uptime', desc:'Show server uptime', cat:'System' },
+  { cmd:'backup', desc:'Email full backup', cat:'System' },
+  { cmd:'republish update-log', desc:'Re-show update log to both users', cat:'System' },
+  { cmd:'republish update-log kaliph', desc:'Re-show to Kaliph', cat:'System' },
+  { cmd:'republish update-log kathrine', desc:'Re-show to Kathrine', cat:'System' },
+  { cmd:'custom update-log ', desc:'Send custom update log to both', cat:'System' },
+  { cmd:'custom update-log kaliph ', desc:'Send to Kaliph', cat:'System' },
+  { cmd:'custom update-log kathrine ', desc:'Send to Kathrine', cat:'System' },
+  { cmd:'emit ', desc:'Emit a socket event', cat:'System' },
+  { cmd:'clear', desc:'Clear command bar output', cat:'System' },
+  { cmd:'help', desc:'Show all available commands', cat:'System' },
+  { cmd:'profile ', desc:'Search and open an Intel Profile', cat:'K-108' },
+  { cmd:'case ', desc:'Open a Case File by name', cat:'K-108' },
+  { cmd:'sms quota', desc:'Show remaining Textbelt texts', cat:'K-108' },
+  { cmd:'numvalidate quota', desc:'Show remaining Numverify lookups', cat:'K-108' },
+  { cmd:'activity', desc:'Show last 10 Activity Log entries', cat:'K-108' },
+  { cmd:'validate ', desc:'Run Number Validator lookup inline', cat:'K-108' },
+  { cmd:'goto ', desc:'Navigate to any K-108 module', cat:'K-108' },
+  { cmd:'surveillance ', desc:'Queue a surveillance run for a profile', cat:'K-108' },
+  { cmd:'k108 reset-passcode ', desc:'Reset K-108 passcode', cat:'K-108' },
+];
+let cmdBarIdx = 0;
+
+document.addEventListener('keydown', function(e) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    if (!authToken) return;
+    openCmdBar();
+  }
+});
+
+function openCmdBar() {
+  const overlay = document.getElementById('cmd-bar-overlay');
+  overlay.classList.add('active');
+  const input = document.getElementById('cmd-bar-input');
+  input.value = '';
+  document.getElementById('cmd-bar-output').innerHTML = '';
+  renderCmdList('');
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeCmdBar() {
+  document.getElementById('cmd-bar-overlay').classList.remove('active');
+}
+
+function renderCmdList(filter) {
+  const list = document.getElementById('cmd-bar-list');
+  const f = filter.toLowerCase();
+  const matched = f ? CMD_LIST.filter(c => c.cmd.toLowerCase().includes(f) || c.desc.toLowerCase().includes(f)) : CMD_LIST;
+  if (!matched.length) { list.innerHTML = '<div style="padding:16px 20px;color:var(--text-dim);font-size:12px">No matching commands</div>'; cmdBarIdx = -1; return; }
+  cmdBarIdx = 0;
+  let cats = {};
+  matched.forEach(c => { if (!cats[c.cat]) cats[c.cat] = []; cats[c.cat].push(c); });
+  let h = '';
+  let idx = 0;
+  for (const [cat, cmds] of Object.entries(cats)) {
+    h += '<div style="padding:6px 20px 2px;font-size:9px;font-weight:600;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase">'+esc(cat)+'</div>';
+    cmds.forEach(c => {
+      h += '<div class="cmd-item'+(idx===0?' active':'')+'" data-idx="'+idx+'" data-cmd="'+esc(c.cmd)+'" onclick="selectCmd(this)"><span class="cmd-item-name">'+esc(c.cmd)+'</span><span class="cmd-item-desc">'+esc(c.desc)+'</span></div>';
+      idx++;
+    });
+  }
+  list.innerHTML = h;
+}
+
+function selectCmd(el) {
+  const cmd = el.dataset.cmd;
+  const input = document.getElementById('cmd-bar-input');
+  if (cmd.endsWith(' ')) { input.value = cmd; input.focus(); renderCmdList(cmd); }
+  else { input.value = cmd; execCmdBar(cmd); }
+}
+
+document.getElementById('cmd-bar-input').addEventListener('input', function() { renderCmdList(this.value); });
+
+document.getElementById('cmd-bar-input').addEventListener('keydown', function(e) {
+  const items = document.querySelectorAll('#cmd-bar-list .cmd-item');
+  if (e.key === 'Escape') { e.preventDefault(); closeCmdBar(); return; }
+  if (e.key === 'ArrowDown') { e.preventDefault(); cmdBarIdx = Math.min(cmdBarIdx + 1, items.length - 1); items.forEach((it, i) => it.classList.toggle('active', i === cmdBarIdx)); items[cmdBarIdx]?.scrollIntoView({ block: 'nearest' }); return; }
+  if (e.key === 'ArrowUp') { e.preventDefault(); cmdBarIdx = Math.max(cmdBarIdx - 1, 0); items.forEach((it, i) => it.classList.toggle('active', i === cmdBarIdx)); items[cmdBarIdx]?.scrollIntoView({ block: 'nearest' }); return; }
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const active = items[cmdBarIdx];
+    if (active) { this.value = active.dataset.cmd; renderCmdList(this.value); }
+    return;
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const val = this.value.trim();
+    if (!val) {
+      const active = items[cmdBarIdx];
+      if (active) { const cmd = active.dataset.cmd; if (cmd.endsWith(' ')) { this.value = cmd; renderCmdList(cmd); } else { this.value = cmd; execCmdBar(cmd); } }
+    } else { execCmdBar(val); }
+  }
+});
+
+async function execCmdBar(raw) {
+  if (raw === 'clear') { document.getElementById('cmd-bar-output').innerHTML = ''; return; }
+  const out = document.getElementById('cmd-bar-output');
+  try {
+    const d = await kAuthFetch('/api/k108/command', { command: raw });
+    if (!d) return;
+    if (d.clear) { out.innerHTML = ''; return; }
+    if (d.helpList) {
+      let h = '<div class="cmd-line header">Available Commands:</div>';
+      let cats = {};
+      CMD_LIST.forEach(c => { if (!cats[c.cat]) cats[c.cat] = []; cats[c.cat].push(c); });
+      for (const [cat, cmds] of Object.entries(cats)) {
+        h += '<div class="cmd-line header" style="margin-top:8px">'+esc(cat)+'</div>';
+        cmds.forEach(c => { h += '<div class="cmd-line data">  '+esc(c.cmd)+' — '+esc(c.desc)+'</div>'; });
+      }
+      out.innerHTML = h;
+      return;
+    }
+    if (d.navigate) { closeCmdBar(); navigateTo(d.navigate); }
+    if (d.profileResults) {
+      let h = '';
+      if (d.lines) d.lines.forEach(l => { h += '<div class="cmd-line '+esc(l.cls||'info')+'">'+esc(l.text)+'</div>'; });
+      d.profileResults.forEach(p => { h += '<div class="cmd-item" onclick="closeCmdBar();navigateTo(\'#/profiles/'+p.id+'\');viewProfileReadonly('+p.id+')"><span class="cmd-item-name">'+esc(p.name)+'</span></div>'; });
+      out.innerHTML = h;
+      return;
+    }
+    if (d.caseResults) {
+      let h = '';
+      if (d.lines) d.lines.forEach(l => { h += '<div class="cmd-line '+esc(l.cls||'info')+'">'+esc(l.text)+'</div>'; });
+      d.caseResults.forEach(c => { h += '<div class="cmd-item" onclick="closeCmdBar();navigateTo(\'#/cases/'+c.id+'\')"><span class="cmd-item-name">'+esc(c.name)+'</span><span class="cmd-item-desc">'+esc(c.status)+'</span></div>'; });
+      out.innerHTML = h;
+      return;
+    }
+    let h = '';
+    if (d.lines) d.lines.forEach(l => { h += '<div class="cmd-line '+(l.cls||'info')+'">'+esc(l.text)+'</div>'; });
+    if (d.table) {
+      h += '<table class="cmd-table"><tr>';
+      d.table.headers.forEach(hd => { h += '<th>'+esc(hd)+'</th>'; });
+      h += '</tr>';
+      d.table.rows.forEach(row => { h += '<tr>'; row.forEach(c => { h += '<td>'+esc(String(c))+'</td>'; }); h += '</tr>'; });
+      h += '</table>';
+    }
+    out.innerHTML = h;
+  } catch(e) { out.innerHTML = '<div class="cmd-line error">Error: '+esc(e.message)+'</div>'; }
+}
+
+// ═══ Custom Dropdown Helper ═══
+function kDropdown(id, options, selected, onChange) {
+  const sel = options.find(o => o.value === selected) || options[0];
+  return '<div class="k-dropdown" id="kd-'+id+'" data-value="'+esc(sel.value)+'"><div class="k-dropdown-btn" onclick="toggleKDropdown(\''+id+'\')">'+esc(sel.label)+'</div><div class="k-dropdown-menu">'+options.map(o => '<div class="k-dropdown-item'+(o.value===sel.value?' selected':'')+'" data-value="'+esc(o.value)+'" onclick="selectKDropdown(\''+id+'\',\''+esc(o.value)+'\',\''+esc(o.label)+'\','+(onChange?'\''+onChange+'\'':'null')+')">'+esc(o.label)+'</div>').join('')+'</div></div>';
+}
+function toggleKDropdown(id) {
+  const dd = document.getElementById('kd-'+id);
+  if (!dd) return;
+  // Close all others first
+  document.querySelectorAll('.k-dropdown.open').forEach(d => { if (d.id !== 'kd-'+id) d.classList.remove('open'); });
+  dd.classList.toggle('open');
+}
+function selectKDropdown(id, value, label, onChange) {
+  const dd = document.getElementById('kd-'+id);
+  if (!dd) return;
+  dd.dataset.value = value;
+  dd.querySelector('.k-dropdown-btn').textContent = label;
+  dd.querySelectorAll('.k-dropdown-item').forEach(i => i.classList.toggle('selected', i.dataset.value === value));
+  dd.classList.remove('open');
+  if (onChange) { try { eval(onChange.replace('__VAL__', value)); } catch(e) {} }
+}
+function getKDropdownValue(id) {
+  const dd = document.getElementById('kd-'+id);
+  return dd ? dd.dataset.value : '';
+}
+// Close dropdowns on click outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.k-dropdown')) {
+    document.querySelectorAll('.k-dropdown.open').forEach(d => d.classList.remove('open'));
+  }
+});
+
+// ═══ Case Files ═══
+let currentCaseData = null;
+
+async function loadCases() {
+  const status = getKDropdownValue('case-filter') || '';
+  const d = await kAuthFetch('/api/k108/cases', { status: status || undefined });
+  if (!d || !d.cases) return;
+  const grid = document.getElementById('case-grid');
+  if (!d.cases.length) { grid.innerHTML = '<div class="k-empty" style="grid-column:1/-1;padding:60px 20px;text-align:center"><div style="font-size:14px;color:var(--text-muted)">No cases found</div></div>'; return; }
+  grid.innerHTML = d.cases.map(c => {
+    const summary = (c.summary || '').substring(0, 80);
+    return '<div class="case-card" onclick="navigateTo(\'#/cases/'+c.id+'\')"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div class="case-card-name">'+esc(c.name)+'</div><span class="case-status case-status-'+esc(c.status)+'">'+esc(c.status)+'</span></div><div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">'+esc(new Date(c.created_at).toLocaleDateString())+'</div>'+(summary?'<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">'+esc(summary)+'</div>':'')+'<div style="font-size:10px;color:var(--text-dim)">'+esc(c.subject_count||0)+' subjects · '+esc(c.evidence_count||0)+' evidence</div></div>';
+  }).join('');
+}
+
+function openCreateCase() {
+  openModal('create-case-modal');
+  const inp = document.getElementById('cc-name');
+  if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 100); }
+}
+
+async function submitCreateCase() {
+  const name = document.getElementById('cc-name').value.trim();
+  const summary = document.getElementById('cc-summary').value.trim();
+  const classification = document.getElementById('cc-classification').value;
+  if (!name) { document.getElementById('cc-err').textContent = 'Case name required'; return; }
+  document.getElementById('cc-err').textContent = '';
+  const d = await kAuthFetch('/api/k108/cases/create', { name, summary, classification });
+  if (d && d.case) {
+    closeModal('create-case-modal');
+    showToast('Case created: ' + name);
+    navigateTo('#/cases/' + d.case.id);
+  }
+}
+
+
+async function loadCaseDetail(id) {
+  document.getElementById('cases-main').style.display = 'none';
+  const el = document.getElementById('case-detail');
+  el.style.display = 'block';
+  el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-dim)">Loading case...</div>';
+  const d = await kAuthFetch('/api/k108/cases/' + id);
+  if (!d || !d.case) { el.innerHTML = '<div class="k-empty">Case not found</div>'; return; }
+  currentCaseData = d;
+  renderCaseDetail(d);
+}
+
+function renderCaseDetail(d) {
+  const c = d.case;
+  const el = document.getElementById('case-detail');
+  const classKey = (c.classification || 'CONFIDENTIAL').replace(/\s+/g, '');
+
+  let h = '';
+
+  // ── TOP BAR ──
+  h += '<div class="cd-topbar"><div class="cd-topbar-left">';
+  h += '<span style="color:#4cc9f0;font-family:Orbitron;font-size:12px;font-weight:600;letter-spacing:0.08em;cursor:pointer" onclick="document.getElementById(\'case-detail\').style.display=\'none\';document.getElementById(\'cases-main\').style.display=\'block\';loadCases();navigateTo(\'#/cases\')">K-108</span>';
+  h += '<span style="color:#1e3a5f">|</span>';
+  h += '<span class="cd-breadcrumb" style="cursor:pointer" onclick="document.getElementById(\'case-detail\').style.display=\'none\';document.getElementById(\'cases-main\').style.display=\'block\';loadCases();navigateTo(\'#/cases\')">Case Files</span>';
+  h += '<span style="color:#1e3a5f">&rarr;</span>';
+  h += '<span class="cd-breadcrumb-name">'+esc(c.name)+'</span>';
+  h += '</div><div class="cd-topbar-right">';
+  h += kDropdown('cd-status', [{value:'OPEN',label:'OPEN'},{value:'COLD',label:'COLD'},{value:'CLOSED',label:'CLOSED'}], c.status, 'updateCaseField('+c.id+',\"status\",\"__VAL__\")');
+  h += kDropdown('cd-class', [{value:'CONFIDENTIAL',label:'CONFIDENTIAL'},{value:'RESTRICTED',label:'RESTRICTED'},{value:'TOP SECRET',label:'TOP SECRET'}], c.classification, 'updateCaseField('+c.id+',\"classification\",\"__VAL__\")');
+  h += '<button class="cd-delete-btn" onclick="deleteCase('+c.id+')">Delete</button>';
+  h += '<div style="display:flex;align-items:center;gap:5px;margin-left:8px"><div style="width:5px;height:5px;border-radius:50%;background:#22c55e"></div><span style="font-size:9px;color:#475569;letter-spacing:0.06em;text-transform:uppercase">Secure</span></div>';
+  h += '</div></div>';
+
+  // ── SPLIT SCREEN ──
+  h += '<div class="cd-wrap">';
+
+  // ════ LEFT PANEL ════
+  h += '<div class="cd-left">';
+
+  // Identity block
+  h += '<div class="cd-classification">'+esc(c.classification)+'</div>';
+  h += '<input class="cd-case-name" value="'+esc(c.name)+'" onfocus="this.style.borderColor=\'rgba(76,201,240,0.4)\'" onblur="this.style.borderColor=\'transparent\';updateCaseField('+c.id+',\'name\',this.value)">';
+  h += '<div class="cd-meta">Opened '+esc(new Date(c.created_at).toLocaleDateString())+' · '+esc(c.last_edited_by||'')+'</div>';
+  h += '<span class="case-status case-status-'+esc(c.status)+'">'+esc(c.status)+'</span>';
+
+  h += '<div class="cd-divider"></div>';
+
+  // Subjects
+  h += '<div class="cd-section-label">SUBJECTS</div>';
+  (d.subjects || []).forEach(s => {
+    const fn = s.first_name || 'Unknown', ln = s.last_name || '';
+    const initials = (fn[0] + (ln[0]||'?')).toUpperCase();
+    h += '<div class="cd-subject">';
+    h += '<div class="cd-subject-avatar" onclick="navigateTo(\'#/profiles\');setTimeout(()=>viewProfileReadonly('+s.profile_id+'),100)">'+(s.photo_url?'<img src="'+esc(s.photo_url)+'">':esc(initials))+'</div>';
+    h += '<div style="flex:1;min-width:0">';
+    h += '<div class="cd-subject-name" onclick="navigateTo(\'#/profiles\');setTimeout(()=>viewProfileReadonly('+s.profile_id+'),100)">'+esc(fn+' '+ln)+(s.surveillance_active?'<span class="cd-surv-dot"></span>':'')+'</div>';
+    h += '<div style="margin-top:2px">' + kDropdown('sr-'+s.id, [{value:'Primary',label:'Primary'},{value:'Secondary',label:'Secondary'},{value:'Witness',label:'Witness'},{value:'Associate',label:'Associate'},{value:'Other',label:'Other'}], s.role||'Associate', 'updateSubjectRole('+c.id+','+s.id+',\"__VAL__\")') + '</div>';
+    h += '</div>';
+    h += '<button class="cd-subject-remove" onclick="event.stopPropagation();removeCaseSubject('+c.id+','+s.id+')">&times;</button>';
+    h += '</div>';
+  });
+  if (!(d.subjects||[]).length) h += '<div style="font-size:11px;color:#1e3a5f;padding:6px 0">No subjects linked</div>';
+  h += '<div style="margin-top:8px;position:relative"><input class="cd-add-input" id="case-subject-search" placeholder="Add subject..." oninput="searchCaseSubject('+c.id+',this.value)"><div id="case-subject-results"></div></div>';
+
+  h += '<div class="cd-divider"></div>';
+
+  // Evidence
+  h += '<div class="cd-section-label">EVIDENCE</div>';
+  const evIcons = { 'Document':'D', 'SMS Thread':'S', 'Field Note':'N', 'External Link':'L', 'People Lookup Result':'P', 'Intel Feed Result':'I' };
+  const evColors = { 'Document':'#a78bfa', 'SMS Thread':'#22c55e', 'Field Note':'#94a3b8', 'External Link':'#4cc9f0', 'People Lookup Result':'#f59e0b', 'Intel Feed Result':'#4cc9f0' };
+  (d.evidence || []).filter(ev => !ev.dismissed).forEach(ev => {
+    const col = evColors[ev.type] || '#94a3b8';
+    const icon = evIcons[ev.type] || '?';
+    h += '<div class="cd-evidence" onclick="openEvidence('+ev.id+',\''+esc(ev.type)+'\','+c.id+')">';
+    h += '<div class="cd-ev-icon" style="background:'+col+'12;color:'+col+'">'+icon+'</div>';
+    h += '<div style="flex:1;min-width:0"><div style="font-size:13px;color:#94a3b8">'+esc(ev.title)+'</div><div style="font-size:10px;color:#475569">'+esc(ev.type)+'</div></div>';
+    h += '<button class="cd-ev-remove" onclick="event.stopPropagation();removeCaseEvidence('+c.id+','+ev.id+')">&times;</button>';
+    h += '</div>';
+  });
+  if (!(d.evidence||[]).filter(ev => !ev.dismissed).length) h += '<div style="font-size:11px;color:#1e3a5f;padding:6px 0">No evidence</div>';
+
+  // Add evidence
+  h += '<div style="margin-top:12px">';
+  h += '<div class="cd-ev-type-pills"><button class="cd-ev-pill active" onclick="switchEvType(this,\'note\','+c.id+')">Note</button><button class="cd-ev-pill" onclick="switchEvType(this,\'link\','+c.id+')">Link</button><button class="cd-ev-pill" onclick="switchEvType(this,\'sms\','+c.id+')">SMS</button></div>';
+  h += '<div id="ev-picker-area"><input class="cd-add-input" id="ev-note-title" placeholder="Note title..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addNoteEvidence('+c.id+');}"><textarea class="cd-add-input" id="ev-note-text" placeholder="Content..." rows="2" style="resize:vertical;margin-top:4px;border-bottom:1px solid rgba(255,255,255,0.06)"></textarea><button class="k-btn k-btn-sm" onclick="addNoteEvidence('+c.id+')" style="margin-top:6px;font-size:10px;padding:4px 12px">Attach</button></div>';
+  h += '</div>';
+
+  h += '</div>'; // end left panel
+
+  // ════ RIGHT PANEL ════
+  h += '<div class="cd-right">';
+
+  // Summary
+  h += '<div class="cd-section-label">SUMMARY</div>';
+  h += '<div class="cd-summary-text" contenteditable="true" data-placeholder="Click to add a summary..." onblur="updateCaseField('+c.id+',\'summary\',this.innerText)">'+esc(c.summary||'')+'</div>';
+  h += '<div class="cd-divider"></div>';
+
+  // Key Findings
+  h += '<div class="cd-section-label">KEY FINDINGS</div>';
+  (d.findings || []).forEach(f => {
+    h += '<div class="cd-finding"><div class="cd-finding-dot"></div><div class="cd-finding-text" id="finding-text-'+f.id+'">'+esc(f.text)+'</div>';
+    h += '<div class="cd-finding-actions"><button class="cd-finding-action" onclick="editFinding('+c.id+','+f.id+')">&#9998;</button><button class="cd-finding-action danger" onclick="deleteFinding('+c.id+','+f.id+')">&times;</button></div></div>';
+  });
+  h += '<input class="cd-add-input" placeholder="Add finding..." onkeydown="if(event.key===\'Enter\'&&this.value.trim()){event.preventDefault();addFindingDirect('+c.id+',this);}">';
+  h += '<div class="cd-divider"></div>';
+
+  // Open Questions
+  h += '<div class="cd-section-label">OPEN QUESTIONS</div>';
+  const unresolvedQ = (d.questions||[]).filter(q => !q.resolved);
+  const resolvedQ = (d.questions||[]).filter(q => q.resolved);
+  unresolvedQ.forEach(q => {
+    h += '<div class="cd-question"><div class="cd-q-mark">?</div><div class="cd-q-text">'+esc(q.text)+'</div>';
+    h += '<div class="cd-q-actions"><button class="cd-q-btn resolve" onclick="toggleQuestion('+c.id+','+q.id+',true)">Resolve</button><button class="cd-q-btn danger" onclick="deleteQuestion('+c.id+','+q.id+')">&times;</button></div></div>';
+  });
+  resolvedQ.forEach(q => {
+    h += '<div class="cd-question cd-q-resolved"><div class="cd-q-mark">&#10003;</div><div class="cd-q-text">'+esc(q.text)+'</div>';
+    h += '<div class="cd-q-actions"><button class="cd-q-btn" style="color:#64748b" onclick="toggleQuestion('+c.id+','+q.id+',false)">Reopen</button><button class="cd-q-btn danger" onclick="deleteQuestion('+c.id+','+q.id+')">&times;</button></div></div>';
+  });
+  h += '<input class="cd-add-input" placeholder="Add question..." onkeydown="if(event.key===\'Enter\'&&this.value.trim()){event.preventDefault();addQuestionDirect('+c.id+',this);}">';
+  h += '<div class="cd-divider"></div>';
+
+  // Timeline
+  h += '<div class="cd-section-label">TIMELINE</div>';
+  const sortedTL = (d.timeline||[]).slice().sort((a,b) => new Date(a.event_date||0) - new Date(b.event_date||0));
+  h += '<div class="cd-timeline"><div class="cd-tl-line"></div>';
+  sortedTL.forEach(t => {
+    const dateStr = t.event_date ? new Date(t.event_date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}) : 'No date';
+    const typeUpper = (t.event_type||'INCIDENT').toUpperCase();
+    h += '<div class="cd-tl-event"><div class="cd-tl-dot cd-tl-dot-'+esc(typeUpper)+'"></div>';
+    h += '<div class="cd-tl-meta">'+esc(dateStr)+'<span class="cd-tl-type cd-tl-type-'+esc(typeUpper)+'">'+esc(typeUpper)+'</span></div>';
+    h += '<div class="cd-tl-desc">'+esc(t.description)+'</div>';
+    h += '<div class="cd-tl-actions"><button class="cd-finding-action danger" onclick="deleteTimelineEvent('+c.id+','+t.id+')">&times;</button></div>';
+    h += '</div>';
+  });
+  if (!sortedTL.length) h += '<div class="cd-tl-empty">No events recorded</div>';
+  h += '</div>';
+  // Add event
+  h += '<div class="cd-tl-add">';
+  h += '<input class="cd-tl-input" id="tl-date" placeholder="YYYY-MM-DD HH:MM" style="width:155px" autocomplete="off">';
+  h += kDropdown('tl-type', [{value:'PERSON',label:'PERSON'},{value:'INCIDENT',label:'INCIDENT'},{value:'DISCOVERY',label:'DISCOVERY'}], 'INCIDENT');
+  h += '<input class="cd-tl-input" id="tl-desc" placeholder="Event description..." style="flex:1" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addTimelineEvent('+c.id+');}">';
+  h += '<button class="k-btn k-btn-sm" onclick="addTimelineEvent('+c.id+')" style="font-size:10px;padding:5px 14px;height:32px">ADD</button>';
+  h += '</div>';
+
+  h += '</div>'; // end right panel
+  h += '</div>'; // end cd-wrap
+
+  el.innerHTML = h;
+}
+
+// Direct-add helpers (Enter key on borderless inputs)
+function addFindingDirect(caseId, inp) {
+  const text = inp.value.trim();
+  if (!text) return;
+  kAuthFetch('/api/k108/cases/' + caseId + '/findings', { text }).then(() => { inp.value = ''; loadCaseDetail(caseId); });
+}
+function addQuestionDirect(caseId, inp) {
+  const text = inp.value.trim();
+  if (!text) return;
+  kAuthFetch('/api/k108/cases/' + caseId + '/questions', { text }).then(() => { inp.value = ''; loadCaseDetail(caseId); });
+}
+
+async function updateCaseField(id, field, value) {
+  const body = {};
+  body[field] = value;
+  await kAuthFetch('/api/k108/cases/' + id, body, 'PUT');
+  if (field === 'status') {
+    const badge = document.getElementById('case-status-badge');
+    if (badge) badge.innerHTML = '<span class="case-status case-status-'+esc(value)+'">'+esc(value)+'</span>';
+  }
+  if (field === 'classification') {
+    const stamp = document.getElementById('case-class-stamp');
+    if (stamp) { const key = value.replace(/\s+/g,''); stamp.className = 'case-classification case-classification-'+key; stamp.textContent = value; }
+  }
+}
+
+async function updateSubjectRole(caseId, subjectId, role) {
+  await kAuthFetch('/api/k108/cases/' + caseId + '/subjects/' + subjectId, { role }, 'PUT');
+}
+
+async function deleteCase(id) {
+  const ok = await showConfirmDialog({ title: 'Delete Case', msg: 'This will permanently delete the case and all its data.' });
+  if (!ok) return;
+  await kAuthFetch('/api/k108/cases/' + id, {}, 'DELETE');
+  showToast('Case deleted');
+  document.getElementById('case-detail').style.display = 'none';
+  document.getElementById('cases-main').style.display = 'block';
+  loadCases();
+}
+
+// ── Subject search ──
+let caseSubjectTimer = null;
+function searchCaseSubject(caseId, term) {
+  clearTimeout(caseSubjectTimer);
+  if (term.length < 2) { document.getElementById('case-subject-results').innerHTML = ''; return; }
+  caseSubjectTimer = setTimeout(async () => {
+    const d = await kAuthFetch('/api/k108/profiles', { search: term });
+    if (!d || !d.profiles) return;
+    document.getElementById('case-subject-results').innerHTML = d.profiles.slice(0, 5).map(p => {
+      return '<div class="ev-picker-item" onclick="addCaseSubject('+caseId+','+p.id+')"><span style="font-weight:500">'+esc((p.first_name||'')+' '+(p.last_name||''))+'</span><span style="color:var(--text-dim);margin-left:8px;font-size:10px">'+esc(p.relation||'')+'</span></div>';
+    }).join('');
+  }, 200);
+}
+
+async function addCaseSubject(caseId, profileId) {
+  await kAuthFetch('/api/k108/cases/' + caseId + '/subjects', { profileId, role: 'Associate' });
+  document.getElementById('case-subject-search').value = '';
+  document.getElementById('case-subject-results').innerHTML = '';
+  loadCaseDetail(caseId);
+}
+
+async function removeCaseSubject(caseId, subjectId) {
+  await kAuthFetch('/api/k108/cases/' + caseId + '/subjects/' + subjectId, {}, 'DELETE');
+  loadCaseDetail(caseId);
+}
+
+// ── Evidence type picker ──
+function switchEvType(btn, type, caseId) {
+  const wrap = btn.closest('.cd-ev-type-pills') || btn.closest('.ev-type-btns');
+  wrap.querySelectorAll('.cd-ev-pill,.ev-type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const area = document.getElementById('ev-picker-area');
+  if (type === 'note') {
+    area.innerHTML = '<input class="cd-add-input" id="ev-note-title" placeholder="Note title..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addNoteEvidence('+caseId+');}"><textarea class="cd-add-input" id="ev-note-text" placeholder="Content..." rows="2" style="resize:vertical;margin-top:4px;border-bottom:1px solid rgba(255,255,255,0.06)"></textarea><button class="k-btn k-btn-sm" onclick="addNoteEvidence('+caseId+')" style="margin-top:6px;font-size:10px;padding:4px 12px">Attach</button>';
+  } else if (type === 'link') {
+    area.innerHTML = '<input class="cd-add-input" id="ev-link-title" placeholder="Display title..." style="margin-bottom:4px"><input class="cd-add-input" id="ev-link-url" placeholder="https://..." onkeydown="if(event.key===\'Enter\'){event.preventDefault();addLinkEvidence('+caseId+');}"><button class="k-btn k-btn-sm" onclick="addLinkEvidence('+caseId+')" style="margin-top:6px;font-size:10px;padding:4px 12px">Attach</button>';
+  } else if (type === 'sms') {
+    area.innerHTML = '<div style="font-size:11px;color:#1e3a5f;padding:6px 0">Loading threads...</div>';
+    loadSmsPicker(caseId);
+  }
+}
+
+async function addNoteEvidence(caseId) {
+  const title = document.getElementById('ev-note-title')?.value.trim();
+  const notes = document.getElementById('ev-note-text')?.value.trim();
+  if (!title) { showToast('Title required'); return; }
+  await kAuthFetch('/api/k108/cases/' + caseId + '/evidence', { type: 'Field Note', title, notes });
+  loadCaseDetail(caseId);
+}
+
+async function addLinkEvidence(caseId) {
+  const title = document.getElementById('ev-link-title')?.value.trim();
+  const url = document.getElementById('ev-link-url')?.value.trim();
+  if (!title || !url) { showToast('Title and URL required'); return; }
+  await kAuthFetch('/api/k108/cases/' + caseId + '/evidence', { type: 'External Link', title, metadata: { url } });
+  loadCaseDetail(caseId);
+}
+
+async function loadVaultPicker(caseId) {
+  const d = await kAuthFetch('/api/k108/vault/items');
+  const area = document.getElementById('ev-picker-area');
+  if (!d || !d.items || !d.items.length) { area.innerHTML = '<div style="font-size:11px;color:var(--text-dim);padding:6px 0">No files in vault</div>'; return; }
+  area.innerHTML = '<div class="ev-picker" style="max-height:160px;overflow-y:auto">' + d.items.map(f => '<div class="ev-picker-item" onclick="attachVaultDoc('+caseId+',\''+esc(f.original_name)+'\',\''+esc(f.filename)+'\')">'+esc(f.original_name)+'<span style="color:var(--text-dim);margin-left:8px;font-size:10px">'+esc(f.mime_type||'')+'</span></div>').join('') + '</div>';
+}
+
+async function attachVaultDoc(caseId, name, filename) {
+  await kAuthFetch('/api/k108/cases/' + caseId + '/evidence', { type: 'Document', title: name, metadata: { filename }, sourceId: filename });
+  loadCaseDetail(caseId);
+}
+
+async function loadSmsPicker(caseId) {
+  const d = await kAuthFetch('/api/k108/sms/threads');
+  const area = document.getElementById('ev-picker-area');
+  if (!d || !d.threads || !d.threads.length) { area.innerHTML = '<div style="font-size:11px;color:var(--text-dim);padding:6px 0">No SMS threads</div>'; return; }
+  area.innerHTML = '<div class="ev-picker" style="max-height:160px;overflow-y:auto">' + d.threads.map(t => '<div class="ev-picker-item" onclick="attachSmsThread('+caseId+',\''+esc(t.phone)+'\')">'+esc(fmtPhone(t.phone))+'<span style="color:var(--text-dim);margin-left:8px;font-size:10px">'+esc(t.message_count||'')+' messages</span></div>').join('') + '</div>';
+}
+
+async function attachSmsThread(caseId, phone) {
+  await kAuthFetch('/api/k108/cases/' + caseId + '/evidence', { type: 'SMS Thread', title: 'Thread: ' + fmtPhone(phone), metadata: { phone }, sourceId: phone });
+  loadCaseDetail(caseId);
+}
+
+function openEvidence(evId, type, caseId) {
+  const ev = (currentCaseData?.evidence||[]).find(e => e.id === evId);
+  if (!ev) return;
+  const meta = typeof ev.metadata === 'string' ? JSON.parse(ev.metadata||'{}') : (ev.metadata||{});
+  if (type === 'External Link' && meta.url) { window.open(meta.url, '_blank'); }
+  else if (type === 'Document' && meta.filename) { window.open('/uploads/'+meta.filename, '_blank'); }
+  else if (type === 'SMS Thread' && meta.phone) { navigateTo('#/sms'); setTimeout(() => { if (typeof loadSmsThread === 'function') loadSmsThread(meta.phone); }, 200); }
+  else if (type === 'Field Note') { showToast(ev.title + ': ' + (ev.notes||'(empty)')); }
+  else if (type === 'Intel Feed Result') { showToast(ev.title + ': ' + (ev.notes||'')); }
+}
+
+async function removeCaseEvidence(caseId, evidenceId) {
+  await kAuthFetch('/api/k108/cases/' + caseId + '/evidence/' + evidenceId, {}, 'DELETE');
+  loadCaseDetail(caseId);
+}
+
+// ── Findings ──
+async function addFinding(caseId) {
+  const inp = document.getElementById('case-finding-input');
+  if (!inp || !inp.value.trim()) return;
+  await kAuthFetch('/api/k108/cases/' + caseId + '/findings', { text: inp.value.trim() });
+  inp.value = '';
+  loadCaseDetail(caseId);
+}
+
+function editFinding(caseId, findingId) {
+  const textEl = document.getElementById('finding-text-'+findingId);
+  if (!textEl) return;
+  const current = textEl.textContent;
+  textEl.innerHTML = '<input class="k-input" value="'+esc(current)+'" style="font-size:12px" id="edit-finding-input" onkeydown="if(event.key===\'Enter\'){event.preventDefault();submitEditFinding('+caseId+','+findingId+');}"><div style="display:flex;gap:4px;margin-top:4px"><button class="k-btn k-btn-sm" onclick="submitEditFinding('+caseId+','+findingId+')" style="font-size:9px">Save</button><button class="k-btn k-btn-sm k-btn-danger" onclick="loadCaseDetail('+caseId+')" style="font-size:9px">Cancel</button></div>';
+  document.getElementById('edit-finding-input')?.focus();
+}
+
+async function submitEditFinding(caseId, findingId) {
+  const inp = document.getElementById('edit-finding-input');
+  if (!inp || !inp.value.trim()) return;
+  await kAuthFetch('/api/k108/cases/' + caseId + '/findings/' + findingId, { text: inp.value.trim() }, 'PUT');
+  loadCaseDetail(caseId);
+}
+
+async function deleteFinding(caseId, findingId) {
+  await kAuthFetch('/api/k108/cases/' + caseId + '/findings/' + findingId, {}, 'DELETE');
+  loadCaseDetail(caseId);
+}
+
+// ── Questions ──
+async function addQuestion(caseId) {
+  const inp = document.getElementById('case-question-input');
+  if (!inp || !inp.value.trim()) return;
+  await kAuthFetch('/api/k108/cases/' + caseId + '/questions', { text: inp.value.trim() });
+  inp.value = '';
+  loadCaseDetail(caseId);
+}
+
+async function toggleQuestion(caseId, questionId, resolved) {
+  await kAuthFetch('/api/k108/cases/' + caseId + '/questions/' + questionId, { resolved }, 'PUT');
+  loadCaseDetail(caseId);
+}
+
+async function deleteQuestion(caseId, questionId) {
+  await kAuthFetch('/api/k108/cases/' + caseId + '/questions/' + questionId, {}, 'DELETE');
+  loadCaseDetail(caseId);
+}
+
+// ── Timeline ──
+async function addTimelineEvent(caseId) {
+  const desc = document.getElementById('tl-desc')?.value.trim();
+  if (!desc) return;
+  const rawDate = document.getElementById('tl-date')?.value.trim();
+  let event_date = null;
+  if (rawDate) { const d = new Date(rawDate); if (!isNaN(d)) event_date = d.toISOString(); }
+  const event_type = getKDropdownValue('tl-type') || 'INCIDENT';
+  await kAuthFetch('/api/k108/cases/' + caseId + '/timeline', { event_date, event_type, description: desc });
+  document.getElementById('tl-desc').value = '';
+  document.getElementById('tl-date').value = '';
+  loadCaseDetail(caseId);
+}
+
+async function deleteTimelineEvent(caseId, eventId) {
+  await kAuthFetch('/api/k108/cases/' + caseId + '/timeline/' + eventId, {}, 'DELETE');
+  loadCaseDetail(caseId);
+}
+// ═══ Briefings ═══
+async function loadBriefings() {
+  const el = document.getElementById('briefing-list');
+  const detail = document.getElementById('briefing-detail');
+  detail.style.display = 'none';
+  el.style.display = 'block';
+  const d = await kAuthFetch('/api/k108/briefing/latest');
+  if (!d || !d.briefings || !d.briefings.length) { el.innerHTML = '<div class="k-empty" style="padding:60px 20px;text-align:center"><div style="font-size:14px;color:var(--text-muted)">No briefings yet</div><div style="font-size:11px;color:var(--text-dim);margin-top:6px">Intelligence briefings will appear here when generated</div></div>'; return; }
+  el.innerHTML = d.briefings.map(b => {
+    const date = new Date(b.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const preview = (b.content || '').substring(0, 200).replace(/[#*_]/g, '');
+    return '<div class="briefing-card" onclick="viewBriefing('+b.id+')"><div class="briefing-date">'+esc(date)+'</div><div style="font-size:12px;color:var(--text-muted);margin-top:6px">'+esc(preview)+'...</div></div>';
+  }).join('');
+}
+
+async function viewBriefing(id) {
+  document.getElementById('briefing-list').style.display = 'none';
+  const detail = document.getElementById('briefing-detail');
+  detail.style.display = 'block';
+  const d = await kAuthFetch('/api/k108/briefing/latest');
+  const b = d?.briefings?.find(br => br.id === id);
+  if (!b) { detail.innerHTML = '<div class="k-empty">Briefing not found</div>'; return; }
+  const date = new Date(b.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  let content = '';
+  if (typeof marked !== 'undefined' && marked.parse) {
+    content = marked.parse(b.content || '');
+  } else {
+    content = esc(b.content || '').replace(/\n/g, '<br>');
+  }
+  detail.innerHTML = '<button class="k-btn k-btn-sm" onclick="loadBriefings()" style="margin-bottom:16px">&larr; Back</button><div class="briefing-date" style="margin-bottom:12px">'+esc(date)+'</div><div class="briefing-content">'+content+'</div>';
+}
+
+// ═══ New Intelligence (Profiles landing page) ═══
+async function loadNewIntel() {
+  const area = document.getElementById('new-intel-area');
+  if (!area) return;
+  try {
+    const d = await kAuthFetch('/api/k108/surveillance/unread');
+    if (!d || !d.profiles || !d.profiles.length) { area.innerHTML = ''; return; }
+    let h = '<div class="new-intel-section" style="margin-top:20px">';
+    h += '<div class="new-intel-title">NEW INTELLIGENCE</div>';
+    d.profiles.forEach(p => {
+      h += '<div class="new-intel-item" onclick="viewProfileReadonly('+p.id+')"><div class="new-intel-dot"></div><span>'+esc(p.first_name+' '+p.last_name)+'</span><span style="font-size:10px;color:var(--accent-cyan);margin-left:auto">'+esc(p.unread_count)+' new</span></div>';
+    });
+    h += '</div>';
+    area.innerHTML = h;
+  } catch(e) { area.innerHTML = ''; }
+}
+
+// ═══ Dashboard data for new cards ═══
+async function loadDashboardCases() {
+  try {
+    const d = await kAuthFetch('/api/k108/cases', {});
+    if (d && d.cases) {
+      document.getElementById('dash-case-count').textContent = d.cases.length;
+      const pp = document.getElementById('dash-case-preview');
+      if (d.cases.length) {
+        pp.innerHTML = d.cases.slice(0, 2).map(c => '<div class="dc-pline"><div class="dc-pline-dot" style="background:var(--status-amber)"></div><div class="dc-pline-text">'+esc(c.name)+'</div><span class="case-status case-status-'+esc(c.status)+'" style="font-size:8px;padding:1px 5px;margin-left:auto">'+esc(c.status)+'</span></div>').join('');
+      }
+    }
+  } catch(e){}
+}
+async function loadDashboardBriefings() {
+  try {
+    const d = await kAuthFetch('/api/k108/briefing/latest');
+    if (d && d.briefings && d.briefings.length) {
+      const pp = document.getElementById('dash-briefing-preview');
+      const b = d.briefings[0];
+      const date = new Date(b.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+      pp.innerHTML = '<div class="dc-pline"><div class="dc-pline-dot" style="background:var(--accent-cyan)"></div><div class="dc-pline-text">'+esc(date)+' — Latest briefing</div></div>';
+    }
+  } catch(e){}
+}
+
+// Augment existing loadDashboardData
+const _origLoadDashboardData = loadDashboardData;
+loadDashboardData = async function() {
+  await _origLoadDashboardData();
+  loadDashboardCases();
+  loadDashboardBriefings();
+};
+
+// ═══ Socket events for new features ═══
+socket.on('k108:briefing:new', () => {
+  const badge = document.getElementById('briefing-new-badge');
+  if (badge) badge.style.display = 'inline-block';
+  showToast('New Intel Briefing available');
+});
+
+socket.on('k108:surveillance:complete', (data) => {
+  const count = data.findingCount || 0;
+  showToast('Surveillance complete: ' + count + ' finding' + (count !== 1 ? 's' : ''));
+  // Refresh profile view if we're looking at this profile
+  if (currentProfileId === data.profileId) loadSurveillanceSection(data.profileId);
+  // Refresh new intel section if on profiles page
+  loadNewIntel();
+});
 </script>
 </body>
 </html>
