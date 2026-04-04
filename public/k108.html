@@ -781,7 +781,10 @@ const VIEW_TITLES = { 'dashboard':'Dashboard', 'lookup':'People Lookup', 'sms':'
   new MutationObserver(() => { document.querySelectorAll('.k-input:not([data-lpignore])').forEach(i => { i.setAttribute('autocomplete','new-password'); i.setAttribute('data-lpignore','true'); i.setAttribute('data-1p-ignore','true'); i.setAttribute('data-form-type','other'); }); }).observe(document.body, { childList: true, subtree: true });
 
   document.getElementById('auth-pass').addEventListener('keydown', e => { if (e.key==='Enter') authenticate(); });
-  document.querySelectorAll('.k-input').forEach(i => i.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); } }));
+  // Prevent Enter from submitting forms, but allow it on chip inputs (phone/email) and textareas
+  document.querySelectorAll('.k-input').forEach(i => i.addEventListener('keydown', e => {
+    if (e.key==='Enter' && !e.shiftKey && i.tagName !== 'TEXTAREA' && !i.id?.includes('phone-input') && !i.id?.includes('email-input')) { e.preventDefault(); }
+  }));
   function phoneFormatter(e) {
     // Only format on character addition, not deletion
     if (e.inputType && e.inputType.startsWith('delete')) return;
@@ -1464,7 +1467,7 @@ async function viewProfile(id) {
   h += '<div class="chip-container" id="pf-phones-chips">';
   (p.phones||[]).forEach(ph => { h += '<span class="chip" onclick="this.remove()">'+esc(fmtPhone(ph))+'<span class="chip-x">&times;</span></span>'; });
   h += '</div>';
-  h += '<input class="k-input" id="pf-phone-input" placeholder="Type number, press Enter" style="font-size:12px;margin-top:6px" autocomplete="off">';
+  h += '<input class="k-input" id="pf-phone-input" placeholder="Type number, press Enter" style="font-size:12px;margin-top:6px" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addPhoneChip();}">';
   h += '</div>';
 
   // Emails (chip input)
@@ -1472,7 +1475,7 @@ async function viewProfile(id) {
   h += '<div class="chip-container" id="pf-emails-chips">';
   (p.emails||[]).forEach(e => { h += '<span class="chip" onclick="this.remove()">'+esc(e)+'<span class="chip-x">&times;</span></span>'; });
   h += '</div>';
-  h += '<input class="k-input" id="pf-email-input" placeholder="Type email, press Enter" style="font-size:12px;margin-top:6px" autocomplete="off">';
+  h += '<input class="k-input" id="pf-email-input" placeholder="Type email, press Enter" style="font-size:12px;margin-top:6px" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addEmailChip();}">';
   h += '</div>';
 
   // Social Links
@@ -1715,6 +1718,34 @@ async function applyCrop() {
     cancelCrop();
     if (d.url) viewProfile(cropProfileId);
   }, 'image/png');
+}
+
+function addPhoneChip() {
+  const input = document.getElementById('pf-phone-input');
+  if (!input) return;
+  const v = input.value.trim();
+  if (v.replace(/\D/g,'').length >= 7) {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.onclick = function() { this.remove(); };
+    chip.innerHTML = esc(v) + '<span class="chip-x">&times;</span>';
+    document.getElementById('pf-phones-chips').appendChild(chip);
+    input.value = '';
+  }
+}
+
+function addEmailChip() {
+  const input = document.getElementById('pf-email-input');
+  if (!input) return;
+  const v = input.value.trim();
+  if (v && v.includes('@')) {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.onclick = function() { this.remove(); };
+    chip.innerHTML = esc(v) + '<span class="chip-x">&times;</span>';
+    document.getElementById('pf-emails-chips').appendChild(chip);
+    input.value = '';
+  }
 }
 
 function uploadProfilePhoto(id) {
