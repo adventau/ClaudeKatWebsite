@@ -6559,7 +6559,7 @@ app.post('/api/k108/profiles/create', async (req, res) => {
     const r = await db.query(
       `INSERT INTO k108_profiles (first_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [first_name || '', last_name || '', aliases || [], relation || '', notes || '',
+      [first_name || '', last_name || '', Array.isArray(aliases) ? aliases : [], relation || '', notes || '',
        JSON.stringify(phones || []), JSON.stringify(emails || []), JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), username]
     );
     await k108Log(username, 'profile_create', { name: `${first_name} ${last_name}`.trim() }, req.ip);
@@ -6614,7 +6614,7 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
       await db.query(
         `UPDATE k108_profiles SET first_name=$1, last_name=$2, aliases=$3, relation=$4, notes=$5,
          phones=$6, emails=$7, social_links=$8, age=$9, birthday=$10, address=$11, updated_at=NOW() WHERE id=$12`,
-        [first_name, last_name, aliases || [], relation || '', notes || '',
+        [first_name, last_name, Array.isArray(aliases) ? aliases : [], relation || '', notes || '',
          JSON.stringify(phones || []), JSON.stringify(emails || []), JSON.stringify(social_links || []), age || null, birthday || null, JSON.stringify(address || {}), req.params.id]
       );
       await k108Log(username, 'profile_change', { profileId: req.params.id, name: `${first_name} ${last_name}`.trim() }, req.ip);
