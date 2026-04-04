@@ -6515,7 +6515,6 @@ app.post('/api/k108/profiles', async (req, res) => {
          ORDER BY updated_at DESC LIMIT 20`,
         [term, search.trim()]
       );
-      await k108Log(username, 'profile_search', { term: search.trim() }, req.ip);
     } else {
       r = await db.query('SELECT * FROM k108_profiles ORDER BY updated_at DESC LIMIT 20');
     }
@@ -6526,7 +6525,6 @@ app.post('/api/k108/profiles', async (req, res) => {
   if (search && search.trim()) {
     const t = search.trim().toLowerCase();
     profiles = profiles.filter(p => (p.first_name||'').toLowerCase().includes(t) || (p.last_name||'').toLowerCase().includes(t) || ((p.first_name||'')+' '+(p.last_name||'')).toLowerCase().includes(t) || (p.aliases||[]).some(a => a.toLowerCase().includes(t)) || (p.notes||'').toLowerCase().includes(t));
-    await k108Log(username, 'profile_search', { term: search.trim() }, req.ip);
   }
   res.json({ profiles });
 });
@@ -6562,6 +6560,8 @@ app.post('/api/k108/profiles/:id', async (req, res) => {
   if (db.pool) {
     const r = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [req.params.id]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Profile not found' });
+    const p = r.rows[0];
+    await k108Log(username, 'profile_view', { profileId: req.params.id, name: `${p.first_name||''} ${p.last_name||''}`.trim() }, req.ip);
     const files = await db.query('SELECT * FROM k108_profile_files WHERE profile_id = $1 ORDER BY uploaded_at DESC', [req.params.id]);
     const relations = await db.query(
       `SELECT r.*, p.first_name, p.last_name, p.photo_url, p.relation as p_relation
@@ -6569,7 +6569,7 @@ app.post('/api/k108/profiles/:id', async (req, res) => {
        WHERE r.profile_id = $1`,
       [req.params.id]
     );
-    return res.json({ profile: r.rows[0], files: files.rows, relations: relations.rows });
+    return res.json({ profile: p, files: files.rows, relations: relations.rows });
   }
   // JSON fallback
   const profiles = getK108Profiles();

@@ -867,7 +867,7 @@ async function authenticate() {
   try {
     const r = await kFetch('/api/k108/auth', { passcode: pass });
     if (r.needsSetup) { document.getElementById('setup-overlay').classList.add('active'); return; }
-    if (r.error) { err.textContent = r.error; return; }
+    if (r.error) { err.textContent = r.error; document.getElementById('auth-pass').value = ''; document.getElementById('auth-pass').focus(); return; }
     authToken = r.token; currentUser = r.username;
     sessionStorage.setItem('k108Token', r.token);
     sessionStorage.setItem('k108User', r.username);
@@ -912,12 +912,9 @@ async function submitSetup() {
 
 function disconnect() {
   authToken = null; currentUser = null;
-  document.getElementById('dashboard').style.display = 'none';
-  document.getElementById('auth-screen').style.display = 'flex';
-  document.getElementById('auth-pass').value = '';
-  document.getElementById('auth-err').textContent = '';
-  document.getElementById('auth-pass').focus();
-  window.location.hash = '';
+  sessionStorage.removeItem('k108Token');
+  sessionStorage.removeItem('k108User');
+  window.location.href = '/app';
 }
 
 function updateDashClock() {
@@ -2066,12 +2063,13 @@ async function loadActivityLog() {
   if (!d) return;
   const el = document.getElementById('log-entries');
   if (!d.entries || d.entries.length === 0) { el.innerHTML = '<div class="k-empty">No activity recorded yet.</div>'; return; }
-  const colors = { session_entry:'k-tag-green', people_search:'k-tag-blue', profile_search:'k-tag-blue', profile_create:'k-tag-indigo', profile_change:'k-tag-indigo', profile_delete:'k-tag-red', file_upload:'k-tag-indigo', file_transfer:'k-tag-indigo', metadata_extract:'k-tag-blue', sms_sent:'k-tag-amber', number_validate:'k-tag-blue' };
+  const colors = { session_entry:'k-tag-green', people_search:'k-tag-blue', profile_view:'k-tag-cyan', profile_create:'k-tag-indigo', profile_change:'k-tag-indigo', profile_delete:'k-tag-red', file_upload:'k-tag-indigo', file_transfer:'k-tag-indigo', metadata_extract:'k-tag-blue', sms_sent:'k-tag-amber', number_validate:'k-tag-blue' };
+  const userColors = { kaliph: 'var(--accent-indigo, #818cf8)', kathrine: 'var(--accent-cyan, #22d3ee)' };
   el.innerHTML = d.entries.map(e => {
     const detail = e.detail || {};
     let desc = e.action_type;
     if (e.action_type==='people_search') desc = 'Searched ' + (detail.type||'') + ' (' + (detail.resultCount||0) + ' results)';
-    else if (e.action_type==='profile_search') desc = 'Profile search: ' + (detail.term||'');
+    else if (e.action_type==='profile_view') desc = 'Viewed profile: ' + (detail.name||'');
     else if (e.action_type==='sms_sent') desc = 'SMS to ' + (detail.phone||'') + ': ' + (detail.preview||'');
     else if (e.action_type==='number_validate') desc = 'Validated ' + (detail.phone||'');
     else if (e.action_type==='profile_create') desc = 'Created profile: ' + (detail.name||'');
@@ -2080,7 +2078,8 @@ async function loadActivityLog() {
     else if (e.action_type==='file_upload') desc = 'Uploaded: ' + (detail.filename||'');
     else if (e.action_type==='metadata_extract') desc = 'Extracted: ' + (detail.filename||'');
     else if (e.action_type==='session_entry') desc = 'Session started' + (detail.firstSetup?' (first setup)':'');
-    return '<div class="log-entry"><span class="log-time">'+fmtDate(e.created_at)+'</span><span class="log-badge k-tag '+(colors[e.action_type]||'k-tag-blue')+'">'+esc(e.action_type)+'</span><span class="log-user">'+esc(e.username)+'</span><span class="log-detail">'+esc(desc)+'</span></div>';
+    const uColor = userColors[e.username] || 'var(--text-secondary)';
+    return '<div class="log-entry"><span class="log-time">'+fmtDate(e.created_at)+'</span><span class="log-badge k-tag '+(colors[e.action_type]||'k-tag-blue')+'">'+esc(e.action_type)+'</span><span class="log-user" style="color:'+uColor+';font-weight:600">'+esc(e.username)+'</span><span class="log-detail">'+esc(desc)+'</span></div>';
   }).join('');
 }
 
