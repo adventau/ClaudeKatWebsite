@@ -18,6 +18,7 @@ const bcrypt = require('bcrypt');
 const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
+const nodeFetch = require('node-fetch');
 const db = require('./db');
 const { sendMessageNotification } = require('./utils/notifications');
 const { generateStatementPDF } = require('./utils/generate-statement-pdf');
@@ -6052,7 +6053,7 @@ async function wpFetch(endpoint, params) {
     const qs = new URLSearchParams({ api_key: WP_API_KEY, ...params }).toString();
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 12000);
-    const resp = await fetch(`${WP_BASE}/${endpoint}?${qs}`, { signal: ctrl.signal });
+    const resp = await nodeFetch(`${WP_BASE}/${endpoint}?${qs}`, { signal: ctrl.signal });
     clearTimeout(timer);
     if (!resp.ok) {
       const errText = await resp.text().catch(() => '');
