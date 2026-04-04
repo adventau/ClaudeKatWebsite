@@ -6513,16 +6513,17 @@ app.post('/api/k108/profiles', async (req, res) => {
   if (db.pool) {
     let r;
     if (search && search.trim()) {
-      const term = `%${search.trim()}%`;
+      const prefix = `${search.trim()}%`;
+      const contains = `%${search.trim()}%`;
       r = await db.query(
         `SELECT * FROM k108_profiles WHERE
-         first_name ILIKE $1 OR last_name ILIKE $1 OR notes ILIKE $1
+         first_name ILIKE $1 OR last_name ILIKE $1
          OR (first_name || ' ' || last_name) ILIKE $1
-         OR $2 = ANY(aliases) OR EXISTS (
-           SELECT 1 FROM jsonb_array_elements(social_links) s WHERE s->>'handle' ILIKE $1 OR s->>'url' ILIKE $1
+         OR $3 = ANY(aliases) OR notes ILIKE $2 OR EXISTS (
+           SELECT 1 FROM jsonb_array_elements(social_links) s WHERE s->>'handle' ILIKE $1 OR s->>'url' ILIKE $2
          )
          ORDER BY updated_at DESC LIMIT 20`,
-        [term, search.trim()]
+        [prefix, contains, search.trim()]
       );
     } else {
       r = await db.query('SELECT * FROM k108_profiles ORDER BY updated_at DESC LIMIT 20');
@@ -6533,7 +6534,7 @@ app.post('/api/k108/profiles', async (req, res) => {
   let profiles = getK108Profiles();
   if (search && search.trim()) {
     const t = search.trim().toLowerCase();
-    profiles = profiles.filter(p => (p.first_name||'').toLowerCase().includes(t) || (p.last_name||'').toLowerCase().includes(t) || ((p.first_name||'')+' '+(p.last_name||'')).toLowerCase().includes(t) || (p.aliases||[]).some(a => a.toLowerCase().includes(t)) || (p.notes||'').toLowerCase().includes(t));
+    profiles = profiles.filter(p => (p.first_name||'').toLowerCase().startsWith(t) || (p.last_name||'').toLowerCase().startsWith(t) || ((p.first_name||'')+' '+(p.last_name||'')).toLowerCase().startsWith(t) || (p.aliases||[]).some(a => a.toLowerCase().startsWith(t)) || (p.notes||'').toLowerCase().includes(t));
   }
   res.json({ profiles });
 });
