@@ -53,6 +53,7 @@ async function createSchema() {
   await createSessionsTable();
   await createMessagesTable();
   await createBriefingsTable();
+  await createK108Tables();
 }
 
 // ── Sessions table (for Postgres-backed express-session store) ────────────────
@@ -125,6 +126,96 @@ async function createBriefingsTable() {
       permanent       BOOLEAN   NOT NULL DEFAULT FALSE,
       consolidated    BOOLEAN   NOT NULL DEFAULT FALSE,
       created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
+// ── K-108 tables ─────────────────────────────────────────────────────────────
+async function createK108Tables() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_users (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(20) NOT NULL UNIQUE,
+      passcode_hash TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_activity_log (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
+      action_type TEXT NOT NULL,
+      detail JSONB DEFAULT '{}',
+      ip TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_k108_log_created ON k108_activity_log (created_at DESC)`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_sms (
+      id SERIAL PRIMARY KEY,
+      direction TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      message TEXT NOT NULL,
+      username TEXT,
+      textbelt_id TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_k108_sms_phone ON k108_sms (phone)`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_vault (
+      id SERIAL PRIMARY KEY,
+      filename TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type TEXT,
+      size BIGINT,
+      transferred_by TEXT NOT NULL,
+      transferred_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_profiles (
+      id SERIAL PRIMARY KEY,
+      first_name TEXT,
+      last_name TEXT,
+      aliases TEXT[] DEFAULT '{}',
+      photo_url TEXT,
+      relation TEXT,
+      notes TEXT,
+      phones TEXT[] DEFAULT '{}',
+      emails TEXT[] DEFAULT '{}',
+      social_links JSONB DEFAULT '[]',
+      age TEXT,
+      birthday DATE,
+      address JSONB DEFAULT '{}',
+      created_by TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  // Migration: add new columns if missing
+  await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS age TEXT`);
+  await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS birthday DATE`);
+  await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS address JSONB DEFAULT '{}'`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_profile_files (
+      id SERIAL PRIMARY KEY,
+      profile_id INT REFERENCES k108_profiles(id) ON DELETE CASCADE,
+      filename TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type TEXT,
+      size BIGINT,
+      uploaded_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_profile_relations (
+      id SERIAL PRIMARY KEY,
+      profile_id INT REFERENCES k108_profiles(id) ON DELETE CASCADE,
+      related_profile_id INT REFERENCES k108_profiles(id) ON DELETE CASCADE,
+      label TEXT
     )
   `);
 }
@@ -315,7 +406,7 @@ async function clearMessages() {
 }
 
 module.exports = {
-  pool, query, read, write, createSchema, createBriefingsTable, rowToMsg,
+  pool, query, read, write, createSchema, createBriefingsTable, createK108Tables, rowToMsg,
   insertMessage, getMessages, getMessagesAround, getMessageById, updateMessage,
   deleteMessage, getPinnedMessages, clearMessages,
 };

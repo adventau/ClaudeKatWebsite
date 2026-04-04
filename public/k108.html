@@ -1,0 +1,1926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K-108</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-deep: #070a14; --bg-base: #0a0e18; --bg-raised: #0f1420;
+      --bg-card: #121828; --bg-card-hover: #161e30;
+      --border-subtle: rgba(255,255,255,0.04); --border-main: rgba(255,255,255,0.07);
+      --border-focus: rgba(56,189,248,0.4);
+      --accent-blue: #38bdf8; --accent-cyan: #22d3ee;
+      --accent-indigo: #818cf8; --accent-violet: #a78bfa;
+      --status-green: #34d399; --status-amber: #fbbf24; --status-red: #f87171;
+      --text-primary: #e2e8f0; --text-secondary: #94a3b8;
+      --text-muted: #475569; --text-dim: #334155;
+      --glow-blue: rgba(56,189,248,0.15);
+    }
+    html, body { height: 100%; }
+    body { background: linear-gradient(160deg, #0a0f1e 0%, #080d18 30%, #0d1224 60%, #0a0f1c 100%); font-family: 'Inter', sans-serif; color: var(--text-primary); overflow: hidden; }
+
+    .ambient { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+    .ambient .grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(56,189,248,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(56,189,248,0.055) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(ellipse at 50% 40%, black 35%, transparent 75%); -webkit-mask-image: radial-gradient(ellipse at 50% 40%, black 35%, transparent 75%); }
+    .ambient .hex { position: absolute; inset: 0; background-image: radial-gradient(circle at 20% 80%, rgba(129,140,248,0.04) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(56,189,248,0.04) 0%, transparent 50%), radial-gradient(circle at 50% 50%, rgba(34,211,238,0.02) 0%, transparent 40%); }
+    .ambient .scanline { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(56,189,248,0.008) 3px, rgba(56,189,248,0.008) 4px); }
+    .ambient .orb { position: absolute; border-radius: 50%; filter: blur(80px); animation: float 20s ease-in-out infinite; }
+    .ambient .orb-1 { width: 550px; height: 550px; background: radial-gradient(circle, rgba(56,189,248,0.16), transparent 70%); top: -140px; left: -140px; opacity: 0.5; }
+    .ambient .orb-2 { width: 450px; height: 450px; background: radial-gradient(circle, rgba(129,140,248,0.14), transparent 70%); bottom: -120px; right: -120px; opacity: 0.5; animation-delay: -10s; }
+    .ambient .orb-3 { width: 300px; height: 300px; background: radial-gradient(circle, rgba(34,211,238,0.1), transparent 70%); top: 35%; right: 8%; opacity: 0.45; animation-delay: -5s; }
+    .ambient .orb-4 { width: 200px; height: 200px; background: radial-gradient(circle, rgba(167,139,250,0.08), transparent 70%); bottom: 20%; left: 15%; opacity: 0.35; animation-delay: -15s; }
+    @keyframes float { 0%,100%{transform:translate(0,0)} 33%{transform:translate(30px,-20px)} 66%{transform:translate(-20px,30px)} }
+
+    /* ═══ Auth ═══ */
+    #auth-screen { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+    .auth-container { width: 440px; max-width: 100%; text-align: center; }
+    .emblem { width: 80px; height: 80px; margin: 0 auto 28px; position: relative; }
+    .emblem-ring { position: absolute; inset: 0; border: 1.5px solid rgba(56,189,248,0.2); border-radius: 50%; animation: spin-slow 30s linear infinite; }
+    .emblem-ring::before { content:''; position: absolute; top: -2px; left: 50%; width: 4px; height: 4px; background: var(--accent-blue); border-radius: 50%; transform: translateX(-50%); box-shadow: 0 0 6px var(--accent-blue); }
+    .emblem-ring-inner { position: absolute; inset: 10px; border: 1px solid rgba(129,140,248,0.15); border-radius: 50%; animation: spin-slow 20s linear infinite reverse; }
+    .emblem-ring-inner::before { content:''; position: absolute; bottom: -2px; left: 50%; width: 3px; height: 3px; background: var(--accent-indigo); border-radius: 50%; transform: translateX(-50%); box-shadow: 0 0 6px var(--accent-indigo); }
+    .emblem-center { position: absolute; inset: 22px; background: var(--bg-card); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-main); }
+    .emblem-center span { font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 600; color: var(--accent-blue); letter-spacing: 0.05em; }
+    @keyframes spin-slow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    .auth-title { font-family: 'Orbitron', sans-serif; font-size: 26px; font-weight: 700; letter-spacing: 0.2em; margin-bottom: 6px; }
+    .auth-subtitle { font-size: 11px; color: var(--text-muted); letter-spacing: 0.25em; text-transform: uppercase; margin-bottom: 40px; }
+    .auth-card { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 12px; padding: 32px; backdrop-filter: blur(20px); }
+    .auth-field-label { display: block; text-align: left; font-size: 10px; font-weight: 500; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+    .auth-input { width: 100%; padding: 14px 16px; background: var(--bg-base); border: 1px solid var(--border-main); color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 16px; border-radius: 8px; outline: none; letter-spacing: 0.1em; transition: border-color 0.2s, box-shadow 0.2s; }
+    .auth-input:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--glow-blue), 0 0 20px var(--glow-blue); }
+    .auth-input::placeholder { color: var(--text-dim); }
+    .auth-submit { width: 100%; margin-top: 16px; padding: 13px; background: linear-gradient(135deg, rgba(56,189,248,0.1), rgba(129,140,248,0.1)); border: 1px solid rgba(56,189,248,0.25); color: var(--accent-blue); font-family: 'Inter'; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+    .auth-submit:hover { background: linear-gradient(135deg, rgba(56,189,248,0.18), rgba(129,140,248,0.15)); box-shadow: 0 0 20px var(--glow-blue); }
+    .auth-err { color: var(--status-red); font-size: 12px; margin-top: 14px; min-height: 18px; }
+    .auth-footer { margin-top: 24px; font-size: 10px; color: var(--text-dim); letter-spacing: 0.06em; }
+
+    /* Setup modal */
+    .setup-overlay { display: none; position: fixed; inset: 0; z-index: 999; background: rgba(4,6,12,0.92); backdrop-filter: blur(10px); align-items: center; justify-content: center; }
+    .setup-overlay.active { display: flex; }
+    .setup-box { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 14px; padding: 40px 36px; width: 440px; max-width: 90vw; text-align: center; }
+    .setup-box h2 { font-family: 'Orbitron'; font-size: 16px; color: var(--accent-blue); letter-spacing: 0.1em; margin-bottom: 8px; }
+    .setup-box p { font-size: 12px; color: var(--text-muted); margin-bottom: 24px; }
+    .setup-box .auth-input { margin-bottom: 12px; }
+    .setup-err { color: var(--status-red); font-size: 12px; min-height: 18px; margin-bottom: 8px; }
+
+    /* ═══ Dashboard Shell ═══ */
+    #dashboard { display: none; flex-direction: column; height: 100vh; position: relative; z-index: 1; }
+    .topbar { height: 52px; background: rgba(8,11,20,0.85); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0; }
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+    .topbar-brand { font-family: 'Orbitron'; font-size: 13px; font-weight: 600; color: var(--accent-blue); letter-spacing: 0.1em; cursor: pointer; }
+    .topbar-divider { width: 1px; height: 18px; background: var(--border-main); }
+    .topbar-module { font-size: 12px; font-weight: 500; color: var(--text-secondary); letter-spacing: 0.04em; }
+    .topbar-right { display: flex; align-items: center; gap: 16px; }
+    .topbar-status { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--status-green); box-shadow: 0 0 6px rgba(52,211,153,0.5); }
+    .topbar-btn { background: none; border: 1px solid var(--border-main); color: var(--text-muted); font-family: 'Inter'; font-size: 11px; font-weight: 500; padding: 6px 14px; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+    .topbar-btn:hover { border-color: var(--status-red); color: var(--status-red); }
+    .back-btn { background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: color 0.2s; }
+    .back-btn:hover { color: var(--accent-blue); }
+
+    .dash-main { flex: 1; overflow-y: auto; padding: 24px 24px 16px; display: flex; flex-direction: column; align-items: center; }
+    .dash-main::-webkit-scrollbar { width: 5px; }
+    .dash-main::-webkit-scrollbar-track { background: transparent; }
+    .dash-main::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 3px; }
+
+    .k108-view { display: none; width: 100%; max-width: 1100px; opacity: 0; transform: translateY(12px); }
+    .k108-view.active { display: flex; flex-direction: column; animation: viewFadeIn 0.4s ease forwards; }
+    .k108-view:not(#view-dashboard) { max-width: 900px; display: none; }
+    .k108-view:not(#view-dashboard).active { display: block; }
+    #view-dashboard.active { display: flex; }
+    @keyframes viewFadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Card stagger animation */
+    .dash-card { opacity: 0; animation: cardFadeIn 0.5s ease forwards; }
+    .dash-card:nth-child(1) { animation-delay: 0.05s; }
+    .dash-card:nth-child(2) { animation-delay: 0.1s; }
+    .dash-card:nth-child(3) { animation-delay: 0.15s; }
+    .dash-card:nth-child(4) { animation-delay: 0.2s; }
+    .dash-card:nth-child(5) { animation-delay: 0.25s; }
+    .dash-card:nth-child(6) { animation-delay: 0.3s; }
+    .dash-card:nth-child(7) { animation-delay: 0.35s; }
+    @keyframes cardFadeIn { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+    /* Auth screen entrance */
+    .auth-container { animation: authFadeIn 0.8s ease forwards; }
+    @keyframes authFadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Dashboard enter */
+    #dashboard { animation: dashSlideIn 0.5s ease; }
+    @keyframes dashSlideIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Record cards animate in */
+    .record { animation: recordSlide 0.35s ease forwards; opacity: 0; }
+    @keyframes recordSlide { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+
+    /* Modal fade */
+    .modal-overlay { animation: modalFade 0.25s ease; }
+    @keyframes modalFade { from { opacity: 0; } to { opacity: 1; } }
+    .modal-box { animation: modalSlideUp 0.3s ease; }
+    .setup-box { animation: modalSlideUp 0.3s ease; }
+    @keyframes modalSlideUp { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+    /* Neon pulse */
+    .dc-neon { animation: neonPulse 3s ease-in-out infinite; }
+    @keyframes neonPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    /* Profile detail animate */
+    .profile-detail { animation: profileSlideIn 0.4s ease forwards; }
+    @keyframes profileSlideIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes profileSlideOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(16px); } }
+    .profile-section { animation: sectionFadeIn 0.35s ease forwards; opacity: 0; }
+    .profile-section:nth-child(1) { animation-delay: 0.05s; }
+    .profile-section:nth-child(2) { animation-delay: 0.1s; }
+    .profile-section:nth-child(3) { animation-delay: 0.15s; }
+    .profile-section:nth-child(4) { animation-delay: 0.2s; }
+    .profile-section:nth-child(5) { animation-delay: 0.25s; }
+    .profile-section:nth-child(6) { animation-delay: 0.3s; }
+    @keyframes sectionFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Profile autofill slide */
+    .profile-autofill { animation: afSlide 0.2s ease; }
+    @keyframes afSlide { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Validate result card */
+    .validate-result-card { animation: resultFadeIn 0.4s ease forwards; }
+    @keyframes resultFadeIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+
+    /* SMS bubble entrance */
+    .sms-bubble { animation: bubbleIn 0.25s ease forwards; }
+    @keyframes bubbleIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Topbar back btn */
+    .back-btn { transition: transform 0.2s, color 0.2s; }
+    .back-btn:hover { transform: translateX(-3px); }
+
+    /* ═══ Dashboard Grid ═══ */
+    .dash-header { display: flex; align-items: flex-end; justify-content: space-between; width: 100%; max-width: 1100px; margin-bottom: 14px; }
+    .dash-greeting { font-size: 22px; font-weight: 300; color: var(--text-secondary); letter-spacing: 0.02em; }
+    .dash-greeting strong { color: var(--text-primary); font-weight: 600; }
+    .dash-time { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-dim); letter-spacing: 0.05em; }
+
+    .dash-grid { display: grid; grid-template-columns: repeat(12, 1fr); grid-auto-rows: auto; gap: 12px; width: 100%; max-width: 1100px; }
+
+    .dash-card { background: linear-gradient(145deg, rgba(15,21,32,0.9), rgba(12,16,24,0.95)); border: 1px solid var(--border-main); border-radius: 14px; padding: 0; cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden; backdrop-filter: blur(12px); }
+    .dash-card:hover { border-color: rgba(56,189,248,0.18); box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.03); transform: translateY(-2px); }
+    .dash-card::before { content:''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent 10%, rgba(56,189,248,0.15) 50%, transparent 90%); }
+    .dash-card::after { content:''; position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 0%, rgba(56,189,248,0.04), transparent 60%); pointer-events: none; }
+
+    .dc-head { padding: 16px 18px 0; position: relative; z-index: 1; }
+    .dc-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; }
+    .dc-sub { font-size: 10px; color: var(--text-dim); letter-spacing: 0.04em; }
+    .dc-neon { position: absolute; top: 14px; right: 16px; width: 8px; height: 8px; border-radius: 50%; }
+    .dc-neon-blue { background: var(--accent-blue); box-shadow: 0 0 8px var(--accent-blue), 0 0 16px rgba(56,189,248,0.3); }
+    .dc-neon-cyan { background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan), 0 0 16px rgba(34,211,238,0.3); }
+    .dc-neon-indigo { background: var(--accent-indigo); box-shadow: 0 0 8px var(--accent-indigo), 0 0 16px rgba(129,140,248,0.3); }
+    .dc-neon-green { background: var(--status-green); box-shadow: 0 0 8px var(--status-green), 0 0 16px rgba(52,211,153,0.3); }
+    .dc-neon-amber { background: var(--status-amber); box-shadow: 0 0 8px var(--status-amber), 0 0 16px rgba(251,191,36,0.3); }
+    .dc-neon-violet { background: var(--accent-violet); box-shadow: 0 0 8px var(--accent-violet), 0 0 16px rgba(167,139,250,0.3); }
+    .dc-neon-red { background: var(--status-red); box-shadow: 0 0 8px var(--status-red), 0 0 16px rgba(248,113,113,0.3); }
+    .dc-body { padding: 10px 18px 16px; position: relative; z-index: 1; }
+
+    /* Card preview elements */
+    .dc-preview-lines { display: flex; flex-direction: column; gap: 5px; }
+    .dc-pline { display: flex; align-items: center; gap: 8px; font-size: 10px; }
+    .dc-pline-dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
+    .dc-pline-text { color: var(--text-dim); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .dc-pline-time { font-family: 'JetBrains Mono'; font-size: 9px; color: var(--text-dim); opacity: 0.6; margin-left: auto; flex-shrink: 0; }
+
+    .dc-stat-row { display: flex; gap: 12px; margin-top: 6px; }
+    .dc-stat { flex: 1; }
+    .dc-stat-val { font-family: 'JetBrains Mono'; font-size: 18px; font-weight: 600; color: var(--text-primary); line-height: 1.2; }
+    .dc-stat-label { font-size: 9px; color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
+
+    .dc-mini-chart { display: flex; align-items: flex-end; gap: 2px; height: 32px; margin-top: 8px; }
+    .dc-bar { flex: 1; background: rgba(56,189,248,0.15); border-radius: 2px 2px 0 0; min-width: 4px; transition: height 0.3s; }
+
+    .dc-search-preview { margin-top: 8px; padding: 8px 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); border-radius: 6px; display: flex; align-items: center; gap: 8px; }
+    .dc-search-placeholder { font-size: 10px; color: var(--text-dim); }
+    .dc-search-cursor { width: 1px; height: 12px; background: var(--accent-blue); animation: blink-cursor 1.2s step-end infinite; }
+    @keyframes blink-cursor { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    .dc-file-preview { display: flex; gap: 6px; margin-top: 8px; }
+    .dc-file-chip { padding: 4px 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 4px; font-size: 9px; color: var(--text-dim); font-family: 'JetBrains Mono'; }
+
+    .dc-meter { height: 4px; background: var(--border-subtle); border-radius: 2px; margin-top: 10px; overflow: hidden; }
+    .dc-meter-fill { height: 100%; border-radius: 2px; }
+
+    .dc-msg-preview { margin-top: 6px; }
+    .dc-msg-bubble { padding: 6px 10px; border-radius: 8px; font-size: 10px; max-width: 80%; margin-bottom: 4px; }
+    .dc-msg-out { background: rgba(56,189,248,0.1); color: var(--text-muted); margin-left: auto; border-bottom-right-radius: 2px; text-align: right; }
+    .dc-msg-in { background: rgba(255,255,255,0.03); color: var(--text-dim); border-bottom-left-radius: 2px; }
+
+    /* Grid layout — bento style */
+    .dc-lookup { grid-column: span 4; }
+    .dc-sms { grid-column: span 4; }
+    .dc-numval { grid-column: span 4; }
+    .dc-vault { grid-column: span 3; }
+    .dc-profiles { grid-column: span 6; }
+    .dc-metadata { grid-column: span 3; }
+    .dc-log { grid-column: span 12; }
+
+    @media (max-width: 768px) {
+      .dash-grid { grid-template-columns: repeat(6, 1fr); }
+      .dc-lookup, .dc-sms, .dc-numval { grid-column: span 6; }
+      .dc-vault, .dc-metadata { grid-column: span 3; }
+      .dc-profiles { grid-column: span 6; }
+      .dc-log { grid-column: span 6; }
+      .dash-header { flex-direction: column; align-items: flex-start; gap: 4px; }
+    }
+    @media (max-width: 480px) {
+      .dash-grid { grid-template-columns: 1fr; }
+      .dc-lookup, .dc-sms, .dc-numval, .dc-vault, .dc-profiles, .dc-metadata, .dc-log { grid-column: span 1; }
+    }
+
+    /* ═══ Shared Components ═══ */
+    .k-input { width: 100%; padding: 11px 14px; background: var(--bg-base); border: 1px solid var(--border-main); color: var(--text-primary); font-family: 'Inter'; font-size: 13px; border-radius: 8px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+    .k-input:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--glow-blue); }
+    .k-input::placeholder { color: var(--text-dim); }
+    .k-select { width: 100%; padding: 11px 14px; background: var(--bg-base); border: 1px solid var(--border-main); color: var(--text-primary); font-family: 'Inter'; font-size: 13px; border-radius: 8px; outline: none; appearance: none; cursor: pointer; }
+    .k-btn { padding: 11px 20px; background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(129,140,248,0.08)); border: 1px solid rgba(56,189,248,0.2); color: var(--accent-blue); font-family: 'Inter'; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+    .k-btn:hover:not(:disabled) { background: linear-gradient(135deg, rgba(56,189,248,0.2), rgba(129,140,248,0.14)); box-shadow: 0 4px 20px var(--glow-blue); }
+    .k-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .k-btn-sm { padding: 7px 14px; font-size: 11px; }
+    .k-btn-danger { border-color: rgba(248,113,113,0.3); color: var(--status-red); background: rgba(248,113,113,0.06); }
+    .k-btn-danger:hover { box-shadow: 0 4px 20px rgba(248,113,113,0.15); }
+    .k-label { font-size: 10px; font-weight: 500; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 5px; display: block; }
+    .k-label .req { color: var(--accent-blue); }
+    .k-card { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 12px; overflow: hidden; }
+    .k-card:hover { border-color: rgba(56,189,248,0.15); }
+    .k-error { padding: 12px 16px; background: rgba(248,113,113,0.06); border: 1px solid rgba(248,113,113,0.15); border-radius: 8px; font-size: 12px; color: var(--status-red); display: none; }
+    .k-error.active { display: block; }
+    .k-empty { text-align: center; padding: 48px 20px; color: var(--text-dim); font-size: 13px; }
+    .k-tag { font-family: 'JetBrains Mono'; font-size: 9px; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.03em; }
+    .k-tag-green { background: rgba(52,211,153,0.1); color: var(--status-green); }
+    .k-tag-amber { background: rgba(251,191,36,0.1); color: var(--status-amber); }
+    .k-tag-red { background: rgba(248,113,113,0.1); color: var(--status-red); }
+    .k-tag-blue { background: rgba(56,189,248,0.1); color: var(--accent-blue); }
+    .k-tag-indigo { background: rgba(129,140,248,0.1); color: var(--accent-indigo); }
+    .form-row { display: flex; gap: 12px; }
+    .form-row > * { flex: 1; }
+    .fg { display: flex; flex-direction: column; gap: 5px; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .section-title { font-size: 16px; font-weight: 600; }
+    .neon-title { font-family: 'Orbitron', sans-serif; font-weight: 600; letter-spacing: 0.1em; text-shadow: 0 0 20px currentColor, 0 0 40px currentColor; }
+
+    .color-swatch { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
+    .color-swatch:hover { transform: scale(1.15); }
+    .color-swatch.active { border-color: #fff; box-shadow: 0 0 8px currentColor; }
+    .icon-choice { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid var(--border-main); background: var(--bg-raised); transition: all 0.2s; color: var(--text-muted); }
+    .icon-choice:hover { border-color: var(--accent-blue); }
+    .icon-choice.active { border-color: var(--accent-blue); background: rgba(56,189,248,0.1); color: var(--accent-blue); }
+
+    .chip-container { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); border-radius: 16px; font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-primary); cursor: pointer; transition: all 0.15s; }
+    .chip:hover { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.2); }
+    .chip-x { font-size: 13px; color: var(--text-dim); margin-left: 2px; }
+    .chip:hover .chip-x { color: var(--status-red); }
+
+    .profile-label { display: inline-flex; align-items: center; gap: 3px; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 500; letter-spacing: 0.03em; cursor: pointer; transition: opacity 0.2s; }
+    .profile-label svg { vertical-align: middle; }
+    .profile-label:hover { opacity: 0.8; }
+    .command-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 12px; font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(129,140,248,0.12)); border: 1px solid rgba(56,189,248,0.3); color: var(--accent-blue); }
+    .neon-blue { color: var(--accent-blue); }
+    .neon-cyan { color: var(--accent-cyan); }
+    .neon-indigo { color: var(--accent-indigo); }
+    .neon-green { color: var(--status-green); }
+    .neon-amber { color: var(--status-amber); }
+    .neon-violet { color: var(--accent-violet); }
+    .quota-pill { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-muted); padding: 4px 12px; background: var(--bg-raised); border-radius: 20px; border: 1px solid var(--border-subtle); }
+
+    /* ═══ People Lookup ═══ */
+    .tabs { display: flex; gap: 2px; margin-bottom: 24px; background: var(--bg-raised); border-radius: 10px; padding: 3px; }
+    .tab { flex: 1; padding: 10px 16px; background: transparent; border: none; color: var(--text-muted); font-family: 'Inter'; font-size: 12px; font-weight: 500; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+    .tab.active { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+    .search-form { display: flex; flex-direction: column; gap: 14px; }
+    .loading-panel { display: none; text-align: center; margin-top: 40px; }
+    .loading-panel.active { display: block; }
+    .loader-ring { width: 56px; height: 56px; margin: 0 auto 20px; }
+    .loader-ring svg { width: 100%; height: 100%; animation: spin-slow 2s linear infinite; }
+    .loader-ring circle { fill: none; stroke-width: 2; stroke-linecap: round; }
+    .loader-ring .track { stroke: var(--border-main); }
+    .loader-ring .progress { stroke: var(--accent-blue); stroke-dasharray: 120, 200; animation: loader-dash 1.5s ease-in-out infinite; }
+    @keyframes loader-dash { 0%{stroke-dasharray:1,200;stroke-dashoffset:0} 50%{stroke-dasharray:90,200;stroke-dashoffset:-35} 100%{stroke-dasharray:90,200;stroke-dashoffset:-124} }
+    .loader-text { font-size: 12px; color: var(--text-muted); letter-spacing: 0.05em; }
+    .loader-bar-wrap { width: 300px; margin: 16px auto 0; height: 2px; background: var(--border-subtle); border-radius: 2px; overflow: hidden; }
+    .loader-bar { width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan)); border-radius: 2px; transition: width 0.4s; }
+
+    .record { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 12px; margin-bottom: 14px; overflow: hidden; transition: border-color 0.2s; }
+    .record:hover { border-color: rgba(56,189,248,0.15); }
+    .record-head { padding: 18px 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .record-name { font-size: 17px; font-weight: 600; color: #fff; }
+    .record-meta { display: flex; align-items: center; gap: 10px; margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+    .conf-pill { display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .conf-pill.high { background: rgba(52,211,153,0.1); color: var(--status-green); }
+    .conf-pill.mid { background: rgba(251,191,36,0.1); color: var(--status-amber); }
+    .conf-pill.low { background: rgba(248,113,113,0.1); color: var(--status-red); }
+    .record-body { padding: 0 22px 18px; }
+    .record-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .record-section-label { font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
+    .record-item { font-size: 12.5px; color: var(--text-secondary); padding: 3px 0; display: flex; align-items: center; gap: 8px; }
+    .tag-current { font-family: 'JetBrains Mono'; font-size: 8px; font-weight: 500; color: var(--status-green); background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.15); padding: 1px 6px; border-radius: 3px; text-transform: uppercase; }
+    .tag-type { font-family: 'JetBrains Mono'; font-size: 9px; color: var(--accent-indigo); }
+    .record-footer { padding: 10px 22px; border-top: 1px solid var(--border-subtle); display: flex; gap: 8px; }
+    .src-tag { font-family: 'JetBrains Mono'; font-size: 9px; color: var(--text-dim); background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); padding: 2px 8px; border-radius: 4px; }
+
+    /* ═══ SMS ═══ */
+    .sms-layout { display: flex; height: calc(100vh - 140px); gap: 0; }
+    .sms-threads { width: 260px; border-right: 1px solid var(--border-main); overflow-y: auto; flex-shrink: 0; }
+    .sms-thread-item { padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); cursor: pointer; transition: background 0.15s; }
+    .sms-thread-item:hover, .sms-thread-item.active { background: var(--bg-card); }
+    .sms-thread-phone { font-family: 'JetBrains Mono'; font-size: 13px; color: var(--text-primary); }
+    .sms-thread-preview { font-size: 11px; color: var(--text-muted); margin-top: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .sms-convo { flex: 1; display: flex; flex-direction: column; }
+    .sms-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .sms-bubble { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; }
+    .sms-outbound { align-self: flex-end; background: rgba(56,189,248,0.15); color: var(--text-primary); border-bottom-right-radius: 4px; }
+    .sms-inbound { align-self: flex-start; background: var(--bg-raised); color: var(--text-secondary); border-bottom-left-radius: 4px; }
+    .sms-time { font-family: 'JetBrains Mono'; font-size: 9px; color: var(--text-dim); margin-top: 4px; }
+    .sms-input-area { padding: 12px 16px; border-top: 1px solid var(--border-main); display: flex; flex-direction: column; gap: 8px; }
+    .sms-input-row { display: flex; gap: 8px; }
+    .sms-new-header { padding: 12px 16px; border-bottom: 1px solid var(--border-main); }
+
+    /* ═══ Num Validator ═══ */
+    .validate-result { margin-top: 24px; }
+    .validate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px; }
+    .validate-item-label { font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+    .validate-item-value { font-size: 14px; color: var(--text-primary); }
+
+    /* ═══ Metadata ═══ */
+    .drop-zone { border: 2px dashed var(--border-main); border-radius: 12px; padding: 48px; text-align: center; cursor: pointer; transition: border-color 0.2s; }
+    .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent-blue); background: rgba(56,189,248,0.03); }
+    .drop-zone-text { font-size: 13px; color: var(--text-muted); }
+    .meta-group { margin-bottom: 16px; }
+    .meta-group-title { font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 600; color: var(--accent-blue); letter-spacing: 0.06em; padding: 8px 16px; background: var(--bg-raised); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .meta-group-body { padding: 0 16px; }
+    .meta-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); font-size: 12px; }
+    .meta-key { color: var(--text-muted); flex-shrink: 0; margin-right: 16px; }
+    .meta-val { color: var(--text-primary); text-align: right; word-break: break-all; }
+
+    /* ═══ Vault ═══ */
+    .vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .vault-card { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 16px; }
+    .vault-card-name { font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; word-break: break-all; }
+    .vault-card-meta { font-size: 10px; color: var(--text-dim); }
+
+    /* ═══ Profiles ═══ */
+    .profile-search-wrap { position: relative; margin-bottom: 20px; }
+    .profile-search-group.focused { box-shadow: 0 0 0 3px var(--glow-blue), 0 0 20px var(--glow-blue); border-radius: 8px; }
+    .profile-autofill { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 8px; margin-top: 4px; z-index: 10; max-height: 300px; overflow-y: auto; display: none; }
+    .profile-autofill.active { display: block; }
+    .profile-af-item { padding: 10px 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: background 0.15s; }
+    .profile-af-item:hover, .profile-af-item.af-highlight { background: var(--bg-card-hover); }
+    .profile-af-item.af-highlight { border-left: 2px solid var(--accent-blue); }
+    .profile-af-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--bg-raised); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--text-muted); overflow: hidden; flex-shrink: 0; }
+    .profile-af-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .profile-af-name { font-size: 13px; color: var(--text-primary); }
+    .profile-af-rel { font-size: 10px; color: var(--text-dim); }
+
+    .profile-detail { max-width: 720px; margin: 0 auto; }
+    .profile-top { display: flex; gap: 20px; align-items: flex-start; margin-bottom: 24px; }
+    .profile-photo { width: 80px; height: 80px; border-radius: 50%; background: var(--bg-raised); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 600; color: var(--text-muted); overflow: hidden; border: 2px solid var(--border-main); flex-shrink: 0; cursor: pointer; }
+    .profile-photo img { width: 100%; height: 100%; object-fit: cover; }
+    .profile-info h2 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+    .profile-info .rel-badge { font-size: 11px; color: var(--accent-indigo); }
+    .profile-sections { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+    .profile-section { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 16px; }
+    .profile-section-title { font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
+    .profile-section-item { font-size: 12.5px; color: var(--text-secondary); padding: 4px 0; }
+    .social-link { display: flex; align-items: center; gap: 8px; padding: 4px 0; text-decoration: none; color: var(--accent-blue); font-size: 12.5px; }
+    .social-link:hover { text-decoration: underline; }
+    .social-icon { width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+    .social-icon svg { width: 14px; height: 14px; }
+    .related-card { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg-raised); border-radius: 8px; cursor: pointer; transition: background 0.15s; margin-bottom: 6px; }
+    .related-card:hover { background: var(--bg-card-hover); }
+
+    /* ═══ Activity Log ═══ */
+    .log-entry { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-subtle); }
+    .log-time { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--text-dim); white-space: nowrap; min-width: 130px; }
+    .log-badge { font-family: 'JetBrains Mono'; font-size: 9px; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.03em; white-space: nowrap; }
+    .log-user { font-size: 11px; color: var(--accent-indigo); font-weight: 500; min-width: 70px; }
+    .log-detail { font-size: 12px; color: var(--text-secondary); }
+
+    /* ═══ Create Profile Modal ═══ */
+    .modal-overlay { display: none; position: fixed; inset: 0; z-index: 998; background: rgba(4,6,12,0.85); backdrop-filter: blur(8px); align-items: center; justify-content: center; }
+    .modal-overlay.active { display: flex; }
+    .modal-box { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 14px; padding: 32px; width: 560px; max-width: 90vw; max-height: 85vh; overflow-y: auto; }
+    .modal-box h2 { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+    .modal-box .fg { margin-bottom: 14px; }
+
+    /* ═══ Mobile ═══ */
+    @media (max-width: 768px) {
+      .dash-grid { grid-template-columns: 1fr 1fr; }
+      .form-row { flex-direction: column; }
+      .record-grid { grid-template-columns: 1fr; }
+      .sms-layout { flex-direction: column; height: auto; }
+      .sms-threads { width: 100%; border-right: none; border-bottom: 1px solid var(--border-main); max-height: 200px; }
+      .profile-sections { grid-template-columns: 1fr; }
+      .profile-top { flex-direction: column; align-items: center; text-align: center; }
+      .validate-grid { grid-template-columns: 1fr; }
+      .topbar { padding: 0 14px; }
+      .dash-main { padding: 20px 14px; }
+    }
+    @media (max-width: 480px) {
+      .dash-grid { grid-template-columns: 1fr; }
+      .topbar-status { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient"><div class="grid"></div><div class="hex"></div><div class="scanline"></div><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div><div class="orb orb-4"></div></div>
+
+  <!-- ═══ Auth ═══ -->
+  <div id="auth-screen">
+    <div class="auth-container">
+      <div class="emblem"><div class="emblem-ring"></div><div class="emblem-ring-inner"></div><div class="emblem-center"><span>108</span></div></div>
+      <h1 class="auth-title">K-108</h1>
+      <p class="auth-subtitle">Intelligence Division</p>
+      <div class="auth-card">
+        <label class="auth-field-label">Access Code</label>
+        <input type="password" class="auth-input" id="auth-pass" placeholder="Enter code" autocomplete="off">
+        <button class="auth-submit" id="auth-btn" onclick="authenticate()">Authenticate</button>
+        <div class="auth-err" id="auth-err"></div>
+      </div>
+      <p class="auth-footer">Classified // Authorized Personnel Only</p>
+    </div>
+  </div>
+
+  <!-- Setup Passcode Modal -->
+  <div class="setup-overlay" id="setup-overlay">
+    <div class="setup-box">
+      <h2>Set Your K-108 Passcode</h2>
+      <p>First-time access. Create your personal passcode.</p>
+      <input type="password" class="auth-input" id="setup-pass1" placeholder="Enter passcode">
+      <input type="password" class="auth-input" id="setup-pass2" placeholder="Confirm passcode">
+      <div class="setup-err" id="setup-err"></div>
+      <button class="auth-submit" onclick="submitSetup()">Set Passcode</button>
+    </div>
+  </div>
+
+  <!-- Relationship Label Modal -->
+  <div class="modal-overlay" id="relation-modal">
+    <div class="modal-box" style="width:400px">
+      <h2 style="font-size:15px;margin-bottom:16px">Link Profile</h2>
+      <div class="fg" style="margin-bottom:14px"><label class="k-label">Relationship Label</label><input class="k-input" id="rel-label" placeholder="e.g. Friend, Sibling, Coworker"></div>
+      <div style="display:flex;gap:10px"><button class="k-btn" onclick="confirmLinkProfile()" style="flex:1">Link</button><button class="k-btn k-btn-danger" onclick="closeModal('relation-modal')" style="flex:1">Cancel</button></div>
+    </div>
+  </div>
+
+  <!-- Create Label Modal -->
+  <div class="modal-overlay" id="create-label-modal">
+    <div class="modal-box" style="width:440px">
+      <h2 style="font-size:15px;margin-bottom:16px">Create Label</h2>
+      <div class="fg" style="margin-bottom:14px"><label class="k-label">Label Name</label><input class="k-input" id="cl-name" placeholder="e.g. Trusted, Watch List"></div>
+      <div class="fg" style="margin-bottom:14px"><label class="k-label">Color</label>
+        <div id="cl-colors" style="display:flex;gap:8px;flex-wrap:wrap">
+          <span class="color-swatch active" data-color="#38bdf8" style="background:#38bdf8" onclick="selectLabelColor(this)"></span>
+          <span class="color-swatch" data-color="#22d3ee" style="background:#22d3ee" onclick="selectLabelColor(this)"></span>
+          <span class="color-swatch" data-color="#34d399" style="background:#34d399" onclick="selectLabelColor(this)"></span>
+          <span class="color-swatch" data-color="#818cf8" style="background:#818cf8" onclick="selectLabelColor(this)"></span>
+          <span class="color-swatch" data-color="#a78bfa" style="background:#a78bfa" onclick="selectLabelColor(this)"></span>
+          <span class="color-swatch" data-color="#f87171" style="background:#f87171" onclick="selectLabelColor(this)"></span>
+          <span class="color-swatch" data-color="#fbbf24" style="background:#fbbf24" onclick="selectLabelColor(this)"></span>
+          <span class="color-swatch" data-color="#fb923c" style="background:#fb923c" onclick="selectLabelColor(this)"></span>
+          <span class="color-swatch" data-color="#f472b6" style="background:#f472b6" onclick="selectLabelColor(this)"></span>
+          <span class="color-swatch" data-color="#e2e8f0" style="background:#e2e8f0" onclick="selectLabelColor(this)"></span>
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:14px"><label class="k-label">Icon</label>
+        <div id="cl-icons" style="display:flex;gap:8px;flex-wrap:wrap">
+          <span class="icon-choice active" data-icon="star" onclick="selectLabelIcon(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg></span>
+          <span class="icon-choice" data-icon="shield" onclick="selectLabelIcon(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+          <span class="icon-choice" data-icon="flag" onclick="selectLabelIcon(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>
+          <span class="icon-choice" data-icon="bolt" onclick="selectLabelIcon(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+          <span class="icon-choice" data-icon="alert" onclick="selectLabelIcon(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+          <span class="icon-choice" data-icon="eye" onclick="selectLabelIcon(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+          <span class="icon-choice" data-icon="lock" onclick="selectLabelIcon(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span>
+          <span class="icon-choice" data-icon="target" onclick="selectLabelIcon(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
+          <span class="icon-choice" data-icon="user" onclick="selectLabelIcon(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+          <span class="icon-choice" data-icon="hash" onclick="selectLabelIcon(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg></span>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px"><button class="k-btn" onclick="createLabel()" style="flex:1">Create Label</button><button class="k-btn k-btn-danger" onclick="closeModal('create-label-modal')" style="flex:1">Cancel</button></div>
+    </div>
+  </div>
+
+  <!-- Create Profile Modal -->
+  <div class="modal-overlay" id="create-profile-modal">
+    <div class="modal-box">
+      <h2>Create Profile</h2>
+      <div class="form-row">
+        <div class="fg"><label class="k-label">First Name</label><input class="k-input" id="cp-fname"></div>
+        <div class="fg"><label class="k-label">Last Name</label><input class="k-input" id="cp-lname"></div>
+      </div>
+      <div class="fg"><label class="k-label">Relation</label><input class="k-input" id="cp-relation" placeholder="e.g. Friend, Coworker"></div>
+      <div class="fg"><label class="k-label">Phone Numbers (comma separated)</label><input class="k-input" id="cp-phones"></div>
+      <div class="fg"><label class="k-label">Email Addresses (comma separated)</label><input class="k-input" id="cp-emails"></div>
+      <div class="fg"><label class="k-label">Aliases / Nicknames (comma separated)</label><input class="k-input" id="cp-aliases"></div>
+      <div class="fg"><label class="k-label">Notes</label><textarea class="k-input" id="cp-notes" rows="3" style="resize:vertical"></textarea></div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="k-btn" onclick="createProfile()" style="flex:1">Create</button>
+        <button class="k-btn k-btn-danger" onclick="closeModal('create-profile-modal')" style="flex:1">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Dashboard ═══ -->
+  <div id="dashboard">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="back-btn" id="back-btn" onclick="navigateTo('#/')" style="display:none">&larr;</button>
+        <span class="topbar-brand" onclick="navigateTo('#/')">K-108</span>
+        <div class="topbar-divider"></div>
+        <span class="topbar-module" id="topbar-module">Dashboard</span>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-status"><div class="status-dot"></div>Secure</div>
+        <button class="topbar-btn" onclick="disconnect()">Disconnect</button>
+      </div>
+    </div>
+    <div class="dash-main" id="dash-main">
+
+      <!-- Dashboard Home -->
+      <div class="k108-view active" id="view-dashboard">
+        <div class="dash-header">
+          <div class="dash-greeting" id="dash-greeting"></div>
+          <div class="dash-time" id="dash-time"></div>
+        </div>
+        <div class="dash-grid">
+
+          <!-- People Lookup -->
+          <div class="dash-card dc-lookup" onclick="navigateTo('#/lookup')">
+            <div class="dc-head"><div class="dc-title">People Lookup</div><div class="dc-sub">Name, phone, and address records</div><div class="dc-neon dc-neon-blue"></div></div>
+            <div class="dc-body">
+              <div class="dc-search-preview"><div class="dc-search-cursor"></div><div class="dc-search-placeholder">Search by name, phone, or address...</div></div>
+              <div class="dc-stat-row">
+                <div class="dc-stat"><div class="dc-stat-val" id="dash-lookup-quota">50</div><div class="dc-stat-label">Queries Left</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Covert SMS -->
+          <div class="dash-card dc-sms" onclick="navigateTo('#/sms')">
+            <div class="dc-head"><div class="dc-title">Covert SMS</div><div class="dc-sub">Encrypted text messaging</div><div class="dc-neon dc-neon-cyan"></div></div>
+            <div class="dc-body">
+              <div class="dc-msg-preview">
+                <div class="dc-msg-bubble dc-msg-out">Message sent</div>
+                <div class="dc-msg-bubble dc-msg-in">Reply received</div>
+              </div>
+              <div class="dc-stat-row">
+                <div class="dc-stat"><div class="dc-stat-val" id="dash-sms-quota">50</div><div class="dc-stat-label">Texts Left</div></div>
+                <div class="dc-stat"><div class="dc-stat-val" id="dash-sms-threads">0</div><div class="dc-stat-label">Threads</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Number Validator -->
+          <div class="dash-card dc-numval" onclick="navigateTo('#/numvalidate')">
+            <div class="dc-head"><div class="dc-title">Number Validator</div><div class="dc-sub">Carrier and line-type analysis</div><div class="dc-neon dc-neon-green"></div></div>
+            <div class="dc-body">
+              <div class="dc-mini-chart" id="dash-nv-chart"></div>
+              <div class="dc-stat-row">
+                <div class="dc-stat"><div class="dc-stat-val" id="dash-nv-quota">100</div><div class="dc-stat-label">Lookups Left</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Document Vault -->
+          <div class="dash-card dc-vault" onclick="navigateTo('#/vault')">
+            <div class="dc-head"><div class="dc-title">Document Vault</div><div class="dc-sub">Secure file storage</div><div class="dc-neon dc-neon-violet"></div></div>
+            <div class="dc-body">
+              <div class="dc-file-preview">
+                <div class="dc-file-chip">.PDF</div>
+                <div class="dc-file-chip">.DOC</div>
+                <div class="dc-file-chip">.IMG</div>
+              </div>
+              <div class="dc-stat-row">
+                <div class="dc-stat"><div class="dc-stat-val" id="dash-vault-count">0</div><div class="dc-stat-label">Files</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Intel Profiles (wide) -->
+          <div class="dash-card dc-profiles" onclick="navigateTo('#/profiles')">
+            <div class="dc-head"><div class="dc-title">Intel Profiles</div><div class="dc-sub">Subject profiles and cross-references</div><div class="dc-neon dc-neon-indigo"></div></div>
+            <div class="dc-body">
+              <div class="dc-search-preview"><div class="dc-search-cursor"></div><div class="dc-search-placeholder">Search by name, alias, or handle...</div></div>
+              <div class="dc-preview-lines" id="dash-profiles-preview" style="margin-top:10px">
+                <div class="dc-pline"><div class="dc-pline-dot" style="background:var(--accent-indigo)"></div><div class="dc-pline-text" style="color:var(--text-muted)">No profiles created yet</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Metadata Extractor -->
+          <div class="dash-card dc-metadata" onclick="navigateTo('#/metadata')">
+            <div class="dc-head"><div class="dc-title">Metadata Extractor</div><div class="dc-sub">EXIF and file analysis</div><div class="dc-neon dc-neon-amber"></div></div>
+            <div class="dc-body">
+              <div style="padding:12px;border:1px dashed var(--border-main);border-radius:6px;text-align:center;margin-top:4px">
+                <div style="font-size:10px;color:var(--text-dim)">Drop file to extract</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Activity Log (full width) -->
+          <div class="dash-card dc-log" onclick="navigateTo('#/log')">
+            <div class="dc-head"><div class="dc-title">Activity Log</div><div class="dc-sub">Recent operations</div><div class="dc-neon dc-neon-red"></div></div>
+            <div class="dc-body">
+              <div class="dc-preview-lines" id="dash-log-preview">
+                <div class="dc-pline"><div class="dc-pline-dot" style="background:var(--text-dim)"></div><div class="dc-pline-text">No activity recorded</div></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- People Lookup -->
+      <div class="k108-view" id="view-lookup">
+        <div class="section-header"><h2 class="section-title neon-title neon-blue" style="font-size:18px">Subject Search</h2><div style="display:flex;align-items:center;gap:12px"><span style="font-size:10px;color:var(--text-dim);letter-spacing:0.06em">Classified // Authorized Personnel Only</span><button class="k-btn k-btn-sm" onclick="toggleSavedSearches()" style="font-size:9px;padding:4px 12px" id="saved-search-toggle">Saved</button></div></div>
+        <div id="saved-searches-panel" style="display:none;margin-bottom:16px;padding:14px 16px;background:var(--bg-card);border:1px solid var(--border-main);border-radius:10px"><div style="font-size:10px;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px">Saved Results</div><div id="saved-searches-list"><div style="font-size:11px;color:var(--text-dim)">No saved results yet</div></div></div>
+        <div class="tabs">
+          <button class="tab active" data-type="name" onclick="switchLookupTab('name',this)">By Name</button>
+          <button class="tab" data-type="phone" onclick="switchLookupTab('phone',this)">By Phone</button>
+          <button class="tab" data-type="address" onclick="switchLookupTab('address',this)">By Address</button>
+        </div>
+        <div class="search-form" id="form-name">
+          <div class="form-row"><div class="fg"><label class="k-label">First Name</label><input class="k-input" id="inp-fname" placeholder="John"></div><div class="fg"><label class="k-label">Last Name <span class="req">*</span></label><input class="k-input" id="inp-lname" placeholder="Smith"></div></div>
+          <div class="form-row"><div class="fg"><label class="k-label">City</label><input class="k-input" id="inp-city" placeholder="Chicago"></div><div class="fg"><label class="k-label">State</label><select class="k-select" id="inp-state"><option value="">Any State</option></select></div></div>
+          <button class="k-btn" onclick="executeLookup()" style="width:100%">Initiate Search</button>
+        </div>
+        <div class="search-form" id="form-phone" style="display:none"><div class="fg"><label class="k-label">Phone Number <span class="req">*</span></label><input class="k-input" id="inp-phone" placeholder="(555) 123-4567"></div><button class="k-btn" onclick="executeLookup()" style="width:100%">Initiate Search</button></div>
+        <div class="search-form" id="form-address" style="display:none">
+          <div class="fg"><label class="k-label">Street Address <span class="req">*</span></label><input class="k-input" id="inp-street" placeholder="123 Main St"></div>
+          <div class="form-row"><div class="fg"><label class="k-label">City</label><input class="k-input" id="inp-addr-city" placeholder="Springfield"></div><div class="fg"><label class="k-label">State</label><select class="k-select" id="inp-addr-state"><option value="">Any State</option></select></div></div>
+          <div class="fg" style="max-width:200px"><label class="k-label">ZIP</label><input class="k-input" id="inp-zip" placeholder="62701"></div>
+          <button class="k-btn" onclick="executeLookup()" style="width:100%">Initiate Search</button>
+        </div>
+        <div class="loading-panel" id="lookup-loading"><div class="loader-ring"><svg viewBox="0 0 50 50"><circle class="track" cx="25" cy="25" r="20"/><circle class="progress" cx="25" cy="25" r="20"/></svg></div><div class="loader-text" id="lookup-loader-text">Querying primary database...</div><div class="loader-bar-wrap"><div class="loader-bar" id="lookup-bar"></div></div></div>
+        <div class="k-error" id="lookup-error"></div>
+        <div id="lookup-results" style="margin-top:24px"></div>
+      </div>
+
+      <!-- Number Validator -->
+      <div class="k108-view" id="view-numvalidate">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;padding-top:60px">
+          <div style="font-family:Orbitron;font-size:18px;font-weight:600;color:var(--accent-blue);letter-spacing:0.1em;margin-bottom:6px">Number Validator</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-bottom:32px;letter-spacing:0.06em">Carrier identification and line-type analysis</div>
+          <div style="display:flex;gap:0;width:100%;max-width:520px">
+            <input class="k-input" id="nv-phone" placeholder="Enter phone number" style="border-radius:8px 0 0 8px;border-right:none;font-size:15px;padding:16px 18px" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
+            <button class="k-btn" onclick="validateNumber()" style="border-radius:0 8px 8px 0;white-space:nowrap;padding:16px 28px;font-size:13px">Validate</button>
+          </div>
+          <div style="margin-top:8px;font-size:10px;color:var(--text-dim)"><span class="quota-pill" id="nv-quota">--/-- remaining</span></div>
+        </div>
+        <div class="k-error" id="nv-error" style="margin-top:16px;max-width:520px;margin-left:auto;margin-right:auto"></div>
+        <div id="nv-result" style="margin-top:24px;max-width:600px;margin-left:auto;margin-right:auto"></div>
+      </div>
+
+      <!-- Covert SMS -->
+      <div class="k108-view" id="view-sms">
+        <div class="section-header"><h2 class="section-title neon-title neon-cyan" style="font-size:18px">Covert SMS</h2><span class="quota-pill" id="sms-quota">--/--</span></div>
+        <div class="sms-layout">
+          <div class="sms-threads" id="sms-threads"><div class="k-empty" style="padding:20px">No conversations yet</div></div>
+          <div class="sms-convo">
+            <div class="sms-new-header"><div class="fg"><label class="k-label">Recipient</label><div style="display:flex;align-items:center;gap:8px"><span id="sms-to-chip" style="display:none;padding:4px 10px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);border-radius:16px;font-family:JetBrains Mono;font-size:12px;color:var(--accent-blue);cursor:pointer;white-space:nowrap" onclick="clearSmsRecipient()"></span><input class="k-input" id="sms-to" placeholder="Enter phone number, press Enter"></div></div></div>
+            <div class="sms-messages" id="sms-messages"><div class="k-empty">Select a conversation or start a new one</div></div>
+            <div class="sms-input-area">
+              <textarea class="k-input" id="sms-msg" rows="2" placeholder="Type message..." style="resize:none"></textarea>
+              <button class="k-btn" onclick="sendSMS()" style="align-self:flex-end">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Document Vault -->
+      <div class="k108-view" id="view-vault">
+        <div class="section-header"><h2 class="section-title neon-title neon-violet" style="font-size:18px">Document Vault</h2><button class="k-btn k-btn-sm" onclick="document.getElementById('vault-upload').click()">Upload File</button></div>
+        <input type="file" id="vault-upload" style="display:none" multiple onchange="uploadVaultFiles(this.files)">
+        <div id="vault-items"><div class="k-empty" style="padding:60px 20px"><div style="font-size:14px;color:var(--text-muted);margin-bottom:8px">No documents yet</div><div style="font-size:11px;color:var(--text-dim)">Upload files directly or transfer from the main Document Locker</div></div></div>
+      </div>
+
+      <!-- Intel Profiles -->
+      <div class="k108-view" id="view-profiles">
+        <div id="profiles-main">
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;padding-top:40px">
+            <div style="font-family:Orbitron;font-size:18px;font-weight:600;color:var(--accent-indigo);letter-spacing:0.1em;margin-bottom:6px">Intel Profiles</div>
+            <div style="font-size:11px;color:var(--text-dim);margin-bottom:32px;letter-spacing:0.06em">Search by name, alias, or handle</div>
+            <div class="profile-search-wrap" style="width:100%;max-width:560px">
+              <div class="profile-search-group" style="display:flex;gap:0;align-items:stretch;border-radius:8px;transition:box-shadow 0.2s,border-color 0.2s">
+                <input class="k-input" id="profile-search" placeholder="Search profiles..." oninput="searchProfiles(this.value)" onfocus="this.parentElement.classList.add('focused')" onblur="this.parentElement.classList.remove('focused')" style="border-radius:8px 0 0 8px;border-right:none;font-size:15px;padding:16px 18px;flex:1;box-shadow:none !important" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" role="presentation" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
+                <button onclick="searchProfiles(document.getElementById('profile-search').value)" style="padding:0 16px;background:var(--bg-base);border:1px solid var(--border-main);border-left:none;cursor:pointer;display:flex;align-items:center;transition:all 0.2s;border-right:1px solid var(--border-subtle)" title="Search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 3px var(--accent-blue))"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+                <button onclick="navigateToNewProfile()" style="padding:0 16px;background:var(--bg-base);border:1px solid var(--border-main);border-left:none;border-radius:0 8px 8px 0;cursor:pointer;display:flex;align-items:center;transition:all 0.2s" title="Create new profile"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-indigo)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 3px var(--accent-indigo))"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+              </div>
+              <div class="profile-autofill" id="profile-autofill"></div>
+            </div>
+          </div>
+        </div>
+        <div id="profile-detail" style="display:none"></div>
+      </div>
+
+      <!-- Metadata Extractor -->
+      <div class="k108-view" id="view-metadata">
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;padding-top:40px">
+          <div style="font-family:Orbitron;font-size:18px;font-weight:600;color:var(--status-amber);letter-spacing:0.1em;margin-bottom:6px">Metadata Extractor</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-bottom:32px;letter-spacing:0.06em">Extract hidden EXIF and file metadata</div>
+          <div class="drop-zone" id="meta-dropzone" onclick="document.getElementById('meta-file').click()" style="width:100%;max-width:480px;padding:56px 32px">
+            <input type="file" id="meta-file" style="display:none" onchange="extractMetadata(this.files[0])">
+            <div style="font-size:28px;color:var(--text-dim);margin-bottom:12px">&#8593;</div>
+            <div class="drop-zone-text" style="font-size:13px">Drop a file here or click to upload</div>
+            <div style="font-size:10px;color:var(--text-dim);margin-top:8px">Images, PDFs, documents, audio, video</div>
+          </div>
+        </div>
+        <div class="k-error" id="meta-error" style="margin-top:16px;max-width:600px;margin-left:auto;margin-right:auto"></div>
+        <div id="meta-result" style="margin-top:24px;max-width:700px;margin-left:auto;margin-right:auto"></div>
+      </div>
+
+      <!-- Activity Log -->
+      <div class="k108-view" id="view-log">
+        <div class="section-header"><h2 class="section-title neon-title" style="font-size:18px;color:var(--status-red);text-shadow:0 0 20px rgba(248,113,113,0.5),0 0 40px rgba(248,113,113,0.3)">Activity Log</h2></div>
+        <div id="log-entries"><div class="k-empty">No activity recorded yet.</div></div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+// ═══ State ═══
+let authToken = null, currentUser = null, lookupTab = 'name', searching = false, currentSmsPhone = null;
+const socket = io();
+
+const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
+const SNAMES = {AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',DC:'Washington DC'};
+
+const VIEW_TITLES = { 'dashboard':'Dashboard', 'lookup':'People Lookup', 'sms':'Covert SMS', 'numvalidate':'Number Validator', 'vault':'Document Vault', 'profiles':'Intel Profiles', 'metadata':'Metadata Extractor', 'log':'Activity Log' };
+
+// ═══ Init ═══
+(function(){
+  ['inp-state','inp-addr-state'].forEach(id => {
+    const s = document.getElementById(id);
+    if (!s) return;
+    STATES.forEach(st => { const o = document.createElement('option'); o.value = st; o.textContent = st + ' \u2013 ' + SNAMES[st]; s.appendChild(o); });
+  });
+  // Disable browser autofill on all K-108 inputs
+  document.querySelectorAll('.k-input').forEach(i => { i.setAttribute('autocomplete','new-password'); i.setAttribute('data-lpignore','true'); i.setAttribute('data-1p-ignore','true'); i.setAttribute('data-form-type','other'); });
+  // Also use MutationObserver to catch dynamically added inputs
+  new MutationObserver(() => { document.querySelectorAll('.k-input:not([data-lpignore])').forEach(i => { i.setAttribute('autocomplete','new-password'); i.setAttribute('data-lpignore','true'); i.setAttribute('data-1p-ignore','true'); i.setAttribute('data-form-type','other'); }); }).observe(document.body, { childList: true, subtree: true });
+
+  document.getElementById('auth-pass').addEventListener('keydown', e => { if (e.key==='Enter') authenticate(); });
+  document.querySelectorAll('.k-input').forEach(i => i.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); } }));
+  function phoneFormatter(e) {
+    // Only format on character addition, not deletion
+    if (e.inputType && e.inputType.startsWith('delete')) return;
+    let v = e.target.value.replace(/\D/g,'').slice(0,10);
+    if (v.length>=6) v='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);
+    else if (v.length>=3) v='('+v.slice(0,3)+') '+v.slice(3);
+    e.target.value=v;
+  }
+  document.getElementById('inp-phone')?.addEventListener('input', phoneFormatter);
+  document.getElementById('nv-phone')?.addEventListener('input', phoneFormatter);
+  document.getElementById('sms-to')?.addEventListener('input', phoneFormatter);
+  document.getElementById('sms-to')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const v = e.target.value.trim();
+      if (v.replace(/\D/g,'').length >= 10) {
+        setSmsRecipient(v);
+        document.getElementById('sms-msg').focus();
+      }
+    }
+  });
+  // Drop zone
+  const dz = document.getElementById('meta-dropzone');
+  if (dz) {
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); if (e.dataTransfer.files[0]) extractMetadata(e.dataTransfer.files[0]); });
+  }
+  window.addEventListener('hashchange', handleRoute);
+  document.getElementById('auth-pass').focus();
+
+  // SMS socket
+  socket.on('k108:sms-reply', data => {
+    if (currentSmsPhone === data.phone) loadSmsThread(data.phone);
+    loadSmsThreads();
+  });
+})();
+
+// ═══ Auth ═══
+async function authenticate() {
+  const pass = document.getElementById('auth-pass').value;
+  const err = document.getElementById('auth-err');
+  if (!pass) { err.textContent = 'Enter access code'; return; }
+  try {
+    const r = await kFetch('/api/k108/auth', { passcode: pass });
+    if (r.needsSetup) { document.getElementById('setup-overlay').classList.add('active'); return; }
+    if (r.error) { err.textContent = r.error; return; }
+    authToken = r.token; currentUser = r.username;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'flex';
+    updateGreeting();
+    loadLabels();
+    handleRoute();
+  } catch(e) { err.textContent = 'Connection failed'; }
+}
+
+async function submitSetup() {
+  const p1 = document.getElementById('setup-pass1').value;
+  const p2 = document.getElementById('setup-pass2').value;
+  const err = document.getElementById('setup-err');
+  if (!p1) { err.textContent = 'Enter a passcode'; return; }
+  if (p1 !== p2) { err.textContent = 'Passcodes do not match'; return; }
+  try {
+    const r = await fetch('/api/k108/set-passcode', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ passcode: p1, confirm: p2 }) });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error; return; }
+    authToken = d.token; currentUser = d.username;
+    document.getElementById('setup-overlay').classList.remove('active');
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'flex';
+    updateGreeting();
+    loadLabels();
+    handleRoute();
+  } catch(e) { err.textContent = 'Connection failed'; }
+}
+
+function disconnect() {
+  authToken = null; currentUser = null;
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('auth-pass').value = '';
+  document.getElementById('auth-err').textContent = '';
+  document.getElementById('auth-pass').focus();
+  window.location.hash = '';
+}
+
+function updateDashClock() {
+  const now = new Date();
+  const el = document.getElementById('dash-time');
+  if (el) el.textContent = now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) + ' // ' + now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+}
+function updateGreeting() {
+  const h = new Date().getHours();
+  let g = h < 5 ? 'Good Night' : h < 12 ? 'Good Morning' : h < 17 ? 'Good Afternoon' : h < 21 ? 'Good Evening' : 'Good Night';
+  document.getElementById('dash-greeting').innerHTML = g + ', <strong>Command</strong>';
+  updateDashClock();
+  loadDashboardData();
+}
+setInterval(updateDashClock, 30000); // Update clock every 30 seconds
+
+async function loadDashboardData() {
+  // Load quotas
+  try {
+    const lq = await kAuthFetch('/api/k108/quota');
+    if (lq) document.getElementById('dash-lookup-quota').textContent = (lq.total - lq.used);
+  } catch(e){}
+  // Mini chart for numvalidate (decorative bars)
+  const chart = document.getElementById('dash-nv-chart');
+  if (chart) {
+    let bars = '';
+    for (let i = 0; i < 12; i++) { const h = Math.floor(Math.random()*24+8); bars += '<div class="dc-bar" style="height:'+h+'px;background:rgba(52,211,153,'+(0.1+Math.random()*0.2)+')"></div>'; }
+    chart.innerHTML = bars;
+  }
+  // Load recent log entries for preview
+  try {
+    const logData = await kAuthFetch('/api/k108/log', { limit: 3 });
+    if (logData && logData.entries && logData.entries.length > 0) {
+      const colors = { session_entry:'var(--status-green)', people_search:'var(--accent-blue)', sms_sent:'var(--status-amber)', number_validate:'var(--accent-cyan)', profile_create:'var(--accent-indigo)', profile_change:'var(--accent-indigo)', file_transfer:'var(--accent-violet)', metadata_extract:'var(--status-amber)' };
+      document.getElementById('dash-log-preview').innerHTML = logData.entries.map(e => {
+        const c = colors[e.action_type] || 'var(--text-dim)';
+        return '<div class="dc-pline"><div class="dc-pline-dot" style="background:'+c+'"></div><div class="dc-pline-text">'+esc(e.action_type.replace(/_/g,' '))+'</div><div class="dc-pline-time">'+fmtDate(e.created_at)+'</div></div>';
+      }).join('');
+    }
+  } catch(e){}
+  // Load SMS thread count
+  try {
+    const smsData = await kAuthFetch('/api/k108/sms/threads');
+    if (smsData && smsData.threads) document.getElementById('dash-sms-threads').textContent = smsData.threads.length;
+  } catch(e){}
+}
+
+// ═══ Router ═══
+function navigateTo(hash) { window.location.hash = hash; }
+
+function handleRoute() {
+  const hash = window.location.hash.replace('#/', '') || 'dashboard';
+  const viewName = hash.split('/')[0] || 'dashboard';
+  document.querySelectorAll('.k108-view').forEach(v => v.classList.remove('active'));
+  const view = document.getElementById('view-' + viewName);
+  if (view) view.classList.add('active');
+  else document.getElementById('view-dashboard').classList.add('active');
+
+  const mod = document.getElementById('topbar-module');
+  mod.textContent = VIEW_TITLES[viewName] || 'Dashboard';
+  document.getElementById('back-btn').style.display = viewName === 'dashboard' ? 'none' : 'inline-block';
+
+  // Load data for views
+  if (viewName === 'log') loadActivityLog();
+  if (viewName === 'vault') loadVaultItems();
+  if (viewName === 'sms') loadSmsThreads();
+  if (viewName === 'profiles') { document.getElementById('profile-detail').style.display = 'none'; document.getElementById('profiles-main').style.display = 'block'; }
+}
+
+// ═══ Helpers ═══
+async function kFetch(url, body) {
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body || {}) });
+  return r.json();
+}
+async function kAuthFetch(url, body, method) {
+  const r = await fetch(url, { method: method||'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: authToken, ...(body||{}) }) });
+  if (r.status === 401) { disconnect(); return null; }
+  return r.json();
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+function fmtPhone(n) { const d=(n||'').replace(/\D/g,''); if(d.length===10) return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6); return n; }
+function fmtDate(d) { return new Date(d).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }); }
+function fmtBirthday(d) { if (!d) return ''; const dt = new Date(d+'T00:00:00'); return dt.toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' }); }
+function computeAge(p) {
+  // If birthday is set, calculate exact age from it
+  if (p.birthday) {
+    const bd = new Date(p.birthday+'T00:00:00');
+    const now = new Date();
+    let age = now.getFullYear() - bd.getFullYear();
+    const m = now.getMonth() - bd.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < bd.getDate())) age--;
+    return String(age);
+  }
+  // Otherwise fall back to stored age string (e.g. "35-40" from lookup)
+  return p.age || '';
+}
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// ═══ People Lookup ═══
+function switchLookupTab(type, el) {
+  lookupTab = type;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.search-form').forEach(f => f.style.display = 'none');
+  document.getElementById('form-' + type).style.display = 'flex';
+}
+
+let lookupIv = null;
+const lookupMsgs = ['Querying primary database...','Cross-referencing records...','Compiling results...','Scanning additional sources...','Matching identities...'];
+
+async function executeLookup() {
+  if (searching || !authToken) return;
+  let query = {};
+  if (lookupTab === 'name') {
+    const ln = document.getElementById('inp-lname').value.trim();
+    if (!ln) { showLookupErr('Last name is required'); return; }
+    query = { firstName: document.getElementById('inp-fname').value.trim(), lastName: ln, city: document.getElementById('inp-city').value.trim(), state: document.getElementById('inp-state').value };
+  } else if (lookupTab === 'phone') {
+    const ph = document.getElementById('inp-phone').value.replace(/\D/g,'');
+    if (ph.length < 10) { showLookupErr('Enter a valid 10-digit phone number'); return; }
+    query = { phone: ph };
+  } else if (lookupTab === 'address') {
+    const st = document.getElementById('inp-street').value.trim();
+    if (!st) { showLookupErr('Street address is required'); return; }
+    query = { street: st, city: document.getElementById('inp-addr-city').value.trim(), state: document.getElementById('inp-addr-state').value, zip: document.getElementById('inp-zip').value.trim() };
+  }
+  hideLookupErr();
+  document.getElementById('lookup-results').innerHTML = '';
+  showLookupLoading();
+  try {
+    const d = await kAuthFetch('/api/k108/search', { type: lookupTab, query });
+    hideLookupLoading();
+    if (!d) return;
+    if (d.error) { showLookupErr(d.error); return; }
+    renderLookupResults(d);
+  } catch(e) { hideLookupLoading(); showLookupErr('Connection failed.'); }
+}
+
+function showLookupLoading() { searching=true; const lp=document.getElementById('lookup-loading'); const bar=document.getElementById('lookup-bar'); const txt=document.getElementById('lookup-loader-text'); lp.classList.add('active'); bar.style.width='0%'; let p=0,mi=0; lookupIv=setInterval(()=>{p=Math.min(p+Math.random()*12+3,92);bar.style.width=p+'%';mi=(mi+1)%lookupMsgs.length;txt.textContent=lookupMsgs[mi];},700); }
+function hideLookupLoading() { searching=false; clearInterval(lookupIv); document.getElementById('lookup-bar').style.width='100%'; setTimeout(()=>document.getElementById('lookup-loading').classList.remove('active'),300); }
+function showLookupErr(m) { const e=document.getElementById('lookup-error'); e.textContent=m; e.classList.add('active'); }
+function hideLookupErr() { const e=document.getElementById('lookup-error'); e.textContent=''; e.classList.remove('active'); }
+
+let lookupResultsCache = [];
+
+function renderLookupResults(data) {
+  const area = document.getElementById('lookup-results');
+  if (!data.results || data.results.length === 0) { area.innerHTML = '<div class="k-empty">No subjects found matching criteria.</div>'; return; }
+  lookupResultsCache = data.results;
+  let h = '<div style="display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border-subtle)"><span style="font-size:13px;color:var(--text-secondary)"><strong>'+data.results.length+'</strong> subject'+(data.results.length!==1?'s':'')+' located</span><span style="font-family:JetBrains Mono;font-size:11px;color:var(--text-dim)">'+data.meta.duration+'ms</span></div>';
+  data.results.forEach((p, idx) => {
+    const cc = p.confidence>=70?'high':p.confidence>=40?'mid':'low';
+    const loc = p.addresses&&p.addresses.length>0?[p.addresses[0].city,p.addresses[0].state].filter(Boolean).join(', '):'';
+    h += '<div class="record" style="cursor:pointer" onclick="viewLookupDetail('+idx+')"><div class="record-head"><div><div class="record-name">'+esc(p.fullName)+'</div><div class="record-meta">'+(p.age?'<span>Age '+p.age+'</span>':'')+(loc?'<span>'+esc(loc)+'</span>':'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><div class="conf-pill '+cc+'">'+p.confidence+'%</div></div></div></div>';
+  });
+  area.innerHTML = h;
+}
+
+function viewLookupDetail(idx) {
+  const p = lookupResultsCache[idx];
+  if (!p) return;
+  const area = document.getElementById('lookup-results');
+  const cc = p.confidence>=70?'high':p.confidence>=40?'mid':'low';
+
+  let h = '<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px"><button class="k-btn k-btn-sm" onclick="renderLookupResults({results:lookupResultsCache,meta:{resultCount:lookupResultsCache.length,duration:0,sources:[]}})">&larr; Back to Results</button></div>';
+  h += '<div class="record" style="border-color:rgba(56,189,248,0.2)">';
+  h += '<div class="record-head"><div><div class="record-name" style="font-size:20px">'+esc(p.fullName)+'</div><div class="record-meta">'+(p.age?'<span>Age '+p.age+'</span>':'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><button class="k-btn k-btn-sm" onclick="event.stopPropagation();saveSearchResult(this)" data-result=\''+esc(JSON.stringify(p)).replace(/'/g,"&#39;")+'\' style="font-size:10px;padding:4px 14px">Save Result</button><button class="k-btn k-btn-sm" onclick="event.stopPropagation();saveToIntelProfile('+idx+')" style="font-size:10px;padding:4px 14px;background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.3);color:var(--accent-indigo)">Save to Profiles</button><div class="conf-pill '+cc+'">'+p.confidence+'%</div></div></div>';
+  h += '<div class="record-body"><div class="record-grid">';
+  if (p.addresses&&p.addresses.length) { h+='<div><div class="record-section-label">Addresses ('+p.addresses.length+')</div>'; p.addresses.forEach(a=>{h+='<div class="record-item">'+esc([a.street,a.city,a.state,a.zip].filter(Boolean).join(', '))+(a.current?' <span class="tag-current">Current</span>':'')+'</div>';}); h+='</div>'; }
+  if (p.phones&&p.phones.length) { h+='<div><div class="record-section-label">Phones ('+p.phones.length+')</div>'; p.phones.forEach(ph=>{h+='<div class="record-item">'+esc(fmtPhone(ph.number))+(ph.type?' <span class="tag-type">'+esc(ph.type)+'</span>':'')+'</div>';}); h+='</div>'; }
+  if (p.emails&&p.emails.length) { h+='<div><div class="record-section-label">Emails ('+p.emails.length+')</div>'; p.emails.forEach(e=>{h+='<div class="record-item">'+esc(e)+'</div>';}); h+='</div>'; }
+  if (p.relatives&&p.relatives.length) { h+='<div><div class="record-section-label">Relatives ('+p.relatives.length+')</div>'; p.relatives.forEach(r=>{h+='<div class="record-item">'+esc(r.name)+'</div>';}); h+='</div>'; }
+  h += '</div></div>';
+  h += '<div class="record-footer">'; if(p.sources) p.sources.forEach(s=>{h+='<span class="src-tag">'+esc(s)+'</span>';}); h+='</div>';
+  h += '</div>';
+  area.innerHTML = h;
+}
+
+async function saveToIntelProfile(idx) {
+  const p = lookupResultsCache[idx];
+  if (!p) return;
+  // Parse name into first/last
+  const parts = (p.fullName||'').split(' ');
+  const firstName = parts[0] || '';
+  const lastName = parts.slice(1).join(' ') || '';
+  // Collect phones and emails
+  const phones = (p.phones||[]).map(ph => ph.number || ph).filter(Boolean);
+  const emails = (p.emails||[]).filter(Boolean);
+  // Extract current/first address into structured field
+  const address = {};
+  if (p.addresses && p.addresses.length) {
+    const curr = p.addresses.find(a => a.current) || p.addresses[0];
+    address.street = curr.street || '';
+    address.city = curr.city || '';
+    address.state = curr.state || '';
+    address.zip = curr.zip || '';
+  }
+  // Build notes from remaining info (other addresses, relatives)
+  let notes = '';
+  if (p.addresses && p.addresses.length > 1) {
+    notes += 'Other Addresses:\n';
+    p.addresses.slice(1).forEach(a => {
+      if (a.current && a !== p.addresses[0]) return; // skip if already used as primary
+      notes += '  ' + [a.street,a.city,a.state,a.zip].filter(Boolean).join(', ') + '\n';
+    });
+  }
+  if (p.relatives && p.relatives.length) {
+    notes += 'Relatives: ' + p.relatives.map(r=>r.name).join(', ') + '\n';
+  }
+  notes += '\nImported from People Lookup (confidence: ' + (p.confidence||'?') + '%)';
+
+  const d = await kAuthFetch('/api/k108/profiles/create', {
+    first_name: firstName, last_name: lastName, aliases: [], relation: '',
+    notes: notes.trim(), phones, emails, social_links: [],
+    age: p.age || '', address
+  });
+  if (d && d.profile) {
+    navigateTo('#/profiles');
+    setTimeout(() => viewProfileReadonly(d.profile.id), 300);
+  }
+}
+
+// ═══ Number Validator ═══
+async function validateNumber() {
+  const phone = document.getElementById('nv-phone').value;
+  if (!phone || phone.replace(/\D/g,'').length < 10) { showErr('nv-error', 'Enter a valid phone number'); return; }
+  hideErr('nv-error');
+  document.getElementById('nv-result').innerHTML = '<div class="loader-text" style="text-align:center;margin-top:20px">Validating...</div>';
+  const d = await kAuthFetch('/api/k108/numvalidate', { phone: phone.replace(/\D/g,'') });
+  if (!d) return;
+  if (d.error) { showErr('nv-error', d.error); document.getElementById('nv-result').innerHTML=''; return; }
+  if (d.quota) document.getElementById('nv-quota').textContent = d.quota.remaining + '/' + d.quota.total;
+  const r = d.result;
+  document.getElementById('nv-result').innerHTML = '<div class="k-card"><div style="padding:16px 20px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between"><span style="font-size:15px;font-weight:600">'+ esc(r.international_format||r.number||phone)+'</span><span class="k-tag '+(r.valid?'k-tag-green':'k-tag-red')+'">'+(r.valid?'VALID':'INVALID')+'</span></div><div class="validate-grid"><div><div class="validate-item-label">Carrier</div><div class="validate-item-value">'+ esc(r.carrier||'Unknown')+'</div></div><div><div class="validate-item-label">Line Type</div><div class="validate-item-value">'+ esc(r.line_type||'Unknown')+'</div></div><div><div class="validate-item-label">Country</div><div class="validate-item-value">'+ esc(r.country_name||r.country_code||'Unknown')+'</div></div><div><div class="validate-item-label">Location</div><div class="validate-item-value">'+ esc(r.location||'Unknown')+'</div></div></div></div>';
+}
+
+// ═══ Covert SMS ═══
+async function loadSmsThreads() {
+  const d = await kAuthFetch('/api/k108/sms/threads');
+  if (!d) return;
+  const el = document.getElementById('sms-threads');
+  if (!d.threads || d.threads.length === 0) { el.innerHTML = '<div class="k-empty" style="padding:20px">No conversations yet</div>'; return; }
+  el.innerHTML = d.threads.map(t => '<div class="sms-thread-item'+(currentSmsPhone===t.phone?' active':'')+'" onclick="loadSmsThread(\''+t.phone+'\')"><div class="sms-thread-phone">'+esc(fmtPhone(t.phone))+'</div><div class="sms-thread-preview">'+esc(t.message?.substring(0,40))+'</div></div>').join('');
+}
+
+async function loadSmsThread(phone) {
+  currentSmsPhone = phone;
+  setSmsRecipient(fmtPhone(phone));
+  const d = await kAuthFetch('/api/k108/sms/thread', { phone });
+  if (!d) return;
+  const el = document.getElementById('sms-messages');
+  if (!d.messages || d.messages.length === 0) { el.innerHTML = '<div class="k-empty">No messages</div>'; return; }
+  el.innerHTML = d.messages.map(m => '<div class="sms-bubble '+(m.direction==='outbound'?'sms-outbound':'sms-inbound')+'">'+esc(m.message)+'<div class="sms-time">'+fmtDate(m.created_at)+'</div></div>').join('');
+  el.scrollTop = el.scrollHeight;
+  loadSmsThreads();
+}
+
+function setSmsRecipient(phone) {
+  const chip = document.getElementById('sms-to-chip');
+  const input = document.getElementById('sms-to');
+  chip.textContent = phone + ' \u00d7';
+  chip.style.display = 'inline-block';
+  input.style.display = 'none';
+  currentSmsPhone = phone.replace(/\D/g,'');
+  loadSmsThread(currentSmsPhone);
+}
+
+function clearSmsRecipient() {
+  const chip = document.getElementById('sms-to-chip');
+  const input = document.getElementById('sms-to');
+  chip.style.display = 'none';
+  input.style.display = 'block';
+  input.value = '';
+  currentSmsPhone = null;
+  document.getElementById('sms-messages').innerHTML = '<div class="k-empty">Select a conversation or start a new one</div>';
+  input.focus();
+}
+
+async function sendSMS() {
+  const phone = document.getElementById('sms-to').value.replace(/\D/g,'');
+  const msg = document.getElementById('sms-msg').value.trim();
+  if (!phone || phone.length < 10) return alert('Enter a valid phone number');
+  if (!msg) return;
+  document.getElementById('sms-msg').value = '';
+  const d = await kAuthFetch('/api/k108/sms/send', { phone, message: msg });
+  if (!d) return;
+  if (d.error) return alert(d.error);
+  if (d.quota) document.getElementById('sms-quota').textContent = d.quota.remaining + '/' + d.quota.total;
+  currentSmsPhone = phone;
+  loadSmsThread(phone);
+}
+
+// ═══ Metadata ═══
+async function extractMetadata(file) {
+  if (!file) return;
+  hideErr('meta-error');
+  document.getElementById('meta-result').innerHTML = '<div class="loader-text" style="text-align:center">Extracting metadata from '+esc(file.name)+'...</div>';
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('token', authToken);
+  try {
+    const r = await fetch('/api/k108/metadata/extract', { method:'POST', body: fd });
+    const d = await r.json();
+    if (d.error) { showErr('meta-error', d.error); document.getElementById('meta-result').innerHTML=''; return; }
+    let h = '<h3 style="font-size:14px;margin-bottom:16px">'+esc(d.filename)+'</h3>';
+    if (d.gps) { h += '<div class="k-card" style="margin-bottom:16px;padding:16px"><div class="record-section-label">GPS Location</div><div style="font-family:JetBrains Mono;font-size:12px;color:var(--accent-blue)">'+d.gps.lat+', '+d.gps.lng+'</div></div>'; }
+    for (const [group, tags] of Object.entries(d.groups||{})) {
+      h += '<div class="meta-group"><div class="meta-group-title">'+esc(group)+' <span style="font-size:10px;color:var(--text-dim)">'+Object.keys(tags).length+' fields</span></div><div class="meta-group-body">';
+      for (const [k,v] of Object.entries(tags)) { h += '<div class="meta-row"><span class="meta-key">'+esc(k)+'</span><span class="meta-val">'+esc(String(v))+'</span></div>'; }
+      h += '</div></div>';
+    }
+    document.getElementById('meta-result').innerHTML = h;
+  } catch(e) { showErr('meta-error', 'Extraction failed'); document.getElementById('meta-result').innerHTML=''; }
+}
+
+// ═══ Document Vault ═══
+async function loadVaultItems() {
+  const d = await kAuthFetch('/api/k108/vault/items');
+  if (!d) return;
+  const el = document.getElementById('vault-items');
+  if (!d.items || d.items.length === 0) { el.innerHTML = '<div class="k-empty">No documents transferred. Send files from the Document Locker.</div>'; return; }
+  el.innerHTML = '<div class="vault-grid">' + d.items.map(i => '<div class="vault-card"><div class="vault-card-name">'+esc(i.original_name)+'</div><div class="vault-card-meta">'+esc(i.transferred_by)+' &middot; '+fmtDate(i.transferred_at)+'</div>'+(i.filename?'<a href="'+esc(i.filename)+'" target="_blank" style="font-size:11px;color:var(--accent-blue);margin-top:8px;display:block">Download</a>':'')+'</div>').join('') + '</div>';
+}
+
+// ═══ Intel Profiles ═══
+let searchDebounce = null;
+let afHighlightIdx = 0;
+
+function profileCompleteness(p) {
+  let score = 0;
+  if (p.photo_url) score += 3;
+  if (p.first_name) score++;
+  if (p.last_name) score++;
+  if (p.relation) score++;
+  if (p.notes) score += 2;
+  score += (p.phones||[]).length;
+  score += (p.emails||[]).length;
+  score += (p.aliases||[]).length;
+  const socials = typeof p.social_links === 'string' ? JSON.parse(p.social_links||'[]') : (p.social_links||[]);
+  score += socials.length;
+  return score;
+}
+
+function searchProfiles(term) {
+  clearTimeout(searchDebounce);
+  if (!term || term.length < 1) { document.getElementById('profile-autofill').classList.remove('active'); return; }
+  searchDebounce = setTimeout(async () => {
+    const d = await kAuthFetch('/api/k108/profiles', { search: term });
+    if (!d || !d.profiles) return;
+    // If input changed while fetching, skip stale results
+    const currentVal = document.getElementById('profile-search').value.trim();
+    if (currentVal !== term) return;
+    const af = document.getElementById('profile-autofill');
+
+    // Sort by completeness (most info first)
+    d.profiles.sort((a, b) => profileCompleteness(b) - profileCompleteness(a));
+
+    // Check for matching labels
+    const matchedLabels = allLabels.filter(l => l.name.toLowerCase().includes(term.toLowerCase()));
+
+    // Also include profiles that belong to matching labels
+    if (matchedLabels.length) {
+      const labelProfileIds = new Set();
+      matchedLabels.forEach(l => (l.profileIds||[]).forEach(pid => labelProfileIds.add(String(pid))));
+      const existingIds = new Set(d.profiles.map(p => String(p.id)));
+      // Fetch any label-member profiles not already in results
+      for (const pid of labelProfileIds) {
+        if (!existingIds.has(pid)) {
+          try {
+            const pd = await kAuthFetch('/api/k108/profiles/'+pid);
+            if (pd && pd.profile) d.profiles.push(pd.profile);
+          } catch(e) {}
+        }
+      }
+    }
+
+    if (d.profiles.length === 0 && matchedLabels.length === 0) { af.classList.remove('active'); return; }
+
+    let labelHtml = matchedLabels.map(l => '<div class="profile-af-item" onclick="showLabelProfiles(\''+l.id+'\')"><div class="profile-af-avatar" style="width:32px;height:32px;background:'+l.color+'20;color:'+l.color+';font-size:14px">'+(LABEL_ICONS[l.icon]||'\u25CF')+'</div><div><div class="profile-af-name" style="color:'+l.color+'">'+esc(l.name)+'</div><div class="profile-af-rel" style="color:var(--text-dim)">(Label)</div></div></div>').join('');
+
+    af.innerHTML = labelHtml + d.profiles.map((p, i) => {
+      // Show "Also known as" when alias or handle matches the search
+      const t = term.toLowerCase();
+      const aliases = p.aliases || [];
+      const matchedAlias = aliases.find(a => a.toLowerCase().includes(t));
+      const socials = typeof p.social_links === 'string' ? JSON.parse(p.social_links||'[]') : (p.social_links||[]);
+      const matchedHandle = socials.find(s => (s.handle||'').toLowerCase().includes(t) || (s.url||'').toLowerCase().includes(t));
+      let aka = '';
+      if (matchedAlias) aka = 'Also known as "'+esc(matchedAlias)+'"';
+      else if (matchedHandle) aka = 'Also known as "'+esc(matchedHandle.handle||matchedHandle.url)+'"';
+      // Build badges for search results
+      let badges = '';
+      if (isCommandProfile(p.first_name)) badges += '<span class="command-badge" style="font-size:8px;padding:1px 6px;margin-left:6px">Command</span>';
+      const pLabels = allLabels.filter(l => l.profileIds && l.profileIds.includes(String(p.id)));
+      pLabels.forEach(l => { badges += '<span class="profile-label" style="font-size:8px;padding:1px 6px;margin-left:4px;background:'+l.color+'20;color:'+l.color+';border:1px solid '+l.color+'30">'+(LABEL_ICONS[l.icon]||'')+' '+esc(l.name)+'</span>'; });
+
+      const highlight = (i === 0) ? ' af-highlight' : '';
+      return '<div class="profile-af-item'+highlight+'" data-profile-id="'+p.id+'" onclick="viewProfileReadonly('+p.id+')"><div class="profile-af-avatar">'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':esc(((p.first_name||'?')[0]+(p.last_name||'?')[0]).toUpperCase()))+'</div><div><div class="profile-af-name" style="display:flex;align-items:center;flex-wrap:wrap">'+esc((p.first_name||'')+' '+(p.last_name||''))+badges+'</div>'+(aka?'<div style="font-size:10px;color:var(--accent-cyan);font-style:italic">'+aka+'</div>':'')+'<div class="profile-af-rel">'+esc(p.relation||'')+'</div></div></div>';
+    }).join('');
+    afHighlightIdx = 0;
+    af.classList.add('active');
+  }, 50);
+}
+
+// Enter key opens highlighted profile, arrow keys navigate
+document.addEventListener('keydown', function(e) {
+  const af = document.getElementById('profile-autofill');
+  if (!af || !af.classList.contains('active')) return;
+  const items = af.querySelectorAll('.profile-af-item[data-profile-id]');
+  if (!items.length) return;
+
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const highlighted = af.querySelector('.profile-af-item.af-highlight[data-profile-id]');
+    if (highlighted) highlighted.click();
+    else if (items[0]) items[0].click();
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    afHighlightIdx = Math.min(afHighlightIdx + 1, items.length - 1);
+    items.forEach((it, i) => it.classList.toggle('af-highlight', i === afHighlightIdx));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    afHighlightIdx = Math.max(afHighlightIdx - 1, 0);
+    items.forEach((it, i) => it.classList.toggle('af-highlight', i === afHighlightIdx));
+  }
+});
+
+let currentProfileId = null;
+
+async function viewProfileReadonly(id) {
+  document.getElementById('profile-autofill').classList.remove('active');
+  const ps = document.getElementById('profile-search');
+  if (ps) ps.value = '';
+  const d = await kAuthFetch('/api/k108/profiles/'+id);
+  if (!d || !d.profile) return;
+  const p = d.profile;
+  currentProfileId = id;
+  document.getElementById('profiles-main').style.display = 'none';
+  const el = document.getElementById('profile-detail');
+  el.style.display = 'block';
+
+  const links = typeof p.social_links === 'string' ? JSON.parse(p.social_links||'[]') : (p.social_links||[]);
+
+  let h = '<div class="profile-detail">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div>';
+
+  // Photo + Name + Badges
+  h += '<div class="profile-top"><div class="profile-photo">'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase()))+'</div>';
+  h += '<div class="profile-info"><h2>'+esc((p.first_name||'')+' '+(p.last_name||''))+' ';
+  if (isCommandProfile(p.first_name)) h += '<span class="command-badge">Command</span>';
+  h += '</h2>';
+  if (p.relation) h += '<div class="rel-badge">'+esc(p.relation)+'</div>';
+  // Labels
+  const lbls = renderProfileLabels(id);
+  if (lbls) h += '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">'+lbls+'</div>';
+  if ((p.aliases||[]).length) h += '<div style="font-size:11px;color:var(--text-dim);margin-top:4px">Also Known As: '+p.aliases.map(a=>esc(a)).join(', ')+'</div>';
+  // Age + Birthday
+  const displayAge = computeAge(p);
+  if (displayAge || p.birthday) {
+    h += '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px">';
+    if (displayAge) h += 'Age: ' + esc(displayAge);
+    if (p.birthday) h += (displayAge ? ' &middot; ' : '') + 'Birthday: ' + esc(fmtBirthday(p.birthday));
+    h += '</div>';
+  }
+  h += '</div></div>';
+
+  h += '<div class="profile-sections">';
+  // Address
+  const addr = typeof p.address === 'string' ? JSON.parse(p.address||'{}') : (p.address||{});
+  if (addr.street || addr.city || addr.state || addr.zip) {
+    h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Home Address</div><div class="profile-section-item">'+esc([addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', '))+'</div></div>';
+  }
+  // Phones
+  if ((p.phones||[]).length) { h += '<div class="profile-section"><div class="profile-section-title">Phone Numbers</div>'; p.phones.forEach(ph => { h += '<div class="profile-section-item">'+esc(fmtPhone(ph))+'</div>'; }); h += '</div>'; }
+  // Emails
+  if ((p.emails||[]).length) { h += '<div class="profile-section"><div class="profile-section-title">Emails</div>'; p.emails.forEach(e => { h += '<div class="profile-section-item">'+esc(e)+'</div>'; }); h += '</div>'; }
+  // Social
+  if (links.length) { h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Social Media</div>'; links.forEach(l => { const pl = detectPlatform(l.url||''); h += '<a class="social-link" href="'+esc(l.url)+'" target="_blank"><span class="social-icon" style="color:'+pl.color+'">'+pl.abbr+'</span>'+esc(l.handle||l.url)+'</a>'; }); h += '</div>'; }
+  // Notes
+  if (p.notes) { h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Notes</div><div style="font-size:13px;color:var(--text-secondary);white-space:pre-wrap">'+esc(p.notes)+'</div></div>'; }
+  // Files
+  if (d.files && d.files.length) { h += '<div class="profile-section"><div class="profile-section-title">Files ('+d.files.length+')</div>'; d.files.forEach(f => { h += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue)">'+esc(f.original_name)+'</a></div>'; }); h += '</div>'; }
+  // Relations
+  if (d.relations && d.relations.length) { h += '<div class="profile-section"><div class="profile-section-title">Related Profiles</div>'; d.relations.forEach(r => { h += '<div class="related-card" onclick="viewProfileReadonly('+r.related_profile_id+')"><div class="profile-af-avatar" style="width:28px;height:28px;font-size:10px">'+(r.photo_url?'<img src="'+esc(r.photo_url)+'">':esc((r.first_name||'?')[0]+(r.last_name||'?')[0]))+'</div><div><div style="font-size:12px">'+esc(r.first_name+' '+r.last_name)+'</div><div style="font-size:10px;color:var(--text-dim)">'+esc(r.label||r.p_relation||'')+'</div></div></div>'; }); h += '</div>'; }
+
+  // Empty sections notice
+  if (!(p.phones||[]).length && !(p.emails||[]).length && !links.length && !p.notes) {
+    h += '<div class="profile-section" style="grid-column:1/-1"><div style="text-align:center;color:var(--text-dim);font-size:12px;padding:20px">No details added yet. Click "Edit Profile" to add information.</div></div>';
+  }
+
+  h += '</div></div>';
+  el.innerHTML = h;
+}
+
+async function viewProfile(id) {
+  document.getElementById('profile-autofill').classList.remove('active');
+  const ps = document.getElementById('profile-search');
+  if (ps) ps.value = '';
+  const d = await kAuthFetch('/api/k108/profiles/'+id);
+  if (!d || !d.profile) return;
+  const p = d.profile;
+  currentProfileId = id;
+  document.getElementById('profiles-main').style.display = 'none';
+  const el = document.getElementById('profile-detail');
+  el.style.display = 'block';
+
+  let h = '<div class="profile-detail">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><div style="display:flex;gap:8px"><button class="k-btn k-btn-sm" onclick="saveProfile('+id+')">Save Changes</button><button class="k-btn k-btn-sm k-btn-danger" onclick="deleteProfile('+id+')">Delete</button></div></div>';
+
+  // Photo + Name row
+  h += '<div class="profile-top">';
+  h += '<div class="profile-photo" onclick="uploadProfilePhoto('+id+')" title="Click to change photo">'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase()))+'</div>';
+  h += '<input type="file" id="profile-photo-input" style="display:none" accept="image/*">';
+  h += '<div class="profile-info" style="flex:1"><div class="form-row" style="margin-bottom:10px"><div class="fg"><label class="k-label">First Name</label><input class="k-input" id="pf-fname" value="'+esc(p.first_name||'')+'"></div><div class="fg"><label class="k-label">Last Name</label><input class="k-input" id="pf-lname" value="'+esc(p.last_name||'')+'"></div></div>';
+  h += '<div class="form-row"><div class="fg"><label class="k-label">Relation</label><input class="k-input" id="pf-relation" value="'+esc(p.relation||'')+'" placeholder="e.g. Friend, Family, Coworker"></div><div class="fg"><label class="k-label">Aliases (comma separated)</label><input class="k-input" id="pf-aliases" value="'+esc((p.aliases||[]).join(', '))+'"></div></div>';
+  h += '<div class="form-row"><div class="fg"><label class="k-label">Age</label><input class="k-input" id="pf-age" value="'+esc(computeAge(p))+'" placeholder="e.g. 25 or 30-35"'+(p.birthday?' disabled title="Auto-calculated from birthday"':'')+'></div><div class="fg"><label class="k-label">Birthday <span style="font-size:9px;color:var(--text-dim)">(optional)</span></label><input class="k-input" id="pf-birthday" type="date" value="'+esc(p.birthday||'')+'"></div></div>';
+  const addr = typeof p.address === 'string' ? JSON.parse(p.address||'{}') : (p.address||{});
+  h += '<div style="margin-top:8px"><label class="k-label">Home Address</label></div>';
+  h += '<div class="form-row" style="margin-top:4px"><div class="fg" style="flex:2"><input class="k-input" id="pf-addr-street" value="'+esc(addr.street||'')+'" placeholder="Street"></div></div>';
+  h += '<div class="form-row"><div class="fg"><input class="k-input" id="pf-addr-city" value="'+esc(addr.city||'')+'" placeholder="City"></div><div class="fg" style="max-width:80px"><input class="k-input" id="pf-addr-state" value="'+esc(addr.state||'')+'" placeholder="State" maxlength="2"></div><div class="fg" style="max-width:110px"><input class="k-input" id="pf-addr-zip" value="'+esc(addr.zip||'')+'" placeholder="ZIP"></div></div>';
+  h += '</div></div>';
+
+  // Command badge + Labels under photo
+  if (isCommandProfile(p.first_name)) h += '<div style="margin-bottom:12px"><span class="command-badge">Command</span></div>';
+  const lblsEdit = renderProfileLabels(id);
+  h += '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:16px">';
+  if (lblsEdit) h += lblsEdit;
+  h += '<button class="k-btn k-btn-sm" onclick="showApplyLabelUI('+id+')" style="font-size:9px;padding:4px 10px">+ Label</button>';
+  h += '<button class="k-btn k-btn-sm" onclick="openModal(\'create-label-modal\')" style="font-size:9px;padding:4px 10px">Create Label</button>';
+  h += '</div>';
+  h += '<div id="apply-label-list" style="display:none;margin-bottom:16px"></div>';
+
+  // Info sections in grid
+  h += '<div class="profile-sections">';
+
+  // Phones (chip input)
+  h += '<div class="profile-section"><div class="profile-section-title">Phone Numbers</div>';
+  h += '<div class="chip-container" id="pf-phones-chips">';
+  (p.phones||[]).forEach(ph => { h += '<span class="chip" onclick="this.remove()">'+esc(fmtPhone(ph))+'<span class="chip-x">&times;</span></span>'; });
+  h += '</div>';
+  h += '<input class="k-input" id="pf-phone-input" placeholder="Type number, press Enter" style="font-size:12px;margin-top:6px" autocomplete="off">';
+  h += '</div>';
+
+  // Emails (chip input)
+  h += '<div class="profile-section"><div class="profile-section-title">Email Addresses</div>';
+  h += '<div class="chip-container" id="pf-emails-chips">';
+  (p.emails||[]).forEach(e => { h += '<span class="chip" onclick="this.remove()">'+esc(e)+'<span class="chip-x">&times;</span></span>'; });
+  h += '</div>';
+  h += '<input class="k-input" id="pf-email-input" placeholder="Type email, press Enter" style="font-size:12px;margin-top:6px" autocomplete="off">';
+  h += '</div>';
+
+  // Social Links
+  const links = typeof p.social_links === 'string' ? JSON.parse(p.social_links || '[]') : (p.social_links || []);
+  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Social Media Links</div>';
+  h += '<div id="pf-social-links">';
+  if (links.length) {
+    links.forEach((l, i) => {
+      const platform = detectPlatform(l.url||'');
+      h += socialRowHTML(l.url||'', l.handle||'', platform);
+    });
+  }
+  h += '</div><button class="k-btn k-btn-sm" onclick="addSocialRow()" style="margin-top:8px;font-size:10px">+ Add Link</button></div>';
+
+  // Notes
+  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Notes</div>';
+  h += '<textarea class="k-input" id="pf-notes" rows="4" style="resize:vertical;font-size:12px">'+esc(p.notes||'')+'</textarea>';
+  h += '</div>';
+
+  // Files
+  h += '<div class="profile-section"><div class="profile-section-title">Attached Files</div>';
+  if (d.files && d.files.length) {
+    d.files.forEach(f => { h += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:12px">'+esc(f.original_name)+'</a></div>'; });
+  } else {
+    h += '<div style="font-size:11px;color:var(--text-dim)">No files attached</div>';
+  }
+  h += '<div style="margin-top:8px"><input type="file" id="profile-file-input" multiple style="display:none" onchange="uploadProfileFiles('+id+',this.files)"><button class="k-btn k-btn-sm" onclick="document.getElementById(\'profile-file-input\').click()" style="font-size:10px">+ Attach Files</button></div>';
+  h += '</div>';
+
+  // Relations
+  h += '<div class="profile-section"><div class="profile-section-title">Related Profiles</div>';
+  if (d.relations && d.relations.length) {
+    d.relations.forEach(r => {
+      h += '<div class="related-card" onclick="viewProfile('+r.related_profile_id+')"><div class="profile-af-avatar" style="width:28px;height:28px;font-size:10px">'+(r.photo_url?'<img src="'+esc(r.photo_url)+'">':esc((r.first_name||'?')[0]+(r.last_name||'?')[0]))+'</div><div><div style="font-size:12px">'+esc(r.first_name+' '+r.last_name)+'</div><div style="font-size:10px;color:var(--text-dim)">'+esc(r.label||r.p_relation||'')+'</div></div></div>';
+    });
+  } else {
+    h += '<div style="font-size:11px;color:var(--text-dim)">No linked profiles</div>';
+  }
+  h += '<div style="margin-top:8px"><input class="k-input" id="pf-link-search" placeholder="Search profile to link..." style="font-size:11px" oninput="searchProfileToLink(this.value,'+id+')"><div id="pf-link-results" style="margin-top:4px"></div></div>';
+  h += '</div>';
+
+  h += '</div></div>';
+  el.innerHTML = h;
+
+  // Phone chip input
+  const phoneInput = document.getElementById('pf-phone-input');
+  if (phoneInput) {
+    phoneInput.addEventListener('input', phoneFormatter);
+    phoneInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const v = phoneInput.value.trim();
+        if (v.replace(/\D/g,'').length >= 7) {
+          const chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.onclick = function() { this.remove(); };
+          chip.innerHTML = esc(v) + '<span class="chip-x">&times;</span>';
+          document.getElementById('pf-phones-chips').appendChild(chip);
+          phoneInput.value = '';
+        }
+      }
+    });
+  }
+  // Email chip input
+  const emailInput = document.getElementById('pf-email-input');
+  if (emailInput) {
+    emailInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const v = emailInput.value.trim();
+        if (v && v.includes('@')) {
+          const chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.onclick = function() { this.remove(); };
+          chip.innerHTML = esc(v) + '<span class="chip-x">&times;</span>';
+          document.getElementById('pf-emails-chips').appendChild(chip);
+          emailInput.value = '';
+        }
+      }
+    });
+  }
+
+  // Photo upload handler
+  document.getElementById('profile-photo-input').addEventListener('change', async function(e) {
+    if (!e.target.files[0]) return;
+    const fd = new FormData();
+    fd.append('photo', e.target.files[0]);
+    fd.append('token', authToken);
+    const r = await fetch('/api/k108/profiles/'+id+'/photo', { method:'POST', body: fd });
+    const d = await r.json();
+    if (d.url) viewProfile(id);
+  });
+}
+
+function uploadProfilePhoto(id) {
+  document.getElementById('profile-photo-input').click();
+}
+
+async function uploadProfileFiles(id, files) {
+  if (!files || !files.length) return;
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  fd.append('token', authToken);
+  await fetch('/api/k108/profiles/'+id+'/files', { method: 'POST', body: fd });
+  viewProfile(id);
+}
+
+const PLATFORMS = [
+  { value:'instagram', label:'Instagram', prefix:'https://instagram.com/' },
+  { value:'tiktok', label:'TikTok', prefix:'https://tiktok.com/@' },
+  { value:'snapchat', label:'Snapchat', prefix:'https://snapchat.com/add/' },
+  { value:'twitter', label:'X / Twitter', prefix:'https://x.com/' },
+  { value:'facebook', label:'Facebook', prefix:'https://facebook.com/' },
+  { value:'linkedin', label:'LinkedIn', prefix:'https://linkedin.com/in/' },
+  { value:'youtube', label:'YouTube', prefix:'https://youtube.com/@' },
+  { value:'other', label:'Other', prefix:'' }
+];
+
+function socialRowHTML(url, handle, platform) {
+  // Detect which platform to pre-select
+  const detected = platform && platform.name ? platform.name.toLowerCase() : '';
+  const sel = PLATFORMS.map(p => {
+    const selected = (detected === p.label.toLowerCase()) || (detected === 'x' && p.value === 'twitter') ? ' selected' : '';
+    return '<option value="'+p.value+'"'+selected+'>'+p.label+'</option>';
+  }).join('');
+  // Use SVG icon if available, otherwise @
+  const iconHtml = platform && platform.abbr && platform.abbr.includes('<svg') ? platform.abbr : '@';
+  return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span class="social-icon" style="color:'+(platform?platform.color:'var(--text-muted)')+';flex-shrink:0">'+iconHtml+'</span><select class="k-select pf-social-platform" style="font-size:11px;max-width:120px;padding:8px" onchange="updateSocialUrl(this)" autocomplete="off">'+sel+'</select><input class="k-input pf-social-handle" value="'+esc(handle)+'" placeholder="Username" style="font-size:11px" oninput="updateSocialUrlFromHandle(this)" autocomplete="off"><input type="hidden" class="pf-social-url" value="'+esc(url)+'"><button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--status-red);cursor:pointer;font-size:14px;padding:4px">&times;</button></div>';
+}
+
+function addSocialRow() {
+  const container = document.getElementById('pf-social-links');
+  container.insertAdjacentHTML('beforeend', socialRowHTML('', '', null));
+}
+
+function updateSocialUrlFromHandle(input) {
+  const row = input.parentElement;
+  const sel = row.querySelector('.pf-social-platform');
+  const hidden = row.querySelector('.pf-social-url');
+  const icon = row.querySelector('.social-icon');
+  const platform = PLATFORMS.find(p => p.value === sel.value);
+  if (platform && platform.prefix) {
+    hidden.value = platform.prefix + input.value;
+  } else {
+    hidden.value = input.value;
+  }
+  const det = detectPlatform(hidden.value);
+  icon.innerHTML = det.abbr;
+  icon.style.color = det.color;
+}
+
+function updateSocialUrl(select) {
+  const row = select.parentElement;
+  const handle = row.querySelector('.pf-social-handle');
+  if (handle) updateSocialUrlFromHandle(handle);
+}
+
+async function saveProfile(id) {
+  const rows = document.querySelectorAll('#pf-social-links > div');
+  const social_links = [];
+  rows.forEach(row => {
+    const url = row.querySelector('.pf-social-url')?.value?.trim() || '';
+    const handle = row.querySelector('.pf-social-handle')?.value?.trim() || '';
+    if (url || handle) social_links.push({ url, handle });
+  });
+
+  const address = {
+    street: document.getElementById('pf-addr-street').value.trim(),
+    city: document.getElementById('pf-addr-city').value.trim(),
+    state: document.getElementById('pf-addr-state').value.trim().toUpperCase(),
+    zip: document.getElementById('pf-addr-zip').value.trim()
+  };
+
+  const body = {
+    first_name: document.getElementById('pf-fname').value.trim(),
+    last_name: document.getElementById('pf-lname').value.trim(),
+    relation: document.getElementById('pf-relation').value.trim(),
+    aliases: document.getElementById('pf-aliases').value.split(',').map(s=>s.trim()).filter(Boolean),
+    phones: Array.from(document.querySelectorAll('#pf-phones-chips .chip')).map(c => c.textContent.replace('\u00d7','').trim()),
+    emails: Array.from(document.querySelectorAll('#pf-emails-chips .chip')).map(c => c.textContent.replace('\u00d7','').trim()),
+    notes: document.getElementById('pf-notes').value,
+    social_links,
+    age: document.getElementById('pf-age').value.trim(),
+    birthday: document.getElementById('pf-birthday').value || null,
+    address
+  };
+  const r = await fetch('/api/k108/profiles/'+id, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: authToken, ...body })
+  });
+  const d = await r.json();
+  if (d.ok) viewProfileReadonly(id);
+}
+
+let linkDebounce = null;
+function searchProfileToLink(term, profileId) {
+  clearTimeout(linkDebounce);
+  const el = document.getElementById('pf-link-results');
+  if (!term || term.length < 2) { el.innerHTML = ''; return; }
+  linkDebounce = setTimeout(async () => {
+    const d = await kAuthFetch('/api/k108/profiles', { search: term });
+    if (!d || !d.profiles) return;
+    const filtered = d.profiles.filter(p => String(p.id) !== String(profileId));
+    if (!filtered.length) { el.innerHTML = '<div style="font-size:10px;color:var(--text-dim);padding:4px">No matches</div>'; return; }
+    el.innerHTML = filtered.map(p => '<div class="profile-af-item" style="padding:6px 8px" onclick="linkProfile('+profileId+','+p.id+')"><div class="profile-af-avatar" style="width:24px;height:24px;font-size:9px">'+esc(((p.first_name||'?')[0]+(p.last_name||'?')[0]).toUpperCase())+'</div><div style="font-size:11px">'+esc((p.first_name||'')+' '+(p.last_name||''))+'</div></div>').join('');
+  }, 300);
+}
+
+async function linkProfile(profileId, relatedId) {
+  const label = prompt('Relationship label (e.g. Friend, Sibling, Coworker):') || '';
+  await kAuthFetch('/api/k108/profiles/'+profileId+'/relations', { relatedProfileId: relatedId, label });
+  viewProfile(profileId);
+}
+
+function deleteProfile(id) {
+  // Show custom confirmation modal instead of browser confirm
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease';
+  overlay.innerHTML = '<div style="background:var(--bg-card);border:1px solid var(--border-main);border-radius:12px;padding:28px 32px;max-width:380px;text-align:center;animation:profileSlideIn 0.3s ease"><div style="font-size:16px;font-weight:600;color:#fff;margin-bottom:8px">Delete Profile</div><div style="font-size:13px;color:var(--text-secondary);margin-bottom:24px">This will permanently delete this profile and all associated data. This cannot be undone.</div><div style="display:flex;gap:10px;justify-content:center"><button class="k-btn k-btn-sm" onclick="this.closest(\'div[style*=fixed]\').remove()" style="padding:8px 20px">Cancel</button><button class="k-btn k-btn-sm k-btn-danger" id="confirm-delete-btn" style="padding:8px 20px">Delete</button></div></div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('confirm-delete-btn').onclick = async () => {
+    overlay.remove();
+    await fetch('/api/k108/profiles/'+id, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: authToken })
+    });
+    closeProfile();
+  };
+}
+
+async function closeProfile() {
+  // Auto-delete empty profiles (no name filled in)
+  if (currentProfileId) {
+    const d = await kAuthFetch('/api/k108/profiles/' + currentProfileId);
+    if (d && d.profile) {
+      const p = d.profile;
+      const hasName = (p.first_name && p.first_name.trim() && p.first_name !== 'New') || (p.last_name && p.last_name.trim() && p.last_name !== 'Profile');
+      if (!hasName) {
+        await fetch('/api/k108/profiles/' + currentProfileId, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authToken }) });
+      }
+    }
+  }
+  currentProfileId = null;
+  const detail = document.getElementById('profile-detail');
+  const inner = detail.querySelector('.profile-detail');
+  if (inner) {
+    inner.style.animation = 'profileSlideOut 0.3s ease forwards';
+    setTimeout(() => {
+      detail.style.display = 'none';
+      document.getElementById('profiles-main').style.display = 'block';
+    }, 280);
+  } else {
+    detail.style.display = 'none';
+    document.getElementById('profiles-main').style.display = 'block';
+  }
+}
+
+async function navigateToNewProfile() {
+  const d = await kAuthFetch('/api/k108/profiles/create', { first_name: '', last_name: '', relation: '', phones: [], emails: [], aliases: [], notes: '' });
+  if (!d) return;
+  if (d.error) { alert(d.error); return; }
+  if (d.profile) viewProfile(d.profile.id);
+}
+
+async function createProfile() {
+  const d = await kAuthFetch('/api/k108/profiles/create', {
+    first_name: document.getElementById('cp-fname').value.trim(),
+    last_name: document.getElementById('cp-lname').value.trim(),
+    relation: document.getElementById('cp-relation').value.trim(),
+    phones: document.getElementById('cp-phones').value.split(',').map(s=>s.trim()).filter(Boolean),
+    emails: document.getElementById('cp-emails').value.split(',').map(s=>s.trim()).filter(Boolean),
+    aliases: document.getElementById('cp-aliases').value.split(',').map(s=>s.trim()).filter(Boolean),
+    notes: document.getElementById('cp-notes').value.trim()
+  });
+  if (!d) return;
+  closeModal('create-profile-modal');
+  if (d.profile) viewProfile(d.profile.id);
+  ['cp-fname','cp-lname','cp-relation','cp-phones','cp-emails','cp-aliases','cp-notes'].forEach(id => document.getElementById(id).value = '');
+}
+
+async function uploadVaultFiles(files) {
+  if (!files || !files.length) return;
+  const fd = new FormData();
+  for (const file of files) fd.append('files', file);
+  fd.append('token', authToken);
+  try {
+    await fetch('/api/k108/vault/upload', { method: 'POST', body: fd });
+  } catch(e) {}
+  loadVaultItems();
+}
+
+// ═══ Labels System ═══
+let allLabels = [];
+async function loadLabels() {
+  const d = await kAuthFetch('/api/k108/labels');
+  if (d && d.labels) allLabels = d.labels;
+}
+
+function selectLabelColor(el) {
+  el.parentElement.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function selectLabelIcon(el) {
+  el.parentElement.querySelectorAll('.icon-choice').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+}
+
+async function createLabel() {
+  const name = document.getElementById('cl-name').value.trim();
+  if (!name) return;
+  const color = document.querySelector('#cl-colors .active')?.dataset.color || '#38bdf8';
+  const icon = document.querySelector('#cl-icons .active')?.dataset.icon || 'star';
+  await kAuthFetch('/api/k108/labels/create', { name, color, icon });
+  closeModal('create-label-modal');
+  document.getElementById('cl-name').value = '';
+  await loadLabels();
+  if (currentProfileId) viewProfile(currentProfileId);
+}
+
+const LABEL_ICONS = {
+  star:'<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>',
+  shield:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  flag:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/></svg>',
+  bolt:'<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+  alert:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>',
+  eye:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+  lock:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>',
+  target:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+  user:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  hash:'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>'
+};
+
+function renderProfileLabels(profileId) {
+  const profileLabels = allLabels.filter(l => l.profileIds && l.profileIds.includes(String(profileId)));
+  if (!profileLabels.length) return '';
+  return profileLabels.map(l => '<span class="profile-label" style="background:'+l.color+'20;color:'+l.color+';border:1px solid '+l.color+'30" title="'+esc(l.name)+'">'+(LABEL_ICONS[l.icon]||'\u25CF')+' '+esc(l.name)+'</span>').join(' ');
+}
+
+function isCommandProfile(firstName) {
+  const fn = (firstName||'').trim();
+  return fn === 'Kathrine' || fn === 'Kaliph';
+}
+
+async function applyLabelToProfile(labelId, profileId) {
+  await kAuthFetch('/api/k108/labels/'+labelId+'/apply', { profileId });
+  await loadLabels();
+  if (currentProfileId) viewProfile(currentProfileId);
+}
+
+async function removeLabelFromProfile(labelId, profileId) {
+  await kAuthFetch('/api/k108/labels/'+labelId+'/remove', { profileId });
+  await loadLabels();
+  if (currentProfileId) viewProfile(currentProfileId);
+}
+
+async function showLabelProfiles(labelId) {
+  document.getElementById('profile-autofill').classList.remove('active');
+  const ps = document.getElementById('profile-search');
+  if (ps) ps.value = '';
+  const label = allLabels.find(l => String(l.id) === String(labelId));
+  if (!label) return;
+  document.getElementById('profiles-main').style.display = 'none';
+  const el = document.getElementById('profile-detail');
+  el.style.display = 'block';
+  let h = '<div class="profile-detail"><button class="k-btn k-btn-sm" onclick="closeProfile()" style="margin-bottom:20px">&larr; Back</button>';
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:20px;color:'+label.color+'">'+(LABEL_ICONS[label.icon]||'')+'</span><h2 style="font-size:18px;color:'+label.color+'">'+esc(label.name)+'</h2><span style="font-size:11px;color:var(--text-dim)">('+label.profileIds.length+' profiles)</span></div>';
+  if (!label.profileIds.length) {
+    h += '<div class="k-empty">No profiles with this label</div>';
+  } else {
+    for (const pid of label.profileIds) {
+      const d = await kAuthFetch('/api/k108/profiles/'+pid);
+      if (d && d.profile) {
+        const p = d.profile;
+        h += '<div class="related-card" onclick="viewProfileReadonly('+p.id+')" style="margin-bottom:8px;padding:12px 16px"><div class="profile-af-avatar" style="width:36px;height:36px;font-size:13px">'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':esc(((p.first_name||'?')[0]+(p.last_name||'?')[0]).toUpperCase()))+'</div><div><div style="font-size:14px;font-weight:500">'+esc((p.first_name||'')+' '+(p.last_name||''))+'</div><div style="font-size:11px;color:var(--text-dim)">'+esc(p.relation||'')+'</div></div></div>';
+      }
+    }
+  }
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+function showApplyLabelUI(profileId) {
+  const el = document.getElementById('apply-label-list');
+  if (el.style.display === 'block') { el.style.display = 'none'; return; }
+  const profileLabels = allLabels.filter(l => l.profileIds && l.profileIds.includes(String(profileId)));
+  const available = allLabels.filter(l => !l.profileIds || !l.profileIds.includes(String(profileId)));
+  let h = '';
+  if (profileLabels.length) {
+    h += '<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">Applied labels (click to remove):</div>';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">';
+    profileLabels.forEach(l => { h += '<span class="profile-label" style="background:'+l.color+'20;color:'+l.color+';border:1px solid '+l.color+'30;cursor:pointer" onclick="removeLabelFromProfile(\''+l.id+'\',\''+profileId+'\')">'+(LABEL_ICONS[l.icon]||'')+' '+esc(l.name)+' &times;</span>'; });
+    h += '</div>';
+  }
+  if (available.length) {
+    h += '<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">Available labels (click to apply):</div>';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+    available.forEach(l => { h += '<span class="profile-label" style="background:'+l.color+'10;color:'+l.color+';border:1px dashed '+l.color+'40;cursor:pointer" onclick="applyLabelToProfile(\''+l.id+'\',\''+profileId+'\')">'+(LABEL_ICONS[l.icon]||'')+' '+esc(l.name)+'</span>'; });
+    h += '</div>';
+  }
+  if (!allLabels.length) h = '<div style="font-size:11px;color:var(--text-dim)">No labels created yet. Click "Create Label" to make one.</div>';
+  el.innerHTML = h;
+  el.style.display = 'block';
+}
+
+// ═══ Relationship Modal ═══
+let pendingLinkProfileId = null, pendingLinkTargetId = null;
+
+async function linkProfile(profileId, relatedId) {
+  pendingLinkProfileId = profileId;
+  pendingLinkTargetId = relatedId;
+  document.getElementById('rel-label').value = '';
+  openModal('relation-modal');
+  document.getElementById('rel-label').focus();
+}
+
+async function confirmLinkProfile() {
+  if (!pendingLinkProfileId || !pendingLinkTargetId) return;
+  const label = document.getElementById('rel-label').value.trim();
+  await kAuthFetch('/api/k108/profiles/'+pendingLinkProfileId+'/relations', { relatedProfileId: pendingLinkTargetId, label });
+  closeModal('relation-modal');
+  viewProfile(pendingLinkProfileId);
+}
+
+const SOCIAL_SVGS = {
+  instagram: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>',
+  twitter: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+  tiktok: '<svg viewBox="0 0 448 512" width="14" height="14" fill="currentColor"><path d="M448 209.9a210.1 210.1 0 01-122.8-39.3v178.8A162.6 162.6 0 11185 188.3v89.9a74.6 74.6 0 1052.2 71.2V0h88a121 121 0 00122.8 121z"/></svg>',
+  snapchat: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12.166.053C6.85.053 4.18 3.533 4.18 7.293c0 1.199.38 2.467.38 2.467s-.04.52-.61.52c-.42 0-1.12-.27-1.12-.27-.18-.06-.34-.09-.49-.09-.39 0-.65.26-.65.66 0 .47.42.74.82.9.94.38 2.1.52 2.36.94.22.37-.36 1.89-1.08 3.05-.6.97-1.6 2.01-1.6 2.01s-.18.27-.18.5c0 .32.22.54.22.54s2.04 2.15 5.06 2.15c.78 0 1.37-.18 1.87-.33.6-.18 1.1-.34 1.87-.34.66 0 1.08.14 1.58.3.52.17 1.14.37 2.06.37 3.24 0 5.32-2.46 5.32-2.46s.14-.14.14-.39c0-.26-.2-.51-.2-.51s-.96-.94-1.57-1.93c-.72-1.18-1.26-2.61-1.06-2.97.24-.43 1.42-.56 2.36-.94.4-.16.82-.43.82-.9 0-.4-.26-.66-.65-.66-.15 0-.31.03-.49.09 0 0-.7.27-1.12.27-.57 0-.61-.52-.61-.52s.38-1.268.38-2.467c0-3.76-2.67-7.24-7.99-7.24z"/></svg>',
+  linkedin: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>',
+  facebook: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>',
+  youtube: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>'
+};
+
+function detectPlatform(url) {
+  if (url.includes('instagram.com')) return { abbr: SOCIAL_SVGS.instagram, color:'#E1306C', name:'Instagram' };
+  if (url.includes('twitter.com')||url.includes('x.com')) return { abbr: SOCIAL_SVGS.twitter, color:'#fff', name:'X' };
+  if (url.includes('tiktok.com')) return { abbr: SOCIAL_SVGS.tiktok, color:'#fff', name:'TikTok' };
+  if (url.includes('snapchat.com')) return { abbr: SOCIAL_SVGS.snapchat, color:'#FFFC00', name:'Snapchat' };
+  if (url.includes('linkedin.com')) return { abbr: SOCIAL_SVGS.linkedin, color:'#0A66C2', name:'LinkedIn' };
+  if (url.includes('facebook.com')) return { abbr: SOCIAL_SVGS.facebook, color:'#1877F2', name:'Facebook' };
+  if (url.includes('youtube.com')) return { abbr: SOCIAL_SVGS.youtube, color:'#FF0000', name:'YouTube' };
+  return { abbr:'@', color:'var(--text-muted)', name:'Link' };
+}
+
+// ═══ Activity Log ═══
+async function loadActivityLog() {
+  const d = await kAuthFetch('/api/k108/log');
+  if (!d) return;
+  const el = document.getElementById('log-entries');
+  if (!d.entries || d.entries.length === 0) { el.innerHTML = '<div class="k-empty">No activity recorded yet.</div>'; return; }
+  const colors = { session_entry:'k-tag-green', people_search:'k-tag-blue', profile_search:'k-tag-blue', profile_create:'k-tag-indigo', profile_change:'k-tag-indigo', profile_delete:'k-tag-red', file_upload:'k-tag-indigo', file_transfer:'k-tag-indigo', metadata_extract:'k-tag-blue', sms_sent:'k-tag-amber', number_validate:'k-tag-blue' };
+  el.innerHTML = d.entries.map(e => {
+    const detail = e.detail || {};
+    let desc = e.action_type;
+    if (e.action_type==='people_search') desc = 'Searched ' + (detail.type||'') + ' (' + (detail.resultCount||0) + ' results)';
+    else if (e.action_type==='sms_sent') desc = 'SMS to ' + (detail.phone||'') + ': ' + (detail.preview||'');
+    else if (e.action_type==='number_validate') desc = 'Validated ' + (detail.phone||'');
+    else if (e.action_type==='profile_create') desc = 'Created profile: ' + (detail.name||'');
+    else if (e.action_type==='profile_change') desc = 'Updated profile: ' + (detail.name||'');
+    else if (e.action_type==='file_transfer') desc = 'Transferred: ' + (detail.filename||'');
+    else if (e.action_type==='file_upload') desc = 'Uploaded: ' + (detail.filename||'');
+    else if (e.action_type==='metadata_extract') desc = 'Extracted: ' + (detail.filename||'');
+    else if (e.action_type==='session_entry') desc = 'Session started' + (detail.firstSetup?' (first setup)':'');
+    return '<div class="log-entry"><span class="log-time">'+fmtDate(e.created_at)+'</span><span class="log-badge k-tag '+(colors[e.action_type]||'k-tag-blue')+'">'+esc(e.action_type)+'</span><span class="log-user">'+esc(e.username)+'</span><span class="log-detail">'+esc(desc)+'</span></div>';
+  }).join('');
+}
+
+// ═══ Saved Searches ═══
+let savedSearches = [];
+try { savedSearches = JSON.parse(localStorage.getItem('k108-saved-searches') || '[]'); } catch(e) {}
+
+function saveSearchResult(btn) {
+  try {
+    const result = JSON.parse(btn.dataset.result);
+    if (savedSearches.some(s => s.fullName === result.fullName)) { btn.textContent = 'Already Saved'; return; }
+    result.savedAt = new Date().toISOString();
+    savedSearches.push(result);
+    localStorage.setItem('k108-saved-searches', JSON.stringify(savedSearches));
+    btn.textContent = 'Saved';
+    btn.style.color = 'var(--status-green)';
+    btn.style.borderColor = 'rgba(52,211,153,0.3)';
+  } catch(e) {}
+}
+
+function toggleSavedSearches() {
+  const panel = document.getElementById('saved-searches-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  renderSavedSearches();
+}
+
+function renderSavedSearches() {
+  const el = document.getElementById('saved-searches-list');
+  if (!savedSearches.length) { el.innerHTML = '<div style="font-size:11px;color:var(--text-dim)">No saved results yet. Search for someone and click Save on their result card.</div>'; return; }
+  el.innerHTML = savedSearches.map((s, i) => {
+    const loc = s.addresses && s.addresses.length ? [s.addresses[0].city, s.addresses[0].state].filter(Boolean).join(', ') : '';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer" onclick="viewSavedResult('+i+')"><div><div style="font-size:13px;font-weight:500">'+esc(s.fullName)+'</div><div style="font-size:10px;color:var(--text-dim)">'+esc(loc)+(s.age?' &middot; Age '+esc(String(s.age)):'')+' &middot; '+esc(s.confidence)+'%</div></div><button class="k-btn k-btn-sm k-btn-danger" onclick="event.stopPropagation();removeSavedSearch('+i+')" style="font-size:9px;padding:2px 8px">&times;</button></div>';
+  }).join('');
+}
+
+function viewSavedResult(idx) {
+  const s = savedSearches[idx];
+  if (!s) return;
+  renderLookupResults({ results: [s], meta: { resultCount: 1, duration: 0, sources: [{ name: 'saved', status: 'ok' }] } });
+  document.getElementById('saved-searches-panel').style.display = 'none';
+}
+
+function removeSavedSearch(idx) {
+  savedSearches.splice(idx, 1);
+  localStorage.setItem('k108-saved-searches', JSON.stringify(savedSearches));
+  renderSavedSearches();
+}
+
+// ═══ Error helpers ═══
+function showErr(id, m) { const e=document.getElementById(id); e.textContent=m; e.classList.add('active'); }
+function hideErr(id) { const e=document.getElementById(id); e.textContent=''; e.classList.remove('active'); }
+</script>
+</body>
+</html>

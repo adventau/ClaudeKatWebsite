@@ -5351,6 +5351,26 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     }
   }
 
+  // ── K-108 Commands ──
+  if (cmd === 'k108') {
+    const sub = parts[1]?.toLowerCase();
+    if (sub === 'reset-passcode') {
+      const target = parts[2]?.toLowerCase();
+      if (!target || !['kaliph', 'kathrine'].includes(target)) {
+        return lines('Usage: k108 reset-passcode [kaliph|kathrine]', 'warn');
+      }
+      await deleteK108Passcode(target);
+      return multi(
+        [`K-108 passcode reset for ${target}`, 'success'],
+        ['Next login will prompt for new passcode setup', 'info']
+      );
+    }
+    return multi(
+      ['K-108 Commands:', 'header'],
+      ['  k108 reset-passcode [kaliph|kathrine]  — Reset K-108 passcode', 'info']
+    );
+  }
+
   return lines(`Unknown command: "${raw}". Type "help" for commands.`, 'error');
 }
 
@@ -5825,7 +5845,905 @@ app.delete('/api/debrief/photo', (req, res) => {
   res.json({ ok: true });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// K-108 INTELLIGENCE PLATFORM
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const k108Tokens = new Map(); // token -> username
+const k108RateMap = new Map(); // token -> { count, resetAt }
+const K108_USERS_FILE = path.join(DATA_DIR, 'k108-users.json');
+
+// ── K-108 Quota helpers ──────────────────────────────────────────────────────
+function getK108Quota(name) {
+  const file = path.join(DATA_DIR, `k108-${name}-quota.json`);
+  try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) {}
+  const defaults = { lookup: { total: 50, used: 0 }, numvalidate: { total: 100, used: 0 }, sms: { total: 50, used: 0 } };
+  return defaults[name] || { total: 50, used: 0 };
+}
+
+function saveK108Quota(name, q) {
+  fs.writeFileSync(path.join(DATA_DIR, `k108-${name}-quota.json`), JSON.stringify(q, null, 2));
+}
+
+function useK108Quota(name) {
+  const q = getK108Quota(name);
+  if (q.used >= q.total) return false;
+  q.used++;
+  saveK108Quota(name, q);
+  return true;
+}
+
+// ── K-108 Auth ───────────────────────────────────────────────────────────────
+function getK108LocalPassword() {
+  const s = rd(F.settings);
+  return (s && s.k108Password) || 'Command';
+}
+
+async function getK108User(username) {
+  if (db.pool) {
+    const r = await db.query('SELECT * FROM k108_users WHERE username = $1', [username]);
+    return r.rows[0] || null;
+  }
+  try {
+    if (fs.existsSync(K108_USERS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(K108_USERS_FILE, 'utf8'));
+      return data[username] ? { username, passcode_hash: data[username].passcode_hash } : null;
+    }
+  } catch (e) {}
+  return null;
+}
+
+async function setK108Passcode(username, hash) {
+  if (db.pool) {
+    await db.query(
+      `INSERT INTO k108_users (username, passcode_hash, updated_at) VALUES ($1, $2, NOW())
+       ON CONFLICT (username) DO UPDATE SET passcode_hash = $2, updated_at = NOW()`,
+      [username, hash]
+    );
+  } else {
+    let data = {};
+    try { if (fs.existsSync(K108_USERS_FILE)) data = JSON.parse(fs.readFileSync(K108_USERS_FILE, 'utf8')); } catch (e) {}
+    data[username] = { passcode_hash: hash, updated_at: Date.now() };
+    fs.writeFileSync(K108_USERS_FILE, JSON.stringify(data, null, 2));
+  }
+}
+
+async function deleteK108Passcode(username) {
+  if (db.pool) {
+    await db.query('DELETE FROM k108_users WHERE username = $1', [username]);
+  } else {
+    try {
+      if (fs.existsSync(K108_USERS_FILE)) {
+        const data = JSON.parse(fs.readFileSync(K108_USERS_FILE, 'utf8'));
+        delete data[username];
+        fs.writeFileSync(K108_USERS_FILE, JSON.stringify(data, null, 2));
+      }
+    } catch (e) {}
+  }
+}
+
+// Returns username string or null (sends 401 on failure)
+function k108Auth(req, res) {
+  const token = req.body.token;
+  if (!k108Tokens.has(token)) {
+    res.status(401).json({ error: 'Session expired', reauth: true });
+    return null;
+  }
+  return k108Tokens.get(token);
+}
+
+function k108RateCheck(token) {
+  const now = Date.now();
+  let entry = k108RateMap.get(token);
+  if (!entry || now > entry.resetAt) { entry = { count: 0, resetAt: now + 5 * 60 * 1000 }; }
+  entry.count++;
+  k108RateMap.set(token, entry);
+  return entry.count <= 20;
+}
+
+// ── K-108 Activity Log ───────────────────────────────────────────────────────
+const K108_LOG_FILE = path.join(DATA_DIR, 'k108-log.json');
+function getK108LogEntries() {
+  try { if (fs.existsSync(K108_LOG_FILE)) return JSON.parse(fs.readFileSync(K108_LOG_FILE, 'utf8')); } catch(e) {}
+  return [];
+}
+
+async function k108Log(username, actionType, detail, ip) {
+  if (db.pool) {
+    try {
+      await db.query(
+        'INSERT INTO k108_activity_log (username, action_type, detail, ip) VALUES ($1, $2, $3, $4)',
+        [username, actionType, JSON.stringify(detail || {}), ip || '']
+      );
+    } catch (e) { console.error('[k108] log error:', e.message); }
+  } else {
+    const entries = getK108LogEntries();
+    entries.unshift({ id: Date.now(), username, action_type: actionType, detail: detail || {}, ip: ip || '', created_at: new Date().toISOString() });
+    if (entries.length > 200) entries.length = 200;
+    fs.writeFileSync(K108_LOG_FILE, JSON.stringify(entries, null, 2));
+  }
+}
+
+// ── K-108 Auth Routes ────────────────────────────────────────────────────────
+app.get('/api/k108/whoami', (req, res) => {
+  res.json({ user: req.session && req.session.user || null });
+});
+
+app.post('/api/k108/auth', async (req, res) => {
+  const username = req.session && req.session.user;
+  const { passcode } = req.body;
+
+  // Local fallback (no database or no site session)
+  if (!db.pool || !username) {
+    const localUser = username || 'kaliph';
+    if (passcode === getK108LocalPassword()) {
+      const token = uuidv4();
+      k108Tokens.set(token, localUser);
+      await k108Log(localUser, 'session_entry', {}, req.ip);
+      return res.json({ token, username: localUser });
+    }
+    return res.status(403).json({ error: 'ACCESS DENIED // Credentials do not match any authorized personnel' });
+  }
+
+  const user = await getK108User(username);
+  if (!user) return res.json({ needsSetup: true });
+
+  if (!passcode) return res.status(400).json({ error: 'Passcode required' });
+  const match = await bcrypt.compare(passcode, user.passcode_hash);
+  if (!match) return res.status(403).json({ error: 'ACCESS DENIED // Credentials do not match any authorized personnel' });
+
+  const token = uuidv4();
+  k108Tokens.set(token, username);
+  await k108Log(username, 'session_entry', {}, req.ip);
+  res.json({ token, username });
+});
+
+app.post('/api/k108/set-passcode', async (req, res) => {
+  const username = req.session && req.session.user;
+  if (!username && db.pool) return res.status(401).json({ error: 'Log in to the main vault first' });
+  const { passcode, confirm } = req.body;
+  if (!passcode || passcode.length < 1) return res.status(400).json({ error: 'Passcode required' });
+  if (passcode !== confirm) return res.status(400).json({ error: 'Passcodes do not match' });
+
+  const hash = await bcrypt.hash(passcode, 10);
+  await setK108Passcode(username, hash);
+
+  const token = uuidv4();
+  k108Tokens.set(token, username);
+  await k108Log(username, 'session_entry', { firstSetup: true }, req.ip);
+  res.json({ token, username });
+});
+
+// ── K-108 Activity Log Route ─────────────────────────────────────────────────
+app.post('/api/k108/log', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const page = parseInt(req.body.page) || 0;
+  const limit = Math.min(parseInt(req.body.limit) || 50, 200);
+  if (db.pool) {
+    const r = await db.query(
+      'SELECT * FROM k108_activity_log ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+      [limit, page * limit]
+    );
+    return res.json({ entries: r.rows });
+  }
+  const all = getK108LogEntries();
+  res.json({ entries: all.slice(page * limit, (page + 1) * limit) });
+});
+
+// ── Whitepages Pro API adapter ────────────────────────────────────────────────
+const WP_API_KEY = process.env.WHITEPAGES_API_KEY || '';
+const WP_BASE = 'https://proapi.whitepages.com/3.0';
+
+async function wpFetch(endpoint, params) {
+  if (!WP_API_KEY) return { source: 'whitepages', status: 'not_configured', results: [] };
+  try {
+    const qs = new URLSearchParams({ api_key: WP_API_KEY, ...params }).toString();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    const resp = await fetch(`${WP_BASE}/${endpoint}?${qs}`, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => '');
+      return { source: 'whitepages', status: 'error', error: `HTTP ${resp.status}: ${errText}`, results: [] };
+    }
+    const data = await resp.json();
+    return { source: 'whitepages', status: 'ok', raw: data };
+  } catch (e) {
+    return { source: 'whitepages', status: 'error', error: e.message, results: [] };
+  }
+}
+
+async function searchPeopleByName(firstName, lastName, city, state) {
+  const params = { name: `${firstName} ${lastName}`.trim() };
+  if (city) params.address_city = city;
+  if (state) params.address_state_code = state;
+  return wpFetch('find_person', params);
+}
+
+async function searchPeopleByPhone(phone) {
+  return wpFetch('reverse_phone', { phone: phone });
+}
+
+async function searchPeopleByAddress(street, city, state, zip) {
+  const params = { 'address.street_line_1': street };
+  if (city) params['address.city'] = city;
+  if (state) params['address.state_code'] = state;
+  if (zip) params['address.postal_code'] = zip;
+  return wpFetch('reverse_address', params);
+}
+
+function normalizeResults(apiResult) {
+  if (!apiResult || apiResult.status !== 'ok' || !apiResult.raw) return [];
+  const raw = apiResult.raw;
+
+  // Whitepages v3 returns person data in various structures depending on endpoint
+  let people = [];
+
+  // find_person returns { person: [...] } or { results: [...] }
+  if (raw.person) people = Array.isArray(raw.person) ? raw.person : [raw.person];
+  else if (raw.results) people = Array.isArray(raw.results) ? raw.results : [raw.results];
+  else if (raw.people) people = raw.people;
+  // reverse_phone returns { belongs_to: [...], current_addresses: [...] }
+  else if (raw.belongs_to) {
+    const owners = Array.isArray(raw.belongs_to) ? raw.belongs_to : [raw.belongs_to];
+    people = owners.map(o => ({
+      ...o,
+      _addresses: raw.current_addresses || [],
+      _phone: raw.phone_number || ''
+    }));
+  }
+  // If the raw response itself looks like a single person record
+  else if (raw.name || raw.firstname || raw.first_name) {
+    people = [raw];
+  }
+
+  return people.filter(Boolean).map(p => {
+    // Extract name
+    const fn = p.firstname || p.first_name || p.FirstName || (p.name && typeof p.name === 'object' ? p.name.first_name : '') || '';
+    const ln = p.lastname || p.last_name || p.LastName || (p.name && typeof p.name === 'object' ? p.name.last_name : '') || '';
+    const full = p.name && typeof p.name === 'string' ? p.name
+      : p.full_name || p.fullName || p.best_name || `${fn} ${ln}`.trim();
+
+    // Extract age
+    const age = p.age_range || p.age || p.Age || (p.found_at_address && p.found_at_address.age_range) || null;
+
+    // Extract addresses
+    const rawAddrs = p.current_addresses || p.addresses || p._addresses || p.found_at_address
+      ? [].concat(p.current_addresses || p.addresses || p._addresses || (p.found_at_address ? [p.found_at_address] : []))
+      : [];
+    const addresses = rawAddrs.filter(Boolean).map((a, i) => ({
+      street: a.street_line_1 || a.street || a.address || a.standard_address_line1 || '',
+      city: a.city || a.City || '',
+      state: a.state_code || a.state || a.State || '',
+      zip: a.postal_code || a.zip || a.zip_code || '',
+      current: i === 0 || !!(a.is_current || a.current)
+    }));
+
+    // Extract phones
+    const rawPhones = p.phones || p.phone_numbers || (p._phone ? [{ phone_number: p._phone }] : []);
+    const phones = rawPhones.filter(Boolean).map(ph => ({
+      number: ph.phone_number || ph.number || ph.phone || '',
+      type: ph.line_type || ph.type || '',
+      carrier: ph.carrier || ''
+    }));
+
+    // Extract emails
+    const rawEmails = p.emails || p.email_addresses || [];
+    const emails = rawEmails.map(e => typeof e === 'string' ? e : (e.email_address || e.email || e.contact_type || ''));
+
+    // Extract relatives/associates
+    const rawRels = p.associated_people || p.relatives || p.associates || [];
+    const relatives = rawRels.filter(Boolean).map(r => ({
+      name: typeof r === 'string' ? r : (r.name || r.full_name || r.best_name || `${r.first_name || ''} ${r.last_name || ''}`.trim()),
+      relation: r.relation || r.type || ''
+    }));
+
+    // Confidence scoring
+    let conf = 40;
+    if (addresses.some(a => a.current)) conf += 15;
+    if (phones.length > 0) conf += 10;
+    if (emails.length > 0) conf += 10;
+    if (relatives.length > 0) conf += 10;
+    if (age) conf += 5;
+    if (addresses.length > 1 || phones.length > 1) conf += 10;
+    conf = Math.min(conf, 100);
+
+    return {
+      id: uuidv4(),
+      fullName: full,
+      firstName: fn,
+      lastName: ln,
+      age,
+      addresses,
+      phones,
+      emails: emails.filter(Boolean),
+      relatives,
+      confidence: conf,
+      sources: [apiResult.source]
+    };
+  });
+}
+
+app.post('/api/k108/quota', (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const q = getK108Quota('lookup');
+  res.json({ total: q.total, used: q.used, remaining: q.total - q.used });
+});
+
+app.post('/api/k108/search', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { token, type, query } = req.body;
+  if (!k108RateCheck(token)) return res.status(429).json({ error: 'Rate limit exceeded. Try again in a few minutes.' });
+  const q = getK108Quota('lookup');
+  if (q.used >= q.total) return res.status(403).json({ error: 'Query quota exhausted. No searches remaining.' });
+  if (!type || !query) return res.status(400).json({ error: 'Missing search type or query' });
+
+  const start = Date.now();
+  let apiResult;
+
+  // Mock data for local testing without API key
+  if (!WP_API_KEY) {
+    const mockResults = [
+      { id: uuidv4(), fullName: query.lastName ? (query.firstName||'John') + ' ' + query.lastName : 'John Doe', firstName: query.firstName||'John', lastName: query.lastName||'Doe', age: '35-40', addresses: [{ street: '1234 Oak Avenue', city: query.city||'Chicago', state: query.state||'IL', zip: '60614', current: true }, { street: '789 Pine St', city: 'Evanston', state: 'IL', zip: '60201', current: false }], phones: [{ number: '3125551234', type: 'Mobile', carrier: 'T-Mobile' }, { number: '7735559876', type: 'Landline', carrier: 'AT&T' }], emails: ['jdoe@email.com', 'john.doe@work.com'], relatives: [{ name: 'Jane Doe', relation: 'Spouse' }, { name: 'Robert Doe', relation: 'Parent' }], confidence: 87, sources: ['mock-data'] },
+      { id: uuidv4(), fullName: query.lastName ? 'James ' + query.lastName : 'James Doe', firstName: 'James', lastName: query.lastName||'Doe', age: '28', addresses: [{ street: '456 Elm Street', city: query.city||'Springfield', state: query.state||'IL', zip: '62704', current: true }], phones: [{ number: '2175554321', type: 'Mobile', carrier: 'Verizon' }], emails: ['james.d@gmail.com'], relatives: [{ name: 'Robert Doe', relation: 'Parent' }], confidence: 62, sources: ['mock-data'] },
+      { id: uuidv4(), fullName: query.lastName ? 'Jennifer ' + query.lastName : 'Jennifer Doe', firstName: 'Jennifer', lastName: query.lastName||'Doe', age: '45', addresses: [{ street: '321 Maple Dr', city: 'Naperville', state: 'IL', zip: '60540', current: true }], phones: [{ number: '6305557890', type: 'Mobile', carrier: 'Sprint' }], emails: [], relatives: [], confidence: 38, sources: ['mock-data'] }
+    ];
+    await k108Log(username, 'people_search', { type, resultCount: mockResults.length, mock: true }, req.ip);
+    return res.json({ results: mockResults, meta: { searchType: type, resultCount: mockResults.length, duration: Date.now() - start, sources: [{ name: 'mock-data', status: 'ok' }], quota: getK108Quota('lookup') } });
+  }
+
+  try {
+    if (type === 'name') {
+      const { firstName, lastName, city, state } = query;
+      if (!lastName || !lastName.trim()) return res.status(400).json({ error: 'Last name is required' });
+      apiResult = await searchPeopleByName(
+        (firstName || '').trim().substring(0, 50),
+        lastName.trim().substring(0, 50),
+        (city || '').trim().substring(0, 50),
+        (state || '').trim().substring(0, 2).toUpperCase()
+      );
+    } else if (type === 'phone') {
+      const phone = (query.phone || '').replace(/\D/g, '').slice(-10);
+      if (phone.length < 10) return res.status(400).json({ error: 'Enter a valid 10-digit phone number' });
+      apiResult = await searchPeopleByPhone(phone);
+    } else if (type === 'address') {
+      const { street, city, state, zip } = query;
+      if (!street || !street.trim()) return res.status(400).json({ error: 'Street address is required' });
+      apiResult = await searchPeopleByAddress(
+        street.trim().substring(0, 100),
+        (city || '').trim().substring(0, 50),
+        (state || '').trim().substring(0, 2).toUpperCase(),
+        (zip || '').trim().substring(0, 10)
+      );
+    } else {
+      return res.status(400).json({ error: 'Invalid search type' });
+    }
+
+    const results = normalizeResults(apiResult);
+    results.sort((a, b) => b.confidence - a.confidence);
+
+    if (apiResult.status === 'ok') useK108Quota('lookup');
+    const quota = getK108Quota('lookup');
+
+    await k108Log(username, 'people_search', { type, resultCount: results.length }, req.ip);
+
+    res.json({
+      results,
+      meta: {
+        searchType: type,
+        resultCount: results.length,
+        duration: Date.now() - start,
+        sources: [{ name: apiResult.source, status: apiResult.status }],
+        quota: { total: quota.total, used: quota.used, remaining: quota.total - quota.used }
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Search failed', detail: e.message });
+  }
+});
+
+// ── K-108 Number Validator ───────────────────────────────────────────────────
+const NUMVERIFY_KEY = process.env.NUMVERIFY_API_KEY || '';
+
+app.post('/api/k108/numvalidate', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: 'Phone number required' });
+
+  const q = getK108Quota('numvalidate');
+  if (q.used >= q.total) return res.status(403).json({ error: 'Validation quota exhausted.' });
+  if (!NUMVERIFY_KEY) return res.status(503).json({ error: 'Number validation not configured' });
+
+  try {
+    const cleaned = phone.replace(/\D/g, '');
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
+    const resp = await fetch(`http://apilayer.net/api/validate?access_key=${NUMVERIFY_KEY}&number=${cleaned}&format=1`, { signal: ctrl.signal });
+    clearTimeout(timer);
+    const data = await resp.json();
+
+    useK108Quota('numvalidate');
+    const quota = getK108Quota('numvalidate');
+    await k108Log(username, 'number_validate', { phone: cleaned }, req.ip);
+
+    res.json({ result: data, quota: { total: quota.total, used: quota.used, remaining: quota.total - quota.used } });
+  } catch (e) {
+    res.status(500).json({ error: 'Validation failed', detail: e.message });
+  }
+});
+
+// ── K-108 Covert SMS ─────────────────────────────────────────────────────────
+const TEXTBELT_KEY = process.env.TEXTBELT_API_KEY || '';
+const K108_BASE_URL = process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3000';
+
+app.post('/api/k108/sms/send', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { phone, message } = req.body;
+  if (!phone || !message) return res.status(400).json({ error: 'Phone and message required' });
+
+  const q = getK108Quota('sms');
+  if (q.used >= q.total) return res.status(403).json({ error: 'SMS quota exhausted.' });
+  if (!TEXTBELT_KEY) return res.status(503).json({ error: 'SMS not configured' });
+
+  try {
+    const cleaned = phone.replace(/\D/g, '');
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const resp = await fetch('https://textbelt.com/text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: cleaned,
+        message,
+        key: TEXTBELT_KEY,
+        replyWebhookUrl: `${K108_BASE_URL}/api/k108/sms-reply`
+      }),
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    const data = await resp.json();
+
+    if (data.success) {
+      useK108Quota('sms');
+      if (db.pool) {
+        await db.query(
+          'INSERT INTO k108_sms (direction, phone, message, username, textbelt_id) VALUES ($1,$2,$3,$4,$5)',
+          ['outbound', cleaned, message, username, data.textId || null]
+        );
+      }
+      await k108Log(username, 'sms_sent', { phone: cleaned, preview: message.substring(0, 50) }, req.ip);
+    }
+
+    const quota = getK108Quota('sms');
+    res.json({ success: data.success, error: data.error, quota: { total: quota.total, used: quota.used, remaining: quota.total - quota.used } });
+  } catch (e) {
+    res.status(500).json({ error: 'SMS send failed', detail: e.message });
+  }
+});
+
+// Textbelt webhook — no auth required
+app.post('/api/k108/sms-reply', async (req, res) => {
+  const { fromNumber, text } = req.body;
+  if (!fromNumber || !text) return res.status(400).json({ error: 'Invalid webhook data' });
+  const phone = fromNumber.replace(/\D/g, '');
+  if (db.pool) {
+    await db.query(
+      'INSERT INTO k108_sms (direction, phone, message, username) VALUES ($1,$2,$3,$4)',
+      ['inbound', phone, text, null]
+    );
+  }
+  io.emit('k108:sms-reply', { phone, message: text, timestamp: Date.now() });
+  res.json({ ok: true });
+});
+
+app.post('/api/k108/sms/threads', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.json({ threads: [] });
+  const r = await db.query(
+    `SELECT DISTINCT ON (phone) phone, message, direction, created_at
+     FROM k108_sms ORDER BY phone, created_at DESC`
+  );
+  res.json({ threads: r.rows });
+});
+
+app.post('/api/k108/sms/thread', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.json({ messages: [] });
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: 'Phone required' });
+  const r = await db.query(
+    'SELECT * FROM k108_sms WHERE phone = $1 ORDER BY created_at ASC',
+    [phone.replace(/\D/g, '')]
+  );
+  res.json({ messages: r.rows });
+});
+
+// ── K-108 Metadata Extractor ─────────────────────────────────────────────────
+let exiftool = null;
+try { exiftool = require('exiftool-vendored').exiftool; } catch (e) {}
+
+app.post('/api/k108/metadata/extract', mainAuth, upload.single('file'), async (req, res) => {
+  // Token passed via form field for multipart uploads
+  req.body.token = req.body.token || req.query.token;
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!exiftool) return res.status(503).json({ error: 'Metadata extraction not available. Install exiftool-vendored.' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  try {
+    const tags = await exiftool.read(req.file.path);
+    // Group by category
+    const groups = {};
+    for (const [key, value] of Object.entries(tags)) {
+      if (key === 'errors' || key === 'SourceFile') continue;
+      const cat = key.includes(':') ? key.split(':')[0] : 'General';
+      if (!groups[cat]) groups[cat] = {};
+      groups[cat][key] = value;
+    }
+
+    // Extract GPS if present
+    let gps = null;
+    if (tags.GPSLatitude && tags.GPSLongitude) {
+      gps = { lat: tags.GPSLatitude, lng: tags.GPSLongitude };
+    }
+
+    await k108Log(username, 'metadata_extract', { filename: req.file.originalname }, req.ip);
+
+    // Cleanup uploaded file
+    fs.unlink(req.file.path, () => {});
+
+    res.json({ groups, gps, filename: req.file.originalname });
+  } catch (e) {
+    fs.unlink(req.file.path, () => {});
+    res.status(500).json({ error: 'Extraction failed', detail: e.message });
+  }
+});
+
+// ── K-108 Document Vault ─────────────────────────────────────────────────────
+app.post('/api/k108/vault/items', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.json({ items: [] });
+  const r = await db.query('SELECT * FROM k108_vault ORDER BY transferred_at DESC');
+  res.json({ items: r.rows });
+});
+
+app.post('/api/k108/vault/upload', upload.array('files', 10), async (req, res) => {
+  req.body.token = req.body.token || req.query.token;
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const inserted = [];
+  for (const file of (req.files || [])) {
+    const r = await db.query(
+      'INSERT INTO k108_vault (filename, original_name, mime_type, size, transferred_by) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [`/uploads/${file.filename}`, file.originalname, file.mimetype, file.size, username]
+    );
+    inserted.push(r.rows[0]);
+    await k108Log(username, 'file_upload', { filename: file.originalname }, req.ip);
+  }
+  res.json({ ok: true, items: inserted });
+});
+
+app.post('/api/k108/vault/transfer', mainAuth, async (req, res) => {
+  const username = req.session.user;
+  if (!username) return res.status(401).json({ error: 'Not authenticated' });
+  const { fileId } = req.body;
+  if (!fileId) return res.status(400).json({ error: 'File ID required' });
+
+  const vaultData = rd(F.vault);
+  const userFiles = vaultData[username] || [];
+  const file = userFiles.find(f => f.id === fileId);
+  if (!file) return res.status(404).json({ error: 'File not found' });
+
+  if (db.pool) {
+    await db.query(
+      'INSERT INTO k108_vault (filename, original_name, mime_type, size, transferred_by) VALUES ($1,$2,$3,$4,$5)',
+      [file.url || file.name, file.name, file.mimeType || '', file.size || 0, username]
+    );
+  }
+  await k108Log(username, 'file_transfer', { filename: file.name }, req.ip);
+  res.json({ ok: true });
+});
+
+// ── K-108 Intel Profiles ─────────────────────────────────────────────────────
+// ── K-108 Profiles JSON fallback ──
+const K108_PROFILES_FILE = path.join(DATA_DIR, 'k108-profiles.json');
+function getK108Profiles() {
+  try { if (fs.existsSync(K108_PROFILES_FILE)) return JSON.parse(fs.readFileSync(K108_PROFILES_FILE, 'utf8')); } catch(e) {}
+  return [];
+}
+function saveK108Profiles(p) { fs.writeFileSync(K108_PROFILES_FILE, JSON.stringify(p, null, 2)); }
+
+app.post('/api/k108/profiles', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { search } = req.body;
+
+  if (db.pool) {
+    let r;
+    if (search && search.trim()) {
+      const term = `%${search.trim()}%`;
+      r = await db.query(
+        `SELECT * FROM k108_profiles WHERE
+         first_name ILIKE $1 OR last_name ILIKE $1 OR notes ILIKE $1
+         OR (first_name || ' ' || last_name) ILIKE $1
+         OR $2 = ANY(aliases) OR EXISTS (
+           SELECT 1 FROM jsonb_array_elements(social_links) s WHERE s->>'handle' ILIKE $1 OR s->>'url' ILIKE $1
+         )
+         ORDER BY updated_at DESC LIMIT 20`,
+        [term, search.trim()]
+      );
+      await k108Log(username, 'profile_search', { term: search.trim() }, req.ip);
+    } else {
+      r = await db.query('SELECT * FROM k108_profiles ORDER BY updated_at DESC LIMIT 20');
+    }
+    return res.json({ profiles: r.rows });
+  }
+  // JSON fallback
+  let profiles = getK108Profiles();
+  if (search && search.trim()) {
+    const t = search.trim().toLowerCase();
+    profiles = profiles.filter(p => (p.first_name||'').toLowerCase().includes(t) || (p.last_name||'').toLowerCase().includes(t) || ((p.first_name||'')+' '+(p.last_name||'')).toLowerCase().includes(t) || (p.aliases||[]).some(a => a.toLowerCase().includes(t)) || (p.notes||'').toLowerCase().includes(t));
+    await k108Log(username, 'profile_search', { term: search.trim() }, req.ip);
+  }
+  res.json({ profiles });
+});
+
+app.post('/api/k108/profiles/create', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { first_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address } = req.body;
+
+  if (db.pool) {
+    const r = await db.query(
+      `INSERT INTO k108_profiles (first_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      [first_name || '', last_name || '', aliases || [], relation || '', notes || '',
+       phones || [], emails || [], JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), username]
+    );
+    await k108Log(username, 'profile_create', { name: `${first_name} ${last_name}`.trim() }, req.ip);
+    return res.json({ profile: r.rows[0] });
+  }
+  // JSON fallback
+  const profiles = getK108Profiles();
+  const profile = { id: Date.now(), first_name: first_name||'', last_name: last_name||'', aliases: aliases||[], photo_url: null, relation: relation||'', notes: notes||'', phones: phones||[], emails: emails||[], social_links: social_links||[], age: age||'', birthday: birthday||null, address: address||{}, created_by: username, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  profiles.push(profile);
+  saveK108Profiles(profiles);
+  await k108Log(username, 'profile_create', { name: `${first_name} ${last_name}`.trim() }, req.ip);
+  res.json({ profile });
+});
+
+app.post('/api/k108/profiles/:id', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+
+  if (db.pool) {
+    const r = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Profile not found' });
+    const files = await db.query('SELECT * FROM k108_profile_files WHERE profile_id = $1 ORDER BY uploaded_at DESC', [req.params.id]);
+    const relations = await db.query(
+      `SELECT r.*, p.first_name, p.last_name, p.photo_url, p.relation as p_relation
+       FROM k108_profile_relations r JOIN k108_profiles p ON p.id = r.related_profile_id
+       WHERE r.profile_id = $1`,
+      [req.params.id]
+    );
+    return res.json({ profile: r.rows[0], files: files.rows, relations: relations.rows });
+  }
+  // JSON fallback
+  const profiles = getK108Profiles();
+  const profile = profiles.find(p => String(p.id) === String(req.params.id));
+  if (!profile) return res.status(404).json({ error: 'Profile not found' });
+  const pFiles = profile.files || [];
+  const pRelations = (profile.relations || []).map(r => {
+    const rp = profiles.find(p => String(p.id) === String(r.related_profile_id));
+    return { ...r, first_name: rp?.first_name||'', last_name: rp?.last_name||'', photo_url: rp?.photo_url||null, p_relation: rp?.relation||'' };
+  });
+  res.json({ profile, files: pFiles, relations: pRelations });
+});
+
+app.put('/api/k108/profiles/:id', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { first_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address } = req.body;
+
+  if (db.pool) {
+    await db.query(
+      `UPDATE k108_profiles SET first_name=$1, last_name=$2, aliases=$3, relation=$4, notes=$5,
+       phones=$6, emails=$7, social_links=$8, age=$9, birthday=$10, address=$11, updated_at=NOW() WHERE id=$12`,
+      [first_name, last_name, aliases || [], relation || '', notes || '',
+       phones || [], emails || [], JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), req.params.id]
+    );
+    await k108Log(username, 'profile_change', { profileId: req.params.id, name: `${first_name} ${last_name}`.trim() }, req.ip);
+    return res.json({ ok: true });
+  }
+  // JSON fallback
+  const profiles = getK108Profiles();
+  const idx = profiles.findIndex(p => String(p.id) === String(req.params.id));
+  if (idx === -1) return res.status(404).json({ error: 'Profile not found' });
+  Object.assign(profiles[idx], { first_name, last_name, aliases: aliases||[], relation: relation||'', notes: notes||'', phones: phones||[], emails: emails||[], social_links: social_links||[], age: age||'', birthday: birthday||null, address: address||{}, updated_at: new Date().toISOString() });
+  saveK108Profiles(profiles);
+  await k108Log(username, 'profile_change', { profileId: req.params.id, name: `${first_name} ${last_name}`.trim() }, req.ip);
+  res.json({ ok: true });
+});
+
+app.delete('/api/k108/profiles/:id', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (db.pool) {
+    await db.query('DELETE FROM k108_profiles WHERE id = $1', [req.params.id]);
+    await k108Log(username, 'profile_delete', { profileId: req.params.id }, req.ip);
+    return res.json({ ok: true });
+  }
+  // JSON fallback
+  let profiles = getK108Profiles();
+  profiles = profiles.filter(p => String(p.id) !== String(req.params.id));
+  saveK108Profiles(profiles);
+  await k108Log(username, 'profile_delete', { profileId: req.params.id }, req.ip);
+  res.json({ ok: true });
+});
+
+app.post('/api/k108/profiles/:id/photo', upload.single('photo'), async (req, res) => {
+  req.body.token = req.body.token || req.query.token;
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!req.file) return res.status(400).json({ error: 'File required' });
+  const url = `/uploads/${req.file.filename}`;
+  if (db.pool) {
+    await db.query('UPDATE k108_profiles SET photo_url = $1, updated_at = NOW() WHERE id = $2', [url, req.params.id]);
+  } else {
+    const profiles = getK108Profiles();
+    const p = profiles.find(p => String(p.id) === String(req.params.id));
+    if (p) { p.photo_url = url; p.updated_at = new Date().toISOString(); saveK108Profiles(profiles); }
+  }
+  res.json({ url });
+});
+
+app.post('/api/k108/profiles/:id/files', upload.array('files', 10), async (req, res) => {
+  req.body.token = req.body.token || req.query.token;
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const inserted = [];
+  for (const file of (req.files || [])) {
+    const fileObj = { id: Date.now() + Math.random(), profile_id: req.params.id, filename: file.filename, original_name: file.originalname, mime_type: file.mimetype, size: file.size, uploaded_at: new Date().toISOString() };
+    if (db.pool) {
+      const r = await db.query(
+        'INSERT INTO k108_profile_files (profile_id, filename, original_name, mime_type, size) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+        [req.params.id, file.filename, file.originalname, file.mimetype, file.size]
+      );
+      inserted.push(r.rows[0]);
+    } else {
+      // JSON fallback — store file refs in the profile itself
+      const profiles = getK108Profiles();
+      const p = profiles.find(p => String(p.id) === String(req.params.id));
+      if (p) { if (!p.files) p.files = []; p.files.push(fileObj); saveK108Profiles(profiles); }
+      inserted.push(fileObj);
+    }
+    await k108Log(username, 'file_upload', { profileId: req.params.id, filename: file.originalname }, req.ip);
+  }
+  res.json({ files: inserted });
+});
+
+app.delete('/api/k108/profiles/:id/files/:fid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  await db.query('DELETE FROM k108_profile_files WHERE id = $1 AND profile_id = $2', [req.params.fid, req.params.id]);
+  res.json({ ok: true });
+});
+
+app.post('/api/k108/profiles/:id/relations', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { relatedProfileId, label } = req.body;
+  if (!relatedProfileId) return res.status(400).json({ error: 'Related profile ID required' });
+
+  if (db.pool) {
+    // Add both directions
+    const r = await db.query(
+      'INSERT INTO k108_profile_relations (profile_id, related_profile_id, label) VALUES ($1,$2,$3) RETURNING *',
+      [req.params.id, relatedProfileId, label || '']
+    );
+    await db.query(
+      'INSERT INTO k108_profile_relations (profile_id, related_profile_id, label) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+      [relatedProfileId, req.params.id, label || '']
+    );
+    return res.json({ relation: r.rows[0] });
+  }
+  // JSON fallback — bidirectional
+  const profiles = getK108Profiles();
+  const p1 = profiles.find(p => String(p.id) === String(req.params.id));
+  const p2 = profiles.find(p => String(p.id) === String(relatedProfileId));
+  if (!p1 || !p2) return res.status(404).json({ error: 'Profile not found' });
+  if (!p1.relations) p1.relations = [];
+  if (!p2.relations) p2.relations = [];
+  const rel = { id: Date.now(), related_profile_id: relatedProfileId, label: label || '' };
+  const relReverse = { id: Date.now() + 1, related_profile_id: req.params.id, label: label || '' };
+  p1.relations.push(rel);
+  p2.relations.push(relReverse);
+  saveK108Profiles(profiles);
+  res.json({ relation: rel });
+});
+
+app.delete('/api/k108/profiles/relations/:rid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (db.pool) {
+    await db.query('DELETE FROM k108_profile_relations WHERE id = $1', [req.params.rid]);
+    return res.json({ ok: true });
+  }
+  // JSON fallback
+  const profiles = getK108Profiles();
+  profiles.forEach(p => { if (p.relations) p.relations = p.relations.filter(r => String(r.id) !== String(req.params.rid)); });
+  saveK108Profiles(profiles);
+  res.json({ ok: true });
+});
+
+// ── K-108 Labels ─────────────────────────────────────────────────────────────
+const K108_LABELS_FILE = path.join(DATA_DIR, 'k108-labels.json');
+function getK108Labels() { try { if (fs.existsSync(K108_LABELS_FILE)) return JSON.parse(fs.readFileSync(K108_LABELS_FILE, 'utf8')); } catch(e) {} return []; }
+function saveK108Labels(l) { fs.writeFileSync(K108_LABELS_FILE, JSON.stringify(l, null, 2)); }
+
+app.post('/api/k108/labels', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  res.json({ labels: getK108Labels() });
+});
+
+app.post('/api/k108/labels/create', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { name, color, icon } = req.body;
+  if (!name) return res.status(400).json({ error: 'Label name required' });
+  const labels = getK108Labels();
+  const label = { id: Date.now(), name, color: color || '#38bdf8', icon: icon || 'star', profileIds: [] };
+  labels.push(label);
+  saveK108Labels(labels);
+  res.json({ label });
+});
+
+app.post('/api/k108/labels/:id/apply', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { profileId } = req.body;
+  const labels = getK108Labels();
+  const label = labels.find(l => String(l.id) === String(req.params.id));
+  if (!label) return res.status(404).json({ error: 'Label not found' });
+  if (!label.profileIds.includes(String(profileId))) label.profileIds.push(String(profileId));
+  saveK108Labels(labels);
+  res.json({ ok: true });
+});
+
+app.post('/api/k108/labels/:id/remove', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { profileId } = req.body;
+  const labels = getK108Labels();
+  const label = labels.find(l => String(l.id) === String(req.params.id));
+  if (!label) return res.status(404).json({ error: 'Label not found' });
+  label.profileIds = label.profileIds.filter(id => id !== String(profileId));
+  saveK108Labels(labels);
+  res.json({ ok: true });
+});
+
+app.delete('/api/k108/labels/:id', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  let labels = getK108Labels();
+  labels = labels.filter(l => String(l.id) !== String(req.params.id));
+  saveK108Labels(labels);
+  res.json({ ok: true });
+});
+
 // ── Serve HTML pages ──────────────────────────────────────────────────────────
+app.get('/k108',     (_, res) => res.sendFile(path.join(__dirname, 'public', 'k108.html')));
 app.get('/debrief',  (_, res) => res.sendFile(path.join(__dirname, 'public', 'debrief.html')));
 app.get('/app',      (_, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
 app.get('/guest',    (_, res) => res.sendFile(path.join(__dirname, 'public', 'guest.html')));

@@ -126,6 +126,11 @@
         <span class="nav-icon"><i data-lucide="shield-check"></i></span><span class="nav-label">Authenticator</span>
       </div>
 
+      <div class="nav-section-label">Intel</div>
+      <div class="nav-item" onclick="window.location='/k108'">
+        <span class="nav-icon"><i data-lucide="radar"></i></span><span class="nav-label">K-108</span>
+      </div>
+
       <div class="nav-section-label">System</div>
       <div class="nav-item" onclick="openSettingsModal()">
         <span class="nav-icon"><i data-lucide="settings"></i></span><span class="nav-label">Settings</span>
@@ -403,7 +408,8 @@
         <div id="vault-breadcrumb" class="vault-breadcrumb" style="display:none"></div>
         <div class="section-tabs">
           <div class="section-tab active" onclick="switchVaultTab('mine',this)">My Files</div>
-          <div class="section-tab" onclick="switchVaultTab('other',this)" id="vault-other-tab">Kathrine's Files</div>
+          <!-- Cross-user vault tab removed for privacy -->
+          <!-- <div class="section-tab" onclick="switchVaultTab('other',this)" id="vault-other-tab">Kathrine's Files</div> -->
         </div>
         <div class="vault-grid" id="vault-grid">
           <div class="empty-state" style="grid-column:1/-1">
