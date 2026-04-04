@@ -1562,24 +1562,38 @@ async function viewProfile(id) {
     e.target.value = '';
   });
 
-  // Paste handler - upload pasted images as profile photo
-  document.addEventListener('paste', function onPaste(e) {
-    if (!currentProfileId) return;
-    // Skip if a text field is focused
-    const active = document.activeElement;
-    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
-    const items = e.clipboardData && e.clipboardData.items;
-    if (!items) return;
-    for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        if (file) openCropModal(file, currentProfileId);
-        return;
-      }
-    }
-  });
 }
+
+// Global paste handler for profile photos
+document.addEventListener('paste', function(e) {
+  if (!currentProfileId) return;
+  // Only skip if actively typing in a text input (check if clipboard has text AND input focused)
+  const active = document.activeElement;
+  const inTextField = active && (active.tagName === 'INPUT' && active.type !== 'file') || active.tagName === 'TEXTAREA';
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  // Check if paste contains an image
+  let hasImage = false;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) { hasImage = true; break; }
+  }
+  if (!hasImage) return;
+  // If in a text field and paste has text too, let the text paste through
+  if (inTextField) {
+    let hasText = false;
+    for (const item of items) { if (item.type === 'text/plain') { hasText = true; break; } }
+    if (hasText) return;
+  }
+  // Handle image paste
+  e.preventDefault();
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (file) openCropModal(file, currentProfileId);
+      return;
+    }
+  }
+});
 
 // ═══ Profile Photo Crop Modal ═══
 let cropCanvas, cropCtx, cropImg, cropCircle, cropDragging, cropProfileId;
