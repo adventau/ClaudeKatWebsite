@@ -7682,9 +7682,19 @@ app.post('/api/k108/surveillance/submit', async (req, res) => {
 app.post('/api/k108/profiles/:id/cases', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  if (!db.pool) return res.json({ cases: [] });
-  const r = await db.query(`SELECT c.id, c.name, c.status, c.created_at, cs.role FROM k108_case_subjects cs JOIN k108_cases c ON cs.case_id = c.id WHERE cs.profile_id = $1 ORDER BY c.updated_at DESC`, [req.params.id]);
-  res.json({ cases: r.rows });
+  if (db.pool) {
+    const r = await db.query(`SELECT c.id, c.name, c.status, c.created_at, cs.role FROM k108_case_subjects cs JOIN k108_cases c ON cs.case_id = c.id WHERE cs.profile_id = $1 ORDER BY c.updated_at DESC`, [req.params.id]);
+    return res.json({ cases: r.rows });
+  }
+  // JSON fallback
+  const store = getCaseStore();
+  const profileId = parseInt(req.params.id);
+  const subjectEntries = store.subjects.filter(s => s.profile_id === profileId);
+  const cases = subjectEntries.map(s => {
+    const c = store.cases.find(c => c.id === s.case_id);
+    return c ? { id: c.id, name: c.name, status: c.status, created_at: c.created_at, role: s.role } : null;
+  }).filter(Boolean);
+  res.json({ cases });
 });
 
 // ── K-108 Daily Briefing ─────────────────────────────────────────────────────

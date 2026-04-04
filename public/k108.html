@@ -452,8 +452,9 @@
     .case-status-CLOSED { background:rgba(100,116,139,0.15); color:#64748b; border:1px solid rgba(100,116,139,0.2); }
 
     /* ═══ Case Detail — Split Screen ═══ */
-    #case-detail { position:fixed !important; top:52px; left:0; right:0; bottom:0; z-index:50; background:#0d1117; overflow:hidden; max-width:none !important; padding:0 !important; margin:0 !important; width:100vw !important; height:calc(100vh - 52px) !important; }
-    .cd-wrap { display:flex; height:calc(100% - 44px); }
+    #view-cases.active { max-width:none !important; width:100% !important; }
+    #case-detail { background:#0d1117; max-width:none !important; width:100vw !important; margin-left:calc(-50vw + 50%) !important; padding:0 !important; }
+    .cd-wrap { display:flex; height:calc(100vh - 44px); }
     .cd-left { width:300px; flex-shrink:0; background:#0a0e14; border-right:1px solid rgba(255,255,255,0.06); padding:20px 16px; overflow-y:auto; }
     .cd-right { flex:1; min-width:0; background:#0d1117; padding:32px 40px; overflow-y:auto; }
     .cd-classification { font-family:'JetBrains Mono'; font-size:9px; letter-spacing:0.2em; text-transform:uppercase; padding:3px 10px; border-radius:10px; display:inline-block; color:#ef4444; border:1px solid rgba(239,68,68,0.25); margin-bottom:10px; }
@@ -1282,7 +1283,7 @@ function handleRoute() {
   if (viewName === 'profiles') { document.getElementById('profile-detail').style.display = 'none'; document.getElementById('profiles-main').style.display = 'block'; loadNewIntel(); }
   if (viewName === 'cases') {
     const sub = hash.split('/')[1];
-    if (sub) { loadCaseDetail(sub); } else { document.getElementById('case-detail').style.display = 'none'; document.getElementById('cases-main').style.display = 'block'; loadCases(); }
+    if (sub) { loadCaseDetail(sub); } else { document.getElementById('case-detail').style.display = 'none'; document.getElementById('cases-main').style.display = 'block'; document.querySelector('.topbar').style.display = ''; document.querySelector('.dash-main').style.padding = ''; document.querySelector('.dash-main').style.alignItems = ''; loadCases(); }
   }
   if (viewName === 'briefing') loadBriefings();
 }
@@ -2960,10 +2961,24 @@ async function submitCreateCase() {
 }
 
 
+function closeCaseDetail() {
+  document.getElementById('case-detail').style.display = 'none';
+  document.getElementById('cases-main').style.display = 'block';
+  document.querySelector('.topbar').style.display = '';
+  document.querySelector('.dash-main').style.padding = '';
+  document.querySelector('.dash-main').style.alignItems = '';
+  loadCases();
+  navigateTo('#/cases');
+}
+
 async function loadCaseDetail(id) {
   document.getElementById('cases-main').style.display = 'none';
   const el = document.getElementById('case-detail');
   el.style.display = 'block';
+  // Take over full screen — hide main topbar and remove dash-main padding
+  document.querySelector('.topbar').style.display = 'none';
+  document.querySelector('.dash-main').style.padding = '0';
+  document.querySelector('.dash-main').style.alignItems = 'stretch';
   el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-dim)">Loading case...</div>';
   const d = await kAuthFetch('/api/k108/cases/' + id);
   if (!d || !d.case) { el.innerHTML = '<div class="k-empty">Case not found</div>'; return; }
@@ -2980,9 +2995,9 @@ function renderCaseDetail(d) {
 
   // ── TOP BAR ──
   h += '<div class="cd-topbar"><div class="cd-topbar-left">';
-  h += '<span style="color:#4cc9f0;font-family:Orbitron;font-size:12px;font-weight:600;letter-spacing:0.08em;cursor:pointer" onclick="document.getElementById(\'case-detail\').style.display=\'none\';document.getElementById(\'cases-main\').style.display=\'block\';loadCases();navigateTo(\'#/cases\')">K-108</span>';
+  h += '<span style="color:#4cc9f0;font-family:Orbitron;font-size:12px;font-weight:600;letter-spacing:0.08em;cursor:pointer" onclick="closeCaseDetail()">K-108</span>';
   h += '<span style="color:#1e3a5f">|</span>';
-  h += '<span class="cd-breadcrumb" style="cursor:pointer" onclick="document.getElementById(\'case-detail\').style.display=\'none\';document.getElementById(\'cases-main\').style.display=\'block\';loadCases();navigateTo(\'#/cases\')">Case Files</span>';
+  h += '<span class="cd-breadcrumb" style="cursor:pointer" onclick="closeCaseDetail()">Case Files</span>';
   h += '<span style="color:#1e3a5f">&rarr;</span>';
   h += '<span class="cd-breadcrumb-name">'+esc(c.name)+'</span>';
   h += '</div><div class="cd-topbar-right">';
