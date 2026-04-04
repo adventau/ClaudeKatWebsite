@@ -5969,6 +5969,17 @@ app.get('/api/k108/whoami', (req, res) => {
   res.json({ user: req.session && req.session.user || null });
 });
 
+// Check if user needs to set up a passcode (no passcode entered, just a status check)
+app.get('/api/k108/auth-check', async (req, res) => {
+  const username = req.session && req.session.user;
+  if (!db.pool || !username) {
+    // Local mode - passcode is always set (from settings), just needs entry
+    return res.json({ needsSetup: false });
+  }
+  const user = await getK108User(username);
+  res.json({ needsSetup: !user });
+});
+
 app.post('/api/k108/auth', async (req, res) => {
   const username = req.session && req.session.user;
   const { passcode } = req.body;
