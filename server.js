@@ -6186,8 +6186,13 @@ function normalizeResults(apiResult) {
 app.post('/api/k108/quota', (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const q = getK108Quota('lookup');
-  res.json({ total: q.total, used: q.used, remaining: q.total - q.used });
+  const lookup = getK108Quota('lookup');
+  const sms = getK108Quota('sms');
+  const nv = getK108Quota('numvalidate');
+  res.json({
+    total: lookup.total, used: lookup.used, remaining: lookup.total - lookup.used,
+    lookup, sms, numvalidate: nv
+  });
 });
 
 app.post('/api/k108/search', async (req, res) => {
@@ -6515,27 +6520,21 @@ app.post('/api/k108/profiles', async (req, res) => {
     if (search && search.trim()) {
       const prefix = `${search.trim()}%`;
       const term = search.trim();
-      if (term.length >= 3) {
-        const contains = `%${term}%`;
-        r = await db.query(
-          `SELECT * FROM k108_profiles WHERE
-           first_name ILIKE $1 OR last_name ILIKE $1
-           OR (first_name || ' ' || last_name) ILIKE $1
-           OR $3 = ANY(aliases) OR notes ILIKE $2 OR EXISTS (
-             SELECT 1 FROM jsonb_array_elements(social_links) s WHERE s->>'handle' ILIKE $1 OR s->>'url' ILIKE $2
-           )
-           ORDER BY updated_at DESC LIMIT 20`,
-          [prefix, contains, term]
-        );
-      } else {
-        r = await db.query(
-          `SELECT * FROM k108_profiles WHERE
-           first_name ILIKE $1 OR last_name ILIKE $1
-           OR (first_name || ' ' || last_name) ILIKE $1
-           ORDER BY updated_at DESC LIMIT 20`,
-          [prefix]
-        );
+      // Names always prefix match; aliases/handles at 2+ chars; never search notes
+      let conditions = [`first_name ILIKE $1`, `last_name ILIKE $1`, `(first_name || ' ' || last_name) ILIKE $1`];
+      const params = [prefix];
+      if (term.length >= 2) {
+        // Aliases prefix match
+        params.push(prefix);
+        conditions.push(`EXISTS (SELECT 1 FROM unnest(aliases) a WHERE a ILIKE $${params.length})`);
+        // Social handles prefix match
+        params.push(prefix);
+        conditions.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(social_links) s WHERE s->>'handle' ILIKE $${params.length})`);
       }
+      r = await db.query(
+        `SELECT * FROM k108_profiles WHERE ${conditions.join(' OR ')} ORDER BY updated_at DESC LIMIT 20`,
+        params
+      );
     } else {
       r = await db.query('SELECT * FROM k108_profiles ORDER BY updated_at DESC LIMIT 20');
     }
@@ -6545,7 +6544,8 @@ app.post('/api/k108/profiles', async (req, res) => {
   let profiles = getK108Profiles();
   if (search && search.trim()) {
     const t = search.trim().toLowerCase();
-    profiles = profiles.filter(p => (p.first_name||'').toLowerCase().startsWith(t) || (p.last_name||'').toLowerCase().startsWith(t) || ((p.first_name||'')+' '+(p.last_name||'')).toLowerCase().startsWith(t) || (t.length >= 3 && ((p.aliases||[]).some(a => a.toLowerCase().startsWith(t)) || (p.notes||'').toLowerCase().includes(t))));
+    const socials = p => { try { return typeof p.social_links === 'string' ? JSON.parse(p.social_links||'[]') : (p.social_links||[]); } catch(e) { return []; } };
+    profiles = profiles.filter(p => (p.first_name||'').toLowerCase().startsWith(t) || (p.last_name||'').toLowerCase().startsWith(t) || ((p.first_name||'')+' '+(p.last_name||'')).toLowerCase().startsWith(t) || (t.length >= 2 && ((p.aliases||[]).some(a => a.toLowerCase().startsWith(t)) || socials(p).some(s => (s.handle||'').toLowerCase().startsWith(t)))));
   }
   res.json({ profiles });
 });

@@ -938,7 +938,12 @@ async function loadDashboardData() {
   // Load quotas
   try {
     const lq = await kAuthFetch('/api/k108/quota');
-    if (lq) document.getElementById('dash-lookup-quota').textContent = (lq.total - lq.used);
+    if (lq) {
+      if (lq.lookup) document.getElementById('dash-lookup-quota').textContent = (lq.lookup.total - lq.lookup.used);
+      else document.getElementById('dash-lookup-quota').textContent = (lq.total - lq.used);
+      if (lq.sms) document.getElementById('dash-sms-quota').textContent = (lq.sms.total - lq.sms.used);
+      if (lq.numvalidate) document.getElementById('dash-nv-quota').textContent = (lq.numvalidate.total - lq.numvalidate.used);
+    }
   } catch(e){}
   // Mini chart for numvalidate (decorative bars)
   const chart = document.getElementById('dash-nv-chart');
@@ -1402,7 +1407,7 @@ async function viewProfileReadonly(id) {
   h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div>';
 
   // Photo + Name + Badges
-  h += '<div class="profile-top"><div class="profile-photo">'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase()))+'</div>';
+  h += '<div class="profile-top"><div class="profile-photo"'+(p.photo_url?' onclick="enlargePhoto(\''+esc(p.photo_url)+'\')" style="cursor:pointer" title="Click to enlarge"':'')+'>'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase()))+'</div>';
   h += '<div class="profile-info"><h2>'+esc((p.first_name||'')+' '+(p.last_name||''))+' ';
   if (isCommandProfile(p.first_name)) h += '<span class="command-badge">Command</span>';
   h += '</h2>';
@@ -1788,12 +1793,21 @@ async function applyCrop() {
 
 function phoneChipHTML(num, label) {
   const lbl = label ? '<span style="font-size:9px;color:var(--accent-blue);margin-left:4px;opacity:0.7">'+esc(label)+'</span>' : '';
-  return '<div class="chip" data-number="'+esc(num)+'" data-label="'+esc(label)+'" style="display:flex;align-items:center;gap:4px" onclick="this.remove()">'+esc(fmtPhone(num))+lbl+'<span class="chip-x">&times;</span></div>';
+  return '<div class="chip" data-number="'+esc(num)+'" data-label="'+esc(label)+'" style="display:flex;align-items:center;gap:4px"><span onclick="moveChip(this.parentElement,-1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move up">\u25B2</span><span onclick="moveChip(this.parentElement,1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move down">\u25BC</span>'+esc(fmtPhone(num))+lbl+'<span class="chip-x" onclick="this.parentElement.remove()">&times;</span></div>';
 }
 
 function emailChipHTML(addr, label) {
   const lbl = label ? '<span style="font-size:9px;color:var(--accent-blue);margin-left:4px;opacity:0.7">'+esc(label)+'</span>' : '';
-  return '<div class="chip" data-address="'+esc(addr)+'" data-label="'+esc(label)+'" style="display:flex;align-items:center;gap:4px" onclick="this.remove()">'+esc(addr)+lbl+'<span class="chip-x">&times;</span></div>';
+  return '<div class="chip" data-address="'+esc(addr)+'" data-label="'+esc(label)+'" style="display:flex;align-items:center;gap:4px"><span onclick="moveChip(this.parentElement,-1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move up">\u25B2</span><span onclick="moveChip(this.parentElement,1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move down">\u25BC</span>'+esc(addr)+lbl+'<span class="chip-x" onclick="this.parentElement.remove()">&times;</span></div>';
+}
+
+function moveChip(chip, dir) {
+  const parent = chip.parentElement;
+  if (dir === -1 && chip.previousElementSibling) {
+    parent.insertBefore(chip, chip.previousElementSibling);
+  } else if (dir === 1 && chip.nextElementSibling) {
+    parent.insertBefore(chip.nextElementSibling, chip);
+  }
 }
 
 function addPhoneChip() {
@@ -1818,6 +1832,14 @@ function addEmailChip() {
     input.value = '';
     labelSel.value = '';
   }
+}
+
+function enlargePhoto(url) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;cursor:pointer;animation:fadeIn 0.2s ease';
+  overlay.onclick = () => overlay.remove();
+  overlay.innerHTML = '<img src="'+url+'" style="max-width:90vw;max-height:90vh;border-radius:50%;box-shadow:0 0 40px rgba(0,0,0,0.5);object-fit:cover">';
+  document.body.appendChild(overlay);
 }
 
 function uploadProfilePhoto(id) {
