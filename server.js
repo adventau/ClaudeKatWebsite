@@ -6379,11 +6379,17 @@ app.post('/api/k108/sms/threads', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
   if (!db.pool) return res.json({ threads: [] });
+  // Normalize: treat 11-digit numbers starting with 1 as same as 10-digit
   const r = await db.query(
-    `SELECT DISTINCT ON (phone) phone, message, direction, created_at
-     FROM k108_sms ORDER BY phone, created_at DESC`
+    `SELECT DISTINCT ON (normalized_phone)
+       CASE WHEN length(phone) = 11 AND phone LIKE '1%' THEN substring(phone from 2) ELSE phone END as normalized_phone,
+       message, direction, created_at, phone
+     FROM k108_sms
+     ORDER BY normalized_phone, created_at DESC`
   );
-  res.json({ threads: r.rows });
+  // Return with normalized phone
+  const threads = r.rows.map(row => ({ ...row, phone: row.normalized_phone }));
+  res.json({ threads });
 });
 
 app.post('/api/k108/sms/thread', async (req, res) => {
@@ -6392,9 +6398,12 @@ app.post('/api/k108/sms/thread', async (req, res) => {
   if (!db.pool) return res.json({ messages: [] });
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'Phone required' });
+  let cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 11 && cleaned.startsWith('1')) cleaned = cleaned.slice(1);
+  // Match both 10-digit and 11-digit (with leading 1) versions
   const r = await db.query(
-    'SELECT * FROM k108_sms WHERE phone = $1 ORDER BY created_at ASC',
-    [phone.replace(/\D/g, '')]
+    'SELECT * FROM k108_sms WHERE phone = $1 OR phone = $2 ORDER BY created_at ASC',
+    [cleaned, '1' + cleaned]
   );
   res.json({ messages: r.rows });
 });

@@ -1169,13 +1169,25 @@ async function loadSmsThreads() {
   if (!d) return;
   const el = document.getElementById('sms-threads');
   if (!d.threads || d.threads.length === 0) { el.innerHTML = '<div class="k-empty" style="padding:20px">No conversations yet</div>'; return; }
-  el.innerHTML = d.threads.map(t => '<div class="sms-thread-item'+(currentSmsPhone===t.phone?' active':'')+'" onclick="loadSmsThread(\''+t.phone+'\')"><div class="sms-thread-phone">'+esc(fmtPhone(t.phone))+'</div><div class="sms-thread-preview">'+esc(t.message?.substring(0,40))+'</div></div>').join('');
+  el.innerHTML = d.threads.map(t => {
+    let ph = t.phone.replace(/\D/g,'');
+    if (ph.length === 11 && ph.startsWith('1')) ph = ph.slice(1);
+    return '<div class="sms-thread-item'+(currentSmsPhone===ph?' active':'')+'" onclick="loadSmsThread(\''+ph+'\')"><div class="sms-thread-phone">'+esc(fmtPhone(ph))+'</div><div class="sms-thread-preview">'+esc((t.message||'').substring(0,40))+'</div></div>';
+  }).join('');
 }
 
 async function loadSmsThread(phone) {
-  currentSmsPhone = phone;
-  setSmsRecipient(fmtPhone(phone));
-  const d = await kAuthFetch('/api/k108/sms/thread', { phone });
+  let cleaned = phone.replace(/\D/g,'');
+  if (cleaned.length === 11 && cleaned.startsWith('1')) cleaned = cleaned.slice(1);
+  currentSmsPhone = cleaned;
+  // Update recipient chip without re-fetching
+  const chip = document.getElementById('sms-to-chip');
+  const input = document.getElementById('sms-to');
+  chip.textContent = fmtPhone(cleaned) + ' \u00d7';
+  chip.style.display = 'inline-block';
+  input.style.display = 'none';
+  // Fetch messages
+  const d = await kAuthFetch('/api/k108/sms/thread', { phone: cleaned });
   if (!d) return;
   const el = document.getElementById('sms-messages');
   if (!d.messages || d.messages.length === 0) { el.innerHTML = '<div class="k-empty">No messages</div>'; return; }
@@ -1185,13 +1197,15 @@ async function loadSmsThread(phone) {
 }
 
 function setSmsRecipient(phone) {
+  let cleaned = phone.replace(/\D/g,'');
+  if (cleaned.length === 11 && cleaned.startsWith('1')) cleaned = cleaned.slice(1);
+  currentSmsPhone = cleaned;
   const chip = document.getElementById('sms-to-chip');
   const input = document.getElementById('sms-to');
-  chip.textContent = phone + ' \u00d7';
+  chip.textContent = fmtPhone(cleaned) + ' \u00d7';
   chip.style.display = 'inline-block';
   input.style.display = 'none';
-  currentSmsPhone = phone.replace(/\D/g,'');
-  loadSmsThread(currentSmsPhone);
+  loadSmsThread(cleaned);
 }
 
 function clearSmsRecipient() {
@@ -1206,17 +1220,26 @@ function clearSmsRecipient() {
 }
 
 async function sendSMS() {
-  const phone = document.getElementById('sms-to').value.replace(/\D/g,'');
-  const msg = document.getElementById('sms-msg').value.trim();
+  let phone = currentSmsPhone || document.getElementById('sms-to').value.replace(/\D/g,'');
+  if (phone.length === 11 && phone.startsWith('1')) phone = phone.slice(1);
+  const msgInput = document.getElementById('sms-msg');
+  const msg = msgInput.value.trim();
   if (!phone || phone.length < 10) return alert('Enter a valid phone number');
   if (!msg) return;
-  document.getElementById('sms-msg').value = '';
+  msgInput.value = '';
+  // Show message instantly in the chat
+  const el = document.getElementById('sms-messages');
+  const emptyMsg = el.querySelector('.k-empty');
+  if (emptyMsg) emptyMsg.remove();
+  el.insertAdjacentHTML('beforeend', '<div class="sms-bubble sms-outbound">'+esc(msg)+'<div class="sms-time">Just now</div></div>');
+  el.scrollTop = el.scrollHeight;
+  // Send in background
   const d = await kAuthFetch('/api/k108/sms/send', { phone, message: msg });
   if (!d) return;
-  if (d.error) return alert(d.error);
+  if (d.error) { alert(d.error); return; }
   if (d.quota) document.getElementById('sms-quota').textContent = d.quota.remaining + '/' + d.quota.total;
   currentSmsPhone = phone;
-  loadSmsThread(phone);
+  loadSmsThreads();
 }
 
 // ═══ Metadata ═══
