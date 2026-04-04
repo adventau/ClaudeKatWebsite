@@ -6045,15 +6045,18 @@ app.post('/api/k108/log', async (req, res) => {
 
 // ── Whitepages Pro API adapter ────────────────────────────────────────────────
 const WP_API_KEY = process.env.WHITEPAGES_API_KEY || '';
-const WP_BASE = 'https://proapi.whitepages.com/3.0';
+const WP_BASE = 'https://api.whitepages.com/v2';
 
 async function wpFetch(endpoint, params) {
   if (!WP_API_KEY) return { source: 'whitepages', status: 'not_configured', results: [] };
   try {
-    const qs = new URLSearchParams({ api_key: WP_API_KEY, ...params }).toString();
+    const qs = new URLSearchParams(params).toString();
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 12000);
-    const resp = await nodeFetch(`${WP_BASE}/${endpoint}?${qs}`, { signal: ctrl.signal });
+    const resp = await nodeFetch(`${WP_BASE}/${endpoint}?${qs}`, {
+      signal: ctrl.signal,
+      headers: { 'X-Api-Key': WP_API_KEY }
+    });
     clearTimeout(timer);
     if (!resp.ok) {
       const errText = await resp.text().catch(() => '');
@@ -6068,8 +6071,8 @@ async function wpFetch(endpoint, params) {
 
 async function searchPeopleByName(firstName, lastName, city, state) {
   const params = { name: `${firstName} ${lastName}`.trim() };
-  if (city) params['address.city'] = city;
-  if (state) params['address.state_code'] = state;
+  if (city) params.city = city;
+  if (state) params.state_code = state;
   return wpFetch('person', params);
 }
 
@@ -6078,11 +6081,11 @@ async function searchPeopleByPhone(phone) {
 }
 
 async function searchPeopleByAddress(street, city, state, zip) {
-  const params = { 'address.street_line_1': street };
-  if (city) params['address.city'] = city;
-  if (state) params['address.state_code'] = state;
-  if (zip) params['address.postal_code'] = zip;
-  return wpFetch('location', params);
+  const params = { street_line_1: street };
+  if (city) params.city = city;
+  if (state) params.state_code = state;
+  if (zip) params.postal_code = zip;
+  return wpFetch('address', params);
 }
 
 function normalizeResults(apiResult) {
