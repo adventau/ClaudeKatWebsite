@@ -181,6 +181,9 @@ async function init() {
   // Briefing badge on login
   if (sessionRes.briefingUnread) showBriefingBadge();
 
+  // K-108 auth check on login
+  if (typeof checkK108OnLogin === 'function') checkK108OnLogin();
+
   applyUserData(usersRes[currentUser], usersRes[otherUser]);
   applyTheme(usersRes[currentUser].theme || 'dark');
   buildThemeGrid();

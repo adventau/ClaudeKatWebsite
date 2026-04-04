@@ -811,20 +811,31 @@ const VIEW_TITLES = { 'dashboard':'Dashboard', 'lookup':'People Lookup', 'sms':'
 })();
 
 async function checkK108Auth() {
+  // Check if already authenticated from main app login
+  const savedToken = sessionStorage.getItem('k108Token');
+  const savedUser = sessionStorage.getItem('k108User');
+  if (savedToken && savedUser) {
+    authToken = savedToken;
+    currentUser = savedUser;
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'flex';
+    updateGreeting();
+    loadLabels();
+    handleRoute();
+    return;
+  }
+  // Not pre-authenticated - check if setup needed
   try {
     const r = await (await fetch('/api/k108/auth-check')).json();
     if (r.needsSetup) {
-      // No passcode set yet - show setup modal immediately
       document.getElementById('auth-screen').style.display = 'none';
       document.getElementById('dashboard').style.display = 'flex';
       document.getElementById('setup-overlay').classList.add('active');
     } else {
-      // Passcode exists - show the auth modal to enter it
       document.getElementById('auth-screen').style.display = 'flex';
       document.getElementById('auth-pass').focus();
     }
   } catch(e) {
-    // Fallback - show auth screen
     document.getElementById('auth-screen').style.display = 'flex';
     document.getElementById('auth-pass').focus();
   }
@@ -840,6 +851,8 @@ async function authenticate() {
     if (r.needsSetup) { document.getElementById('setup-overlay').classList.add('active'); return; }
     if (r.error) { err.textContent = r.error; return; }
     authToken = r.token; currentUser = r.username;
+    sessionStorage.setItem('k108Token', r.token);
+    sessionStorage.setItem('k108User', r.username);
     const authScreen = document.getElementById('auth-screen');
     authScreen.style.animation = 'fadeOut 0.3s ease forwards';
     setTimeout(() => {
@@ -863,6 +876,8 @@ async function submitSetup() {
     const d = await r.json();
     if (!r.ok) { err.textContent = d.error; return; }
     authToken = d.token; currentUser = d.username;
+    sessionStorage.setItem('k108Token', d.token);
+    sessionStorage.setItem('k108User', d.username);
     const setupOvl = document.getElementById('setup-overlay');
     setupOvl.style.animation = 'fadeOut 0.3s ease forwards';
     setTimeout(() => {
