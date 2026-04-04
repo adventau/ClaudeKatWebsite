@@ -6067,13 +6067,13 @@ async function wpFetch(endpoint, params) {
 
 async function searchPeopleByName(firstName, lastName, city, state) {
   const params = { name: `${firstName} ${lastName}`.trim() };
-  if (city) params.address_city = city;
-  if (state) params.address_state_code = state;
-  return wpFetch('find_person', params);
+  if (city) params['address.city'] = city;
+  if (state) params['address.state_code'] = state;
+  return wpFetch('person', params);
 }
 
 async function searchPeopleByPhone(phone) {
-  return wpFetch('reverse_phone', { phone: phone });
+  return wpFetch('phone', { phone: phone });
 }
 
 async function searchPeopleByAddress(street, city, state, zip) {
@@ -6081,7 +6081,7 @@ async function searchPeopleByAddress(street, city, state, zip) {
   if (city) params['address.city'] = city;
   if (state) params['address.state_code'] = state;
   if (zip) params['address.postal_code'] = zip;
-  return wpFetch('reverse_address', params);
+  return wpFetch('location', params);
 }
 
 function normalizeResults(apiResult) {
