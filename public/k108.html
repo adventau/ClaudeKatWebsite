@@ -1934,13 +1934,18 @@ async function saveProfile(id) {
     birthday: document.getElementById('pf-birthday').value || null,
     address
   };
-  const r = await fetch('/api/k108/profiles/'+id, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: authToken, ...body })
-  });
-  const d = await r.json();
-  if (d.ok) viewProfileReadonly(id);
+  try {
+    const r = await fetch('/api/k108/profiles/'+id, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: authToken, ...body })
+    });
+    const d = await r.json();
+    if (d.ok) viewProfileReadonly(id);
+    else alert('Save failed: ' + (d.error || 'Unknown error'));
+  } catch(e) {
+    alert('Save failed: ' + e.message);
+  }
 }
 
 let linkDebounce = null;

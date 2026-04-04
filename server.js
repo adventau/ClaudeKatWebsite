@@ -6610,14 +6610,19 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
   const { first_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address } = req.body;
 
   if (db.pool) {
-    await db.query(
-      `UPDATE k108_profiles SET first_name=$1, last_name=$2, aliases=$3, relation=$4, notes=$5,
-       phones=$6, emails=$7, social_links=$8, age=$9, birthday=$10, address=$11, updated_at=NOW() WHERE id=$12`,
-      [first_name, last_name, aliases || [], relation || '', notes || '',
-       JSON.stringify(phones || []), JSON.stringify(emails || []), JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), req.params.id]
-    );
-    await k108Log(username, 'profile_change', { profileId: req.params.id, name: `${first_name} ${last_name}`.trim() }, req.ip);
-    return res.json({ ok: true });
+    try {
+      await db.query(
+        `UPDATE k108_profiles SET first_name=$1, last_name=$2, aliases=$3, relation=$4, notes=$5,
+         phones=$6, emails=$7, social_links=$8, age=$9, birthday=$10, address=$11, updated_at=NOW() WHERE id=$12`,
+        [first_name, last_name, aliases || [], relation || '', notes || '',
+         JSON.stringify(phones || []), JSON.stringify(emails || []), JSON.stringify(social_links || []), age || null, birthday || null, JSON.stringify(address || {}), req.params.id]
+      );
+      await k108Log(username, 'profile_change', { profileId: req.params.id, name: `${first_name} ${last_name}`.trim() }, req.ip);
+      return res.json({ ok: true });
+    } catch(e) {
+      console.error('[K108] Profile update error:', e.message);
+      return res.status(500).json({ error: 'Save failed: ' + e.message });
+    }
   }
   // JSON fallback
   const profiles = getK108Profiles();
