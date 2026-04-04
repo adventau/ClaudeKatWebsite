@@ -1558,16 +1558,152 @@ async function viewProfile(id) {
     });
   }
 
-  // Photo upload handler
+  // Photo upload handler - route through crop modal
   document.getElementById('profile-photo-input').addEventListener('change', async function(e) {
     if (!e.target.files[0]) return;
-    const fd = new FormData();
-    fd.append('photo', e.target.files[0]);
-    fd.append('token', authToken);
-    const r = await fetch('/api/k108/profiles/'+id+'/photo', { method:'POST', body: fd });
-    const d = await r.json();
-    if (d.url) viewProfile(id);
+    openCropModal(e.target.files[0], id);
+    e.target.value = '';
   });
+
+  // Paste handler - upload pasted images as profile photo
+  document.addEventListener('paste', function onPaste(e) {
+    if (!currentProfileId) return;
+    // Skip if a text field is focused
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) openCropModal(file, currentProfileId);
+        return;
+      }
+    }
+  });
+}
+
+// ═══ Profile Photo Crop Modal ═══
+let cropCanvas, cropCtx, cropImg, cropCircle, cropDragging, cropProfileId;
+
+function openCropModal(file, profileId) {
+  cropProfileId = profileId;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    cropImg = new Image();
+    cropImg.onload = function() {
+      showCropUI(cropImg);
+    };
+    cropImg.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function showCropUI(img) {
+  const overlay = document.createElement('div');
+  overlay.id = 'crop-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(4,6,12,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;animation:fadeIn 0.2s ease';
+
+  const maxW = Math.min(window.innerWidth - 60, 500);
+  const maxH = Math.min(window.innerHeight - 180, 500);
+  const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+  const cw = Math.round(img.width * scale);
+  const ch = Math.round(img.height * scale);
+  const circleR = Math.min(cw, ch) * 0.4;
+
+  overlay.innerHTML = '<div style="text-align:center"><div style="font-size:14px;color:#fff;margin-bottom:12px;font-weight:500">Position the circle over the face</div><canvas id="crop-canvas" width="'+cw+'" height="'+ch+'" style="border-radius:8px;cursor:move;border:1px solid rgba(255,255,255,0.1)"></canvas><div style="margin-top:16px;display:flex;gap:10px;justify-content:center"><button class="k-btn k-btn-sm" onclick="cancelCrop()" style="padding:8px 20px">Cancel</button><button class="k-btn k-btn-sm" onclick="applyCrop()" style="padding:8px 20px;background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--accent-blue)">Save Photo</button></div></div>';
+  document.body.appendChild(overlay);
+
+  cropCanvas = document.getElementById('crop-canvas');
+  cropCtx = cropCanvas.getContext('2d');
+  cropCircle = { x: cw / 2, y: ch / 2, r: circleR };
+  cropDragging = false;
+
+  drawCrop(img, scale);
+
+  cropCanvas.onmousedown = cropCanvas.ontouchstart = function(e) {
+    e.preventDefault();
+    cropDragging = true;
+  };
+  cropCanvas.onmousemove = cropCanvas.ontouchmove = function(e) {
+    if (!cropDragging) return;
+    e.preventDefault();
+    const rect = cropCanvas.getBoundingClientRect();
+    const touch = e.touches ? e.touches[0] : e;
+    cropCircle.x = Math.max(cropCircle.r, Math.min(cw - cropCircle.r, touch.clientX - rect.left));
+    cropCircle.y = Math.max(cropCircle.r, Math.min(ch - cropCircle.r, touch.clientY - rect.top));
+    drawCrop(img, scale);
+  };
+  cropCanvas.onmouseup = cropCanvas.ontouchend = function() { cropDragging = false; };
+  // Scroll to resize circle
+  cropCanvas.onwheel = function(e) {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -10 : 10;
+    cropCircle.r = Math.max(30, Math.min(Math.min(cw, ch) / 2, cropCircle.r + delta));
+    drawCrop(img, scale);
+  };
+}
+
+function drawCrop(img, scale) {
+  const c = cropCtx, w = cropCanvas.width, h = cropCanvas.height;
+  c.clearRect(0, 0, w, h);
+  c.drawImage(img, 0, 0, w, h);
+  // Darken outside circle
+  c.fillStyle = 'rgba(0,0,0,0.6)';
+  c.fillRect(0, 0, w, h);
+  c.save();
+  c.globalCompositeOperation = 'destination-out';
+  c.beginPath();
+  c.arc(cropCircle.x, cropCircle.y, cropCircle.r, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
+  // Redraw image inside circle
+  c.save();
+  c.beginPath();
+  c.arc(cropCircle.x, cropCircle.y, cropCircle.r, 0, Math.PI * 2);
+  c.clip();
+  c.drawImage(img, 0, 0, w, h);
+  c.restore();
+  // Circle border
+  c.strokeStyle = 'rgba(56,189,248,0.6)';
+  c.lineWidth = 2;
+  c.beginPath();
+  c.arc(cropCircle.x, cropCircle.y, cropCircle.r, 0, Math.PI * 2);
+  c.stroke();
+}
+
+function cancelCrop() {
+  const ov = document.getElementById('crop-overlay');
+  if (ov) ov.remove();
+}
+
+async function applyCrop() {
+  // Extract the circle region at original image resolution
+  const scale = cropImg.width / cropCanvas.width;
+  const cx = cropCircle.x * scale;
+  const cy = cropCircle.y * scale;
+  const cr = cropCircle.r * scale;
+  const size = cr * 2;
+
+  const out = document.createElement('canvas');
+  out.width = 400; out.height = 400;
+  const oc = out.getContext('2d');
+  // Draw circular crop
+  oc.beginPath();
+  oc.arc(200, 200, 200, 0, Math.PI * 2);
+  oc.clip();
+  oc.drawImage(cropImg, cx - cr, cy - cr, size, size, 0, 0, 400, 400);
+
+  out.toBlob(async (blob) => {
+    const fd = new FormData();
+    fd.append('photo', blob, 'profile-photo.png');
+    fd.append('token', authToken);
+    const r = await fetch('/api/k108/profiles/'+cropProfileId+'/photo', { method:'POST', body: fd });
+    const d = await r.json();
+    cancelCrop();
+    if (d.url) viewProfile(cropProfileId);
+  }, 'image/png');
 }
 
 function uploadProfilePhoto(id) {

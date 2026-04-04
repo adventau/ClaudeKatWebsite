@@ -3796,6 +3796,7 @@ function renderVault(data) {
         ${isMine ? `<div class="vault-item-actions">
           <button class="vault-action-btn" onclick="event.stopPropagation();renameVaultItem('${item.id}','${escapedName}')" title="Rename"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>
           <button class="vault-action-btn" onclick="event.stopPropagation();moveVaultItem('${item.id}')" title="Move to folder"><i data-lucide="folder-input" style="width:14px;height:14px"></i></button>
+          <button class="vault-action-btn" onclick="event.stopPropagation();transferToK108('${item.id}')" title="Send to K-108 Vault"><i data-lucide="radar" style="width:14px;height:14px"></i></button>
           <button class="vault-action-btn vault-action-del" onclick="event.stopPropagation();deleteVaultItem('${item.id}')" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>
         </div>` : ''}
       </div>`;
@@ -4136,6 +4137,23 @@ async function deleteVaultItem(id) {
   });
   const data = await fetch(`/api/vault?passcode=${vaultPasscode}`).then(r => r.json());
   renderVault(data);
+}
+
+async function transferToK108(fileId) {
+  try {
+    const r = await fetch('/api/k108/vault/transfer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileId })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('File transferred to K-108 Vault');
+    } else {
+      showToast(d.error || 'Transfer failed', 'error');
+    }
+  } catch(e) {
+    showToast('Transfer failed', 'error');
+  }
 }
 
 function getFileIcon(mime = '') {
