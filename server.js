@@ -6672,17 +6672,17 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
         }
       }
 
-      // Pass JS objects for JSONB (pg JSON-serializes them automatically via ::jsonb cast).
-      // If still TEXT[], fall back to plain string arrays (labels lost, but no error).
-      let phoneVal, emailVal, phoneSql, emailSql;
+      // For JSONB: pass JSON string with explicit ::jsonb cast
+      // For TEXT[]: pass plain JS string array — pg formats it as a PG array literal, NOT JSON.stringify
+      let param7, param8, phoneSql, emailSql;
       if (isJsonb) {
-        phoneVal = normalizePhones(phones);   // JS array of objects → pg sends as JSON
-        emailVal = normalizeEmails(emails);
+        param7 = JSON.stringify(normalizePhones(phones));
+        param8 = JSON.stringify(normalizeEmails(emails));
         phoneSql = '$7::jsonb';
         emailSql = '$8::jsonb';
       } else {
-        phoneVal = (phones || []).map(p => typeof p === 'string' ? p : (p.number || '')).filter(Boolean);
-        emailVal = (emails || []).map(e => typeof e === 'string' ? e : (e.address || '')).filter(Boolean);
+        param7 = (phones || []).map(p => typeof p === 'string' ? p : (p.number || '')).filter(Boolean);
+        param8 = (emails || []).map(e => typeof e === 'string' ? e : (e.address || '')).filter(Boolean);
         phoneSql = '$7';
         emailSql = '$8';
       }
@@ -6691,7 +6691,7 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
         `UPDATE k108_profiles SET first_name=$1, middle_name=$2, last_name=$3, aliases=$4, relation=$5, notes=$6,
          phones=${phoneSql}, emails=${emailSql}, social_links=$9, age=$10, birthday=$11, address=$12, updated_at=NOW() WHERE id=$13`,
         [first_name, middle_name || null, last_name, aliasVal, relation || '', notes || '',
-         JSON.stringify(phoneVal), JSON.stringify(emailVal), JSON.stringify(social_links || []), age || null, birthday || null, JSON.stringify(address || {}), req.params.id]
+         param7, param8, JSON.stringify(social_links || []), age || null, birthday || null, JSON.stringify(address || {}), req.params.id]
       );
       await k108Log(username, 'profile_change', { profileId: req.params.id, name: `${first_name} ${last_name}`.trim() }, req.ip);
       return res.json({ ok: true });
