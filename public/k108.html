@@ -445,21 +445,37 @@
     .modal-box .fg { margin-bottom: 14px; }
 
     /* ═══ Vehicle Lookup ═══ */
-    .vehicle-tab-row { display: flex; gap: 0; margin-bottom: 24px; border: 1px solid var(--border-main); border-radius: 8px; overflow: hidden; max-width: 360px; }
-    .vehicle-tab { flex: 1; padding: 10px 0; text-align: center; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; background: transparent; border: none; color: var(--text-dim); transition: all 0.15s; }
-    .vehicle-tab.active { background: var(--bg-raised); color: var(--text-primary); }
-    .vehicle-quota-bar { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--text-dim); margin-bottom: 20px; }
-    .vehicle-quota-bar.warn { color: var(--status-amber); }
-    .vehicle-result-card { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 14px; overflow: hidden; width: 100%; max-width: 640px; margin-top: 24px; }
-    .vehicle-photo { width: 100%; height: 220px; object-fit: cover; cursor: pointer; display: block; }
+    .vehicle-tab-row { display: flex; gap: 6px; margin-bottom: 28px; }
+    .vehicle-tab { padding: 8px 22px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; background: transparent; border: 1px solid var(--border-main); color: var(--text-dim); transition: all 0.18s; }
+    .vehicle-tab.active { background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.4); color: var(--status-amber); }
+    .vehicle-tab:hover:not(.active) { border-color: var(--border-main); color: var(--text-muted); background: rgba(255,255,255,0.03); }
+    .vehicle-quota-bar { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--text-dim); margin-bottom: 20px; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border-subtle); }
+    .vehicle-quota-bar.warn { color: var(--status-amber); border-color: rgba(251,191,36,0.3); background: rgba(251,191,36,0.05); }
+    .vehicle-search-box { width: 100%; max-width: 600px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 12px; padding: 20px 22px; }
+    .vehicle-search-box .k-label { font-size: 9px; font-weight: 600; letter-spacing: 0.1em; color: var(--text-dim); text-transform: uppercase; display: block; margin-bottom: 6px; }
+    .vehicle-input-row { display: flex; gap: 8px; align-items: stretch; }
+    /* Custom state picker */
+    .state-picker-wrap { position: relative; flex-shrink: 0; }
+    .state-picker-btn { height: 100%; padding: 0 14px; background: var(--bg-base); border: 1px solid var(--border-main); border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; display: flex; align-items: center; gap: 6px; transition: border-color 0.15s; min-width: 90px; justify-content: space-between; }
+    .state-picker-btn:hover, .state-picker-btn.open { border-color: var(--accent-blue); }
+    .state-picker-btn .chevron { width: 10px; height: 10px; opacity: 0.5; transition: transform 0.15s; }
+    .state-picker-btn.open .chevron { transform: rotate(180deg); }
+    .state-picker-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 200; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 10px; display: none; grid-template-columns: repeat(6, 1fr); gap: 3px; width: 260px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+    .state-picker-panel.open { display: grid; }
+    .state-opt { padding: 5px 0; text-align: center; font-size: 11px; font-weight: 600; font-family: 'JetBrains Mono'; color: var(--text-muted); border-radius: 5px; cursor: pointer; transition: background 0.1s, color 0.1s; }
+    .state-opt:hover { background: rgba(56,189,248,0.1); color: var(--accent-blue); }
+    .state-opt.selected { background: rgba(251,191,36,0.15); color: var(--status-amber); }
+    .vehicle-result-card { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 14px; overflow: hidden; width: 100%; max-width: 600px; margin-top: 24px; }
+    .vehicle-photo { width: 100%; height: 240px; object-fit: cover; cursor: pointer; display: block; transition: opacity 0.2s; }
+    .vehicle-photo:hover { opacity: 0.9; }
     .vehicle-photo-placeholder { width: 100%; height: 180px; background: var(--bg-raised); display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-dim); }
     .vehicle-info-body { padding: 20px 24px; }
     .vehicle-title { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
     .vehicle-vin { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-dim); margin-bottom: 16px; letter-spacing: 0.05em; }
-    .vehicle-data-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; margin-bottom: 20px; }
+    .vehicle-data-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin-bottom: 20px; }
     .vehicle-data-label { font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; }
     .vehicle-data-value { font-size: 13px; color: var(--text-secondary); }
-    .vehicle-photo-count { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+    .vehicle-photo-badge { position: absolute; bottom: 10px; right: 12px; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); color: #fff; font-size: 10px; padding: 3px 9px; border-radius: 10px; pointer-events: none; }
 
     /* ═══ Command Bar ═══ */
     #cmd-bar-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(4,6,12,0.75); backdrop-filter:blur(6px); align-items:flex-start; justify-content:center; padding-top:min(18vh,160px); }
@@ -953,21 +969,27 @@
 
           <!-- Plate tab -->
           <div id="vehicle-plate-panel" style="width:100%;max-width:640px">
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <input class="k-input" id="vl-plate" placeholder="Plate (e.g. ABC1234)" style="flex:1;min-width:140px;text-transform:uppercase" maxlength="8" autocomplete="off">
-              <select class="k-input" id="vl-state" style="width:80px">
-                <option value="">State</option>
-                <option value="AL">AL</option><option value="AK">AK</option><option value="AZ">AZ</option><option value="AR">AR</option><option value="CA">CA</option><option value="CO">CO</option><option value="CT">CT</option><option value="DE">DE</option><option value="FL">FL</option><option value="GA">GA</option><option value="HI">HI</option><option value="ID">ID</option><option value="IL">IL</option><option value="IN">IN</option><option value="IA">IA</option><option value="KS">KS</option><option value="KY">KY</option><option value="LA">LA</option><option value="ME">ME</option><option value="MD">MD</option><option value="MA">MA</option><option value="MI">MI</option><option value="MN">MN</option><option value="MS">MS</option><option value="MO">MO</option><option value="MT">MT</option><option value="NE">NE</option><option value="NV">NV</option><option value="NH">NH</option><option value="NJ">NJ</option><option value="NM">NM</option><option value="NY">NY</option><option value="NC">NC</option><option value="ND">ND</option><option value="OH">OH</option><option value="OK">OK</option><option value="OR">OR</option><option value="PA">PA</option><option value="RI">RI</option><option value="SC">SC</option><option value="SD">SD</option><option value="TN">TN</option><option value="TX">TX</option><option value="UT">UT</option><option value="VT">VT</option><option value="VA">VA</option><option value="WA">WA</option><option value="WV">WV</option><option value="WI">WI</option><option value="WY">WY</option><option value="DC">DC</option>
-              </select>
-              <button class="k-btn" onclick="vehicleLookupByPlate()" style="padding:12px 24px;font-size:13px">LOOKUP</button>
+            <div class="vehicle-input-row">
+              <input class="k-input" id="vl-plate" placeholder="Plate number (e.g. ABC1234)" style="flex:1;text-transform:uppercase;font-family:'JetBrains Mono';letter-spacing:0.05em" maxlength="8" autocomplete="off" onkeydown="if(event.key==='Enter')vehicleLookupByPlate()">
+              <div class="state-picker-wrap" id="state-picker-wrap">
+                <button class="state-picker-btn" id="state-picker-btn" onclick="toggleStatePicker(event)" type="button">
+                  <span id="state-picker-label" style="color:var(--text-dim)">State</span>
+                  <svg class="chevron" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="2,3 5,7 8,3"/></svg>
+                </button>
+                <div class="state-picker-panel" id="state-picker-panel">
+                  <div class="state-opt" onclick="selectState('AL')">AL</div><div class="state-opt" onclick="selectState('AK')">AK</div><div class="state-opt" onclick="selectState('AZ')">AZ</div><div class="state-opt" onclick="selectState('AR')">AR</div><div class="state-opt" onclick="selectState('CA')">CA</div><div class="state-opt" onclick="selectState('CO')">CO</div><div class="state-opt" onclick="selectState('CT')">CT</div><div class="state-opt" onclick="selectState('DE')">DE</div><div class="state-opt" onclick="selectState('FL')">FL</div><div class="state-opt" onclick="selectState('GA')">GA</div><div class="state-opt" onclick="selectState('HI')">HI</div><div class="state-opt" onclick="selectState('ID')">ID</div><div class="state-opt" onclick="selectState('IL')">IL</div><div class="state-opt" onclick="selectState('IN')">IN</div><div class="state-opt" onclick="selectState('IA')">IA</div><div class="state-opt" onclick="selectState('KS')">KS</div><div class="state-opt" onclick="selectState('KY')">KY</div><div class="state-opt" onclick="selectState('LA')">LA</div><div class="state-opt" onclick="selectState('ME')">ME</div><div class="state-opt" onclick="selectState('MD')">MD</div><div class="state-opt" onclick="selectState('MA')">MA</div><div class="state-opt" onclick="selectState('MI')">MI</div><div class="state-opt" onclick="selectState('MN')">MN</div><div class="state-opt" onclick="selectState('MS')">MS</div><div class="state-opt" onclick="selectState('MO')">MO</div><div class="state-opt" onclick="selectState('MT')">MT</div><div class="state-opt" onclick="selectState('NE')">NE</div><div class="state-opt" onclick="selectState('NV')">NV</div><div class="state-opt" onclick="selectState('NH')">NH</div><div class="state-opt" onclick="selectState('NJ')">NJ</div><div class="state-opt" onclick="selectState('NM')">NM</div><div class="state-opt" onclick="selectState('NY')">NY</div><div class="state-opt" onclick="selectState('NC')">NC</div><div class="state-opt" onclick="selectState('ND')">ND</div><div class="state-opt" onclick="selectState('OH')">OH</div><div class="state-opt" onclick="selectState('OK')">OK</div><div class="state-opt" onclick="selectState('OR')">OR</div><div class="state-opt" onclick="selectState('PA')">PA</div><div class="state-opt" onclick="selectState('RI')">RI</div><div class="state-opt" onclick="selectState('SC')">SC</div><div class="state-opt" onclick="selectState('SD')">SD</div><div class="state-opt" onclick="selectState('TN')">TN</div><div class="state-opt" onclick="selectState('TX')">TX</div><div class="state-opt" onclick="selectState('UT')">UT</div><div class="state-opt" onclick="selectState('VT')">VT</div><div class="state-opt" onclick="selectState('VA')">VA</div><div class="state-opt" onclick="selectState('WA')">WA</div><div class="state-opt" onclick="selectState('WV')">WV</div><div class="state-opt" onclick="selectState('WI')">WI</div><div class="state-opt" onclick="selectState('WY')">WY</div><div class="state-opt" onclick="selectState('DC')">DC</div>
+                </div>
+                <input type="hidden" id="vl-state-val">
+              </div>
+              <button class="k-btn" onclick="vehicleLookupByPlate()" style="padding:0 24px;font-size:12px;font-weight:700;letter-spacing:0.08em">LOOKUP</button>
             </div>
           </div>
 
           <!-- VIN tab -->
           <div id="vehicle-vin-panel" style="display:none;width:100%;max-width:640px">
-            <div style="display:flex;gap:8px">
-              <input class="k-input" id="vl-vin" placeholder="17-character VIN" style="flex:1;text-transform:uppercase;font-family:'JetBrains Mono';letter-spacing:0.05em" maxlength="17" autocomplete="off">
-              <button class="k-btn" onclick="vehicleLookupByVIN()" style="padding:12px 24px;font-size:13px">LOOKUP</button>
+            <div class="vehicle-input-row">
+              <input class="k-input" id="vl-vin" placeholder="17-character VIN" style="flex:1;text-transform:uppercase;font-family:'JetBrains Mono';letter-spacing:0.05em" maxlength="17" autocomplete="off" onkeydown="if(event.key==='Enter')vehicleLookupByVIN()">
+              <button class="k-btn" onclick="vehicleLookupByVIN()" style="padding:0 24px;font-size:12px;font-weight:700;letter-spacing:0.08em">LOOKUP</button>
             </div>
           </div>
 
@@ -1464,9 +1486,43 @@ function showVehicleError(msg) {
   el.style.display = 'block';
 }
 
+function toggleStatePicker(e) {
+  e.stopPropagation();
+  const btn = document.getElementById('state-picker-btn');
+  const panel = document.getElementById('state-picker-panel');
+  const isOpen = panel.classList.contains('open');
+  if (isOpen) {
+    panel.classList.remove('open');
+    btn.classList.remove('open');
+    document.removeEventListener('click', closeStatePickerOutside);
+  } else {
+    panel.classList.add('open');
+    btn.classList.add('open');
+    setTimeout(() => document.addEventListener('click', closeStatePickerOutside), 0);
+  }
+}
+function closeStatePickerOutside(e) {
+  const wrap = document.getElementById('state-picker-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('state-picker-panel').classList.remove('open');
+    document.getElementById('state-picker-btn').classList.remove('open');
+    document.removeEventListener('click', closeStatePickerOutside);
+  }
+}
+function selectState(abbr) {
+  document.getElementById('vl-state-val').value = abbr;
+  const label = document.getElementById('state-picker-label');
+  label.textContent = abbr;
+  label.style.color = 'var(--text-primary)';
+  document.querySelectorAll('.state-opt').forEach(el => el.classList.toggle('selected', el.textContent === abbr));
+  document.getElementById('state-picker-panel').classList.remove('open');
+  document.getElementById('state-picker-btn').classList.remove('open');
+  document.removeEventListener('click', closeStatePickerOutside);
+}
+
 async function vehicleLookupByPlate() {
   const plate = document.getElementById('vl-plate').value.trim().toUpperCase();
-  const state = document.getElementById('vl-state').value;
+  const state = document.getElementById('vl-state-val').value;
   if (!plate || !/^[A-Z0-9]{2,8}$/.test(plate)) { showVehicleError('Enter a valid plate number (2-8 alphanumeric characters)'); return; }
   if (!state) { showVehicleError('Select a state'); return; }
   setVehicleLoading(true);
