@@ -6656,20 +6656,29 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
       const normalizePhones = (arr) => (arr || []).map(p => typeof p === 'string' ? { number: p, label: '' } : { number: p.number || '', label: p.label || '' });
       const normalizeEmails = (arr) => (arr || []).map(e => typeof e === 'string' ? { address: e, label: '' } : { address: e.address || '', label: e.label || '' });
 
-      // Check column type; auto-migrate TEXT[] → JSONB if needed
+      // Detect phones column type; migrate TEXT[]→JSONB if possible, else fall back
       const colInfo = await db.query(`SELECT data_type FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
-      const isJsonb = colInfo.rows[0]?.data_type === 'jsonb';
+      let isJsonb = colInfo.rows[0]?.data_type === 'jsonb';
       if (!isJsonb) {
         try {
           await db.query(`ALTER TABLE k108_profiles ALTER COLUMN phones TYPE JSONB USING array_to_json(phones)::jsonb`);
           await db.query(`ALTER TABLE k108_profiles ALTER COLUMN phones SET DEFAULT '[]'::jsonb`);
           await db.query(`ALTER TABLE k108_profiles ALTER COLUMN emails TYPE JSONB USING array_to_json(emails)::jsonb`);
           await db.query(`ALTER TABLE k108_profiles ALTER COLUMN emails SET DEFAULT '[]'::jsonb`);
+          isJsonb = true;
           console.log('[K108] Auto-migrated phones/emails TEXT[] → JSONB');
-        } catch(migErr) { console.warn('[K108] Phone migration failed:', migErr.message); }
+        } catch(migErr) {
+          console.warn('[K108] Phone/email migration failed, saving without labels:', migErr.message);
+        }
       }
-      const phoneVal = JSON.stringify(normalizePhones(phones));
-      const emailVal = JSON.stringify(normalizeEmails(emails));
+
+      // Build phone/email values appropriate for the actual column type
+      const phoneVal = isJsonb
+        ? JSON.stringify(normalizePhones(phones))
+        : (phones || []).map(p => typeof p === 'string' ? p : (p.number || '')).filter(Boolean);
+      const emailVal = isJsonb
+        ? JSON.stringify(normalizeEmails(emails))
+        : (emails || []).map(e => typeof e === 'string' ? e : (e.address || '')).filter(Boolean);
 
       await db.query(
         `UPDATE k108_profiles SET first_name=$1, middle_name=$2, last_name=$3, aliases=$4, relation=$5, notes=$6,

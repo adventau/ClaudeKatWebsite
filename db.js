@@ -206,11 +206,13 @@ async function createK108Tables() {
   // Migration: convert phones/emails from TEXT[] to JSONB for labels support
   try {
     const colCheck = await query(`SELECT data_type FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
-    if (colCheck.rows[0] && colCheck.rows[0].data_type === 'ARRAY') {
+    const phoneDataType = (colCheck.rows[0]?.data_type || '').toLowerCase();
+    if (phoneDataType === 'array' || phoneDataType === 'text[]') {
       await query(`ALTER TABLE k108_profiles ALTER COLUMN phones TYPE JSONB USING array_to_json(phones)::jsonb`);
       await query(`ALTER TABLE k108_profiles ALTER COLUMN phones SET DEFAULT '[]'::jsonb`);
       await query(`ALTER TABLE k108_profiles ALTER COLUMN emails TYPE JSONB USING array_to_json(emails)::jsonb`);
       await query(`ALTER TABLE k108_profiles ALTER COLUMN emails SET DEFAULT '[]'::jsonb`);
+      console.log('[K108] Migrated phones/emails TEXT[] → JSONB');
     }
   } catch(e) { console.log('[K108] phones/emails migration:', e.message); }
   await query(`
