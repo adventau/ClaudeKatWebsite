@@ -1,5 +1,5 @@
 'use strict';
-const { Pool } = require('pg');
+let { Pool } = require('pg');
 
 // Only create pool if DATABASE_URL is configured
 let pool = null;
@@ -12,6 +12,35 @@ if (process.env.DATABASE_URL) {
     connectionTimeoutMillis: 5000,
   });
   pool.on('error', (err) => console.error('[db] Pool error:', err.message));
+} else if (process.env.LOCAL_DB === '1') {
+  // Local dev fallback: real Postgres compiled to WASM via PGlite.
+  // Persists to ./.local-pgdata so data survives restarts.
+  try {
+    const path = require('path');
+    const { PGlite } = require('@electric-sql/pglite');
+    const dbDir = path.join(__dirname, '.local-pgdata');
+    const pg = new PGlite(dbDir);
+    const ready = pg.waitReady;
+    // Minimal pg.Pool shim: connect()→client with query()+release(), and pool.query()
+    const makeClient = () => ({
+      async query(sql, params) {
+        await ready;
+        // Convert $1,$2… to PGlite's expected form (it already accepts $n)
+        const res = await pg.query(sql, params || []);
+        return { rows: res.rows || [], rowCount: res.affectedRows ?? (res.rows ? res.rows.length : 0), fields: res.fields || [] };
+      },
+      release() {}
+    });
+    pool = {
+      async connect() { await ready; return makeClient(); },
+      async query(sql, params) { return makeClient().query(sql, params); },
+      on() {},
+      end: async () => { await pg.close(); }
+    };
+    console.log('[db] Using local PGlite at', dbDir, '(LOCAL_DB=1)');
+  } catch (e) {
+    console.error('[db] PGlite fallback failed:', e.message);
+  }
 }
 
 async function query(sql, params = []) {
@@ -239,97 +268,131 @@ async function createK108Tables() {
   // ── Surveillance (legacy column kept for compat) ──
   await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS surveillance_active BOOLEAN DEFAULT FALSE`);
 
-  // ── Case Files tables ──
+  // ── Case Management tables ──
   await query(`
     CREATE TABLE IF NOT EXISTS k108_cases (
       id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'OPEN',
-      classification TEXT NOT NULL DEFAULT 'CONFIDENTIAL',
+      case_id VARCHAR(50) UNIQUE,
+      name VARCHAR(200) NOT NULL,
+      target_name VARCHAR(200) DEFAULT '',
+      status VARCHAR(20) NOT NULL DEFAULT 'open',
+      classification VARCHAR(30) NOT NULL DEFAULT 'unclassified',
+      priority VARCHAR(20) NOT NULL DEFAULT 'medium',
       summary TEXT DEFAULT '',
+      created_by VARCHAR(50),
       created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW(),
-      last_edited_by TEXT
+      updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
-  await query(`
-    CREATE TABLE IF NOT EXISTS k108_case_subjects (
-      id SERIAL PRIMARY KEY,
-      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
-      profile_id INT REFERENCES k108_profiles(id) ON DELETE CASCADE,
-      role TEXT DEFAULT 'Associate',
-      created_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE(case_id, profile_id)
-    )
-  `);
-  await query(`
-    CREATE TABLE IF NOT EXISTS k108_case_evidence (
-      id SERIAL PRIMARY KEY,
-      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
-      type TEXT NOT NULL,
-      title TEXT NOT NULL,
-      metadata JSONB DEFAULT '{}',
-      source_id TEXT,
-      notes TEXT DEFAULT '',
-      dismissed BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT NOW()
-    )
-  `);
-  await query(`
-    CREATE TABLE IF NOT EXISTS k108_case_findings (
-      id SERIAL PRIMARY KEY,
-      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
-      text TEXT NOT NULL,
-      resolved BOOLEAN DEFAULT FALSE,
-      order_index INT DEFAULT 0,
-      created_at TIMESTAMP DEFAULT NOW()
-    )
-  `);
-  await query(`
-    CREATE TABLE IF NOT EXISTS k108_case_questions (
-      id SERIAL PRIMARY KEY,
-      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
-      text TEXT NOT NULL,
-      resolved BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT NOW()
-    )
-  `);
+  // Migrations for legacy k108_cases
+  await query(`ALTER TABLE k108_cases ADD COLUMN IF NOT EXISTS case_id VARCHAR(50)`);
+  await query(`ALTER TABLE k108_cases ADD COLUMN IF NOT EXISTS target_name VARCHAR(200) DEFAULT ''`);
+  await query(`ALTER TABLE k108_cases ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'medium'`);
+  await query(`ALTER TABLE k108_cases ADD COLUMN IF NOT EXISTS created_by VARCHAR(50)`);
+  try { await query(`CREATE UNIQUE INDEX IF NOT EXISTS k108_cases_case_id_uniq ON k108_cases (case_id) WHERE case_id IS NOT NULL`); } catch(e) {}
+  // Normalize legacy status values
+  await query(`UPDATE k108_cases SET status = LOWER(status) WHERE status IN ('OPEN','CLOSED')`);
+  await query(`UPDATE k108_cases SET classification = LOWER(classification) WHERE classification IN ('UNCLASSIFIED','CONFIDENTIAL','CLASSIFIED')`);
+
   await query(`
     CREATE TABLE IF NOT EXISTS k108_case_timeline (
       id SERIAL PRIMARY KEY,
       case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
-      event_date TIMESTAMP,
-      event_type TEXT DEFAULT 'Incident',
-      description TEXT NOT NULL,
-      evidence_ids JSONB DEFAULT '[]',
+      entry_type VARCHAR(50) NOT NULL DEFAULT 'note',
+      title VARCHAR(200) DEFAULT '',
+      body TEXT DEFAULT '',
+      created_by VARCHAR(50),
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await query(`ALTER TABLE k108_case_timeline ADD COLUMN IF NOT EXISTS entry_type VARCHAR(50) DEFAULT 'note'`);
+  await query(`ALTER TABLE k108_case_timeline ADD COLUMN IF NOT EXISTS title VARCHAR(200) DEFAULT ''`);
+  await query(`ALTER TABLE k108_case_timeline ADD COLUMN IF NOT EXISTS body TEXT DEFAULT ''`);
+  await query(`ALTER TABLE k108_case_timeline ADD COLUMN IF NOT EXISTS created_by VARCHAR(50)`);
+
   await query(`
-    CREATE TABLE IF NOT EXISTS k108_case_canvas_nodes (
+    CREATE TABLE IF NOT EXISTS k108_case_evidence (
       id SERIAL PRIMARY KEY,
       case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
-      type TEXT NOT NULL DEFAULT 'Note',
-      label TEXT NOT NULL DEFAULT '',
-      x REAL DEFAULT 200,
-      y REAL DEFAULT 200,
-      metadata JSONB DEFAULT '{}',
-      created_at TIMESTAMP DEFAULT NOW()
+      filename VARCHAR(500),
+      original_name VARCHAR(500),
+      file_size BIGINT DEFAULT 0,
+      uploaded_by VARCHAR(50),
+      uploaded_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await query(`ALTER TABLE k108_case_evidence ADD COLUMN IF NOT EXISTS filename VARCHAR(500)`);
+  await query(`ALTER TABLE k108_case_evidence ADD COLUMN IF NOT EXISTS original_name VARCHAR(500)`);
+  await query(`ALTER TABLE k108_case_evidence ADD COLUMN IF NOT EXISTS file_size BIGINT DEFAULT 0`);
+  await query(`ALTER TABLE k108_case_evidence ADD COLUMN IF NOT EXISTS uploaded_by VARCHAR(50)`);
+  await query(`ALTER TABLE k108_case_evidence ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP DEFAULT NOW()`);
+
   await query(`
-    CREATE TABLE IF NOT EXISTS k108_case_canvas_edges (
+    CREATE TABLE IF NOT EXISTS k108_case_entities (
       id SERIAL PRIMARY KEY,
       case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
-      from_node_id INT REFERENCES k108_case_canvas_nodes(id) ON DELETE CASCADE,
-      to_node_id INT REFERENCES k108_case_canvas_nodes(id) ON DELETE CASCADE,
-      label TEXT DEFAULT '',
+      entity_type VARCHAR(30) NOT NULL,
+      name VARCHAR(200) NOT NULL,
+      detail TEXT DEFAULT '',
+      source VARCHAR(50),
+      added_by VARCHAR(50),
+      added_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_case_notes (
+      id SERIAL PRIMARY KEY,
+      case_id INT REFERENCES k108_cases(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      created_by VARCHAR(50),
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
 
-  // Migration: add dismissed column to evidence if missing
-  await query(`ALTER TABLE k108_case_evidence ADD COLUMN IF NOT EXISTS dismissed BOOLEAN DEFAULT FALSE`);
+  // Drop unused legacy case sub-tables (they were never wired to any UI)
+  try { await query(`DROP TABLE IF EXISTS k108_case_canvas_edges`); } catch(e) {}
+  try { await query(`DROP TABLE IF EXISTS k108_case_canvas_nodes`); } catch(e) {}
+  try { await query(`DROP TABLE IF EXISTS k108_case_findings`); } catch(e) {}
+  try { await query(`DROP TABLE IF EXISTS k108_case_questions`); } catch(e) {}
+  try { await query(`DROP TABLE IF EXISTS k108_case_subjects`); } catch(e) {}
+
+  // Backfill case_id for any existing rows missing one
+  const missing = await query(`SELECT id, created_at FROM k108_cases WHERE case_id IS NULL ORDER BY id ASC`);
+  for (const row of missing.rows) {
+    const d = new Date(row.created_at || Date.now());
+    const ymd = d.getFullYear().toString() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+    const cnt = await query(`SELECT COUNT(*)::int AS c FROM k108_cases WHERE case_id LIKE $1`, ['K108-' + ymd + '-%']);
+    const seq = String((cnt.rows[0].c || 0) + 1).padStart(3, '0');
+    await query(`UPDATE k108_cases SET case_id = $1 WHERE id = $2`, ['K108-' + ymd + '-' + seq, row.id]);
+  }
+
+  // Seed a few fake cases if the table is empty (local/testing convenience)
+  const existing = await query(`SELECT COUNT(*)::int AS c FROM k108_cases`);
+  if ((existing.rows[0].c || 0) === 0) {
+    const today = new Date();
+    const ymd = today.getFullYear().toString() + String(today.getMonth()+1).padStart(2,'0') + String(today.getDate()).padStart(2,'0');
+    const seeds = [
+      { name: 'Operation Nightshade', target: 'Marcus Voss', status: 'open', classification: 'classified', priority: 'high', summary: 'Suspected asset exfiltration via shell companies in Luxembourg. Surveillance ongoing.', by: 'kaliph' },
+      { name: 'Cascade Incident', target: 'Elena Petrov', status: 'open', classification: 'confidential', priority: 'medium', summary: 'Anomalous wire transfers flagged by mailbox scanner. Subject under passive watch.', by: 'kathrine' },
+      { name: 'Harborlight Inquiry', target: 'Daniel Reyes', status: 'open', classification: 'unclassified', priority: 'low', summary: 'Background verification requested by external counsel. No red flags yet.', by: 'kaliph' },
+      { name: 'Violet Drift', target: 'Unknown Subject', status: 'closed', classification: 'confidential', priority: 'medium', summary: 'Trail cold. Closed pending new intel.', by: 'kathrine' },
+    ];
+    for (let i = 0; i < seeds.length; i++) {
+      const s = seeds[i];
+      const cid = 'K108-' + ymd + '-' + String(i + 1).padStart(3, '0');
+      const ins = await query(
+        `INSERT INTO k108_cases (case_id, name, target_name, status, classification, priority, summary, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+        [cid, s.name, s.target, s.status, s.classification, s.priority, s.summary, s.by]
+      );
+      const newId = ins.rows[0].id;
+      await query(
+        `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'created','Case opened',$2,$3)`,
+        [newId, 'Case "' + s.name + '" created with target ' + s.target + '.', s.by]
+      );
+    }
+    console.log('[K108] Seeded ' + seeds.length + ' demo cases');
+  }
 
   // ── Surveillance jobs ──
   await query(`

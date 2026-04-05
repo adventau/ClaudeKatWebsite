@@ -224,14 +224,14 @@
     .dc-vehicle { grid-column: span 4; }
     .dc-vault { grid-column: span 3; }
     .dc-profiles { grid-column: span 6; }
-    .dc-metadata { grid-column: span 3; }
+    .dc-cases { grid-column: span 3; }
     .dc-briefing { grid-column: span 12; }
     .dc-log { grid-column: span 12; }
 
     @media (max-width: 768px) {
       .dash-grid { grid-template-columns: repeat(6, 1fr); }
       .dc-lookup, .dc-sms, .dc-vehicle { grid-column: span 6; }
-      .dc-vault, .dc-metadata { grid-column: span 3; }
+      .dc-vault, .dc-cases { grid-column: span 3; }
       .dc-profiles { grid-column: span 6; }
       .dc-briefing { grid-column: span 6; }
       .dc-log { grid-column: span 6; }
@@ -239,7 +239,7 @@
     }
     @media (max-width: 480px) {
       .dash-grid { grid-template-columns: 1fr; }
-      .dc-lookup, .dc-sms, .dc-vehicle, .dc-vault, .dc-profiles, .dc-metadata, .dc-log, .dc-briefing { grid-column: span 1; }
+      .dc-lookup, .dc-sms, .dc-vehicle, .dc-vault, .dc-profiles, .dc-cases, .dc-log, .dc-briefing { grid-column: span 1; }
     }
 
     /* ═══ Shared Components ═══ */
@@ -377,16 +377,83 @@
     .sms-input-row { display: flex; gap: 8px; }
     .sms-new-header { padding: 12px 16px; border-bottom: 1px solid var(--border-main); }
 
-    /* ═══ Metadata ═══ */
-    .drop-zone { border: 2px dashed var(--border-main); border-radius: 12px; padding: 48px; text-align: center; cursor: pointer; transition: border-color 0.2s; }
-    .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent-blue); background: rgba(56,189,248,0.03); }
-    .drop-zone-text { font-size: 13px; color: var(--text-muted); }
-    .meta-group { margin-bottom: 16px; }
-    .meta-group-title { font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 600; color: var(--accent-blue); letter-spacing: 0.06em; padding: 8px 16px; background: var(--bg-raised); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-    .meta-group-body { padding: 0 16px; }
-    .meta-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); font-size: 12px; }
-    .meta-key { color: var(--text-muted); flex-shrink: 0; margin-right: 16px; }
-    .meta-val { color: var(--text-primary); text-align: right; word-break: break-all; }
+    /* ═══ Case Management ═══ */
+    .case-list { display: flex; flex-direction: column; gap: 10px; }
+    .case-row { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; cursor: pointer; transition: all 0.18s; }
+    .case-row:hover { border-color: rgba(56,189,248,0.28); background: var(--bg-card-hover); transform: translateX(2px); }
+    .case-row .case-id { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--accent-blue); letter-spacing: 0.05em; flex-shrink: 0; min-width: 170px; }
+    .case-row .case-name { flex: 1; font-size: 14px; font-weight: 500; color: var(--text-primary); }
+    .case-row .case-target { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .case-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 12px; font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+    .case-pill.status-open { background: rgba(52,211,153,0.12); color: var(--status-green); border: 1px solid rgba(52,211,153,0.25); }
+    .case-pill.status-closed { background: rgba(148,163,184,0.1); color: var(--text-muted); border: 1px solid rgba(148,163,184,0.2); }
+    .case-pill.class-unclassified { background: rgba(148,163,184,0.1); color: var(--text-secondary); border: 1px solid rgba(148,163,184,0.2); }
+    .case-pill.class-confidential { background: rgba(251,191,36,0.12); color: var(--status-amber); border: 1px solid rgba(251,191,36,0.25); }
+    .case-pill.class-classified { background: rgba(248,113,113,0.12); color: var(--status-red); border: 1px solid rgba(248,113,113,0.25); }
+    .case-pill.prio-low { background: rgba(148,163,184,0.1); color: var(--text-secondary); border: 1px solid rgba(148,163,184,0.2); }
+    .case-pill.prio-medium { background: rgba(56,189,248,0.1); color: var(--accent-blue); border: 1px solid rgba(56,189,248,0.25); }
+    .case-pill.prio-high { background: rgba(248,113,113,0.12); color: var(--status-red); border: 1px solid rgba(248,113,113,0.25); }
+
+    .case-workspace { display: flex; gap: 20px; align-items: flex-start; }
+    .case-ws-sidebar { width: 180px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 10px; position: sticky; top: 20px; }
+    .case-ws-navbtn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--text-muted); font-family: 'Inter'; font-size: 12px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; text-align: left; transition: all 0.15s; margin-bottom: 4px; }
+    .case-ws-navbtn:hover { background: rgba(56,189,248,0.05); color: var(--text-primary); }
+    .case-ws-navbtn.active { background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(129,140,248,0.06)); border-color: rgba(56,189,248,0.25); color: var(--accent-blue); }
+    .case-ws-main { flex: 1; min-width: 0; }
+    .case-ws-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; margin-bottom: 16px; gap: 16px; flex-wrap: wrap; }
+    .case-ws-header .cwh-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .case-ws-header .cwh-caseid { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--accent-blue); letter-spacing: 0.06em; }
+    .case-ws-header .cwh-name { font-size: 17px; font-weight: 600; color: var(--text-primary); }
+    .case-ws-header .cwh-target { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .case-ws-header .cwh-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .case-tab-panel { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 20px 22px; }
+    .case-tab-title { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); }
+    .case-kv { display: grid; grid-template-columns: 140px 1fr; gap: 10px 16px; font-size: 13px; }
+    .case-kv-label { font-size: 10px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; padding-top: 2px; }
+    .case-kv-val { color: var(--text-primary); font-size: 13px; }
+    .case-summary-box { background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 14px 16px; font-size: 13px; color: var(--text-primary); line-height: 1.55; white-space: pre-wrap; }
+    .case-summary-edit { width: 100%; background: var(--bg-raised); border: 1px solid var(--border-main); border-radius: 8px; padding: 12px 14px; font-family: inherit; font-size: 13px; color: var(--text-primary); resize: vertical; min-height: 90px; }
+
+    .case-timeline-item { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border-subtle); }
+    .case-timeline-item:last-child { border-bottom: none; }
+    .case-timeline-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-blue); margin-top: 6px; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(56,189,248,0.12); }
+    .case-timeline-body { flex: 1; min-width: 0; }
+    .case-timeline-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }
+    .case-timeline-type { font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; color: var(--accent-blue); background: rgba(56,189,248,0.1); padding: 2px 8px; border-radius: 4px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .case-timeline-title { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+    .case-timeline-text { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+    .case-timeline-foot { font-size: 10px; color: var(--text-dim); margin-top: 4px; font-family: 'JetBrains Mono'; }
+
+    .case-evidence-row { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border-subtle); }
+    .case-evidence-row:last-child { border-bottom: none; }
+    .case-evidence-name { flex: 1; font-size: 13px; color: var(--text-primary); word-break: break-all; }
+    .case-evidence-meta { font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono'; }
+    .case-upload-zone { display: flex; align-items: center; gap: 12px; padding: 18px 22px; border: 1.5px dashed var(--border-main); border-radius: 10px; margin-bottom: 16px; }
+    .case-upload-zone:hover { border-color: rgba(56,189,248,0.35); }
+
+    .case-entity-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .case-entity-table th { text-align: left; font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; padding: 10px 12px; border-bottom: 1px solid var(--border-main); }
+    .case-entity-table td { padding: 12px; border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); vertical-align: top; }
+    .case-entity-table tr:last-child td { border-bottom: none; }
+    .case-entity-name { color: var(--text-primary); font-weight: 500; }
+    .case-entity-detail { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--text-dim); max-width: 280px; word-break: break-all; }
+
+    .case-note-item { padding: 14px 16px; background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: 8px; margin-bottom: 10px; }
+    .case-note-body { font-size: 13px; color: var(--text-primary); line-height: 1.55; white-space: pre-wrap; }
+    .case-note-foot { font-size: 10px; color: var(--text-dim); font-family: 'JetBrains Mono'; margin-top: 8px; }
+
+    .case-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 9000; }
+    .case-modal-overlay.open { display: flex; }
+    .case-modal-box { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 12px; padding: 24px 26px; width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+    .case-modal-title { font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 600; color: var(--accent-blue); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 18px; }
+    .case-modal-field { margin-bottom: 14px; }
+    .case-modal-field label { display: block; font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+    .case-modal-field input, .case-modal-field select, .case-modal-field textarea { width: 100%; background: var(--bg-raised); border: 1px solid var(--border-main); border-radius: 8px; padding: 10px 12px; color: var(--text-primary); font-family: inherit; font-size: 12px; }
+    .case-modal-field textarea { resize: vertical; min-height: 72px; }
+    .case-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+    .case-add-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); color: var(--accent-blue); font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+    .case-add-btn:hover { background: rgba(56,189,248,0.16); }
 
     /* ═══ Vault ═══ */
     .vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
@@ -890,12 +957,12 @@
             </div>
           </div>
 
-          <!-- Metadata Extractor -->
-          <div class="dash-card dc-metadata" onclick="navigateTo('#/metadata')">
-            <div class="dc-head"><div class="dc-title">Metadata Extractor</div><div class="dc-sub">EXIF and file analysis</div><div class="dc-neon dc-neon-amber"></div></div>
+          <!-- Case Management -->
+          <div class="dash-card dc-cases" onclick="navigateTo('#/cases')">
+            <div class="dc-head"><div class="dc-title">Case Management</div><div class="dc-sub">Investigations and evidence</div><div class="dc-neon dc-neon-blue"></div></div>
             <div class="dc-body">
-              <div style="padding:12px;border:1px dashed var(--border-main);border-radius:6px;text-align:center;margin-top:4px">
-                <div style="font-size:10px;color:var(--text-dim)">Drop file to extract</div>
+              <div class="dc-stat-row">
+                <div class="dc-stat-val" id="dc-cases-open" style="font-size:28px;color:var(--accent-blue)"><strong>—</strong></div><div class="dc-stat-label">OPEN CASES</div>
               </div>
             </div>
           </div>
@@ -992,20 +1059,50 @@
         <div id="profile-detail" style="display:none"></div>
       </div>
 
-      <!-- Metadata Extractor -->
-      <div class="k108-view" id="view-metadata">
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;padding-top:40px">
-          <div style="font-family:Orbitron;font-size:18px;font-weight:600;color:var(--status-amber);letter-spacing:0.1em;margin-bottom:6px">Metadata Extractor</div>
-          <div style="font-size:11px;color:var(--text-dim);margin-bottom:32px;letter-spacing:0.06em">Extract hidden EXIF and file metadata</div>
-          <div class="drop-zone" id="meta-dropzone" onclick="document.getElementById('meta-file').click()" style="width:100%;max-width:480px;padding:56px 32px">
-            <input type="file" id="meta-file" style="display:none" onchange="extractMetadata(this.files[0])">
-            <div style="font-size:28px;color:var(--text-dim);margin-bottom:12px">&#8593;</div>
-            <div class="drop-zone-text" style="font-size:13px">Drop a file here or click to upload</div>
-            <div style="font-size:10px;color:var(--text-dim);margin-top:8px">Images, PDFs, documents, audio, video</div>
+      <!-- Case Management -->
+      <div class="k108-view" id="view-cases">
+        <div class="section-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <h2 class="section-title neon-title" style="font-size:18px;color:var(--accent-blue);text-shadow:0 0 20px rgba(56,189,248,0.5),0 0 40px rgba(56,189,248,0.3)">Case Management</h2>
+          <button class="k-btn k-btn-sm" onclick="openNewCaseModal()">+ New Case</button>
+        </div>
+        <div id="cases-list-area"><div class="k-empty">Loading cases…</div></div>
+      </div>
+
+      <!-- Case Workspace -->
+      <div class="k108-view" id="view-case">
+        <div id="case-ws-area"></div>
+      </div>
+
+      <!-- Case Modals -->
+      <div class="case-modal-overlay" id="case-new-modal">
+        <div class="case-modal-box">
+          <div class="case-modal-title">Open New Case</div>
+          <div class="case-modal-field"><label>Case Name</label><input type="text" id="cnm-name" placeholder="Operation codename"></div>
+          <div class="case-modal-field"><label>Target Name</label><input type="text" id="cnm-target" placeholder="Primary subject"></div>
+          <div class="case-modal-field"><label>Priority</label>
+            <select id="cnm-priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select>
+          </div>
+          <div class="case-modal-field"><label>Classification</label>
+            <select id="cnm-class"><option value="unclassified" selected>Unclassified</option><option value="confidential">Confidential</option><option value="classified">Classified</option></select>
+          </div>
+          <div class="case-modal-field"><label>Summary (optional)</label><textarea id="cnm-summary" placeholder="Brief case description"></textarea></div>
+          <div class="k-error" id="cnm-error" style="margin-top:6px"></div>
+          <div class="case-modal-actions">
+            <button class="k-btn k-btn-sm" onclick="closeNewCaseModal()" style="background:transparent;border-color:var(--border-main);color:var(--text-muted)">Cancel</button>
+            <button class="k-btn k-btn-sm" onclick="submitNewCase()">Create Case</button>
           </div>
         </div>
-        <div class="k-error" id="meta-error" style="margin-top:16px;max-width:600px;margin-left:auto;margin-right:auto"></div>
-        <div id="meta-result" style="margin-top:24px;max-width:700px;margin-left:auto;margin-right:auto"></div>
+      </div>
+
+      <div class="case-modal-overlay" id="case-pick-modal">
+        <div class="case-modal-box">
+          <div class="case-modal-title">Add to Case</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px" id="cpm-subject"></div>
+          <div id="cpm-list" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto"></div>
+          <div class="case-modal-actions">
+            <button class="k-btn k-btn-sm" onclick="closeCasePickModal()" style="background:transparent;border-color:var(--border-main);color:var(--text-muted)">Cancel</button>
+          </div>
+        </div>
       </div>
 
       <!-- Activity Log -->
@@ -1094,7 +1191,7 @@ function updateSmsBadge() {
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
 const SNAMES = {AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',DC:'Washington DC'};
 
-const VIEW_TITLES = { 'dashboard':'Dashboard', 'lookup':'People Lookup', 'sms':'Covert SMS', 'vehicle':'Vehicle Lookup', 'vault':'Document Vault', 'profiles':'Intel Profiles', 'metadata':'Metadata Extractor', 'log':'Activity Log', 'briefing':'Intel Briefing' };
+const VIEW_TITLES = { 'dashboard':'Dashboard', 'lookup':'People Lookup', 'sms':'Covert SMS', 'vehicle':'Vehicle Lookup', 'vault':'Document Vault', 'profiles':'Intel Profiles', 'cases':'Case Management', 'case':'Case Workspace', 'log':'Activity Log', 'briefing':'Intel Briefing' };
 
 // ═══ Init ═══
 (function(){
@@ -1133,14 +1230,15 @@ const VIEW_TITLES = { 'dashboard':'Dashboard', 'lookup':'People Lookup', 'sms':'
       }
     }
   });
-  // Drop zone
-  const dz = document.getElementById('meta-dropzone');
-  if (dz) {
-    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
-    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
-    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); if (e.dataTransfer.files[0]) extractMetadata(e.dataTransfer.files[0]); });
-  }
   window.addEventListener('hashchange', handleRoute);
+
+  // Case management real-time notifications
+  socket.on('k108:case_updated', () => {
+    const hash = window.location.hash || '';
+    if (hash.startsWith('#/cases') && !hash.startsWith('#/case/')) {
+      if (typeof loadCasesList === 'function') loadCasesList();
+    }
+  });
 
   // SMS socket
   socket.on('k108:sms-reply', data => {
@@ -1336,6 +1434,12 @@ function handleRoute() {
   }
   if (viewName === 'briefing') loadBriefings();
   if (viewName === 'vehicle') loadVehicleQuota();
+  if (viewName === 'cases') loadCasesList();
+  if (viewName === 'case') {
+    const caseId = sub;
+    const tab = hash.split('/')[2] || 'overview';
+    if (caseId) loadCaseWorkspace(caseId, tab);
+  }
 }
 
 // ═══ Helpers ═══
@@ -1455,7 +1559,7 @@ function viewLookupDetail(idx) {
 
   let h = '<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px"><button class="k-btn k-btn-sm" onclick="renderLookupResults({results:lookupResultsCache,meta:{resultCount:lookupResultsCache.length,duration:0,sources:[]}})">&larr; Back to Results</button></div>';
   h += '<div class="record" style="border-color:rgba(56,189,248,0.2)">';
-  h += '<div class="record-head"><div><div class="record-name" style="font-size:20px">'+esc(p.fullName)+'</div><div class="record-meta">'+(p.age?'<span>Age '+p.age+'</span>':'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><button class="k-btn k-btn-sm" onclick="event.stopPropagation();saveSearchResult(this)" data-result=\''+esc(JSON.stringify(p)).replace(/'/g,"&#39;")+'\' style="font-size:10px;padding:4px 14px">Save Result</button><button class="k-btn k-btn-sm" onclick="event.stopPropagation();saveToIntelProfile('+idx+')" style="font-size:10px;padding:4px 14px;background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.3);color:var(--accent-indigo)">Save to Profiles</button><div class="conf-pill '+cc+'">'+p.confidence+'%</div></div></div>';
+  h += '<div class="record-head"><div><div class="record-name" style="font-size:20px">'+esc(p.fullName)+'</div><div class="record-meta">'+(p.age?'<span>Age '+p.age+'</span>':'')+'</div></div><div style="display:flex;align-items:center;gap:8px"><button class="k-btn k-btn-sm" onclick="event.stopPropagation();saveSearchResult(this)" data-result=\''+esc(JSON.stringify(p)).replace(/'/g,"&#39;")+'\' style="font-size:10px;padding:4px 14px">Save Result</button><button class="k-btn k-btn-sm" onclick="event.stopPropagation();saveToIntelProfile('+idx+')" style="font-size:10px;padding:4px 14px;background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.3);color:var(--accent-indigo)">Save to Profiles</button><button class="case-add-btn" onclick="event.stopPropagation();addLookupToCaseBtn('+idx+')">+ Add to Case</button><div class="conf-pill '+cc+'">'+p.confidence+'%</div></div></div>';
   h += '<div class="record-body"><div class="record-grid">';
   if (p.addresses&&p.addresses.length) { h+='<div><div class="record-section-label">Addresses ('+p.addresses.length+')</div>'; p.addresses.forEach(a=>{h+='<div class="record-item">'+esc([a.street,a.city,a.state,a.zip].filter(Boolean).join(', '))+(a.current?' <span class="tag-current">Current</span>':'')+'</div>';}); h+='</div>'; }
   if (p.phones&&p.phones.length) { h+='<div><div class="record-section-label">Phones ('+p.phones.length+')</div>'; p.phones.forEach(ph=>{h+='<div class="record-item">'+esc(fmtPhone(ph.number))+(ph.type?' <span class="tag-type">'+esc(ph.type)+'</span>':'')+'</div>';}); h+='</div>'; }
@@ -1822,6 +1926,7 @@ function renderVehicleResult(d) {
         <div class="vehicle-vin">VIN: ${esc(d.vin)}</div>
         ${dataRows ? `<div class="vehicle-data-rows">${dataRows}</div>` : ''}
         <button class="k-btn" onclick="openSaveVehicleModal()" style="width:100%;margin-top:4px">Save to Intel Profile</button>
+        <button class="case-add-btn" onclick="addVehicleToCaseBtn()" style="margin-top:8px">+ Add to Case</button>
       </div>
     </div>`;
 }
@@ -2001,27 +2106,467 @@ async function sendSMS() {
   loadDashboardData();
 }
 
-// ═══ Metadata ═══
-async function extractMetadata(file) {
+// ═══ Case Management ═══
+let casesCache = [];
+let openCasesCache = [];
+let currentCase = null;
+let pendingCaseAddPayload = null;
+
+function caseStatusPill(status) {
+  const s = (status || 'open').toLowerCase();
+  return '<span class="case-pill status-'+s+'">'+s.toUpperCase()+'</span>';
+}
+function caseClassPill(cls) {
+  const c = (cls || 'unclassified').toLowerCase();
+  return '<span class="case-pill class-'+c+'">'+c.toUpperCase()+'</span>';
+}
+function casePriorityPill(p) {
+  const pp = (p || 'medium').toLowerCase();
+  return '<span class="case-pill prio-'+pp+'">'+pp.toUpperCase()+'</span>';
+}
+function fmtCaseDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  return dt.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+function fmtFileSize(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  return (n/(1024*1024)).toFixed(1) + ' MB';
+}
+
+async function loadCasesList() {
+  const area = document.getElementById('cases-list-area');
+  area.innerHTML = '<div class="k-empty">Loading cases…</div>';
+  const d = await kAuthFetch('/api/k108/cases/list', {});
+  if (!d) return;
+  casesCache = d.cases || [];
+  openCasesCache = casesCache.filter(c => c.status === 'open');
+  if (!casesCache.length) {
+    area.innerHTML = '<div class="k-empty">No cases on file. Click <strong>+ New Case</strong> to open one.</div>';
+    return;
+  }
+  let h = '<div class="case-list">';
+  casesCache.forEach(c => {
+    h += '<div class="case-row" onclick="navigateTo(\'#/case/'+c.id+'\')">' +
+      '<div class="case-id">'+esc(c.caseId || ('CASE-'+c.id))+'</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div class="case-name">'+esc(c.name)+'</div>' +
+        (c.targetName ? '<div class="case-target">Target: '+esc(c.targetName)+'</div>' : '') +
+      '</div>' +
+      '<div style="display:flex;gap:6px;flex-shrink:0">' +
+        caseStatusPill(c.status) +
+        caseClassPill(c.classification) +
+        casePriorityPill(c.priority) +
+      '</div>' +
+    '</div>';
+  });
+  h += '</div>';
+  area.innerHTML = h;
+}
+
+function openNewCaseModal() {
+  document.getElementById('cnm-name').value = '';
+  document.getElementById('cnm-target').value = '';
+  document.getElementById('cnm-priority').value = 'medium';
+  document.getElementById('cnm-class').value = 'unclassified';
+  document.getElementById('cnm-summary').value = '';
+  hideErr('cnm-error');
+  document.getElementById('case-new-modal').classList.add('open');
+  setTimeout(() => document.getElementById('cnm-name').focus(), 80);
+}
+function closeNewCaseModal() {
+  document.getElementById('case-new-modal').classList.remove('open');
+}
+async function submitNewCase() {
+  const name = document.getElementById('cnm-name').value.trim();
+  const targetName = document.getElementById('cnm-target').value.trim();
+  const priority = document.getElementById('cnm-priority').value;
+  const classification = document.getElementById('cnm-class').value;
+  const summary = document.getElementById('cnm-summary').value.trim();
+  if (!name) { showErr('cnm-error', 'Case name is required'); return; }
+  const d = await kAuthFetch('/api/k108/cases/create', { name, targetName, priority, classification, summary });
+  if (!d) return;
+  if (d.error) { showErr('cnm-error', d.error); return; }
+  closeNewCaseModal();
+  showToastK108('Case '+(d.case.caseId||'')+' opened');
+  navigateTo('#/case/' + d.case.id);
+}
+
+async function loadCaseWorkspace(caseId, tab) {
+  tab = tab || 'overview';
+  const area = document.getElementById('case-ws-area');
+  area.innerHTML = '<div class="k-empty">Loading case…</div>';
+  const d = await kAuthFetch('/api/k108/cases/get', { id: parseInt(caseId, 10) });
+  if (!d) return;
+  if (d.error) { area.innerHTML = '<div class="k-empty">'+esc(d.error)+'</div>'; return; }
+  currentCase = d.case;
+  const c = d.case;
+  const counts = d.counts || {};
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'timeline', label: 'Timeline' + (counts.timeline_count ? ' ('+counts.timeline_count+')' : '') },
+    { key: 'evidence', label: 'Evidence' + (counts.evidence_count ? ' ('+counts.evidence_count+')' : '') },
+    { key: 'entities', label: 'Entities' + (counts.entity_count ? ' ('+counts.entity_count+')' : '') },
+    { key: 'notes', label: 'Notes' + (counts.notes_count ? ' ('+counts.notes_count+')' : '') },
+  ];
+  const toggleBtnLabel = c.status === 'open' ? 'Close Case' : 'Reopen Case';
+  let h = '';
+  h += '<div class="case-ws-header">';
+  h += '  <div class="cwh-left">';
+  h += '    <div class="cwh-caseid">'+esc(c.caseId || '')+'</div>';
+  h += '    <div class="cwh-name">'+esc(c.name)+'</div>';
+  if (c.targetName) h += '    <div class="cwh-target">Target: '+esc(c.targetName)+'</div>';
+  h += '  </div>';
+  h += '  <div class="cwh-right">';
+  h += '    '+caseStatusPill(c.status);
+  h += '    '+caseClassPill(c.classification);
+  h += '    '+casePriorityPill(c.priority);
+  h += '    <button class="k-btn k-btn-sm" onclick="toggleCaseStatus('+c.id+')">'+toggleBtnLabel+'</button>';
+  h += '    <button class="k-btn k-btn-sm" onclick="navigateTo(\'#/cases\')" style="background:transparent;border-color:var(--border-main);color:var(--text-muted)">← Back</button>';
+  h += '  </div>';
+  h += '</div>';
+  h += '<div class="case-workspace">';
+  h += '  <div class="case-ws-sidebar">';
+  tabs.forEach(t => {
+    const active = t.key === tab ? ' active' : '';
+    h += '<button class="case-ws-navbtn'+active+'" onclick="navigateTo(\'#/case/'+c.id+'/'+t.key+'\')">'+esc(t.label)+'</button>';
+  });
+  h += '  </div>';
+  h += '  <div class="case-ws-main"><div id="case-tab-content"><div class="k-empty">Loading…</div></div></div>';
+  h += '</div>';
+  area.innerHTML = h;
+  loadCaseTab(c.id, tab);
+}
+
+async function loadCaseTab(caseId, tab) {
+  const target = document.getElementById('case-tab-content');
+  if (!target) return;
+  target.innerHTML = '<div class="k-empty">Loading…</div>';
+  if (tab === 'overview') return renderCaseOverview(caseId);
+  if (tab === 'timeline') return renderCaseTimeline(caseId);
+  if (tab === 'evidence') return renderCaseEvidence(caseId);
+  if (tab === 'entities') return renderCaseEntities(caseId);
+  if (tab === 'notes') return renderCaseNotes(caseId);
+}
+
+function renderCaseOverview() {
+  const c = currentCase;
+  if (!c) return;
+  let h = '<div class="case-tab-panel">';
+  h += '<div class="case-tab-title">Case Overview</div>';
+  h += '<div class="case-kv">';
+  h += '<div class="case-kv-label">Target</div><div class="case-kv-val">'+esc(c.targetName || '—')+'</div>';
+  h += '<div class="case-kv-label">Priority</div><div class="case-kv-val">'+casePriorityPill(c.priority)+'</div>';
+  h += '<div class="case-kv-label">Classification</div><div class="case-kv-val">'+caseClassPill(c.classification)+'</div>';
+  h += '<div class="case-kv-label">Status</div><div class="case-kv-val">'+caseStatusPill(c.status)+'</div>';
+  h += '<div class="case-kv-label">Created By</div><div class="case-kv-val">'+esc(c.createdBy || '—')+'</div>';
+  h += '<div class="case-kv-label">Created</div><div class="case-kv-val">'+esc(fmtCaseDate(c.createdAt))+'</div>';
+  h += '<div class="case-kv-label">Last Updated</div><div class="case-kv-val">'+esc(fmtCaseDate(c.updatedAt))+'</div>';
+  h += '</div>';
+  h += '<div style="margin-top:22px"><div class="case-tab-title" style="margin-bottom:10px">Case Summary</div>';
+  h += '<div id="case-summary-display" class="case-summary-box">'+(c.summary ? esc(c.summary) : '<span style="color:var(--text-dim)">No summary yet. Click Edit to add one.</span>')+'</div>';
+  h += '<div style="margin-top:10px;display:flex;gap:8px"><button class="k-btn k-btn-sm" onclick="editCaseSummary()">Edit Summary</button></div>';
+  h += '</div>';
+  h += '</div>';
+  document.getElementById('case-tab-content').innerHTML = h;
+}
+
+function editCaseSummary() {
+  const c = currentCase;
+  const box = document.getElementById('case-summary-display');
+  if (!box) return;
+  box.outerHTML = '<textarea id="case-summary-edit" class="case-summary-edit">'+esc(c.summary || '')+'</textarea>' +
+    '<div style="margin-top:10px;display:flex;gap:8px"><button class="k-btn k-btn-sm" onclick="saveCaseSummary()">Save</button><button class="k-btn k-btn-sm" onclick="renderCaseOverview()" style="background:transparent;border-color:var(--border-main);color:var(--text-muted)">Cancel</button></div>';
+  const btns = document.querySelector('#case-tab-content button.k-btn-sm');
+  // Hide the original edit buttons row
+  const editRow = document.querySelectorAll('#case-tab-content > .case-tab-panel > div');
+  // simpler: do nothing — original buttons are still there but harmless
+}
+
+async function saveCaseSummary() {
+  const c = currentCase;
+  const txt = document.getElementById('case-summary-edit').value;
+  const d = await kAuthFetch('/api/k108/cases/update', { id: c.id, summary: txt });
+  if (!d) return;
+  if (d.case) currentCase = d.case;
+  showToastK108('Summary saved');
+  renderCaseOverview();
+}
+
+async function renderCaseTimeline(caseId) {
+  const d = await kAuthFetch('/api/k108/cases/timeline/list', { id: caseId });
+  if (!d) return;
+  let h = '<div class="case-tab-panel">';
+  h += '<div class="case-tab-title">Timeline <span style="color:var(--text-dim);font-weight:400;margin-left:8px">'+(d.entries.length)+' entries</span></div>';
+  if (!d.entries.length) {
+    h += '<div class="k-empty">No timeline entries yet.</div>';
+  } else {
+    d.entries.forEach(e => {
+      h += '<div class="case-timeline-item">' +
+        '<div class="case-timeline-dot"></div>' +
+        '<div class="case-timeline-body">' +
+          '<div class="case-timeline-head"><span class="case-timeline-type">'+esc(e.entryType)+'</span><span class="case-timeline-title">'+esc(e.title)+'</span></div>' +
+          (e.body ? '<div class="case-timeline-text">'+esc(e.body)+'</div>' : '') +
+          '<div class="case-timeline-foot">'+esc(e.createdBy || '')+' · '+esc(fmtCaseDate(e.createdAt))+'</div>' +
+        '</div>' +
+      '</div>';
+    });
+  }
+  h += '<div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border-subtle)">';
+  h += '<div class="case-kv-label" style="margin-bottom:6px">Add Timeline Entry</div>';
+  h += '<input type="text" id="tl-title" class="k-input" placeholder="Title" style="margin-bottom:8px">';
+  h += '<textarea id="tl-body" class="case-summary-edit" placeholder="Details (optional)"></textarea>';
+  h += '<div style="margin-top:10px;display:flex;justify-content:flex-end"><button class="k-btn k-btn-sm" onclick="submitTimelineEntry('+caseId+')">Add Entry</button></div>';
+  h += '</div>';
+  h += '</div>';
+  document.getElementById('case-tab-content').innerHTML = h;
+}
+async function submitTimelineEntry(caseId) {
+  const title = document.getElementById('tl-title').value.trim();
+  const body = document.getElementById('tl-body').value.trim();
+  if (!title) { showToastK108('Title required'); return; }
+  const d = await kAuthFetch('/api/k108/cases/timeline/add', { id: caseId, entryType: 'note', title, body });
+  if (!d) return;
+  showToastK108('Timeline entry added');
+  renderCaseTimeline(caseId);
+}
+
+async function renderCaseEvidence(caseId) {
+  const d = await kAuthFetch('/api/k108/cases/evidence/list', { id: caseId });
+  if (!d) return;
+  let h = '<div class="case-tab-panel">';
+  h += '<div class="case-tab-title">Evidence Vault <span style="color:var(--text-dim);font-weight:400;margin-left:8px">'+(d.files.length)+' files</span></div>';
+  h += '<div class="case-upload-zone"><div style="flex:1;font-size:12px;color:var(--text-muted)">Upload a file to the case evidence vault</div>' +
+       '<input type="file" id="case-ev-file" style="display:none" onchange="uploadCaseEvidence('+caseId+', this.files[0])">' +
+       '<button class="k-btn k-btn-sm" onclick="document.getElementById(\'case-ev-file\').click()">Select File</button></div>';
+  if (!d.files.length) {
+    h += '<div class="k-empty">No evidence files yet.</div>';
+  } else {
+    d.files.forEach(f => {
+      const href = f.filename && f.filename.startsWith('/uploads/') ? f.filename : '';
+      h += '<div class="case-evidence-row">' +
+        '<div class="case-evidence-name">'+ (href ? '<a href="'+esc(href)+'" target="_blank" style="color:var(--text-primary);text-decoration:none">'+esc(f.originalName || '')+'</a>' : esc(f.originalName || '')) +'</div>' +
+        '<div class="case-evidence-meta">'+esc(fmtFileSize(f.fileSize))+' · '+esc(f.uploadedBy || '')+' · '+esc(fmtCaseDate(f.uploadedAt))+'</div>' +
+      '</div>';
+    });
+  }
+  h += '</div>';
+  document.getElementById('case-tab-content').innerHTML = h;
+}
+async function uploadCaseEvidence(caseId, file) {
   if (!file) return;
-  hideErr('meta-error');
-  document.getElementById('meta-result').innerHTML = '<div class="loader-text" style="text-align:center">Extracting metadata from '+esc(file.name)+'...</div>';
   const fd = new FormData();
   fd.append('file', file);
   fd.append('token', authToken);
+  fd.append('caseId', caseId);
   try {
-    const r = await fetch('/api/k108/metadata/extract', { method:'POST', body: fd });
+    const r = await fetch('/api/k108/cases/evidence/upload', { method: 'POST', body: fd });
     const d = await r.json();
-    if (d.error) { showErr('meta-error', d.error); document.getElementById('meta-result').innerHTML=''; return; }
-    let h = '<h3 style="font-size:14px;margin-bottom:16px">'+esc(d.filename)+'</h3>';
-    if (d.gps) { h += '<div class="k-card" style="margin-bottom:16px;padding:16px"><div class="record-section-label">GPS Location</div><div style="font-family:JetBrains Mono;font-size:12px;color:var(--accent-blue)">'+d.gps.lat+', '+d.gps.lng+'</div></div>'; }
-    for (const [group, tags] of Object.entries(d.groups||{})) {
-      h += '<div class="meta-group"><div class="meta-group-title">'+esc(group)+' <span style="font-size:10px;color:var(--text-dim)">'+Object.keys(tags).length+' fields</span></div><div class="meta-group-body">';
-      for (const [k,v] of Object.entries(tags)) { h += '<div class="meta-row"><span class="meta-key">'+esc(k)+'</span><span class="meta-val">'+esc(String(v))+'</span></div>'; }
-      h += '</div></div>';
-    }
-    document.getElementById('meta-result').innerHTML = h;
-  } catch(e) { showErr('meta-error', 'Extraction failed'); document.getElementById('meta-result').innerHTML=''; }
+    if (d.error) { showToastK108('Upload failed: ' + d.error); return; }
+    showToastK108('Evidence uploaded');
+    renderCaseEvidence(caseId);
+  } catch (e) { showToastK108('Upload failed'); }
+}
+
+async function renderCaseEntities(caseId) {
+  const d = await kAuthFetch('/api/k108/cases/entities/list', { id: caseId });
+  if (!d) return;
+  let h = '<div class="case-tab-panel">';
+  h += '<div class="case-tab-title">Entities <span style="color:var(--text-dim);font-weight:400;margin-left:8px">'+(d.entities.length)+' linked</span></div>';
+  if (!d.entities.length) {
+    h += '<div class="k-empty">No entities linked yet. Use <strong>Add to Case</strong> from People Lookup, Vehicle Lookup, or Intel Profiles.</div>';
+  } else {
+    h += '<table class="case-entity-table"><thead><tr><th>Type</th><th>Name</th><th>Source</th><th>Added By</th><th>Added</th><th>Detail</th></tr></thead><tbody>';
+    d.entities.forEach(e => {
+      let detailShort = '';
+      try {
+        const parsed = JSON.parse(e.detail || '{}');
+        detailShort = Object.entries(parsed).slice(0, 4).map(([k,v]) => k+': '+String(v).substring(0,40)).join(' · ');
+      } catch(err) { detailShort = (e.detail || '').substring(0, 120); }
+      h += '<tr>' +
+        '<td><span class="case-pill class-unclassified">'+esc(e.entityType.toUpperCase())+'</span></td>' +
+        '<td class="case-entity-name">'+esc(e.name)+'</td>' +
+        '<td>'+esc(e.source || '—')+'</td>' +
+        '<td>'+esc(e.addedBy || '')+'</td>' +
+        '<td>'+esc(fmtCaseDate(e.addedAt))+'</td>' +
+        '<td class="case-entity-detail">'+esc(detailShort)+'</td>' +
+      '</tr>';
+    });
+    h += '</tbody></table>';
+  }
+  h += '</div>';
+  document.getElementById('case-tab-content').innerHTML = h;
+}
+
+async function renderCaseNotes(caseId) {
+  const d = await kAuthFetch('/api/k108/cases/notes/list', { id: caseId });
+  if (!d) return;
+  let h = '<div class="case-tab-panel">';
+  h += '<div class="case-tab-title">Analyst Notes <span style="color:var(--text-dim);font-weight:400;margin-left:8px">'+(d.notes.length)+' notes</span></div>';
+  h += '<div style="margin-bottom:16px"><textarea id="note-body" class="case-summary-edit" placeholder="Add a note…"></textarea>' +
+       '<div style="margin-top:10px;display:flex;justify-content:flex-end"><button class="k-btn k-btn-sm" onclick="submitCaseNote('+caseId+')">Add Note</button></div></div>';
+  if (!d.notes.length) {
+    h += '<div class="k-empty">No notes yet.</div>';
+  } else {
+    d.notes.forEach(n => {
+      h += '<div class="case-note-item">' +
+        '<div class="case-note-body">'+esc(n.body)+'</div>' +
+        '<div class="case-note-foot">'+esc(n.createdBy || '')+' · '+esc(fmtCaseDate(n.createdAt))+'</div>' +
+      '</div>';
+    });
+  }
+  h += '</div>';
+  document.getElementById('case-tab-content').innerHTML = h;
+}
+async function submitCaseNote(caseId) {
+  const body = document.getElementById('note-body').value.trim();
+  if (!body) { showToastK108('Note is empty'); return; }
+  const d = await kAuthFetch('/api/k108/cases/notes/add', { id: caseId, body });
+  if (!d) return;
+  showToastK108('Note added');
+  renderCaseNotes(caseId);
+}
+
+async function toggleCaseStatus(caseId) {
+  if (!currentCase) return;
+  const next = currentCase.status === 'open' ? 'closed' : 'open';
+  const d = await kAuthFetch('/api/k108/cases/status', { id: caseId, status: next });
+  if (!d) return;
+  if (d.error) { showToastK108('Failed: ' + d.error); return; }
+  showToastK108('Case marked ' + next);
+  const tab = (window.location.hash.split('/')[2] || 'overview');
+  loadCaseWorkspace(caseId, tab);
+}
+
+// ── Add to Case (from other tools) ──
+async function openAddToCaseModal(payload) {
+  // payload: { kind: 'entity'|'evidence', entityType, name, detail, source, originalName, filename, fileSize, subjectLabel }
+  await loadCasesList().catch(()=>{});
+  const open = (casesCache || []).filter(c => c.status === 'open');
+  if (!open.length) {
+    showToastK108('No open cases — create one first');
+    return;
+  }
+  pendingCaseAddPayload = payload;
+  document.getElementById('cpm-subject').textContent = payload.subjectLabel || '';
+  const list = document.getElementById('cpm-list');
+  list.innerHTML = open.map(c => (
+    '<button class="case-ws-navbtn" style="border-color:var(--border-main);color:var(--text-primary)" onclick="confirmAddToCase('+c.id+')">' +
+      '<span style="flex:1;text-align:left"><div style="font-family:JetBrains Mono;font-size:10px;color:var(--accent-blue)">'+esc(c.caseId||'')+'</div><div style="font-size:12px;color:var(--text-primary);text-transform:none;margin-top:2px">'+esc(c.name)+'</div></span>' +
+    '</button>'
+  )).join('');
+  document.getElementById('case-pick-modal').classList.add('open');
+}
+function closeCasePickModal() {
+  document.getElementById('case-pick-modal').classList.remove('open');
+  pendingCaseAddPayload = null;
+}
+async function confirmAddToCase(caseId) {
+  const p = pendingCaseAddPayload;
+  if (!p) return;
+  let d;
+  if (p.kind === 'entity') {
+    d = await kAuthFetch('/api/k108/cases/entities/add', { id: caseId, entityType: p.entityType, name: p.name, detail: p.detail, source: p.source });
+  } else if (p.kind === 'evidence') {
+    d = await kAuthFetch('/api/k108/cases/evidence/attach', { id: caseId, originalName: p.originalName, filename: p.filename || '', fileSize: p.fileSize || 0 });
+  }
+  if (!d) return;
+  if (d.error) { showToastK108('Failed: ' + d.error); return; }
+  showToastK108('Added to case');
+  closeCasePickModal();
+}
+
+// Small local toast helper (matches K-108 visual language; no browser native)
+function showToastK108(msg) {
+  let c = document.getElementById('k108-toast-container');
+  if (!c) {
+    c = document.createElement('div');
+    c.id = 'k108-toast-container';
+    c.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none';
+    document.body.appendChild(c);
+  }
+  const t = document.createElement('div');
+  t.style.cssText = 'background:var(--bg-card);border:1px solid rgba(56,189,248,0.3);border-radius:8px;padding:12px 18px;font-size:12px;color:var(--text-primary);font-family:Inter;letter-spacing:0.04em;box-shadow:0 8px 32px rgba(0,0,0,0.5);opacity:0;transform:translateY(8px);transition:all 0.25s;pointer-events:auto';
+  t.textContent = msg;
+  c.appendChild(t);
+  requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translateY(0)'; });
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(8px)'; setTimeout(() => t.remove(), 280); }, 2600);
+}
+
+// ── Add-to-Case button hooks for other tools ──
+function addLookupToCaseBtn(idx) {
+  const p = (lookupResultsCache || [])[idx];
+  if (!p) return;
+  const detail = {
+    fullName: p.fullName || '',
+    age: p.age || '',
+    addresses: (p.addresses || []).map(a => [a.street,a.city,a.state,a.zip].filter(Boolean).join(', ')).filter(Boolean).slice(0,3),
+    phones: (p.phones || []).map(ph => ph.number || ph).filter(Boolean).slice(0,3),
+    emails: (p.emails || []).slice(0,3),
+    confidence: p.confidence || null
+  };
+  openAddToCaseModal({
+    kind: 'entity',
+    entityType: 'person',
+    name: p.fullName || 'Unknown',
+    detail,
+    source: 'people_lookup',
+    subjectLabel: 'Person: ' + (p.fullName || 'Unknown')
+  });
+}
+function addVehicleToCaseBtn() {
+  const v = vehicleLastResult;
+  if (!v) { showToastK108('No vehicle loaded'); return; }
+  const title = [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
+  const detail = {
+    year: v.year || '', make: v.make || '', model: v.model || '', trim: v.trim || '',
+    vin: v.vin || '', plate: v.plate || '', state: v.state || '', color: v.color || ''
+  };
+  openAddToCaseModal({
+    kind: 'entity',
+    entityType: 'vehicle',
+    name: title,
+    detail,
+    source: 'vehicle_lookup',
+    subjectLabel: 'Vehicle: ' + title
+  });
+}
+async function addProfileToCaseBtn(profileId) {
+  const d = await kAuthFetch('/api/k108/profiles/' + profileId);
+  if (!d || !d.profile) return;
+  const p = d.profile;
+  const name = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ') || 'Profile #' + profileId;
+  const phones = (p.phones || []).map(ph => typeof ph === 'string' ? ph : (ph.number || '')).filter(Boolean).slice(0,3);
+  const emails = (p.emails || []).map(e => typeof e === 'string' ? e : (e.address || '')).filter(Boolean).slice(0,3);
+  const addr = typeof p.address === 'string' ? JSON.parse(p.address || '{}') : (p.address || {});
+  const detail = {
+    profileId,
+    relation: p.relation || '',
+    age: p.age || '',
+    phones, emails,
+    address: [addr.street,addr.city,addr.state,addr.zip].filter(Boolean).join(', ')
+  };
+  openAddToCaseModal({
+    kind: 'entity',
+    entityType: 'person',
+    name,
+    detail,
+    source: 'intel_profile',
+    subjectLabel: 'Profile: ' + name
+  });
+}
+function addVaultItemToCaseBtn(idx) {
+  const item = (vaultItemsCache || [])[idx];
+  if (!item) return;
+  openAddToCaseModal({
+    kind: 'evidence',
+    originalName: item.original_name || 'file',
+    filename: item.filename || '',
+    fileSize: item.size || 0,
+    subjectLabel: 'Document: ' + (item.original_name || '')
+  });
 }
 
 // ═══ Document Vault ═══
@@ -2030,8 +2575,10 @@ async function loadVaultItems() {
   if (!d) return;
   const el = document.getElementById('vault-items');
   if (!d.items || d.items.length === 0) { el.innerHTML = '<div class="k-empty">No documents transferred. Send files from the Document Locker.</div>'; return; }
-  el.innerHTML = '<div class="vault-grid">' + d.items.map(i => '<div class="vault-card"><div class="vault-card-name">'+esc(i.original_name)+'</div><div class="vault-card-meta">'+esc(i.transferred_by)+' &middot; '+fmtDate(i.transferred_at)+'</div>'+(i.filename?'<a href="'+esc(i.filename)+'" target="_blank" style="font-size:11px;color:var(--accent-blue);margin-top:8px;display:block">Download</a>':'')+'</div>').join('') + '</div>';
+  vaultItemsCache = d.items;
+  el.innerHTML = '<div class="vault-grid">' + d.items.map((i, idx) => '<div class="vault-card"><div class="vault-card-name">'+esc(i.original_name)+'</div><div class="vault-card-meta">'+esc(i.transferred_by)+' &middot; '+fmtDate(i.transferred_at)+'</div>'+(i.filename?'<a href="'+esc(i.filename)+'" target="_blank" style="font-size:11px;color:var(--accent-blue);margin-top:8px;display:block">Download</a>':'')+'<button class="case-add-btn" style="margin-top:8px" onclick="addVaultItemToCaseBtn('+idx+')">+ Add to Case</button></div>').join('') + '</div>';
 }
+let vaultItemsCache = [];
 
 // ═══ Intel Profiles ═══
 let searchDebounce = null;
@@ -2137,7 +2684,7 @@ async function viewProfileReadonly(id) {
   const links = typeof p.social_links === 'string' ? JSON.parse(p.social_links||'[]') : (p.social_links||[]);
 
   let h = '<div class="profile-detail">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><div style="display:flex;gap:8px;align-items:center"><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div></div>';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><div style="display:flex;gap:8px;align-items:center"><button class="case-add-btn" onclick="addProfileToCaseBtn('+id+')">+ Add to Case</button><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div></div>';
 
   // Photo + Name + Badges
   const roInitials = esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase());
@@ -3651,6 +4198,11 @@ const _origLoadDashboardData = loadDashboardData;
 loadDashboardData = async function() {
   await _origLoadDashboardData();
   loadDashboardBriefings();
+  try {
+    const d = await kAuthFetch('/api/k108/cases/list', { status: 'open' });
+    const el = document.getElementById('dc-cases-open');
+    if (el && d && Array.isArray(d.cases)) el.innerHTML = '<strong>' + d.cases.length + '</strong>';
+  } catch(e) {}
 };
 
 // ═══ Socket events for new features ═══
