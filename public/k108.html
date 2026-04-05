@@ -2159,14 +2159,7 @@ async function viewProfile(id) {
 
   // Relations
   h += '<div class="profile-section"><div class="profile-section-title">Related Profiles</div>';
-  if (d.relations && d.relations.length) {
-    d.relations.forEach(r => {
-      const lbl = r.label ? '<span class="rel-label-badge">'+esc(r.label)+'</span>' : '<span style="font-size:9px;color:var(--text-dim);font-style:italic">No label</span>';
-      h += '<div class="related-card" onclick="viewProfile('+r.related_profile_id+')"><div class="profile-af-avatar" style="width:28px;height:28px;font-size:10px;flex-shrink:0">'+(r.photo_url?'<img src="'+esc(r.photo_url)+'">':esc((r.first_name||'?')[0]+(r.last_name||'?')[0]))+'</div><div style="min-width:0;flex:1"><div style="font-size:12px">'+esc(r.first_name+' '+r.last_name)+'</div>'+lbl+'</div><div class="related-card-actions" onclick="event.stopPropagation()"><button class="rel-action-btn" onclick="editRelationLabel('+r.id+',\''+esc(r.label||'')+'\','+id+')" title="Edit label">&#9998;</button><button class="rel-action-btn danger" onclick="removeRelation('+r.id+','+id+')" title="Remove from this profile">&times;</button></div></div>';
-    });
-  } else {
-    h += '<div style="font-size:11px;color:var(--text-dim)">No linked profiles</div>';
-  }
+  h += '<div id="pf-relations-cards">'+renderRelationCards(d.relations, id)+'</div>';
   h += '<div style="margin-top:8px"><input class="k-input" id="pf-link-search" placeholder="Search profile to link..." style="font-size:11px" oninput="searchProfileToLink(this.value,'+id+')"><div id="pf-link-results" style="margin-top:4px"></div></div>';
   h += '</div>';
 
@@ -3059,13 +3052,28 @@ async function linkProfile(profileId, relatedId) {
   document.getElementById('rel-label').focus();
 }
 
+function renderRelationCards(relations, profileId) {
+  if (!relations || !relations.length) return '<div style="font-size:11px;color:var(--text-dim)">No linked profiles</div>';
+  return relations.map(r => {
+    const lbl = r.label ? '<span class="rel-label-badge">'+esc(r.label)+'</span>' : '<span style="font-size:9px;color:var(--text-dim);font-style:italic">No label</span>';
+    return '<div class="related-card" onclick="viewProfile('+r.related_profile_id+')"><div class="profile-af-avatar" style="width:28px;height:28px;font-size:10px;flex-shrink:0">'+(r.photo_url?'<img src="'+esc(r.photo_url)+'">':esc((r.first_name||'?')[0]+(r.last_name||'?')[0]))+'</div><div style="min-width:0;flex:1"><div style="font-size:12px">'+esc(r.first_name+' '+r.last_name)+'</div>'+lbl+'</div><div class="related-card-actions" onclick="event.stopPropagation()"><button class="rel-action-btn" onclick="editRelationLabel('+r.id+',\''+esc(r.label||'')+'\','+profileId+')" title="Edit label">&#9998;</button><button class="rel-action-btn danger" onclick="removeRelation('+r.id+','+profileId+')" title="Remove from this profile">&times;</button></div></div>';
+  }).join('');
+}
+
+async function refreshRelationsSection(profileId) {
+  const d = await kAuthFetch('/api/k108/profiles/'+profileId);
+  if (!d) return;
+  const container = document.getElementById('pf-relations-cards');
+  if (container) container.innerHTML = renderRelationCards(d.relations, profileId);
+}
+
 async function confirmLinkProfile() {
   if (!pendingLinkProfileId || !pendingLinkTargetId) return;
   const label = document.getElementById('rel-label').value.trim();
   const bidirectional = document.getElementById('rel-bidir-check').checked;
   await kAuthFetch('/api/k108/profiles/'+pendingLinkProfileId+'/relations', { relatedProfileId: pendingLinkTargetId, label, bidirectional });
   closeModal('relation-modal');
-  viewProfile(pendingLinkProfileId);
+  await refreshRelationsSection(pendingLinkProfileId);
 }
 
 async function editRelationLabel(rid, currentLabel, profileId) {
@@ -3085,13 +3093,13 @@ async function confirmEditRelation() {
   const label = document.getElementById('rel-label').value.trim();
   await kAuthFetch('/api/k108/profiles/relations/'+pendingEditRelationId+'/label', { label }, 'PUT');
   closeModal('relation-modal');
-  viewProfile(pendingLinkProfileId);
+  await refreshRelationsSection(pendingLinkProfileId);
 }
 
 async function removeRelation(rid, profileId) {
   if (!confirm('Remove this profile from your related list? (The other profile will keep their link.)')) return;
   await kAuthFetch('/api/k108/profiles/relations/'+rid, {}, 'DELETE');
-  viewProfile(profileId);
+  await refreshRelationsSection(profileId);
 }
 
 const SOCIAL_SVGS = {
