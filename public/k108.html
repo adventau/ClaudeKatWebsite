@@ -1506,6 +1506,30 @@ async function saveToIntelProfile(idx) {
     age: p.age || '', address
   });
   if (d && d.profile) {
+    const newId = d.profile.id;
+    // Auto-link relatives that already exist in the database
+    if (p.relatives && p.relatives.length) {
+      for (const rel of p.relatives) {
+        const relName = (rel.name || '').trim();
+        if (!relName) continue;
+        try {
+          const searchData = await kAuthFetch('/api/k108/profiles', { search: relName });
+          if (searchData && searchData.profiles && searchData.profiles.length) {
+            const match = searchData.profiles.find(prof => {
+              const full = ((prof.first_name || '') + ' ' + (prof.last_name || '')).trim();
+              return full.toLowerCase() === relName.toLowerCase();
+            });
+            if (match) {
+              await kAuthFetch('/api/k108/profiles/' + newId + '/relations', {
+                relatedProfileId: match.id,
+                label: rel.relation || 'Relative',
+                bidirectional: true
+              });
+            }
+          }
+        } catch(e) {}
+      }
+    }
     navigateTo('#/profiles');
     setTimeout(() => viewProfileReadonly(d.profile.id), 300);
   }
