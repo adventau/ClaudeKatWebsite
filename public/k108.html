@@ -2113,11 +2113,11 @@ async function viewProfile(id) {
   } else {
     h += '<div style="font-size:11px;color:var(--text-dim);padding:12px 0">No images yet — click Add Images to upload</div>';
   }
+  h += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle)">';
   if (otherFiles.length) {
-    h += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle)">';
     otherFiles.forEach(f => { h += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:12px">'+esc(f.original_name)+'</a></div>'; });
-    h += '</div>';
   }
+  h += '<input type="file" id="profile-file-input" multiple style="display:none" onchange="uploadProfileFiles('+id+',this.files)"><button class="k-btn k-btn-sm" onclick="document.getElementById(\'profile-file-input\').click()" style="margin-top:6px;font-size:9px">+ Attach Files</button></div>';
   h += '</div>';
 
   // Relations
