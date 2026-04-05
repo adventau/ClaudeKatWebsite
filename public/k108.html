@@ -2082,7 +2082,7 @@ async function viewProfile(id) {
   const imgs = (d.files||[]).filter(f => f.mime_type && f.mime_type.startsWith('image/'));
   const otherFiles = (d.files||[]).filter(f => !f.mime_type || !f.mime_type.startsWith('image/'));
   let imgPanelHtml = '<div class="pi-side-panel">';
-  imgPanelHtml += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div class="profile-section-title" style="margin-bottom:0">Images'+(imgs.length?' ('+imgs.length+')':'')+'</div><button class="k-btn k-btn-sm" onclick="openProfileImagesModal('+id+')" style="font-size:9px;padding:3px 10px">+ Add</button></div>';
+  imgPanelHtml += '<div class="profile-section-title">Images'+(imgs.length?' ('+imgs.length+')':'')+'</div>';
   if (imgs.length) {
     imgPanelHtml += '<div class="pi-gallery">';
     imgs.forEach(f => { imgPanelHtml += '<div class="pi-img-card" onclick="openProfileLightbox(\'/uploads/'+esc(f.filename)+'\')"><img src="/uploads/'+esc(f.filename)+'" loading="lazy"><div class="pi-del-btn" onclick="event.stopPropagation();deleteProfileImage('+id+','+f.id+')" title="Remove"><svg width="10" height="10" viewBox="0 0 10 10" stroke="white" stroke-width="2"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg></div></div>'; });
@@ -2090,9 +2090,6 @@ async function viewProfile(id) {
   } else {
     imgPanelHtml += '<div style="border:1px dashed var(--border-main);border-radius:10px;padding:24px 12px;text-align:center;cursor:pointer" onclick="openProfileImagesModal('+id+')"><div style="font-size:11px;color:var(--text-dim)">No images yet</div><div style="font-size:10px;color:var(--text-dim);margin-top:4px">Click to add</div></div>';
   }
-  imgPanelHtml += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle)">';
-  if (otherFiles.length) { otherFiles.forEach(f => { imgPanelHtml += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:11px">'+esc(f.original_name)+'</a></div>'; }); }
-  imgPanelHtml += '<input type="file" id="profile-file-input" multiple style="display:none" onchange="uploadProfileFiles('+id+',this.files)"><button class="k-btn k-btn-sm" onclick="document.getElementById(\'profile-file-input\').click()" style="margin-top:6px;font-size:9px">+ Attach Files</button></div>';
   imgPanelHtml += '</div>';
 
   // Outer two-column: left=sections, right=images
@@ -2138,6 +2135,16 @@ async function viewProfile(id) {
   // Notes
   h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Notes</div>';
   h += '<textarea class="k-input" id="pf-notes" rows="4" style="resize:vertical;font-size:12px">'+esc(p.notes||'')+'</textarea>';
+  h += '</div>';
+
+  // Attached Files
+  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Attached Files</div>';
+  if (otherFiles.length) {
+    otherFiles.forEach(f => { h += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:12px">'+esc(f.original_name)+'</a></div>'; });
+  } else {
+    h += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">No files attached</div>';
+  }
+  h += '<input type="file" id="profile-file-input" multiple style="display:none" onchange="uploadProfileFiles('+id+',this.files)"><button class="k-btn k-btn-sm" onclick="document.getElementById(\'profile-file-input\').click()" style="margin-top:6px;font-size:10px">+ Attach Files</button>';
   h += '</div>';
 
   // Relations
@@ -2215,6 +2222,9 @@ async function viewProfile(id) {
 // Global paste handler for profile photos
 document.addEventListener('paste', function(e) {
   if (!currentProfileId) return;
+  // If the images modal is open, let handleProfileImagePaste handle it instead
+  const imgModal = document.getElementById('profile-images-modal');
+  if (imgModal && imgModal.classList.contains('active')) return;
   // Only skip if actively typing in a text input (check if clipboard has text AND input focused)
   const active = document.activeElement;
   const inTextField = active && (active.tagName === 'INPUT' && active.type !== 'file') || active.tagName === 'TEXTAREA';
