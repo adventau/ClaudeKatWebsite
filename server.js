@@ -5850,6 +5850,9 @@ app.delete('/api/debrief/photo', (req, res) => {
 // K-108 INTELLIGENCE PLATFORM
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const PLATETOVIN_API_KEY = process.env.PLATETOVIN_API_KEY || '';
+const AUTODEV_API_KEY = process.env.AUTODEV_API_KEY || '';
+
 const k108Tokens = new Map(); // token -> username
 const k108RateMap = new Map(); // token -> { count, resetAt }
 const K108_USERS_FILE = path.join(DATA_DIR, 'k108-users.json');
@@ -5858,13 +5861,28 @@ const K108_USERS_FILE = path.join(DATA_DIR, 'k108-users.json');
 function getK108Quota(name) {
   const file = path.join(DATA_DIR, `k108-${name}-quota.json`);
   try { if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) {}
-  const defaults = { lookup: { total: 50, used: 0 }, numvalidate: { total: 100, used: 0 }, sms: { total: 50, used: 0 } };
+  const defaults = { lookup: { total: 50, used: 0 }, sms: { total: 50, used: 0 } };
   return defaults[name] || { total: 50, used: 0 };
 }
 
 function saveK108Quota(name, q) {
   fs.writeFileSync(path.join(DATA_DIR, `k108-${name}-quota.json`), JSON.stringify(q, null, 2));
 }
+
+// Vehicle quota (PlateToVIN — 5 free/month, resets monthly)
+const K108_VEHICLE_QUOTA_FILE = path.join(DATA_DIR, 'k108-vehicle-quota.json');
+function getVehicleQuota() {
+  const month = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+  try {
+    if (fs.existsSync(K108_VEHICLE_QUOTA_FILE)) {
+      const q = JSON.parse(fs.readFileSync(K108_VEHICLE_QUOTA_FILE, 'utf8'));
+      if (q.month === month) return q;
+    }
+  } catch(e) {}
+  return { month, used: 0, total: 5 };
+}
+function saveVehicleQuota(q) { fs.writeFileSync(K108_VEHICLE_QUOTA_FILE, JSON.stringify(q, null, 2)); }
+function useVehicleQuota() { const q = getVehicleQuota(); q.used++; saveVehicleQuota(q); return q; }
 
 function useK108Quota(name) {
   const q = getK108Quota(name);
@@ -6196,10 +6214,9 @@ app.post('/api/k108/quota', (req, res) => {
   if (!username) return;
   const lookup = getK108Quota('lookup');
   const sms = getK108Quota('sms');
-  const nv = getK108Quota('numvalidate');
   res.json({
     total: lookup.total, used: lookup.used, remaining: lookup.total - lookup.used,
-    lookup, sms, numvalidate: nv
+    lookup, sms
   });
 });
 
@@ -6285,37 +6302,6 @@ app.post('/api/k108/search', async (req, res) => {
     });
   } catch (e) {
     res.status(500).json({ error: 'Search failed', detail: e.message });
-  }
-});
-
-// ── K-108 Number Validator ───────────────────────────────────────────────────
-const NUMVERIFY_KEY = process.env.NUMVERIFY_API_KEY || '';
-
-app.post('/api/k108/numvalidate', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  const { phone } = req.body;
-  if (!phone) return res.status(400).json({ error: 'Phone number required' });
-
-  const q = getK108Quota('numvalidate');
-  if (q.used >= q.total) return res.status(403).json({ error: 'Validation quota exhausted.' });
-  if (!NUMVERIFY_KEY) return res.status(503).json({ error: 'Number validation not configured' });
-
-  try {
-    const cleaned = phone.replace(/\D/g, '');
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10000);
-    const resp = await nodeFetch(`http://apilayer.net/api/validate?access_key=${NUMVERIFY_KEY}&number=${cleaned}&format=1`, { signal: ctrl.signal });
-    clearTimeout(timer);
-    const data = await resp.json();
-
-    useK108Quota('numvalidate');
-    const quota = getK108Quota('numvalidate');
-    await k108Log(username, 'number_validate', { phone: cleaned }, req.ip);
-
-    res.json({ result: data, quota: { total: quota.total, used: quota.used, remaining: quota.total - quota.used } });
-  } catch (e) {
-    res.status(500).json({ error: 'Validation failed', detail: e.message });
   }
 });
 
@@ -6862,6 +6848,113 @@ app.post('/api/k108/instagram-photo', async (req, res) => {
   }
 });
 
+// ── K-108 Vehicle Lookup ──────────────────────────────────────────────────────
+app.post('/api/k108/vehicle/quota', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  res.json({ quota: getVehicleQuota() });
+});
+
+app.post('/api/k108/vehicle/plate', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { plate, state } = req.body;
+  if (!plate || !state) return res.status(400).json({ error: 'Plate and state required' });
+  if (!/^[A-Z0-9]{2,8}$/i.test(plate)) return res.status(400).json({ error: 'Invalid plate format' });
+  if (!PLATETOVIN_API_KEY) return res.status(503).json({ error: 'Vehicle lookup not configured' });
+  try {
+    const ptv = await nodeFetch('https://platetovin.com/api/convert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': PLATETOVIN_API_KEY },
+      body: JSON.stringify({ plate: plate.toUpperCase(), state: state.toUpperCase() }),
+      timeout: 10000,
+    });
+    const ptvData = await ptv.json();
+    if (!ptv.ok || !ptvData.vin) return res.status(404).json({ error: 'No vehicle found for this plate' });
+    const quota = useVehicleQuota();
+    const vin = ptvData.vin;
+    let photos = [];
+    if (AUTODEV_API_KEY) {
+      try {
+        const photoRes = await nodeFetch(`https://api.auto.dev/vin/${vin}/photos`, {
+          headers: { 'apikey': AUTODEV_API_KEY },
+          timeout: 8000,
+        });
+        if (photoRes.ok) {
+          const pd = await photoRes.json();
+          const raw = pd.photos || pd;
+          photos = Array.isArray(raw) ? raw.map(p => typeof p === 'string' ? p : (p.url || p.src || '')).filter(Boolean) : [];
+        }
+      } catch(e) {}
+    }
+    await k108Log(username, 'vehicle_lookup', { type: 'plate', plate: plate.toUpperCase(), state, vin }, req.ip);
+    res.json({ vin, make: ptvData.make||'', model: ptvData.model||'', year: ptvData.year||'', trim: ptvData.trim||'', plate: plate.toUpperCase(), state: state.toUpperCase(), photos, quota: { used: quota.used, total: quota.total } });
+  } catch(e) {
+    console.error('[K108] Vehicle plate lookup:', e.message);
+    res.status(500).json({ error: 'Lookup failed. Please try again.' });
+  }
+});
+
+app.post('/api/k108/vehicle/vin', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { vin } = req.body;
+  if (!vin || vin.trim().length !== 17) return res.status(400).json({ error: 'VIN must be exactly 17 characters' });
+  if (!AUTODEV_API_KEY) return res.status(503).json({ error: 'Vehicle lookup not configured' });
+  try {
+    const [decodeRes, photoRes] = await Promise.all([
+      nodeFetch(`https://api.auto.dev/vin/${vin.trim()}`, { headers: { 'apikey': AUTODEV_API_KEY }, timeout: 10000 }),
+      nodeFetch(`https://api.auto.dev/vin/${vin.trim()}/photos`, { headers: { 'apikey': AUTODEV_API_KEY }, timeout: 8000 }),
+    ]);
+    if (!decodeRes.ok) return res.status(404).json({ error: 'No vehicle found for this VIN' });
+    const dec = await decodeRes.json();
+    let photos = [];
+    if (photoRes.ok) {
+      const pd = await photoRes.json();
+      const raw = pd.photos || pd;
+      photos = Array.isArray(raw) ? raw.map(p => typeof p === 'string' ? p : (p.url || p.src || '')).filter(Boolean) : [];
+    }
+    await k108Log(username, 'vehicle_lookup', { type: 'vin', vin: vin.trim() }, req.ip);
+    res.json({
+      vin: vin.trim(),
+      make: dec.make?.name || dec.make || '',
+      model: dec.model?.name || dec.model || '',
+      year: String(dec.years?.[0]?.year || dec.year || ''),
+      trim: dec.trim || dec.years?.[0]?.styles?.[0]?.trim || '',
+      engine: dec.engine?.name || dec.engine || '',
+      drivetrain: dec.drivetrain?.name || dec.drivetrain || '',
+      transmission: dec.transmission?.transmissionType || dec.transmission || '',
+      photos,
+    });
+  } catch(e) {
+    console.error('[K108] VIN lookup:', e.message);
+    res.status(500).json({ error: 'Lookup failed. Please try again.' });
+  }
+});
+
+app.post('/api/k108/vehicle/save', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { profileId, vehicle } = req.body;
+  if (!profileId || !vehicle) return res.status(400).json({ error: 'Profile ID and vehicle data required' });
+  if (db.pool) {
+    const r = await db.query(`UPDATE k108_profiles SET vehicle = $1, updated_at = NOW() WHERE id = $2 RETURNING first_name, last_name`, [JSON.stringify(vehicle), profileId]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Profile not found' });
+    const p = r.rows[0];
+    await k108Log(username, 'vehicle_save', { profileId, name: `${p.first_name} ${p.last_name}`.trim(), vin: vehicle.vin }, req.ip);
+    return res.json({ ok: true, profileName: `${p.first_name} ${p.last_name}`.trim() });
+  }
+  const profiles = getK108Profiles();
+  const idx = profiles.findIndex(p => String(p.id) === String(profileId));
+  if (idx === -1) return res.status(404).json({ error: 'Profile not found' });
+  profiles[idx].vehicle = vehicle;
+  profiles[idx].updated_at = new Date().toISOString();
+  saveK108Profiles(profiles);
+  const p = profiles[idx];
+  await k108Log(username, 'vehicle_save', { profileId, name: `${p.first_name} ${p.last_name}`.trim(), vin: vehicle.vin }, req.ip);
+  res.json({ ok: true, profileName: `${p.first_name} ${p.last_name}`.trim() });
+});
+
 // ── K-108 Labels ─────────────────────────────────────────────────────────────
 const K108_LABELS_FILE = path.join(DATA_DIR, 'k108-labels.json');
 function getK108Labels() { try { if (fs.existsSync(K108_LABELS_FILE)) return JSON.parse(fs.readFileSync(K108_LABELS_FILE, 'utf8')); } catch(e) {} return []; }
@@ -7147,11 +7240,6 @@ app.post('/api/k108/command', async (req, res) => {
       return res.json(lines(`SMS quota: ${q.used}/${q.total} used — ${q.total - q.used} remaining`, 'success'));
     }
 
-    if (cmd === 'numvalidate' && parts[1]?.toLowerCase() === 'quota') {
-      const q = getK108Quota('numvalidate');
-      return res.json(lines(`Numvalidate quota: ${q.used}/${q.total} used — ${q.total - q.used} remaining`, 'success'));
-    }
-
     if (cmd === 'activity') {
       if (db.pool) {
         const r = await db.query('SELECT * FROM k108_activity_log ORDER BY created_at DESC LIMIT 10');
@@ -7163,31 +7251,11 @@ app.post('/api/k108/command', async (req, res) => {
       return res.json({ lines: [{ text: 'Last 10 Activity Log entries:', cls: 'header' }], table: { headers: ['Time', 'User', 'Action', 'Detail'], rows: entries.map(e => [new Date(e.created_at).toLocaleString(), e.username, e.action_type, JSON.stringify(e.detail || {}).substring(0, 50)]) } });
     }
 
-    if (cmd === 'validate') {
-      const phone = parts.slice(1).join('').replace(/\D/g, '');
-      if (!phone || phone.length < 10) return res.json(lines('Usage: validate <phone number>', 'warn'));
-      if (!process.env.NUMVERIFY_API_KEY) return res.json(lines('Numverify API key not configured', 'error'));
-      if (!useK108Quota('numvalidate')) return res.json(lines('Numvalidate quota exhausted', 'error'));
-      try {
-        const r = await nodeFetch(`http://apilayer.net/api/validate?access_key=${process.env.NUMVERIFY_API_KEY}&number=1${phone.slice(-10)}&country_code=US&format=1`);
-        const d = await r.json();
-        await k108Log(username, 'number_validate', { phone, source: 'command_bar' }, req.ip);
-        return res.json(multi(
-          ['── Validation Result ──', 'header'],
-          [`  Valid: ${d.valid ? 'YES' : 'NO'}`, d.valid ? 'success' : 'error'],
-          [`  Number: ${d.international_format || phone}`, 'data'],
-          [`  Carrier: ${d.carrier || 'Unknown'}`, 'data'],
-          [`  Line Type: ${d.line_type || 'Unknown'}`, 'data'],
-          [`  Location: ${d.location || 'Unknown'}`, 'data'],
-        ));
-      } catch (e) { return res.json(lines('Validation failed: ' + e.message, 'error')); }
-    }
-
     if (cmd === 'goto') {
       const target = parts[1]?.toLowerCase();
-      const validModules = ['people', 'sms', 'numvalidate', 'profiles', 'cases', 'vault', 'metadata', 'activity', 'briefing', 'mailbox', 'log'];
+      const validModules = ['people', 'sms', 'vehicle', 'profiles', 'cases', 'vault', 'metadata', 'activity', 'briefing', 'mailbox', 'log'];
       if (!target || !validModules.includes(target)) return res.json(lines(`Usage: goto <${validModules.join('|')}>`, 'warn'));
-      const hashMap = { people: '#/lookup', sms: '#/sms', numvalidate: '#/numvalidate', profiles: '#/profiles', cases: '#/cases', vault: '#/vault', metadata: '#/metadata', activity: '#/log', log: '#/log', briefing: '#/briefing', mailbox: '#/mailbox' };
+      const hashMap = { people: '#/lookup', sms: '#/sms', vehicle: '#/vehicle', profiles: '#/profiles', cases: '#/cases', vault: '#/vault', metadata: '#/metadata', activity: '#/log', log: '#/log', briefing: '#/briefing', mailbox: '#/mailbox' };
       return res.json({ lines: [{ text: `Navigating to ${target}`, cls: 'success' }], navigate: hashMap[target] || '#/' });
     }
 
