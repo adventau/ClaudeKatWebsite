@@ -6444,47 +6444,6 @@ app.post('/api/k108/sms/thread', async (req, res) => {
   res.json({ messages: r.rows });
 });
 
-// ── K-108 Metadata Extractor ─────────────────────────────────────────────────
-let exiftool = null;
-try { exiftool = require('exiftool-vendored').exiftool; } catch (e) {}
-
-app.post('/api/k108/metadata/extract', mainAuth, upload.single('file'), async (req, res) => {
-  // Token passed via form field for multipart uploads
-  req.body.token = req.body.token || req.query.token;
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!exiftool) return res.status(503).json({ error: 'Metadata extraction not available. Install exiftool-vendored.' });
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-
-  try {
-    const tags = await exiftool.read(req.file.path);
-    // Group by category
-    const groups = {};
-    for (const [key, value] of Object.entries(tags)) {
-      if (key === 'errors' || key === 'SourceFile') continue;
-      const cat = key.includes(':') ? key.split(':')[0] : 'General';
-      if (!groups[cat]) groups[cat] = {};
-      groups[cat][key] = value;
-    }
-
-    // Extract GPS if present
-    let gps = null;
-    if (tags.GPSLatitude && tags.GPSLongitude) {
-      gps = { lat: tags.GPSLatitude, lng: tags.GPSLongitude };
-    }
-
-    await k108Log(username, 'metadata_extract', { filename: req.file.originalname }, req.ip);
-
-    // Cleanup uploaded file
-    fs.unlink(req.file.path, () => {});
-
-    res.json({ groups, gps, filename: req.file.originalname });
-  } catch (e) {
-    fs.unlink(req.file.path, () => {});
-    res.status(500).json({ error: 'Extraction failed', detail: e.message });
-  }
-});
-
 // ── K-108 Document Vault ─────────────────────────────────────────────────────
 app.post('/api/k108/vault/items', async (req, res) => {
   const username = k108Auth(req, res);
@@ -7291,9 +7250,9 @@ app.post('/api/k108/command', async (req, res) => {
 
     if (cmd === 'goto') {
       const target = parts[1]?.toLowerCase();
-      const validModules = ['people', 'sms', 'vehicle', 'profiles', 'cases', 'vault', 'metadata', 'activity', 'briefing', 'mailbox', 'log'];
+      const validModules = ['people', 'sms', 'vehicle', 'profiles', 'cases', 'vault', 'activity', 'briefing', 'mailbox', 'log'];
       if (!target || !validModules.includes(target)) return res.json(lines(`Usage: goto <${validModules.join('|')}>`, 'warn'));
-      const hashMap = { people: '#/lookup', sms: '#/sms', vehicle: '#/vehicle', profiles: '#/profiles', cases: '#/cases', vault: '#/vault', metadata: '#/metadata', activity: '#/log', log: '#/log', briefing: '#/briefing', mailbox: '#/mailbox' };
+      const hashMap = { people: '#/lookup', sms: '#/sms', vehicle: '#/vehicle', profiles: '#/profiles', cases: '#/cases', vault: '#/vault', activity: '#/log', log: '#/log', briefing: '#/briefing', mailbox: '#/mailbox' };
       return res.json({ lines: [{ text: `Navigating to ${target}`, cls: 'success' }], navigate: hashMap[target] || '#/' });
     }
 
@@ -7340,420 +7299,287 @@ app.post('/api/k108/command/autocomplete', async (req, res) => {
   } catch (e) { res.json({ items: [] }); }
 });
 
-// ── K-108 Case Files — JSON fallback store ───────────────────────────────────
-const K108_CASES_FILE = path.join(DATA_DIR, 'k108-cases.json');
-function getCaseStore() {
-  try { if (fs.existsSync(K108_CASES_FILE)) return JSON.parse(fs.readFileSync(K108_CASES_FILE, 'utf8')); } catch(e) {}
-  return { cases: [], subjects: [], evidence: [], findings: [], questions: [], timeline: [], nodes: [], edges: [], _nextId: 1 };
-}
-function saveCaseStore(store) { fs.writeFileSync(K108_CASES_FILE, JSON.stringify(store, null, 2)); }
-function caseNextId(store) { return store._nextId++; }
 
-// ── K-108 Case Files ─────────────────────────────────────────────────────────
-app.post('/api/k108/cases', async (req, res) => {
+// ── K-108 Case Management ────────────────────────────────────────────────────
+const K108_EVIDENCE_DIR = path.join(UPLOADS_DIR, 'k108-evidence');
+fs.ensureDirSync(K108_EVIDENCE_DIR);
+const k108EvidenceStorage = multer.diskStorage({
+  destination: (_, __, cb) => cb(null, K108_EVIDENCE_DIR),
+  filename: (_, file, cb) => {
+    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    cb(null, Date.now() + '_' + safe);
+  }
+});
+const k108EvidenceUpload = multer({ storage: k108EvidenceStorage, limits: { fileSize: 100 * 1024 * 1024 } });
+
+async function k108GenerateCaseId() {
+  const d = new Date();
+  const ymd = d.getFullYear().toString() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+  const r = await db.query(`SELECT COUNT(*)::int AS c FROM k108_cases WHERE case_id LIKE $1`, ['K108-' + ymd + '-%']);
+  const seq = String((r.rows[0].c || 0) + 1).padStart(3, '0');
+  return 'K108-' + ymd + '-' + seq;
+}
+
+function k108CaseRow(r) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    caseId: r.case_id,
+    name: r.name,
+    targetName: r.target_name || '',
+    status: (r.status || 'open').toLowerCase(),
+    classification: (r.classification || 'unclassified').toLowerCase(),
+    priority: (r.priority || 'medium').toLowerCase(),
+    summary: r.summary || '',
+    createdBy: r.created_by || '',
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+async function k108TouchCase(id) {
+  await db.query('UPDATE k108_cases SET updated_at = NOW() WHERE id = $1', [id]);
+}
+
+function k108EmitCaseUpdate(caseId) {
+  try { io.emit('k108:case_updated', { caseId, at: Date.now() }); } catch(e) {}
+}
+
+// List cases
+app.post('/api/k108/cases/list', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { status } = req.body;
-  if (db.pool) {
-    let sql = 'SELECT c.*, (SELECT COUNT(*) FROM k108_case_subjects WHERE case_id=c.id) AS subject_count, (SELECT COUNT(*) FROM k108_case_evidence WHERE case_id=c.id) AS evidence_count FROM k108_cases c';
-    const params = [];
-    if (status && ['OPEN', 'COLD', 'CLOSED'].includes(status)) { sql += ' WHERE c.status = $1'; params.push(status); }
-    sql += ' ORDER BY c.updated_at DESC';
-    const r = await db.query(sql, params);
-    return res.json({ cases: r.rows });
+  if (!db.pool) return res.json({ cases: [] });
+  const { status } = req.body || {};
+  let sql = 'SELECT * FROM k108_cases';
+  const params = [];
+  if (status && (status === 'open' || status === 'closed')) {
+    params.push(status);
+    sql += ' WHERE LOWER(status) = $1';
   }
-  const store = getCaseStore();
-  let cases = store.cases;
-  if (status) cases = cases.filter(c => c.status === status);
-  cases = cases.map(c => ({ ...c, subject_count: store.subjects.filter(s => s.case_id === c.id).length, evidence_count: store.evidence.filter(e => e.case_id === c.id).length }));
-  cases.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-  res.json({ cases });
+  sql += ' ORDER BY updated_at DESC';
+  const r = await db.query(sql, params);
+  res.json({ cases: r.rows.map(k108CaseRow) });
 });
 
+// Create case
 app.post('/api/k108/cases/create', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { name, summary, classification } = req.body;
-  if (!name) return res.status(400).json({ error: 'Case name required' });
-  if (db.pool) {
-    const r = await db.query('INSERT INTO k108_cases (name, summary, classification, last_edited_by) VALUES ($1, $2, $3, $4) RETURNING *', [name, summary || '', classification || 'CONFIDENTIAL', username]);
-    await k108Log(username, 'case_create', { name, caseId: r.rows[0].id }, req.ip);
-    return res.json({ case: r.rows[0] });
-  }
-  const store = getCaseStore();
-  const now = new Date().toISOString();
-  const c = { id: caseNextId(store), name, status: 'OPEN', classification: classification || 'CONFIDENTIAL', summary: summary || '', created_at: now, updated_at: now, last_edited_by: username };
-  store.cases.push(c);
-  saveCaseStore(store);
-  await k108Log(username, 'case_create', { name, caseId: c.id }, req.ip);
-  res.json({ case: c });
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { name, targetName, priority, classification, summary } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Case name required' });
+  const safePriority = ['low','medium','high'].includes((priority||'').toLowerCase()) ? priority.toLowerCase() : 'medium';
+  const safeClass = ['unclassified','confidential','classified'].includes((classification||'').toLowerCase()) ? classification.toLowerCase() : 'unclassified';
+  const caseId = await k108GenerateCaseId();
+  const r = await db.query(
+    `INSERT INTO k108_cases (case_id, name, target_name, status, classification, priority, summary, created_by)
+     VALUES ($1,$2,$3,'open',$4,$5,$6,$7) RETURNING *`,
+    [caseId, String(name).trim(), String(targetName || '').trim(), safeClass, safePriority, String(summary || ''), username]
+  );
+  const created = r.rows[0];
+  await db.query(
+    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'created','Case opened',$2,$3)`,
+    [created.id, 'Case "' + created.name + '" created.', username]
+  );
+  await k108Log(username, 'case_create', { case_id: caseId, name: created.name }, req.ip);
+  k108EmitCaseUpdate(created.id);
+  res.json({ case: k108CaseRow(created) });
 });
 
-app.post('/api/k108/cases/:id', async (req, res) => {
+// Get case detail (overview + counts)
+app.post('/api/k108/cases/get', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const id = db.pool ? req.params.id : parseInt(req.params.id);
-  if (db.pool) {
-    const c = await db.query('SELECT * FROM k108_cases WHERE id = $1', [id]);
-    if (!c.rows.length) return res.status(404).json({ error: 'Case not found' });
-    const subjects = await db.query(`SELECT cs.*, p.first_name, p.last_name, p.photo_url FROM k108_case_subjects cs JOIN k108_profiles p ON cs.profile_id = p.id WHERE cs.case_id = $1 ORDER BY cs.created_at`, [id]);
-    const evidence = await db.query('SELECT * FROM k108_case_evidence WHERE case_id = $1 ORDER BY created_at DESC', [id]);
-    const findings = await db.query('SELECT * FROM k108_case_findings WHERE case_id = $1 ORDER BY order_index ASC, created_at ASC', [id]);
-    const questions = await db.query('SELECT * FROM k108_case_questions WHERE case_id = $1 ORDER BY created_at ASC', [id]);
-    const timeline = await db.query('SELECT * FROM k108_case_timeline WHERE case_id = $1 ORDER BY event_date ASC', [id]);
-    const nodes = await db.query('SELECT * FROM k108_case_canvas_nodes WHERE case_id = $1', [id]);
-    const edges = await db.query('SELECT * FROM k108_case_canvas_edges WHERE case_id = $1', [id]);
-    return res.json({ case: c.rows[0], subjects: subjects.rows, evidence: evidence.rows, findings: findings.rows, questions: questions.rows, timeline: timeline.rows, nodes: nodes.rows, edges: edges.rows });
-  }
-  const store = getCaseStore();
-  const c = store.cases.find(c => c.id === id);
-  if (!c) return res.status(404).json({ error: 'Case not found' });
-  // Enrich subjects with profile data from JSON profiles store
-  const profiles = getK108Profiles();
-  const enrichedSubjects = store.subjects.filter(s => s.case_id === id).map(s => {
-    const p = profiles.find(p => String(p.id) === String(s.profile_id));
-    return { ...s, first_name: p?.first_name || 'Unknown', last_name: p?.last_name || '', photo_url: p?.photo_url || null };
-  });
-  res.json({ case: c, subjects: enrichedSubjects, evidence: store.evidence.filter(e => e.case_id === id), findings: store.findings.filter(f => f.case_id === id).sort((a,b) => (a.order_index||0) - (b.order_index||0)), questions: store.questions.filter(q => q.case_id === id), timeline: store.timeline.filter(t => t.case_id === id), nodes: store.nodes.filter(n => n.case_id === id), edges: store.edges.filter(e => e.case_id === id) });
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id } = req.body || {};
+  const r = await db.query('SELECT * FROM k108_cases WHERE id = $1', [id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Case not found' });
+  const counts = await db.query(
+    `SELECT
+       (SELECT COUNT(*)::int FROM k108_case_timeline WHERE case_id = $1) AS timeline_count,
+       (SELECT COUNT(*)::int FROM k108_case_evidence WHERE case_id = $1 AND filename IS NOT NULL) AS evidence_count,
+       (SELECT COUNT(*)::int FROM k108_case_entities WHERE case_id = $1) AS entity_count,
+       (SELECT COUNT(*)::int FROM k108_case_notes WHERE case_id = $1) AS notes_count`,
+    [id]
+  );
+  res.json({ case: k108CaseRow(r.rows[0]), counts: counts.rows[0] });
 });
 
-app.put('/api/k108/cases/:id', async (req, res) => {
+// Update case summary / target / priority / classification
+app.post('/api/k108/cases/update', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { name, status, classification, summary } = req.body;
-  if (db.pool) {
-    const sets = []; const params = [];
-    if (name !== undefined) { params.push(name); sets.push(`name = $${params.length}`); }
-    if (status !== undefined) { params.push(status); sets.push(`status = $${params.length}`); }
-    if (classification !== undefined) { params.push(classification); sets.push(`classification = $${params.length}`); }
-    if (summary !== undefined) { params.push(summary); sets.push(`summary = $${params.length}`); }
-    params.push(username); sets.push(`last_edited_by = $${params.length}`);
-    sets.push('updated_at = NOW()');
-    params.push(req.params.id);
-    await db.query(`UPDATE k108_cases SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
-  } else {
-    const store = getCaseStore();
-    const c = store.cases.find(c => c.id === parseInt(req.params.id));
-    if (c) { if (name !== undefined) c.name = name; if (status !== undefined) c.status = status; if (classification !== undefined) c.classification = classification; if (summary !== undefined) c.summary = summary; c.last_edited_by = username; c.updated_at = new Date().toISOString(); saveCaseStore(store); }
-  }
-  const detail = {};
-  if (name !== undefined) detail.name = name;
-  if (status !== undefined) detail.status = status;
-  await k108Log(username, 'case_update', { caseId: req.params.id, ...detail }, req.ip);
-  res.json({ ok: true });
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id, summary, targetName, priority, classification } = req.body || {};
+  const sets = []; const params = [];
+  if (summary !== undefined) { params.push(summary); sets.push(`summary = $${params.length}`); }
+  if (targetName !== undefined) { params.push(targetName); sets.push(`target_name = $${params.length}`); }
+  if (priority !== undefined && ['low','medium','high'].includes(priority)) { params.push(priority); sets.push(`priority = $${params.length}`); }
+  if (classification !== undefined && ['unclassified','confidential','classified'].includes(classification)) { params.push(classification); sets.push(`classification = $${params.length}`); }
+  if (!sets.length) return res.json({ ok: true });
+  sets.push(`updated_at = NOW()`);
+  params.push(id);
+  const r = await db.query(`UPDATE k108_cases SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`, params);
+  k108EmitCaseUpdate(id);
+  res.json({ case: k108CaseRow(r.rows[0]) });
 });
 
-app.delete('/api/k108/cases/:id', async (req, res) => {
+// Toggle status open/closed
+app.post('/api/k108/cases/status', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  if (db.pool) {
-    const c = await db.query('SELECT name FROM k108_cases WHERE id = $1', [req.params.id]);
-    await db.query('DELETE FROM k108_cases WHERE id = $1', [req.params.id]);
-    await k108Log(username, 'case_delete', { caseId: req.params.id, name: c.rows[0]?.name }, req.ip);
-  } else {
-    const store = getCaseStore(); const id = parseInt(req.params.id);
-    const c = store.cases.find(c => c.id === id);
-    store.cases = store.cases.filter(c => c.id !== id);
-    store.subjects = store.subjects.filter(s => s.case_id !== id);
-    store.evidence = store.evidence.filter(e => e.case_id !== id);
-    store.findings = store.findings.filter(f => f.case_id !== id);
-    store.questions = store.questions.filter(q => q.case_id !== id);
-    store.timeline = store.timeline.filter(t => t.case_id !== id);
-    store.nodes = store.nodes.filter(n => n.case_id !== id);
-    store.edges = store.edges.filter(e => e.case_id !== id);
-    saveCaseStore(store);
-    await k108Log(username, 'case_delete', { caseId: req.params.id, name: c?.name }, req.ip);
-  }
-  res.json({ ok: true });
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id, status } = req.body || {};
+  const target = (status === 'open' || status === 'closed') ? status : null;
+  if (!target) return res.status(400).json({ error: 'Invalid status' });
+  await db.query('UPDATE k108_cases SET status = $1, updated_at = NOW() WHERE id = $2', [target, id]);
+  await db.query(
+    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'status','Status changed',$2,$3)`,
+    [id, 'Case marked as ' + target.toUpperCase() + '.', username]
+  );
+  await k108Log(username, 'case_status', { id, status: target }, req.ip);
+  k108EmitCaseUpdate(id);
+  res.json({ ok: true, status: target });
 });
 
-// Case subjects
-app.post('/api/k108/cases/:id/subjects', async (req, res) => {
+// ── Timeline ──
+app.post('/api/k108/cases/timeline/list', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { profileId, role } = req.body;
-  if (!profileId) return res.status(400).json({ error: 'Profile ID required' });
-  if (db.pool) {
-    try {
-      const r = await db.query('INSERT INTO k108_case_subjects (case_id, profile_id, role) VALUES ($1, $2, $3) ON CONFLICT (case_id, profile_id) DO UPDATE SET role = $3 RETURNING *', [req.params.id, profileId, role || 'Associate']);
-      await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
-      const p = await db.query('SELECT first_name, last_name FROM k108_profiles WHERE id = $1', [profileId]);
-      await k108Log(username, 'case_subject_add', { caseId: req.params.id, profileId, name: p.rows[0] ? `${p.rows[0].first_name} ${p.rows[0].last_name}` : '' }, req.ip);
-      return res.json({ subject: r.rows[0] });
-    } catch (e) { return res.status(400).json({ error: e.message }); }
-  }
-  const store = getCaseStore(); const caseId = parseInt(req.params.id);
-  const existing = store.subjects.find(s => s.case_id === caseId && s.profile_id === parseInt(profileId));
-  if (existing) { existing.role = role || 'Associate'; } else { store.subjects.push({ id: caseNextId(store), case_id: caseId, profile_id: parseInt(profileId), role: role || 'Associate', created_at: new Date().toISOString() }); }
-  saveCaseStore(store);
-  await k108Log(username, 'case_subject_add', { caseId: req.params.id, profileId }, req.ip);
-  res.json({ subject: store.subjects[store.subjects.length - 1] });
+  if (!db.pool) return res.json({ entries: [] });
+  const { id } = req.body || {};
+  const r = await db.query('SELECT * FROM k108_case_timeline WHERE case_id = $1 ORDER BY created_at DESC', [id]);
+  res.json({ entries: r.rows.map(e => ({ id: e.id, entryType: e.entry_type || 'note', title: e.title || '', body: e.body || '', createdBy: e.created_by || '', createdAt: e.created_at })) });
 });
 
-app.put('/api/k108/cases/:id/subjects/:sid', async (req, res) => {
+app.post('/api/k108/cases/timeline/add', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { role } = req.body;
-  if (db.pool) { await db.query('UPDATE k108_case_subjects SET role = $1 WHERE id = $2', [role, req.params.sid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
-  else { const store = getCaseStore(); const s = store.subjects.find(s => s.id === parseInt(req.params.sid)); if (s) s.role = role; saveCaseStore(store); }
-  res.json({ ok: true });
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id, entryType, title, body } = req.body || {};
+  if (!id || !title) return res.status(400).json({ error: 'id and title required' });
+  const r = await db.query(
+    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [id, (entryType || 'note'), String(title), String(body || ''), username]
+  );
+  await k108TouchCase(id);
+  k108EmitCaseUpdate(id);
+  res.json({ entry: r.rows[0] });
 });
 
-app.delete('/api/k108/cases/:id/subjects/:sid', async (req, res) => {
+// ── Evidence ──
+app.post('/api/k108/cases/evidence/list', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  if (db.pool) { await db.query('DELETE FROM k108_case_subjects WHERE id = $1', [req.params.sid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
-  else { const store = getCaseStore(); store.subjects = store.subjects.filter(s => s.id !== parseInt(req.params.sid)); saveCaseStore(store); }
-  await k108Log(username, 'case_subject_remove', { caseId: req.params.id, subjectId: req.params.sid }, req.ip);
-  res.json({ ok: true });
+  if (!db.pool) return res.json({ files: [] });
+  const { id } = req.body || {};
+  const r = await db.query('SELECT * FROM k108_case_evidence WHERE case_id = $1 AND filename IS NOT NULL ORDER BY uploaded_at DESC', [id]);
+  res.json({ files: r.rows.map(f => ({ id: f.id, filename: f.filename, originalName: f.original_name, fileSize: Number(f.file_size || 0), uploadedBy: f.uploaded_by || '', uploadedAt: f.uploaded_at })) });
 });
 
-// Case evidence
-app.post('/api/k108/cases/:id/evidence', async (req, res) => {
+app.post('/api/k108/cases/evidence/upload', mainAuth, k108EvidenceUpload.single('file'), async (req, res) => {
+  req.body.token = req.body.token || req.query.token;
   const username = k108Auth(req, res);
   if (!username) return;
-  const { type, title, metadata, sourceId, notes } = req.body;
-  if (!type || !title) return res.status(400).json({ error: 'Type and title required' });
-  if (db.pool) {
-    const r = await db.query('INSERT INTO k108_case_evidence (case_id, type, title, metadata, source_id, notes) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.params.id, type, title, JSON.stringify(metadata || {}), sourceId || null, notes || '']);
-    await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
-    await k108Log(username, 'case_evidence_add', { caseId: req.params.id, type, title }, req.ip);
-    return res.json({ evidence: r.rows[0] });
-  }
-  const store = getCaseStore();
-  const ev = { id: caseNextId(store), case_id: parseInt(req.params.id), type, title, metadata: metadata || {}, source_id: sourceId || null, notes: notes || '', created_at: new Date().toISOString() };
-  store.evidence.push(ev);
-  saveCaseStore(store);
-  await k108Log(username, 'case_evidence_add', { caseId: req.params.id, type, title }, req.ip);
-  res.json({ evidence: ev });
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const caseId = parseInt(req.body.caseId, 10);
+  if (!caseId) { fs.unlink(req.file.path, () => {}); return res.status(400).json({ error: 'caseId required' }); }
+  const publicPath = '/uploads/k108-evidence/' + req.file.filename;
+  const r = await db.query(
+    `INSERT INTO k108_case_evidence (case_id, filename, original_name, file_size, uploaded_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [caseId, publicPath, req.file.originalname, req.file.size, username]
+  );
+  await db.query(
+    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'evidence','Evidence uploaded',$2,$3)`,
+    [caseId, 'File "' + req.file.originalname + '" (' + req.file.size + ' bytes) added to evidence vault.', username]
+  );
+  await k108TouchCase(caseId);
+  await k108Log(username, 'case_evidence_upload', { case_id: caseId, filename: req.file.originalname }, req.ip);
+  k108EmitCaseUpdate(caseId);
+  res.json({ file: r.rows[0] });
 });
 
-app.put('/api/k108/cases/:id/evidence/:eid', async (req, res) => {
+// Attach an evidence reference (used by Document Vault "Add to Case" — no file copy)
+app.post('/api/k108/cases/evidence/attach', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { title, notes, metadata } = req.body;
-  if (db.pool) {
-    const sets = []; const params = [];
-    if (title !== undefined) { params.push(title); sets.push(`title = $${params.length}`); }
-    if (notes !== undefined) { params.push(notes); sets.push(`notes = $${params.length}`); }
-    if (metadata !== undefined) { params.push(JSON.stringify(metadata)); sets.push(`metadata = $${params.length}`); }
-    if (!sets.length) return res.json({ ok: true });
-    params.push(req.params.eid);
-    await db.query(`UPDATE k108_case_evidence SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
-    await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
-  } else {
-    const store = getCaseStore(); const ev = store.evidence.find(e => e.id === parseInt(req.params.eid));
-    if (ev) { if (title !== undefined) ev.title = title; if (notes !== undefined) ev.notes = notes; if (metadata !== undefined) ev.metadata = metadata; saveCaseStore(store); }
-  }
-  res.json({ ok: true });
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id, filename, originalName, fileSize } = req.body || {};
+  if (!id || !originalName) return res.status(400).json({ error: 'id and originalName required' });
+  const r = await db.query(
+    `INSERT INTO k108_case_evidence (case_id, filename, original_name, file_size, uploaded_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+    [id, filename || '', originalName, fileSize || 0, username]
+  );
+  await db.query(
+    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'evidence','Evidence attached',$2,$3)`,
+    [id, 'Document "' + originalName + '" linked from Document Vault.', username]
+  );
+  await k108TouchCase(id);
+  k108EmitCaseUpdate(id);
+  res.json({ file: r.rows[0] });
 });
 
-app.delete('/api/k108/cases/:id/evidence/:eid', async (req, res) => {
+// ── Entities ──
+app.post('/api/k108/cases/entities/list', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  if (db.pool) { await db.query('DELETE FROM k108_case_evidence WHERE id = $1', [req.params.eid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
-  else { const store = getCaseStore(); store.evidence = store.evidence.filter(e => e.id !== parseInt(req.params.eid)); saveCaseStore(store); }
-  await k108Log(username, 'case_evidence_remove', { caseId: req.params.id, evidenceId: req.params.eid }, req.ip);
-  res.json({ ok: true });
+  if (!db.pool) return res.json({ entities: [] });
+  const { id } = req.body || {};
+  const r = await db.query('SELECT * FROM k108_case_entities WHERE case_id = $1 ORDER BY added_at DESC', [id]);
+  res.json({ entities: r.rows.map(e => ({ id: e.id, entityType: e.entity_type, name: e.name, detail: e.detail || '', source: e.source || '', addedBy: e.added_by || '', addedAt: e.added_at })) });
 });
 
-// Case findings
-app.post('/api/k108/cases/:id/findings', async (req, res) => {
+app.post('/api/k108/cases/entities/add', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { text } = req.body;
-  if (!text) return res.status(400).json({ error: 'Text required' });
-  if (db.pool) {
-    const maxIdx = await db.query('SELECT COALESCE(MAX(order_index), -1) + 1 AS next FROM k108_case_findings WHERE case_id = $1', [req.params.id]);
-    const r = await db.query('INSERT INTO k108_case_findings (case_id, text, order_index) VALUES ($1, $2, $3) RETURNING *', [req.params.id, text, maxIdx.rows[0].next]);
-    await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
-    await k108Log(username, 'case_finding_add', { caseId: req.params.id }, req.ip);
-    return res.json({ finding: r.rows[0] });
-  }
-  const store = getCaseStore(); const caseId = parseInt(req.params.id);
-  const existing = store.findings.filter(f => f.case_id === caseId);
-  const nextIdx = existing.length ? Math.max(...existing.map(f => f.order_index || 0)) + 1 : 0;
-  const f = { id: caseNextId(store), case_id: caseId, text, resolved: false, order_index: nextIdx, created_at: new Date().toISOString() };
-  store.findings.push(f);
-  saveCaseStore(store);
-  await k108Log(username, 'case_finding_add', { caseId: req.params.id }, req.ip);
-  res.json({ finding: f });
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id, entityType, name, detail, source } = req.body || {};
+  if (!id || !name) return res.status(400).json({ error: 'id and name required' });
+  const type = (entityType === 'vehicle') ? 'vehicle' : 'person';
+  const detailStr = typeof detail === 'string' ? detail : JSON.stringify(detail || {});
+  const r = await db.query(
+    `INSERT INTO k108_case_entities (case_id, entity_type, name, detail, source, added_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [id, type, String(name), detailStr, String(source || ''), username]
+  );
+  await db.query(
+    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'entity','Entity added',$2,$3)`,
+    [id, (type === 'vehicle' ? 'Vehicle ' : 'Person ') + '"' + name + '" added from ' + (source || 'manual') + '.', username]
+  );
+  await k108TouchCase(id);
+  await k108Log(username, 'case_entity_add', { case_id: id, type, name }, req.ip);
+  k108EmitCaseUpdate(id);
+  res.json({ entity: r.rows[0] });
 });
 
-app.put('/api/k108/cases/:id/findings/:fid', async (req, res) => {
+// ── Notes ──
+app.post('/api/k108/cases/notes/list', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { text, resolved, order_index } = req.body;
-  if (db.pool) {
-    const sets = []; const params = [];
-    if (text !== undefined) { params.push(text); sets.push(`text = $${params.length}`); }
-    if (resolved !== undefined) { params.push(resolved); sets.push(`resolved = $${params.length}`); }
-    if (order_index !== undefined) { params.push(order_index); sets.push(`order_index = $${params.length}`); }
-    if (!sets.length) return res.json({ ok: true });
-    params.push(req.params.fid);
-    await db.query(`UPDATE k108_case_findings SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
-    await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
-  } else {
-    const store = getCaseStore(); const f = store.findings.find(f => f.id === parseInt(req.params.fid));
-    if (f) { if (text !== undefined) f.text = text; if (resolved !== undefined) f.resolved = resolved; if (order_index !== undefined) f.order_index = order_index; saveCaseStore(store); }
-  }
-  res.json({ ok: true });
+  if (!db.pool) return res.json({ notes: [] });
+  const { id } = req.body || {};
+  const r = await db.query('SELECT * FROM k108_case_notes WHERE case_id = $1 ORDER BY created_at DESC', [id]);
+  res.json({ notes: r.rows.map(n => ({ id: n.id, body: n.body, createdBy: n.created_by || '', createdAt: n.created_at })) });
 });
 
-app.delete('/api/k108/cases/:id/findings/:fid', async (req, res) => {
+app.post('/api/k108/cases/notes/add', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  if (db.pool) { await db.query('DELETE FROM k108_case_findings WHERE id = $1', [req.params.fid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
-  else { const store = getCaseStore(); store.findings = store.findings.filter(f => f.id !== parseInt(req.params.fid)); saveCaseStore(store); }
-  await k108Log(username, 'case_finding_delete', { caseId: req.params.id }, req.ip);
-  res.json({ ok: true });
-});
-
-// Case questions
-app.post('/api/k108/cases/:id/questions', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  const { text } = req.body;
-  if (!text) return res.status(400).json({ error: 'Text required' });
-  if (db.pool) {
-    const r = await db.query('INSERT INTO k108_case_questions (case_id, text) VALUES ($1, $2) RETURNING *', [req.params.id, text]);
-    await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]);
-    return res.json({ question: r.rows[0] });
-  }
-  const store = getCaseStore();
-  const q = { id: caseNextId(store), case_id: parseInt(req.params.id), text, resolved: false, created_at: new Date().toISOString() };
-  store.questions.push(q);
-  saveCaseStore(store);
-  res.json({ question: q });
-});
-
-app.put('/api/k108/cases/:id/questions/:qid', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  const { text, resolved } = req.body;
-  if (db.pool) { const sets = []; const params = []; if (text !== undefined) { params.push(text); sets.push(`text = $${params.length}`); } if (resolved !== undefined) { params.push(resolved); sets.push(`resolved = $${params.length}`); } if (!sets.length) return res.json({ ok: true }); params.push(req.params.qid); await db.query(`UPDATE k108_case_questions SET ${sets.join(', ')} WHERE id = $${params.length}`, params); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
-  else { const store = getCaseStore(); const q = store.questions.find(q => q.id === parseInt(req.params.qid)); if (q) { if (text !== undefined) q.text = text; if (resolved !== undefined) q.resolved = resolved; saveCaseStore(store); } }
-  res.json({ ok: true });
-});
-
-app.delete('/api/k108/cases/:id/questions/:qid', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (db.pool) { await db.query('DELETE FROM k108_case_questions WHERE id = $1', [req.params.qid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
-  else { const store = getCaseStore(); store.questions = store.questions.filter(q => q.id !== parseInt(req.params.qid)); saveCaseStore(store); }
-  res.json({ ok: true });
-});
-
-// Case timeline
-app.post('/api/k108/cases/:id/timeline', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  const { event_date, event_type, description, evidence_ids } = req.body;
-  if (!description) return res.status(400).json({ error: 'Description required' });
-  if (db.pool) { const r = await db.query('INSERT INTO k108_case_timeline (case_id, event_date, event_type, description, evidence_ids) VALUES ($1, $2, $3, $4, $5) RETURNING *', [req.params.id, event_date || null, event_type || 'Incident', description, JSON.stringify(evidence_ids || [])]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); await k108Log(username, 'case_timeline_add', { caseId: req.params.id }, req.ip); return res.json({ event: r.rows[0] }); }
-  const store = getCaseStore();
-  const t = { id: caseNextId(store), case_id: parseInt(req.params.id), event_date: event_date || null, event_type: event_type || 'Incident', description, evidence_ids: evidence_ids || [], created_at: new Date().toISOString() };
-  store.timeline.push(t); saveCaseStore(store);
-  await k108Log(username, 'case_timeline_add', { caseId: req.params.id }, req.ip);
-  res.json({ event: t });
-});
-
-app.put('/api/k108/cases/:id/timeline/:tid', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  const { event_date, event_type, description, evidence_ids } = req.body;
-  if (db.pool) { const sets = []; const params = []; if (event_date !== undefined) { params.push(event_date); sets.push(`event_date = $${params.length}`); } if (event_type !== undefined) { params.push(event_type); sets.push(`event_type = $${params.length}`); } if (description !== undefined) { params.push(description); sets.push(`description = $${params.length}`); } if (evidence_ids !== undefined) { params.push(JSON.stringify(evidence_ids)); sets.push(`evidence_ids = $${params.length}`); } if (!sets.length) return res.json({ ok: true }); params.push(req.params.tid); await db.query(`UPDATE k108_case_timeline SET ${sets.join(', ')} WHERE id = $${params.length}`, params); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
-  else { const store = getCaseStore(); const t = store.timeline.find(t => t.id === parseInt(req.params.tid)); if (t) { if (event_date !== undefined) t.event_date = event_date; if (event_type !== undefined) t.event_type = event_type; if (description !== undefined) t.description = description; if (evidence_ids !== undefined) t.evidence_ids = evidence_ids; saveCaseStore(store); } }
-  res.json({ ok: true });
-});
-
-app.delete('/api/k108/cases/:id/timeline/:tid', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (db.pool) { await db.query('DELETE FROM k108_case_timeline WHERE id = $1', [req.params.tid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
-  else { const store = getCaseStore(); store.timeline = store.timeline.filter(t => t.id !== parseInt(req.params.tid)); saveCaseStore(store); }
-  await k108Log(username, 'case_timeline_delete', { caseId: req.params.id }, req.ip);
-  res.json({ ok: true });
-});
-
-// Canvas nodes
-app.post('/api/k108/cases/:id/nodes', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  const { type, label, x, y, metadata } = req.body;
-  if (db.pool) { const r = await db.query('INSERT INTO k108_case_canvas_nodes (case_id, type, label, x, y, metadata) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [req.params.id, type || 'Note', label || '', x || 200, y || 200, JSON.stringify(metadata || {})]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); await k108Log(username, 'case_canvas_node_add', { caseId: req.params.id, type, label }, req.ip); return res.json({ node: r.rows[0] }); }
-  const store = getCaseStore();
-  const n = { id: caseNextId(store), case_id: parseInt(req.params.id), type: type || 'Note', label: label || '', x: x || 200, y: y || 200, metadata: metadata || {}, created_at: new Date().toISOString() };
-  store.nodes.push(n); saveCaseStore(store);
-  await k108Log(username, 'case_canvas_node_add', { caseId: req.params.id, type, label }, req.ip);
-  res.json({ node: n });
-});
-
-app.put('/api/k108/cases/:id/nodes/:nid', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  const { type, label, x, y, metadata } = req.body;
-  if (db.pool) { const sets = []; const params = []; if (type !== undefined) { params.push(type); sets.push(`type = $${params.length}`); } if (label !== undefined) { params.push(label); sets.push(`label = $${params.length}`); } if (x !== undefined) { params.push(x); sets.push(`x = $${params.length}`); } if (y !== undefined) { params.push(y); sets.push(`y = $${params.length}`); } if (metadata !== undefined) { params.push(JSON.stringify(metadata)); sets.push(`metadata = $${params.length}`); } if (!sets.length) return res.json({ ok: true }); params.push(req.params.nid); await db.query(`UPDATE k108_case_canvas_nodes SET ${sets.join(', ')} WHERE id = $${params.length}`, params); }
-  else { const store = getCaseStore(); const n = store.nodes.find(n => n.id === parseInt(req.params.nid)); if (n) { if (type !== undefined) n.type = type; if (label !== undefined) n.label = label; if (x !== undefined) n.x = x; if (y !== undefined) n.y = y; if (metadata !== undefined) n.metadata = metadata; saveCaseStore(store); } }
-  res.json({ ok: true });
-});
-
-app.delete('/api/k108/cases/:id/nodes/:nid', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (db.pool) { await db.query('DELETE FROM k108_case_canvas_nodes WHERE id = $1', [req.params.nid]); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); }
-  else { const store = getCaseStore(); const nid = parseInt(req.params.nid); store.nodes = store.nodes.filter(n => n.id !== nid); store.edges = store.edges.filter(e => e.from_node_id !== nid && e.to_node_id !== nid); saveCaseStore(store); }
-  await k108Log(username, 'case_canvas_node_delete', { caseId: req.params.id }, req.ip);
-  res.json({ ok: true });
-});
-
-// Canvas edges
-app.post('/api/k108/cases/:id/edges', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  const { from_node_id, to_node_id, label } = req.body;
-  if (!from_node_id || !to_node_id) return res.status(400).json({ error: 'From and to node IDs required' });
-  if (db.pool) { const r = await db.query('INSERT INTO k108_case_canvas_edges (case_id, from_node_id, to_node_id, label) VALUES ($1, $2, $3, $4) RETURNING *', [req.params.id, from_node_id, to_node_id, label || '']); await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, req.params.id]); return res.json({ edge: r.rows[0] }); }
-  const store = getCaseStore();
-  const e = { id: caseNextId(store), case_id: parseInt(req.params.id), from_node_id, to_node_id, label: label || '', created_at: new Date().toISOString() };
-  store.edges.push(e); saveCaseStore(store);
-  res.json({ edge: e });
-});
-
-app.put('/api/k108/cases/:id/edges/:eid', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  const { label } = req.body;
-  if (db.pool) { await db.query('UPDATE k108_case_canvas_edges SET label = $1 WHERE id = $2', [label || '', req.params.eid]); }
-  else { const store = getCaseStore(); const e = store.edges.find(e => e.id === parseInt(req.params.eid)); if (e) { e.label = label || ''; saveCaseStore(store); } }
-  res.json({ ok: true });
-});
-
-app.delete('/api/k108/cases/:id/edges/:eid', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (db.pool) { await db.query('DELETE FROM k108_case_canvas_edges WHERE id = $1', [req.params.eid]); }
-  else { const store = getCaseStore(); store.edges = store.edges.filter(e => e.id !== parseInt(req.params.eid)); saveCaseStore(store); }
-  res.json({ ok: true });
-});
-
-// ── Profile case files lookup (for bidirectional link) ───────────────────────
-app.post('/api/k108/profiles/:id/cases', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (db.pool) {
-    const r = await db.query(`SELECT c.id, c.name, c.status, c.created_at, cs.role FROM k108_case_subjects cs JOIN k108_cases c ON cs.case_id = c.id WHERE cs.profile_id = $1 ORDER BY c.updated_at DESC`, [req.params.id]);
-    return res.json({ cases: r.rows });
-  }
-  // JSON fallback
-  const store = getCaseStore();
-  const profileId = parseInt(req.params.id);
-  const subjectEntries = store.subjects.filter(s => s.profile_id === profileId);
-  const cases = subjectEntries.map(s => {
-    const c = store.cases.find(c => c.id === s.case_id);
-    return c ? { id: c.id, name: c.name, status: c.status, created_at: c.created_at, role: s.role } : null;
-  }).filter(Boolean);
-  res.json({ cases });
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id, body } = req.body || {};
+  if (!id || !body || !String(body).trim()) return res.status(400).json({ error: 'id and body required' });
+  const r = await db.query(
+    `INSERT INTO k108_case_notes (case_id, body, created_by) VALUES ($1,$2,$3) RETURNING *`,
+    [id, String(body).trim(), username]
+  );
+  await db.query(
+    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'note','Analyst note',$2,$3)`,
+    [id, String(body).trim().substring(0, 200), username]
+  );
+  await k108TouchCase(id);
+  k108EmitCaseUpdate(id);
+  res.json({ note: r.rows[0] });
 });
 
 // ── K-108 Daily Briefing ─────────────────────────────────────────────────────
