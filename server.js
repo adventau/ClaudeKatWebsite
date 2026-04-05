@@ -6562,14 +6562,19 @@ app.post('/api/k108/profiles', async (req, res) => {
         params.push(prefix);
         conditions.push(`EXISTS (SELECT 1 FROM jsonb_array_elements(social_links) s WHERE s->>'handle' ILIKE $${params.length})`);
       }
-      r = await db.query(
-        `SELECT * FROM k108_profiles WHERE ${conditions.join(' OR ')} ORDER BY updated_at DESC LIMIT 20`,
-        params
-      );
+      const whereClause = conditions.join(' OR ');
+      const [r, countR] = await Promise.all([
+        db.query(`SELECT * FROM k108_profiles WHERE ${whereClause} ORDER BY updated_at DESC LIMIT 20`, params),
+        db.query(`SELECT COUNT(*) FROM k108_profiles WHERE ${whereClause}`, params)
+      ]);
+      return res.json({ profiles: r.rows, total_count: parseInt(countR.rows[0].count, 10) });
     } else {
-      r = await db.query('SELECT * FROM k108_profiles ORDER BY updated_at DESC LIMIT 20');
+      const [r, countR] = await Promise.all([
+        db.query('SELECT * FROM k108_profiles ORDER BY updated_at DESC LIMIT 20'),
+        db.query('SELECT COUNT(*) FROM k108_profiles')
+      ]);
+      return res.json({ profiles: r.rows, total_count: parseInt(countR.rows[0].count, 10) });
     }
-    return res.json({ profiles: r.rows });
   }
   // JSON fallback
   let profiles = getK108Profiles();

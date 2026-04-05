@@ -1302,7 +1302,7 @@ async function loadDashboardData() {
     const profileData = await kAuthFetch('/api/k108/profiles', {});
     const pp = document.getElementById('dash-profiles-preview');
     if (pp) {
-      const count = (profileData && profileData.profiles) ? profileData.profiles.length : 0;
+      const count = profileData ? (profileData.total_count ?? (profileData.profiles ? profileData.profiles.length : 0)) : 0;
       pp.innerHTML = '<div class="dc-stat-val" style="font-size:28px;color:var(--accent-indigo)"><strong>'+count+'</strong></div><div class="dc-stat-label">PROFILES ON FILE</div>';
     }
   } catch(e){}
