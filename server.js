@@ -6652,12 +6652,12 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
 
   if (db.pool) {
     try {
-      // Detect if phones column is TEXT[] or JSONB
-      const colInfo = await db.query(`SELECT data_type FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
-      const isJsonb = colInfo.rows[0] && colInfo.rows[0].data_type === 'jsonb';
       const aliasVal = Array.isArray(aliases) ? aliases : (aliases ? [aliases] : []);
-      const phoneVal = isJsonb ? JSON.stringify(phones || []) : (phones || []).map(p => typeof p === 'string' ? p : (p.number || ''));
-      const emailVal = isJsonb ? JSON.stringify(emails || []) : (emails || []).map(e => typeof e === 'string' ? e : (e.address || ''));
+      // Always store phones/emails as JSONB array of {number,label} / {address,label} objects
+      const normalizePhones = (arr) => (arr || []).map(p => typeof p === 'string' ? { number: p, label: '' } : { number: p.number || '', label: p.label || '' });
+      const normalizeEmails = (arr) => (arr || []).map(e => typeof e === 'string' ? { address: e, label: '' } : { address: e.address || '', label: e.label || '' });
+      const phoneVal = JSON.stringify(normalizePhones(phones));
+      const emailVal = JSON.stringify(normalizeEmails(emails));
 
       await db.query(
         `UPDATE k108_profiles SET first_name=$1, middle_name=$2, last_name=$3, aliases=$4, relation=$5, notes=$6,
