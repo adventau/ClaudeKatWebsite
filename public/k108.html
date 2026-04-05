@@ -1423,6 +1423,7 @@ async function executeLookup() {
     if (!d) return;
     if (d.error) { showLookupErr(d.error); return; }
     renderLookupResults(d);
+    loadDashboardData();
   } catch(e) { hideLookupLoading(); showLookupErr('Connection failed.'); }
 }
 
@@ -1508,6 +1509,7 @@ async function saveToIntelProfile(idx) {
     navigateTo('#/profiles');
     setTimeout(() => viewProfileReadonly(d.profile.id), 300);
   }
+  loadDashboardData();
 }
 
 async function saveAllLookupResults() {
@@ -1554,6 +1556,7 @@ async function saveAllLookupResults() {
     btn.style.borderColor = 'rgba(34,197,94,0.3)';
     btn.style.color = 'var(--accent-green)';
   }
+  loadDashboardData();
 }
 
 // ═══ Vehicle Lookup ═══
@@ -1648,6 +1651,7 @@ async function vehicleLookupByPlate() {
   vehicleLastResult = d;
   if (d.quota) renderVehicleQuota(d.quota);
   renderVehicleResult(d);
+  loadDashboardData();
 }
 
 async function vehicleLookupByVIN() {
@@ -1660,6 +1664,7 @@ async function vehicleLookupByVIN() {
   if (d.error) { showVehicleError(d.error); return; }
   vehicleLastResult = d;
   renderVehicleResult(d);
+  loadDashboardData();
 }
 
 function renderVehicleResult(d) {
@@ -1877,6 +1882,7 @@ async function sendSMS() {
   if (d.quota) document.getElementById('sms-quota').textContent = d.quota.remaining + '/' + d.quota.total;
   currentSmsPhone = phone;
   loadSmsThreads();
+  loadDashboardData();
 }
 
 // ═══ Metadata ═══
@@ -2728,6 +2734,7 @@ function deleteProfile(id) {
       body: JSON.stringify({ token: authToken })
     });
     closeProfile();
+    loadDashboardData();
   };
 }
 
@@ -2740,6 +2747,7 @@ async function closeProfile() {
       const hasName = (p.first_name && p.first_name.trim() && p.first_name !== 'New') || (p.last_name && p.last_name.trim() && p.last_name !== 'Profile');
       if (!hasName) {
         await fetch('/api/k108/profiles/' + currentProfileId, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authToken }) });
+        loadDashboardData();
       }
     }
   }
@@ -2864,6 +2872,7 @@ async function createProfile() {
   closeModal('create-profile-modal');
   if (d.profile) viewProfile(d.profile.id);
   ['cp-fname','cp-lname','cp-relation','cp-phones','cp-emails','cp-aliases','cp-notes'].forEach(id => document.getElementById(id).value = '');
+  loadDashboardData();
 }
 
 async function uploadVaultFiles(files) {
@@ -2875,6 +2884,7 @@ async function uploadVaultFiles(files) {
     await fetch('/api/k108/vault/upload', { method: 'POST', body: fd });
   } catch(e) {}
   loadVaultItems();
+  loadDashboardData();
 }
 
 // ═══ Labels System ═══
