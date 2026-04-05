@@ -199,6 +199,7 @@ async function createK108Tables() {
   await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS age TEXT`);
   await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS birthday DATE`);
   await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS address JSONB DEFAULT '{}'`);
+  await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS middle_name TEXT`);
   // Migration: normalize SMS phone numbers (strip leading country code 1)
   await query(`UPDATE k108_sms SET phone = substring(phone from 2) WHERE length(phone) = 11 AND phone LIKE '1%'`);
   // Migration: convert phones/emails from TEXT[] to JSONB for labels support

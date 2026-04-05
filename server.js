@@ -6111,6 +6111,14 @@ function normalizeResults(apiResult) {
       _phone: raw.phone_number || ''
     }));
   }
+  // address lookup returns { current_residents: [...] }
+  else if (raw.current_residents) {
+    const residents = Array.isArray(raw.current_residents) ? raw.current_residents : [raw.current_residents];
+    people = residents.map(r => ({
+      ...r,
+      _addresses: raw.address ? [raw.address] : []
+    }));
+  }
   // If the raw response itself looks like a single person record
   else if (raw.name || raw.firstname || raw.first_name) {
     people = [raw];
@@ -6118,8 +6126,8 @@ function normalizeResults(apiResult) {
 
   return people.filter(Boolean).map(p => {
     // Extract name
-    const fn = p.firstname || p.first_name || p.FirstName || (p.name && typeof p.name === 'object' ? p.name.first_name : '') || '';
-    const ln = p.lastname || p.last_name || p.LastName || (p.name && typeof p.name === 'object' ? p.name.last_name : '') || '';
+    const fn = p.firstname || p.first_name || p.FirstName || (p.name && typeof p.name === 'object' ? (p.name.first_name || p.name.first) : '') || '';
+    const ln = p.lastname || p.last_name || p.LastName || (p.name && typeof p.name === 'object' ? (p.name.last_name || p.name.last) : '') || '';
     const full = p.name && typeof p.name === 'string' ? p.name
       : p.full_name || p.fullName || p.best_name || `${fn} ${ln}`.trim();
 
@@ -6553,7 +6561,7 @@ app.post('/api/k108/profiles', async (req, res) => {
 app.post('/api/k108/profiles/create', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { first_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address } = req.body;
+  const { first_name, middle_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address } = req.body;
 
   if (db.pool) {
     try {
@@ -6564,9 +6572,9 @@ app.post('/api/k108/profiles/create', async (req, res) => {
       const emailVal = isJsonb ? JSON.stringify(emails || []) : (emails || []).map(e => typeof e === 'string' ? e : (e.address || ''));
 
       const r = await db.query(
-        `INSERT INTO k108_profiles (first_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address, created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-        [first_name || '', last_name || '', aliasVal, relation || '', notes || '',
+        `INSERT INTO k108_profiles (first_name, middle_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+        [first_name || '', middle_name || null, last_name || '', aliasVal, relation || '', notes || '',
          phoneVal, emailVal, JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), username]
       );
       await k108Log(username, 'profile_create', { name: `${first_name} ${last_name}`.trim() }, req.ip);
@@ -6618,7 +6626,7 @@ app.post('/api/k108/profiles/:id', async (req, res) => {
 app.put('/api/k108/profiles/:id', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { first_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address } = req.body;
+  const { first_name, middle_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address } = req.body;
 
   if (db.pool) {
     try {
@@ -6630,9 +6638,9 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
       const emailVal = isJsonb ? JSON.stringify(emails || []) : (emails || []).map(e => typeof e === 'string' ? e : (e.address || ''));
 
       await db.query(
-        `UPDATE k108_profiles SET first_name=$1, last_name=$2, aliases=$3, relation=$4, notes=$5,
-         phones=$6, emails=$7, social_links=$8, age=$9, birthday=$10, address=$11, updated_at=NOW() WHERE id=$12`,
-        [first_name, last_name, aliasVal, relation || '', notes || '',
+        `UPDATE k108_profiles SET first_name=$1, middle_name=$2, last_name=$3, aliases=$4, relation=$5, notes=$6,
+         phones=$7, emails=$8, social_links=$9, age=$10, birthday=$11, address=$12, updated_at=NOW() WHERE id=$13`,
+        [first_name, middle_name || null, last_name, aliasVal, relation || '', notes || '',
          phoneVal, emailVal, JSON.stringify(social_links || []), age || null, birthday || null, JSON.stringify(address || {}), req.params.id]
       );
       await k108Log(username, 'profile_change', { profileId: req.params.id, name: `${first_name} ${last_name}`.trim() }, req.ip);
@@ -6764,6 +6772,21 @@ app.delete('/api/k108/profiles/relations/:rid', async (req, res) => {
   res.json({ ok: true });
 });
 
+app.put('/api/k108/profiles/relations/:rid/label', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { label } = req.body;
+  if (db.pool) {
+    await db.query('UPDATE k108_profile_relations SET label = $1 WHERE id = $2', [label || '', req.params.rid]);
+    return res.json({ ok: true });
+  }
+  // JSON fallback
+  const profiles = getK108Profiles();
+  profiles.forEach(p => { if (p.relations) p.relations.forEach(r => { if (String(r.id) === String(req.params.rid)) r.label = label || ''; }); });
+  saveK108Profiles(profiles);
+  res.json({ ok: true });
+});
+
 // ── K-108 Labels ─────────────────────────────────────────────────────────────
 const K108_LABELS_FILE = path.join(DATA_DIR, 'k108-labels.json');
 function getK108Labels() { try { if (fs.existsSync(K108_LABELS_FILE)) return JSON.parse(fs.readFileSync(K108_LABELS_FILE, 'utf8')); } catch(e) {} return []; }
@@ -6809,6 +6832,20 @@ app.post('/api/k108/labels/:id/remove', async (req, res) => {
   label.profileIds = label.profileIds.filter(id => id !== String(profileId));
   saveK108Labels(labels);
   res.json({ ok: true });
+});
+
+app.put('/api/k108/labels/:id', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { name, color, icon } = req.body;
+  let labels = getK108Labels();
+  const idx = labels.findIndex(l => String(l.id) === String(req.params.id));
+  if (idx === -1) return res.status(404).json({ error: 'Label not found' });
+  if (name) labels[idx].name = name;
+  if (color) labels[idx].color = color;
+  if (icon) labels[idx].icon = icon;
+  saveK108Labels(labels);
+  res.json({ ok: true, label: labels[idx] });
 });
 
 app.delete('/api/k108/labels/:id', async (req, res) => {
@@ -7079,24 +7116,6 @@ app.post('/api/k108/command', async (req, res) => {
       return res.json({ lines: [{ text: `Navigating to ${target}`, cls: 'success' }], navigate: hashMap[target] || '#/' });
     }
 
-    if (cmd === 'surveillance') {
-      const profileName = parts.slice(1).join(' ');
-      if (!profileName) return res.json(lines('Usage: surveillance <profile name> — queues a surveillance run', 'warn'));
-      if (!db.pool) return res.json(lines('Database required', 'error'));
-      const r = await db.query(`SELECT id, first_name, last_name FROM k108_profiles WHERE LOWER(first_name || ' ' || last_name) LIKE $1 LIMIT 1`, ['%' + profileName.toLowerCase() + '%']);
-      if (!r.rows.length) return res.json(lines('Profile not found', 'error'));
-      const p = r.rows[0];
-      // Check for existing pending/in_progress
-      const existing = await db.query(`SELECT id FROM k108_surveillance_jobs WHERE profile_id = $1 AND status IN ('pending','in_progress') LIMIT 1`, [p.id]);
-      if (existing.rows.length) return res.json(lines(`Surveillance already queued for ${p.first_name} ${p.last_name}`, 'warn'));
-      // Queue it
-      const prof = (await db.query('SELECT * FROM k108_profiles WHERE id = $1', [p.id])).rows[0];
-      const addr = typeof prof.address === 'string' ? JSON.parse(prof.address || '{}') : (prof.address || {});
-      const payload = { fullName: `${prof.first_name||''} ${prof.last_name||''}`.trim(), aliases: prof.aliases || [], city: addr.city || '', notes: prof.notes || '' };
-      await db.query('INSERT INTO k108_surveillance_jobs (profile_id, status, profile_payload) VALUES ($1, $2, $3)', [p.id, 'pending', JSON.stringify(payload)]);
-      await k108Log(username, 'surveillance_triggered', { profileId: p.id, name: payload.fullName }, req.ip);
-      return res.json(lines(`Surveillance queued for ${p.first_name} ${p.last_name}`, 'success'));
-    }
 
     if (cmd === 'k108' && parts[1]?.toLowerCase() === 'reset-passcode') {
       const target = parts[2]?.toLowerCase();
@@ -7135,10 +7154,7 @@ app.post('/api/k108/command/autocomplete', async (req, res) => {
       const r = await db.query('SELECT id, name, status FROM k108_cases WHERE LOWER(name) LIKE $1 ORDER BY updated_at DESC LIMIT 10', ['%' + (q || '').toLowerCase() + '%']);
       return res.json({ items: r.rows.map(c => ({ id: c.id, label: c.name, status: c.status })) });
     }
-    if (type === 'surveillance' && db.pool) {
-      const r = await db.query('SELECT id, first_name, last_name, surveillance_active FROM k108_profiles WHERE surveillance_active = true ORDER BY updated_at DESC LIMIT 20');
-      return res.json({ items: r.rows.map(p => ({ id: p.id, label: `${p.first_name} ${p.last_name}` })) });
-    }
+
     res.json({ items: [] });
   } catch (e) { res.json({ items: [] }); }
 });
@@ -7199,7 +7215,7 @@ app.post('/api/k108/cases/:id', async (req, res) => {
   if (db.pool) {
     const c = await db.query('SELECT * FROM k108_cases WHERE id = $1', [id]);
     if (!c.rows.length) return res.status(404).json({ error: 'Case not found' });
-    const subjects = await db.query(`SELECT cs.*, p.first_name, p.last_name, p.photo_url, p.surveillance_active FROM k108_case_subjects cs JOIN k108_profiles p ON cs.profile_id = p.id WHERE cs.case_id = $1 ORDER BY cs.created_at`, [id]);
+    const subjects = await db.query(`SELECT cs.*, p.first_name, p.last_name, p.photo_url FROM k108_case_subjects cs JOIN k108_profiles p ON cs.profile_id = p.id WHERE cs.case_id = $1 ORDER BY cs.created_at`, [id]);
     const evidence = await db.query('SELECT * FROM k108_case_evidence WHERE case_id = $1 ORDER BY created_at DESC', [id]);
     const findings = await db.query('SELECT * FROM k108_case_findings WHERE case_id = $1 ORDER BY order_index ASC, created_at ASC', [id]);
     const questions = await db.query('SELECT * FROM k108_case_questions WHERE case_id = $1 ORDER BY created_at ASC', [id]);
@@ -7215,7 +7231,7 @@ app.post('/api/k108/cases/:id', async (req, res) => {
   const profiles = getK108Profiles();
   const enrichedSubjects = store.subjects.filter(s => s.case_id === id).map(s => {
     const p = profiles.find(p => String(p.id) === String(s.profile_id));
-    return { ...s, first_name: p?.first_name || 'Unknown', last_name: p?.last_name || '', photo_url: p?.photo_url || null, surveillance_active: false };
+    return { ...s, first_name: p?.first_name || 'Unknown', last_name: p?.last_name || '', photo_url: p?.photo_url || null };
   });
   res.json({ case: c, subjects: enrichedSubjects, evidence: store.evidence.filter(e => e.case_id === id), findings: store.findings.filter(f => f.case_id === id).sort((a,b) => (a.order_index||0) - (b.order_index||0)), questions: store.questions.filter(q => q.case_id === id), timeline: store.timeline.filter(t => t.case_id === id), nodes: store.nodes.filter(n => n.case_id === id), edges: store.edges.filter(e => e.case_id === id) });
 });
@@ -7540,144 +7556,6 @@ app.delete('/api/k108/cases/:id/edges/:eid', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ── K-108 Surveillance (job-based system) ────────────────────────────────────
-
-// Queue a surveillance job for a profile
-app.post('/api/k108/surveillance/queue', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.status(503).json({ error: 'Database required' });
-  const { profileId } = req.body;
-  if (!profileId) return res.status(400).json({ error: 'Profile ID required' });
-  // Check for existing pending/in_progress job
-  const existing = await db.query(`SELECT id, status FROM k108_surveillance_jobs WHERE profile_id = $1 AND status IN ('pending', 'in_progress') LIMIT 1`, [profileId]);
-  if (existing.rows.length) return res.json({ ok: true, job: existing.rows[0], alreadyQueued: true });
-  // Fetch full profile data for payload
-  const p = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [profileId]);
-  if (!p.rows.length) return res.status(404).json({ error: 'Profile not found' });
-  const prof = p.rows[0];
-  const addr = typeof prof.address === 'string' ? JSON.parse(prof.address || '{}') : (prof.address || {});
-  const phones = typeof prof.phones === 'string' ? JSON.parse(prof.phones || '[]') : (prof.phones || []);
-  const emails = typeof prof.emails === 'string' ? JSON.parse(prof.emails || '[]') : (prof.emails || []);
-  const socials = typeof prof.social_links === 'string' ? JSON.parse(prof.social_links || '[]') : (prof.social_links || []);
-  const payload = {
-    fullName: `${prof.first_name || ''} ${prof.last_name || ''}`.trim(),
-    aliases: prof.aliases || [],
-    socialHandles: socials.map(s => s.handle || s.url).filter(Boolean),
-    city: addr.city || '', state: addr.state || '',
-    addresses: [addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', '),
-    phones: phones.map(ph => typeof ph === 'string' ? ph : (ph.number || ph)).filter(Boolean),
-    emails: emails.map(e => typeof e === 'string' ? e : (e.address || e)).filter(Boolean),
-    notes: prof.notes || '',
-  };
-  const r = await db.query('INSERT INTO k108_surveillance_jobs (profile_id, status, profile_payload) VALUES ($1, $2, $3) RETURNING *', [profileId, 'pending', JSON.stringify(payload)]);
-  await k108Log(username, 'surveillance_triggered', { profileId, name: payload.fullName }, req.ip);
-  res.json({ ok: true, job: r.rows[0] });
-});
-
-// Get surveillance status for a profile
-app.post('/api/k108/surveillance/status', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.json({ job: null, unreadCount: 0 });
-  const { profileId } = req.body;
-  if (!profileId) return res.status(400).json({ error: 'Profile ID required' });
-  // Latest job
-  const job = await db.query('SELECT * FROM k108_surveillance_jobs WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 1', [profileId]);
-  // Unread count
-  const unread = await db.query('SELECT COUNT(*) FROM k108_surveillance_results WHERE profile_id = $1 AND read = false', [profileId]);
-  res.json({ job: job.rows[0] || null, unreadCount: parseInt(unread.rows[0]?.count || 0) });
-});
-
-// Get all surveillance results for a profile (grouped by job)
-app.post('/api/k108/surveillance/results', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.json({ results: [], jobs: [] });
-  const { profileId } = req.body;
-  if (!profileId) return res.status(400).json({ error: 'Profile ID required' });
-  const jobs = await db.query('SELECT * FROM k108_surveillance_jobs WHERE profile_id = $1 AND status = $2 ORDER BY completed_at DESC', [profileId, 'completed']);
-  const results = await db.query('SELECT * FROM k108_surveillance_results WHERE profile_id = $1 ORDER BY created_at DESC', [profileId]);
-  // Mark all as read
-  await db.query('UPDATE k108_surveillance_results SET read = true WHERE profile_id = $1 AND read = false', [profileId]);
-  res.json({ results: results.rows, jobs: jobs.rows });
-});
-
-// Get profiles with unread surveillance findings (for New Intel section)
-app.post('/api/k108/surveillance/unread', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.json({ profiles: [] });
-  const r = await db.query(`SELECT DISTINCT p.id, p.first_name, p.last_name, COUNT(sr.id) as unread_count FROM k108_surveillance_results sr JOIN k108_profiles p ON sr.profile_id = p.id WHERE sr.read = false GROUP BY p.id, p.first_name, p.last_name ORDER BY MAX(sr.created_at) DESC`);
-  res.json({ profiles: r.rows });
-});
-
-// Add surveillance finding to a case
-app.post('/api/k108/surveillance/add-to-case', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.status(503).json({ error: 'Database required' });
-  const { resultId, caseId } = req.body;
-  if (!resultId || !caseId) return res.status(400).json({ error: 'Result ID and Case ID required' });
-  const result = await db.query('SELECT * FROM k108_surveillance_results WHERE id = $1', [resultId]);
-  if (!result.rows.length) return res.status(404).json({ error: 'Result not found' });
-  const r = result.rows[0];
-  await db.query('INSERT INTO k108_case_evidence (case_id, type, title, metadata, source_id, notes) VALUES ($1, $2, $3, $4, $5, $6)', [caseId, 'Intel Feed Result', r.headline, JSON.stringify({ profileId: r.profile_id, sourceUrl: r.source_url, sourceName: r.source_name, confidence: r.confidence }), String(r.profile_id), r.summary || '']);
-  await db.query('UPDATE k108_cases SET updated_at = NOW(), last_edited_by = $1 WHERE id = $2', [username, caseId]);
-  await k108Log(username, 'surveillance_finding_to_case', { resultId, caseId, headline: r.headline }, req.ip);
-  res.json({ ok: true });
-});
-
-// ── Cowork Endpoints ──
-
-// GET pending jobs for Cowork to pick up
-app.get('/api/k108/surveillance/pending', async (req, res) => {
-  const secret = req.headers['x-briefing-secret'];
-  if (secret !== process.env.BRIEFING_SECRET) return res.status(403).json({ error: 'Invalid secret' });
-  if (!db.pool) return res.json({ jobs: [] });
-  const r = await db.query(`SELECT id, profile_id, profile_payload FROM k108_surveillance_jobs WHERE status = 'pending' ORDER BY created_at ASC`);
-  // Mark them as in_progress
-  if (r.rows.length) {
-    const ids = r.rows.map(j => j.id);
-    await db.query(`UPDATE k108_surveillance_jobs SET status = 'in_progress' WHERE id = ANY($1)`, [ids]);
-  }
-  res.json({ jobs: r.rows.map(j => ({ job_id: j.id, profile_id: j.profile_id, ...j.profile_payload })) });
-});
-
-// POST results from Cowork
-app.post('/api/k108/surveillance/submit', async (req, res) => {
-  const secret = req.headers['x-briefing-secret'] || req.body.secret;
-  if (secret !== process.env.BRIEFING_SECRET) return res.status(403).json({ error: 'Invalid secret' });
-  if (!db.pool) return res.status(503).json({ error: 'Database required' });
-  const { results } = req.body; // array of { job_id, profile_id, headline, source_url, source_name, summary, confidence }
-  if (!Array.isArray(results)) return res.status(400).json({ error: 'Results array required' });
-  // Group by job_id
-  const byJob = {};
-  for (const r of results) {
-    if (!r.profile_id || !r.headline) continue;
-    await db.query('INSERT INTO k108_surveillance_results (job_id, profile_id, headline, source_url, source_name, summary, confidence) VALUES ($1, $2, $3, $4, $5, $6, $7)', [r.job_id || null, r.profile_id, r.headline, r.source_url || '', r.source_name || '', r.summary || '', r.confidence || 'unverified']);
-    if (r.job_id) { byJob[r.job_id] = (byJob[r.job_id] || 0) + 1; }
-  }
-  // Update job statuses
-  for (const [jobId, count] of Object.entries(byJob)) {
-    await db.query(`UPDATE k108_surveillance_jobs SET status = 'completed', finding_count = $1, completed_at = NOW() WHERE id = $2`, [count, jobId]);
-    // Get profile_id for socket event
-    const job = await db.query('SELECT profile_id FROM k108_surveillance_jobs WHERE id = $1', [jobId]);
-    if (job.rows[0]) {
-      io.emit('k108:surveillance:complete', { profileId: job.rows[0].profile_id, findingCount: count });
-      await k108Log('system', 'surveillance_completed', { profileId: job.rows[0].profile_id, findingCount: count }, '');
-    }
-  }
-  // Also complete any in_progress jobs that had zero results submitted
-  const inProgress = await db.query(`SELECT id FROM k108_surveillance_jobs WHERE status = 'in_progress'`);
-  for (const ip of inProgress.rows) {
-    if (!byJob[ip.id]) {
-      await db.query(`UPDATE k108_surveillance_jobs SET status = 'completed', finding_count = 0, completed_at = NOW() WHERE id = $1`, [ip.id]);
-    }
-  }
-  res.json({ ok: true, inserted: results.length });
-});
-
 // ── Profile case files lookup (for bidirectional link) ───────────────────────
 app.post('/api/k108/profiles/:id/cases', async (req, res) => {
   const username = k108Auth(req, res);
@@ -7725,7 +7603,6 @@ app.get('/api/k108/briefing/yesterday', async (req, res) => {
   res.json({ content: r.rows[0]?.content || '' });
 });
 
-// (Surveillance is now job-based via Cowork — no cron needed)
 
 // ── Serve HTML pages ──────────────────────────────────────────────────────────
 app.get('/k108',     (_, res) => res.sendFile(path.join(__dirname, 'public', 'k108.html')));
