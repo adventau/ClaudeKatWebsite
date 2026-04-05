@@ -1257,6 +1257,7 @@ function handleRoute() {
   document.getElementById('back-btn').style.display = viewName === 'dashboard' ? 'none' : 'inline-block';
 
   // Load data for views
+  if (viewName === 'dashboard') loadDashboardData();
   if (viewName === 'log') loadActivityLog();
   if (viewName === 'vault') loadVaultItems();
   if (viewName === 'sms') { k108SmsUnread = 0; updateSmsBadge(); loadSmsThreads(); }
