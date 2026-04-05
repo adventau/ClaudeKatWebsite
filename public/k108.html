@@ -292,6 +292,23 @@
     .profile-label { display: inline-flex; align-items: center; gap: 3px; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 500; letter-spacing: 0.03em; cursor: pointer; transition: opacity 0.2s; }
     .profile-label svg { vertical-align: middle; }
     .profile-label:hover { opacity: 0.8; }
+
+    /* Label panel */
+    .label-panel { background: var(--bg-raised); border: 1px solid var(--border-main); border-radius: 10px; padding: 12px; margin-bottom: 14px; }
+    .label-panel-section { font-size: 9px; font-weight: 600; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+    .label-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; transition: background 0.12s; }
+    .label-row:hover { background: rgba(255,255,255,0.04); }
+    .label-row-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .label-row-name { flex: 1; font-size: 12px; font-weight: 500; }
+    .label-row-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s; }
+    .label-row:hover .label-row-actions { opacity: 1; }
+    .label-icon-btn { background: none; border: none; cursor: pointer; padding: 3px 5px; border-radius: 4px; color: var(--text-dim); display: flex; align-items: center; transition: background 0.12s, color 0.12s; }
+    .label-icon-btn:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+    .label-icon-btn.del:hover { background: rgba(239,68,68,0.12); color: #ef4444; }
+    .label-applied-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+    .label-chip-remove { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; cursor: pointer; transition: filter 0.15s; border: none; outline: none; }
+    .label-chip-remove:hover { filter: brightness(1.2); }
+    .label-chip-x { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(0,0,0,0.2); font-size: 9px; line-height: 1; }
     .command-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 12px; font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(129,140,248,0.12)); border: 1px solid rgba(56,189,248,0.3); color: var(--accent-blue); }
     .neon-blue { color: var(--accent-blue); }
     .neon-cyan { color: var(--accent-cyan); }
@@ -742,8 +759,8 @@
             <div class="dc-head"><div class="dc-title">Intel Profiles</div><div class="dc-sub">Subject profiles and cross-references</div><div class="dc-neon dc-neon-indigo"></div></div>
             <div class="dc-body">
               <div class="dc-search-preview"><div class="dc-search-cursor"></div><div class="dc-search-placeholder">Search by name, alias, or handle...</div></div>
-              <div class="dc-preview-lines" id="dash-profiles-preview" style="margin-top:10px">
-                <div class="dc-pline"><div class="dc-pline-dot" style="background:var(--accent-indigo)"></div><div class="dc-pline-text" style="color:var(--text-muted)">No profiles created yet</div></div>
+              <div id="dash-profiles-preview" style="margin-top:10px">
+                <div class="dc-stat-val" style="font-size:28px;color:var(--accent-indigo)"><strong>—</strong></div><div class="dc-stat-label">PROFILES ON FILE</div>
               </div>
             </div>
           </div>
@@ -1128,9 +1145,10 @@ async function loadDashboardData() {
   // Load recent profiles for dashboard preview
   try {
     const profileData = await kAuthFetch('/api/k108/profiles', {});
-    if (profileData && profileData.profiles && profileData.profiles.length > 0) {
-      const pp = document.getElementById('dash-profiles-preview');
-      if (pp) pp.innerHTML = profileData.profiles.slice(0, 3).map(p => '<div class="dc-pline"><div class="dc-pline-dot" style="background:var(--accent-indigo)"></div><div class="dc-pline-text">'+esc((p.first_name||'')+' '+(p.last_name||''))+'</div></div>').join('');
+    const pp = document.getElementById('dash-profiles-preview');
+    if (pp) {
+      const count = (profileData && profileData.profiles) ? profileData.profiles.length : 0;
+      pp.innerHTML = '<div class="dc-stat-val" style="font-size:28px;color:var(--accent-indigo)"><strong>'+count+'</strong></div><div class="dc-stat-label">PROFILES ON FILE</div>';
     }
   } catch(e){}
 }
@@ -2351,37 +2369,70 @@ async function deleteLabel(labelId) {
   if (currentProfileId) viewProfile(currentProfileId);
 }
 
+const SVG_EDIT = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+const SVG_TRASH = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+const SVG_CHECK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
 function showApplyLabelUI(profileId) {
   const el = document.getElementById('apply-label-list');
   if (el.style.display === 'block') { el.style.display = 'none'; return; }
   const profileLabels = allLabels.filter(l => l.profileIds && l.profileIds.includes(String(profileId)));
   const available = allLabels.filter(l => !l.profileIds || !l.profileIds.includes(String(profileId)));
-  let h = '';
+
+  if (!allLabels.length) {
+    el.innerHTML = '<div class="label-panel"><div style="font-size:11px;color:var(--text-dim);text-align:center;padding:8px 0">No labels yet — click <strong>New Label</strong> to create one.</div></div>';
+    el.style.display = 'block';
+    return;
+  }
+
+  let h = '<div class="label-panel">';
+
   if (profileLabels.length) {
-    h += '<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">Applied labels (click to remove):</div>';
-    h += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">';
+    h += '<div class="label-panel-section">Applied</div>';
+    h += '<div class="label-applied-chips">';
     profileLabels.forEach(l => {
-      h += '<span style="display:inline-flex;align-items:center;gap:4px">';
-      h += '<span class="profile-label" style="background:'+l.color+'20;color:'+l.color+';border:1px solid '+l.color+'30;cursor:pointer" onclick="removeLabelFromProfile(\''+l.id+'\',\''+profileId+'\')">'+(LABEL_ICONS[l.icon]||'')+' '+esc(l.name)+' &times;</span>';
-      h += '<button onclick="openEditLabel(\''+l.id+'\')" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:11px;padding:0 2px" title="Edit">&#9998;</button>';
-      h += '<button onclick="deleteLabel(\''+l.id+'\')" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:11px;padding:0 2px" title="Delete">&#128465;</button>';
-      h += '</span>';
+      h += '<button class="label-chip-remove" style="background:'+l.color+'22;color:'+l.color+';border:1px solid '+l.color+'44" onclick="removeLabelFromProfile(\''+l.id+'\',\''+profileId+'\')">';
+      h += '<span style="display:inline-flex;align-items:center">'+(LABEL_ICONS[l.icon]||'')+'</span>';
+      h += esc(l.name);
+      h += '<span class="label-chip-x">&times;</span>';
+      h += '</button>';
     });
     h += '</div>';
   }
+
   if (available.length) {
-    h += '<div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">Available labels (click to apply):</div>';
-    h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+    if (profileLabels.length) h += '<div style="height:1px;background:var(--border-subtle);margin:8px 0"></div>';
+    h += '<div class="label-panel-section">'+(profileLabels.length ? 'More Labels' : 'Labels')+'</div>';
     available.forEach(l => {
-      h += '<span style="display:inline-flex;align-items:center;gap:4px">';
-      h += '<span class="profile-label" style="background:'+l.color+'10;color:'+l.color+';border:1px dashed '+l.color+'40;cursor:pointer" onclick="applyLabelToProfile(\''+l.id+'\',\''+profileId+'\')">'+(LABEL_ICONS[l.icon]||'')+' '+esc(l.name)+'</span>';
-      h += '<button onclick="openEditLabel(\''+l.id+'\')" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:11px;padding:0 2px" title="Edit">&#9998;</button>';
-      h += '<button onclick="deleteLabel(\''+l.id+'\')" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:11px;padding:0 2px" title="Delete">&#128465;</button>';
-      h += '</span>';
+      h += '<div class="label-row">';
+      h += '<div class="label-row-dot" style="background:'+l.color+'"></div>';
+      h += '<span class="label-row-name" style="color:var(--text-secondary)">'+(LABEL_ICONS[l.icon]?'<span style="display:inline-flex;align-items:center;margin-right:4px;color:'+l.color+'">'+(LABEL_ICONS[l.icon])+'</span>':'')+esc(l.name)+'</span>';
+      h += '<div class="label-row-actions">';
+      h += '<button class="label-icon-btn" onclick="event.stopPropagation();openEditLabel(\''+l.id+'\')" title="Edit">'+SVG_EDIT+'</button>';
+      h += '<button class="label-icon-btn del" onclick="event.stopPropagation();deleteLabel(\''+l.id+'\')" title="Delete">'+SVG_TRASH+'</button>';
+      h += '</div>';
+      h += '<button class="label-icon-btn" style="margin-left:4px;color:'+l.color+'" onclick="applyLabelToProfile(\''+l.id+'\',\''+profileId+'\')" title="Apply">'+SVG_CHECK+'</button>';
+      h += '</div>';
     });
-    h += '</div>';
   }
-  if (!allLabels.length) h = '<div style="font-size:11px;color:var(--text-dim)">No labels created yet. Click "Create Label" to make one.</div>';
+
+  // Edit/delete for applied labels too
+  if (profileLabels.length && !available.length) {
+    h += '<div style="height:1px;background:var(--border-subtle);margin:8px 0"></div>';
+    h += '<div class="label-panel-section">Manage</div>';
+    profileLabels.forEach(l => {
+      h += '<div class="label-row">';
+      h += '<div class="label-row-dot" style="background:'+l.color+'"></div>';
+      h += '<span class="label-row-name" style="color:var(--text-secondary)">'+esc(l.name)+'</span>';
+      h += '<div class="label-row-actions">';
+      h += '<button class="label-icon-btn" onclick="event.stopPropagation();openEditLabel(\''+l.id+'\')" title="Edit">'+SVG_EDIT+'</button>';
+      h += '<button class="label-icon-btn del" onclick="event.stopPropagation();deleteLabel(\''+l.id+'\')" title="Delete">'+SVG_TRASH+'</button>';
+      h += '</div>';
+      h += '</div>';
+    });
+  }
+
+  h += '</div>';
   el.innerHTML = h;
   el.style.display = 'block';
 }
