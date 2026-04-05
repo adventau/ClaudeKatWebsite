@@ -2224,6 +2224,9 @@ async function loadCaseWorkspace(caseId, tab) {
   h += '    '+caseClassPill(c.classification);
   h += '    '+casePriorityPill(c.priority);
   h += '    <button class="k-btn k-btn-sm" onclick="toggleCaseStatus('+c.id+')">'+toggleBtnLabel+'</button>';
+  if (c.status === 'closed') {
+    h += '    <button class="k-btn k-btn-sm" onclick="deleteCase('+c.id+')" style="background:transparent;border-color:var(--status-red);color:var(--status-red)">Delete</button>';
+  }
   h += '    <button class="k-btn k-btn-sm" onclick="navigateTo(\'#/cases\')" style="background:transparent;border-color:var(--border-main);color:var(--text-muted)">← Back</button>';
   h += '  </div>';
   h += '</div>';
@@ -2438,6 +2441,23 @@ async function toggleCaseStatus(caseId) {
   showToastK108('Case marked ' + next);
   const tab = (window.location.hash.split('/')[2] || 'overview');
   loadCaseWorkspace(caseId, tab);
+}
+
+async function deleteCase(caseId) {
+  if (!currentCase) return;
+  const label = currentCase.caseId || ('case #' + caseId);
+  const ok = await showConfirmDialog({
+    title: 'Delete case permanently?',
+    msg: 'This will permanently remove ' + label + ' and all of its timeline entries, evidence files, entities, and notes. This cannot be undone.',
+    okText: 'Delete Forever',
+    danger: true,
+  });
+  if (!ok) return;
+  const d = await kAuthFetch('/api/k108/cases/delete', { id: caseId });
+  if (!d) return;
+  if (d.error) { showToastK108('Failed: ' + d.error); return; }
+  showToastK108('Case deleted');
+  navigateTo('#/cases');
 }
 
 // ── Add to Case (from other tools) ──

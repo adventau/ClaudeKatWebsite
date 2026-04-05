@@ -7443,6 +7443,37 @@ app.post('/api/k108/cases/status', async (req, res) => {
   res.json({ ok: true, status: target });
 });
 
+// Permanently delete a closed case (and all its timeline/evidence/entities/notes)
+app.post('/api/k108/cases/delete', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'id required' });
+  const r = await db.query('SELECT status, case_id, name FROM k108_cases WHERE id = $1', [id]);
+  if (!r.rows.length) return res.status(404).json({ error: 'Case not found' });
+  if ((r.rows[0].status || '').toLowerCase() !== 'closed') {
+    return res.status(400).json({ error: 'Only closed cases can be deleted. Close the case first.' });
+  }
+  // Remove any evidence files on disk before wiping DB rows
+  try {
+    const ev = await db.query('SELECT storage_path FROM k108_case_evidence WHERE case_id = $1', [id]);
+    for (const row of ev.rows) {
+      if (row.storage_path) {
+        try { fs.unlinkSync(row.storage_path); } catch (_) {}
+      }
+    }
+  } catch (_) {}
+  await db.query('DELETE FROM k108_case_notes WHERE case_id = $1', [id]);
+  await db.query('DELETE FROM k108_case_entities WHERE case_id = $1', [id]);
+  await db.query('DELETE FROM k108_case_evidence WHERE case_id = $1', [id]);
+  await db.query('DELETE FROM k108_case_timeline WHERE case_id = $1', [id]);
+  await db.query('DELETE FROM k108_cases WHERE id = $1', [id]);
+  await k108Log(username, 'case_delete', { id, caseId: r.rows[0].case_id, name: r.rows[0].name }, req.ip);
+  k108EmitCaseUpdate(id);
+  res.json({ ok: true });
+});
+
 // ── Timeline ──
 app.post('/api/k108/cases/timeline/list', async (req, res) => {
   const username = k108Auth(req, res);

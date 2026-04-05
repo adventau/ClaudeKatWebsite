@@ -367,33 +367,6 @@ async function createK108Tables() {
     await query(`UPDATE k108_cases SET case_id = $1 WHERE id = $2`, ['K108-' + ymd + '-' + seq, row.id]);
   }
 
-  // Seed a few fake cases if the table is empty (local/testing convenience)
-  const existing = await query(`SELECT COUNT(*)::int AS c FROM k108_cases`);
-  if ((existing.rows[0].c || 0) === 0) {
-    const today = new Date();
-    const ymd = today.getFullYear().toString() + String(today.getMonth()+1).padStart(2,'0') + String(today.getDate()).padStart(2,'0');
-    const seeds = [
-      { name: 'Operation Nightshade', target: 'Marcus Voss', status: 'open', classification: 'classified', priority: 'high', summary: 'Suspected asset exfiltration via shell companies in Luxembourg. Surveillance ongoing.', by: 'kaliph' },
-      { name: 'Cascade Incident', target: 'Elena Petrov', status: 'open', classification: 'confidential', priority: 'medium', summary: 'Anomalous wire transfers flagged by mailbox scanner. Subject under passive watch.', by: 'kathrine' },
-      { name: 'Harborlight Inquiry', target: 'Daniel Reyes', status: 'open', classification: 'unclassified', priority: 'low', summary: 'Background verification requested by external counsel. No red flags yet.', by: 'kaliph' },
-      { name: 'Violet Drift', target: 'Unknown Subject', status: 'closed', classification: 'confidential', priority: 'medium', summary: 'Trail cold. Closed pending new intel.', by: 'kathrine' },
-    ];
-    for (let i = 0; i < seeds.length; i++) {
-      const s = seeds[i];
-      const cid = 'K108-' + ymd + '-' + String(i + 1).padStart(3, '0');
-      const ins = await query(
-        `INSERT INTO k108_cases (case_id, name, target_name, status, classification, priority, summary, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-        [cid, s.name, s.target, s.status, s.classification, s.priority, s.summary, s.by]
-      );
-      const newId = ins.rows[0].id;
-      await query(
-        `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'created','Case opened',$2,$3)`,
-        [newId, 'Case "' + s.name + '" created with target ' + s.target + '.', s.by]
-      );
-    }
-    console.log('[K108] Seeded ' + seeds.length + ' demo cases');
-  }
-
   // ── Surveillance jobs ──
   await query(`
     CREATE TABLE IF NOT EXISTS k108_surveillance_jobs (
