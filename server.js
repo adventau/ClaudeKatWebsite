@@ -6076,6 +6076,9 @@ async function wpFetch(endpoint, params) {
       headers: { 'X-Api-Key': WP_API_KEY }
     });
     clearTimeout(timer);
+    if (resp.status === 404) {
+      return { source: 'whitepages', status: 'ok', raw: { not_found: true, results: [] } };
+    }
     if (!resp.ok) {
       const errText = await resp.text().catch(() => '');
       return { source: 'whitepages', status: 'error', error: `HTTP ${resp.status}: ${errText}`, results: [] };
@@ -6095,91 +6098,89 @@ async function searchPeopleByName(firstName, lastName, city, state) {
 }
 
 async function searchPeopleByPhone(phone) {
-  return wpFetch('phone', { phone: phone });
+  return wpFetch('person', { phone: phone });
 }
 
 async function searchPeopleByAddress(street, city, state, zip) {
-  const params = { street_line_1: street };
+  const params = { street: street };
   if (city) params.city = city;
   if (state) params.state_code = state;
-  if (zip) params.postal_code = zip;
-  return wpFetch('address', params);
+  if (zip) params.zipcode = zip;
+  return wpFetch('person', params);
+}
+
+function parseAddressString(addrStr) {
+  if (!addrStr || typeof addrStr !== 'string') return { street: '', city: '', state: '', zip: '' };
+  // Format: "123 Main St, Seattle, WA 98101" or "123 Main St, Seattle, WA"
+  const parts = addrStr.split(',').map(s => s.trim());
+  const street = parts[0] || '';
+  const city = parts[1] || '';
+  const stateZip = (parts[2] || '').trim().split(' ');
+  const state = stateZip[0] || '';
+  const zip = stateZip[1] || '';
+  return { street, city, state, zip };
 }
 
 function normalizeResults(apiResult) {
   if (!apiResult || apiResult.status !== 'ok' || !apiResult.raw) return [];
   const raw = apiResult.raw;
-  console.log('[K108] Whitepages raw keys:', Object.keys(raw));
-  if (raw.person) console.log('[K108] raw.person type:', typeof raw.person, Array.isArray(raw.person) ? 'array len=' + raw.person.length : '');
-  if (raw.results) console.log('[K108] raw.results type:', typeof raw.results, Array.isArray(raw.results) ? 'array len=' + raw.results.length : '');
 
-  // Whitepages v3 returns person data in various structures depending on endpoint
+  // API returns a top-level array of person objects
   let people = [];
-
-  // find_person returns { person: [...] } or { results: [...] }
-  if (raw.person) people = Array.isArray(raw.person) ? raw.person : [raw.person];
-  else if (raw.results) people = Array.isArray(raw.results) ? raw.results : [raw.results];
-  else if (raw.people) people = raw.people;
-  // reverse_phone returns { belongs_to: [...], current_addresses: [...] }
-  else if (raw.belongs_to) {
-    const owners = Array.isArray(raw.belongs_to) ? raw.belongs_to : [raw.belongs_to];
-    people = owners.map(o => ({
-      ...o,
-      _addresses: raw.current_addresses || [],
-      _phone: raw.phone_number || ''
-    }));
-  }
-  // address lookup returns { current_residents: [...] }
-  else if (raw.current_residents) {
-    const residents = Array.isArray(raw.current_residents) ? raw.current_residents : [raw.current_residents];
-    people = residents.map(r => ({
-      ...r,
-      _addresses: raw.address ? [raw.address] : []
-    }));
-  }
-  // If the raw response itself looks like a single person record
-  else if (raw.name || raw.firstname || raw.first_name) {
+  if (Array.isArray(raw)) {
+    people = raw;
+  } else if (raw.not_found) {
+    return [];
+  } else if (raw.person) {
+    people = Array.isArray(raw.person) ? raw.person : [raw.person];
+  } else if (raw.results) {
+    people = Array.isArray(raw.results) ? raw.results : [raw.results];
+  } else if (raw.name || raw.id) {
     people = [raw];
   }
 
   return people.filter(Boolean).map(p => {
-    // Extract name
-    const fn = p.firstname || p.first_name || p.FirstName || (p.name && typeof p.name === 'object' ? (p.name.first_name || p.name.first) : '') || '';
-    const ln = p.lastname || p.last_name || p.LastName || (p.name && typeof p.name === 'object' ? (p.name.last_name || p.name.last) : '') || '';
-    const full = p.name && typeof p.name === 'string' ? p.name
-      : p.full_name || p.fullName || p.best_name || `${fn} ${ln}`.trim();
+    // Name is a plain string in the API response
+    const full = typeof p.name === 'string' ? p.name
+      : p.full_name || p.fullName || `${p.first_name || p.firstname || ''} ${p.last_name || p.lastname || ''}`.trim();
+    const nameParts = full.split(' ');
+    const fn = nameParts[0] || '';
+    const ln = nameParts.slice(1).join(' ') || '';
 
-    // Extract age
-    const age = p.age_range || p.age || p.Age || (p.found_at_address && p.found_at_address.age_range) || null;
+    // Age from date_of_birth or age field
+    let age = p.age || p.age_range || null;
+    if (!age && p.date_of_birth) {
+      const dob = new Date(p.date_of_birth);
+      if (!isNaN(dob)) age = String(new Date().getFullYear() - dob.getFullYear());
+    }
 
-    // Extract addresses
-    const rawAddrs = p.current_addresses || p.addresses || p._addresses || p.found_at_address
-      ? [].concat(p.current_addresses || p.addresses || p._addresses || (p.found_at_address ? [p.found_at_address] : []))
-      : [];
-    const addresses = rawAddrs.filter(Boolean).map((a, i) => ({
-      street: a.street_line_1 || a.street || a.address || a.standard_address_line1 || '',
-      city: a.city || a.City || '',
-      state: a.state_code || a.state || a.State || '',
-      zip: a.postal_code || a.zip || a.zip_code || '',
-      current: i === 0 || !!(a.is_current || a.current)
+    // Addresses: current_addresses and historic_addresses contain { id, address: "string" }
+    const currentAddrs = (p.current_addresses || []).filter(Boolean).map(a => ({
+      ...parseAddressString(typeof a === 'string' ? a : a.address),
+      current: true
     }));
+    const historicAddrs = (p.historic_addresses || []).filter(Boolean).map(a => ({
+      ...parseAddressString(typeof a === 'string' ? a : a.address),
+      current: false
+    }));
+    const addresses = [...currentAddrs, ...historicAddrs];
 
-    // Extract phones
-    const rawPhones = p.phones || p.phone_numbers || (p._phone ? [{ phone_number: p._phone }] : []);
+    // Phones: { number, type, score }
+    const rawPhones = p.phones || p.phone_numbers || [];
     const phones = rawPhones.filter(Boolean).map(ph => ({
-      number: ph.phone_number || ph.number || ph.phone || '',
-      type: ph.line_type || ph.type || '',
+      number: ph.number || ph.phone_number || ph.phone || '',
+      type: ph.type || ph.line_type || '',
       carrier: ph.carrier || ''
     }));
 
-    // Extract emails
+    // Emails: { address, score }
     const rawEmails = p.emails || p.email_addresses || [];
-    const emails = rawEmails.map(e => typeof e === 'string' ? e : (e.email_address || e.email || e.contact_type || ''));
+    const emails = rawEmails.filter(Boolean).map(e => typeof e === 'string' ? e : (e.address || e.email_address || e.email || ''));
 
-    // Extract relatives/associates
-    const rawRels = p.associated_people || p.relatives || p.associates || [];
+    // Relatives: { id, name }
+    const rawRels = p.relatives || p.associated_people || p.associates || [];
     const relatives = rawRels.filter(Boolean).map(r => ({
-      name: typeof r === 'string' ? r : (r.name || r.full_name || r.best_name || `${r.first_name || ''} ${r.last_name || ''}`.trim()),
+      name: typeof r === 'string' ? r : (r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim()),
       relation: r.relation || r.type || ''
     }));
 

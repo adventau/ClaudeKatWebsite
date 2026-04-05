@@ -2111,11 +2111,10 @@ async function viewProfile(id) {
   h += '<div id="pf-phones-list">';
   (p.phones||[]).forEach(ph => {
     const num = typeof ph === 'string' ? ph : (ph.number||ph);
-    const lbl = typeof ph === 'object' ? (ph.label||'') : '';
-    h += phoneChipHTML(num, lbl);
+    h += phoneChipHTML(num);
   });
   h += '</div>';
-  h += '<div style="display:flex;gap:6px;margin-top:6px"><input class="k-input" id="pf-phone-input" placeholder="Number" style="font-size:12px;flex:1" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addPhoneChip();}"><select class="k-select" id="pf-phone-label" style="font-size:11px;max-width:100px;padding:6px"><option value="">Label</option><option value="Primary">Primary</option><option value="Mobile">Mobile</option><option value="Home">Home</option><option value="Work">Work</option><option value="Other">Other</option></select></div>';
+  h += '<div style="display:flex;gap:6px;margin-top:6px"><input class="k-input" id="pf-phone-input" placeholder="Number" style="font-size:12px;flex:1" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addPhoneChip();}"></div>';
   h += '</div>';
 
   // Emails (labeled chips)
@@ -2123,11 +2122,10 @@ async function viewProfile(id) {
   h += '<div id="pf-emails-list">';
   (p.emails||[]).forEach(e => {
     const addr = typeof e === 'string' ? e : (e.address||e);
-    const lbl = typeof e === 'object' ? (e.label||'') : '';
-    h += emailChipHTML(addr, lbl);
+    h += emailChipHTML(addr);
   });
   h += '</div>';
-  h += '<div style="display:flex;gap:6px;margin-top:6px"><input class="k-input" id="pf-email-input" placeholder="Email" style="font-size:12px;flex:1" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addEmailChip();}"><select class="k-select" id="pf-email-label" style="font-size:11px;max-width:100px;padding:6px"><option value="">Label</option><option value="Primary">Primary</option><option value="Personal">Personal</option><option value="Work">Work</option><option value="School">School</option><option value="Other">Other</option></select></div>';
+  h += '<div style="display:flex;gap:6px;margin-top:6px"><input class="k-input" id="pf-email-input" placeholder="Email" style="font-size:12px;flex:1" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addEmailChip();}"></div>';
   h += '</div>';
 
   // Social Links
@@ -2406,14 +2404,12 @@ async function applyCrop() {
   }, 'image/png');
 }
 
-function phoneChipHTML(num, label) {
-  const lbl = label ? '<span style="font-size:9px;color:var(--accent-blue);margin-left:4px;opacity:0.7">'+esc(label)+'</span>' : '';
-  return '<div class="chip" data-number="'+esc(num)+'" data-label="'+esc(label)+'" style="display:flex;align-items:center;gap:4px"><span onclick="moveChip(this.parentElement,-1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move up">\u25B2</span><span onclick="moveChip(this.parentElement,1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move down">\u25BC</span>'+esc(fmtPhone(num))+lbl+'<span class="chip-x" onclick="this.parentElement.remove()">&times;</span></div>';
+function phoneChipHTML(num) {
+  return '<div class="chip" data-number="'+esc(num)+'" style="display:flex;align-items:center;gap:4px"><span onclick="moveChip(this.parentElement,-1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move up">\u25B2</span><span onclick="moveChip(this.parentElement,1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move down">\u25BC</span>'+esc(fmtPhone(num))+'<span class="chip-x" onclick="this.parentElement.remove()">&times;</span></div>';
 }
 
-function emailChipHTML(addr, label) {
-  const lbl = label ? '<span style="font-size:9px;color:var(--accent-blue);margin-left:4px;opacity:0.7">'+esc(label)+'</span>' : '';
-  return '<div class="chip" data-address="'+esc(addr)+'" data-label="'+esc(label)+'" style="display:flex;align-items:center;gap:4px"><span onclick="moveChip(this.parentElement,-1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move up">\u25B2</span><span onclick="moveChip(this.parentElement,1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move down">\u25BC</span>'+esc(addr)+lbl+'<span class="chip-x" onclick="this.parentElement.remove()">&times;</span></div>';
+function emailChipHTML(addr) {
+  return '<div class="chip" data-address="'+esc(addr)+'" style="display:flex;align-items:center;gap:4px"><span onclick="moveChip(this.parentElement,-1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move up">\u25B2</span><span onclick="moveChip(this.parentElement,1)" style="cursor:pointer;font-size:10px;color:var(--text-dim);padding:0 2px" title="Move down">\u25BC</span>'+esc(addr)+'<span class="chip-x" onclick="this.parentElement.remove()">&times;</span></div>';
 }
 
 function moveChip(chip, dir) {
@@ -2427,25 +2423,21 @@ function moveChip(chip, dir) {
 
 function addPhoneChip() {
   const input = document.getElementById('pf-phone-input');
-  const labelSel = document.getElementById('pf-phone-label');
   if (!input) return;
   const v = input.value.trim();
   if (v.replace(/\D/g,'').length >= 7) {
-    document.getElementById('pf-phones-list').insertAdjacentHTML('beforeend', phoneChipHTML(v, labelSel.value));
+    document.getElementById('pf-phones-list').insertAdjacentHTML('beforeend', phoneChipHTML(v));
     input.value = '';
-    labelSel.value = '';
   }
 }
 
 function addEmailChip() {
   const input = document.getElementById('pf-email-input');
-  const labelSel = document.getElementById('pf-email-label');
   if (!input) return;
   const v = input.value.trim();
   if (v && v.includes('@')) {
-    document.getElementById('pf-emails-list').insertAdjacentHTML('beforeend', emailChipHTML(v, labelSel.value));
+    document.getElementById('pf-emails-list').insertAdjacentHTML('beforeend', emailChipHTML(v));
     input.value = '';
-    labelSel.value = '';
   }
 }
 
@@ -2633,8 +2625,8 @@ async function saveProfile(id) {
     last_name: document.getElementById('pf-lname').value.trim(),
     relation: document.getElementById('pf-relation').value.trim(),
     aliases: document.getElementById('pf-aliases').value.split(',').map(s=>s.trim()).filter(Boolean),
-    phones: Array.from(document.querySelectorAll('#pf-phones-list .chip')).map(c => ({ number: c.dataset.number || c.textContent.replace('\u00d7','').trim(), label: c.dataset.label || '' })),
-    emails: Array.from(document.querySelectorAll('#pf-emails-list .chip')).map(c => ({ address: c.dataset.address || c.textContent.replace('\u00d7','').trim(), label: c.dataset.label || '' })),
+    phones: Array.from(document.querySelectorAll('#pf-phones-list .chip')).map(c => ({ number: c.dataset.number || c.textContent.replace('\u00d7','').trim() })),
+    emails: Array.from(document.querySelectorAll('#pf-emails-list .chip')).map(c => ({ address: c.dataset.address || c.textContent.replace('\u00d7','').trim() })),
     notes: document.getElementById('pf-notes').value,
     social_links,
     age: document.getElementById('pf-age').value.trim(),
