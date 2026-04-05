@@ -2078,22 +2078,8 @@ async function viewProfile(id) {
   h += '</div>';
   h += '<div id="apply-label-list" style="display:none;margin-bottom:16px"></div>';
 
-  // Build images panel HTML (right column)
-  const imgs = (d.files||[]).filter(f => f.mime_type && f.mime_type.startsWith('image/'));
   const otherFiles = (d.files||[]).filter(f => !f.mime_type || !f.mime_type.startsWith('image/'));
-  let imgPanelHtml = '<div class="pi-side-panel">';
-  imgPanelHtml += '<div class="profile-section-title">Images'+(imgs.length?' ('+imgs.length+')':'')+'</div>';
-  if (imgs.length) {
-    imgPanelHtml += '<div class="pi-gallery">';
-    imgs.forEach(f => { imgPanelHtml += '<div class="pi-img-card" onclick="openProfileLightbox(\'/uploads/'+esc(f.filename)+'\')"><img src="/uploads/'+esc(f.filename)+'" loading="lazy"><div class="pi-del-btn" onclick="event.stopPropagation();deleteProfileImage('+id+','+f.id+')" title="Remove"><svg width="10" height="10" viewBox="0 0 10 10" stroke="white" stroke-width="2"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg></div></div>'; });
-    imgPanelHtml += '</div>';
-  } else {
-    imgPanelHtml += '<div style="border:1px dashed var(--border-main);border-radius:10px;padding:24px 12px;text-align:center;cursor:pointer" onclick="openProfileImagesModal('+id+')"><div style="font-size:11px;color:var(--text-dim)">No images yet</div><div style="font-size:10px;color:var(--text-dim);margin-top:4px">Click to add</div></div>';
-  }
-  imgPanelHtml += '</div>';
 
-  // Outer two-column: left=sections, right=images
-  h += '<div style="display:flex;gap:16px;align-items:flex-start"><div style="flex:1;min-width:0">';
   h += '<div class="profile-sections">';
 
   // Phones (labeled chips)
@@ -2160,10 +2146,8 @@ async function viewProfile(id) {
   h += '<div style="margin-top:8px"><input class="k-input" id="pf-link-search" placeholder="Search profile to link..." style="font-size:11px" oninput="searchProfileToLink(this.value,'+id+')"><div id="pf-link-results" style="margin-top:4px"></div></div>';
   h += '</div>';
 
-  h += '</div></div>'; // close profile-sections + left column
-  h += imgPanelHtml;  // right column: images panel
-  h += '</div>';       // close outer flex row
-  h += '</div>';       // close profile-detail
+  h += '</div>'; // close profile-sections
+  h += '</div>'; // close profile-detail
   el.innerHTML = h;
 
   // Instagram photo fallback for edit view
