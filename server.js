@@ -6388,6 +6388,42 @@ app.post('/api/k108/sms-reply', async (req, res) => {
   res.json({ ok: true });
 });
 
+const K108_SMS_NAMES_FILE = path.join(DATA_DIR, 'k108-sms-names.json');
+function getSmsNames() { try { if (fs.existsSync(K108_SMS_NAMES_FILE)) return JSON.parse(fs.readFileSync(K108_SMS_NAMES_FILE, 'utf8')); } catch(e) {} return {}; }
+function saveSmsNames(n) { fs.writeFileSync(K108_SMS_NAMES_FILE, JSON.stringify(n, null, 2)); }
+
+app.post('/api/k108/sms/threads/rename', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { phone, name } = req.body;
+  if (!phone) return res.status(400).json({ error: 'Phone required' });
+  const names = getSmsNames();
+  if (name && name.trim()) names[phone] = name.trim();
+  else delete names[phone];
+  saveSmsNames(names);
+  res.json({ ok: true });
+});
+
+app.delete('/api/k108/sms/threads/:phone', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  let phone = req.params.phone.replace(/\D/g, '');
+  if (phone.length === 11 && phone.startsWith('1')) phone = phone.slice(1);
+  if (db.pool) {
+    await db.query('DELETE FROM k108_sms WHERE phone = $1 OR phone = $2', [phone, '1' + phone]);
+  }
+  const names = getSmsNames();
+  delete names[phone];
+  saveSmsNames(names);
+  res.json({ ok: true });
+});
+
+app.post('/api/k108/sms/names', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  res.json({ names: getSmsNames() });
+});
+
 app.post('/api/k108/sms/threads', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
