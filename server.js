@@ -6587,15 +6587,17 @@ app.post('/api/k108/profiles/create', async (req, res) => {
 
   if (db.pool) {
     try {
-      const colInfo = await db.query(`SELECT data_type FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
-      const isJsonb = colInfo.rows[0] && colInfo.rows[0].data_type === 'jsonb';
+      const colInfo = await db.query(`SELECT udt_name FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
+      const isJsonb = colInfo.rows[0]?.udt_name === 'jsonb';
       const aliasVal = Array.isArray(aliases) ? aliases : (aliases ? [aliases] : []);
       const phoneVal = isJsonb ? JSON.stringify(phones || []) : (phones || []).map(p => typeof p === 'string' ? p : (p.number || ''));
       const emailVal = isJsonb ? JSON.stringify(emails || []) : (emails || []).map(e => typeof e === 'string' ? e : (e.address || ''));
+      const phoneSql = isJsonb ? '$7::jsonb' : '$7';
+      const emailSql = isJsonb ? '$8::jsonb' : '$8';
 
       const r = await db.query(
         `INSERT INTO k108_profiles (first_name, middle_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address, created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+         VALUES ($1,$2,$3,$4,$5,$6,${phoneSql},${emailSql},$9,$10,$11,$12,$13) RETURNING *`,
         [first_name || '', middle_name || null, last_name || '', aliasVal, relation || '', notes || '',
          phoneVal, emailVal, JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), username]
       );
@@ -6657,8 +6659,8 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
       const normalizeEmails = (arr) => (arr || []).map(e => typeof e === 'string' ? { address: e, label: '' } : { address: e.address || '', label: e.label || '' });
 
       // Detect phones column type; migrate TEXT[]→JSONB if possible, else fall back
-      const colInfo = await db.query(`SELECT data_type FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
-      let isJsonb = colInfo.rows[0]?.data_type === 'jsonb';
+      const colInfo = await db.query(`SELECT udt_name FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
+      let isJsonb = colInfo.rows[0]?.udt_name === 'jsonb';
       if (!isJsonb) {
         try {
           await db.query(`ALTER TABLE k108_profiles ALTER COLUMN phones TYPE JSONB USING array_to_json(phones)::jsonb`);

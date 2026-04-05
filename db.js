@@ -205,9 +205,10 @@ async function createK108Tables() {
   await query(`UPDATE k108_sms SET phone = substring(phone from 2) WHERE length(phone) = 11 AND phone LIKE '1%'`);
   // Migration: convert phones/emails from TEXT[] to JSONB for labels support
   try {
-    const colCheck = await query(`SELECT data_type FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
+    const colCheck = await query(`SELECT data_type, udt_name FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
     const phoneDataType = (colCheck.rows[0]?.data_type || '').toLowerCase();
-    if (phoneDataType === 'array' || phoneDataType === 'text[]') {
+    const phoneUdtName = (colCheck.rows[0]?.udt_name || '').toLowerCase();
+    if (phoneDataType === 'array' || phoneUdtName === '_text') {
       await query(`ALTER TABLE k108_profiles ALTER COLUMN phones TYPE JSONB USING array_to_json(phones)::jsonb`);
       await query(`ALTER TABLE k108_profiles ALTER COLUMN phones SET DEFAULT '[]'::jsonb`);
       await query(`ALTER TABLE k108_profiles ALTER COLUMN emails TYPE JSONB USING array_to_json(emails)::jsonb`);
