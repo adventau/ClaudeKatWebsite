@@ -1437,7 +1437,7 @@ function renderLookupResults(data) {
   const area = document.getElementById('lookup-results');
   if (!data.results || data.results.length === 0) { area.innerHTML = '<div class="k-empty">No subjects found matching criteria.</div>'; return; }
   lookupResultsCache = data.results;
-  let h = '<div style="display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border-subtle)"><span style="font-size:13px;color:var(--text-secondary)"><strong>'+data.results.length+'</strong> subject'+(data.results.length!==1?'s':'')+' located</span><span style="font-family:JetBrains Mono;font-size:11px;color:var(--text-dim)">'+data.meta.duration+'ms</span></div>';
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border-subtle)"><span style="font-size:13px;color:var(--text-secondary)"><strong>'+data.results.length+'</strong> subject'+(data.results.length!==1?'s':'')+' located</span><div style="display:flex;align-items:center;gap:12px"><span style="font-family:JetBrains Mono;font-size:11px;color:var(--text-dim)">'+data.meta.duration+'ms</span><button class="k-btn k-btn-sm" id="save-all-btn" onclick="saveAllLookupResults()" style="font-size:10px;padding:4px 14px;background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.3);color:var(--accent-indigo)">Save All to Profiles</button></div></div>';
   data.results.forEach((p, idx) => {
     const cc = p.confidence>=70?'high':p.confidence>=40?'mid':'low';
     const loc = p.addresses&&p.addresses.length>0?[p.addresses[0].city,p.addresses[0].state].filter(Boolean).join(', '):'';
@@ -1507,6 +1507,52 @@ async function saveToIntelProfile(idx) {
   if (d && d.profile) {
     navigateTo('#/profiles');
     setTimeout(() => viewProfileReadonly(d.profile.id), 300);
+  }
+}
+
+async function saveAllLookupResults() {
+  const results = lookupResultsCache;
+  if (!results.length) return;
+  const btn = document.getElementById('save-all-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving 0/' + results.length + '...'; }
+  let saved = 0, failed = 0;
+  for (let i = 0; i < results.length; i++) {
+    const p = results[i];
+    if (btn) btn.textContent = 'Saving ' + (i+1) + '/' + results.length + '...';
+    try {
+      const parts = (p.fullName||'').split(' ');
+      const firstName = parts[0] || '';
+      const lastName = parts.slice(1).join(' ') || '';
+      const phones = (p.phones||[]).map(ph => ph.number || ph).filter(Boolean);
+      const emails = (p.emails||[]).filter(Boolean);
+      const address = {};
+      if (p.addresses && p.addresses.length) {
+        const curr = p.addresses.find(a => a.current) || p.addresses[0];
+        address.street = curr.street || '';
+        address.city = curr.city || '';
+        address.state = curr.state || '';
+        address.zip = curr.zip || '';
+      }
+      let notes = '';
+      if (p.addresses && p.addresses.length > 1) {
+        notes += 'Other Addresses:\n';
+        p.addresses.slice(1).forEach(a => { notes += '  ' + [a.street,a.city,a.state,a.zip].filter(Boolean).join(', ') + '\n'; });
+      }
+      if (p.relatives && p.relatives.length) notes += 'Relatives: ' + p.relatives.map(r=>r.name).join(', ') + '\n';
+      notes += '\nImported from People Lookup (confidence: ' + (p.confidence||'?') + '%)';
+      const d = await kAuthFetch('/api/k108/profiles/create', {
+        first_name: firstName, last_name: lastName, aliases: [], relation: '',
+        notes: notes.trim(), phones, emails, social_links: [], age: p.age || '', address
+      });
+      if (d && d.profile) saved++;
+      else failed++;
+    } catch(e) { failed++; }
+  }
+  if (btn) {
+    btn.textContent = saved + ' saved' + (failed ? ', ' + failed + ' failed' : '');
+    btn.style.background = 'rgba(34,197,94,0.15)';
+    btn.style.borderColor = 'rgba(34,197,94,0.3)';
+    btn.style.color = 'var(--accent-green)';
   }
 }
 
