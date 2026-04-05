@@ -6787,6 +6787,33 @@ app.put('/api/k108/profiles/relations/:rid/label', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── K-108 Instagram Photo Proxy ──────────────────────────────────────────────
+app.post('/api/k108/instagram-photo', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { igUsername } = req.body;
+  if (!igUsername || !/^[\w.]+$/.test(igUsername)) return res.status(400).json({ error: 'Invalid username' });
+  try {
+    const r = await nodeFetch(`https://www.instagram.com/${igUsername}/`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        'Sec-Fetch-Mode': 'navigate',
+      },
+      timeout: 8000,
+    });
+    const html = await r.text();
+    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    if (!m) return res.status(404).json({ error: 'No profile photo found' });
+    res.json({ url: m[1] });
+  } catch(e) {
+    res.status(502).json({ error: 'Failed to fetch Instagram profile' });
+  }
+});
+
 // ── K-108 Labels ─────────────────────────────────────────────────────────────
 const K108_LABELS_FILE = path.join(DATA_DIR, 'k108-labels.json');
 function getK108Labels() { try { if (fs.existsSync(K108_LABELS_FILE)) return JSON.parse(fs.readFileSync(K108_LABELS_FILE, 'utf8')); } catch(e) {} return []; }

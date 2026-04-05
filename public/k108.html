@@ -1589,7 +1589,8 @@ async function viewProfileReadonly(id) {
   h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><div style="display:flex;gap:8px;align-items:center"><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div></div>';
 
   // Photo + Name + Badges
-  h += '<div class="profile-top"><div class="profile-photo"'+(p.photo_url?' onclick="enlargePhoto(\''+esc(p.photo_url)+'\')" style="cursor:pointer" title="Click to enlarge"':'')+'>'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase()))+'</div>';
+  const roInitials = esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase());
+  h += '<div class="profile-top"><div class="profile-photo" id="ro-profile-photo"'+(p.photo_url?' onclick="enlargePhoto(\''+esc(p.photo_url)+'\')" style="cursor:pointer" title="Click to enlarge"':' data-initials="'+roInitials+'"')+'>'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':roInitials)+'</div>';
   h += '<div class="profile-info"><h2>'+esc([p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' '))+' ';
   if (isCommandProfile(p.first_name)) h += '<span class="command-badge">Command</span>';
   h += '</h2>';
@@ -1636,6 +1637,11 @@ async function viewProfileReadonly(id) {
   h += '</div></div>';
   el.innerHTML = h;
 
+  // Instagram photo fallback
+  if (!p.photo_url) {
+    const photoEl = document.getElementById('ro-profile-photo');
+    if (photoEl) loadIgPhoto(photoEl, p.social_links);
+  }
 }
 
 
@@ -1656,7 +1662,8 @@ async function viewProfile(id) {
 
   // Photo + Name row
   h += '<div class="profile-top">';
-  h += '<div class="profile-photo" onclick="uploadProfilePhoto('+id+')" title="Click to change photo">'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase()))+'</div>';
+  const editInitials = esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase());
+  h += '<div class="profile-photo" id="edit-profile-photo" onclick="uploadProfilePhoto('+id+')" title="Click to change photo" data-initials="'+editInitials+'">'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':editInitials)+'</div>';
   h += '<input type="file" id="profile-photo-input" style="display:none" accept="image/*">';
   h += '<div class="profile-info" style="flex:1"><div class="form-row" style="margin-bottom:10px"><div class="fg"><label class="k-label">First Name</label><input class="k-input" id="pf-fname" value="'+esc(p.first_name||'')+'" oninput="checkEditDupeProfile(this.value,'+id+')" autocomplete="off"></div><div class="fg" style="max-width:140px"><label class="k-label">Middle Name</label><input class="k-input" id="pf-mname" value="'+esc(p.middle_name||'')+'"></div><div class="fg"><label class="k-label">Last Name</label><input class="k-input" id="pf-lname" value="'+esc(p.last_name||'')+'"></div></div>';
   h += '<div id="pf-dupe-warn" style="display:none;margin-top:-6px;margin-bottom:10px;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:10px 12px"><div style="font-size:10px;font-weight:600;color:var(--status-amber);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">&#9888; Similar profiles exist</div><div id="pf-dupe-list" style="display:flex;flex-wrap:wrap;gap:8px"></div></div>';
@@ -1748,6 +1755,12 @@ async function viewProfile(id) {
 
   h += '</div></div>';
   el.innerHTML = h;
+
+  // Instagram photo fallback for edit view
+  if (!p.photo_url) {
+    const photoEl = document.getElementById('edit-profile-photo');
+    if (photoEl) loadIgPhoto(photoEl, p.social_links);
+  }
 
   // Phone chip input
   const phoneInput = document.getElementById('pf-phone-input');
@@ -2543,6 +2556,27 @@ const SOCIAL_SVGS = {
   facebook: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>',
   youtube: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>'
 };
+
+function extractIgUsername(socialLinks) {
+  const links = typeof socialLinks === 'string' ? JSON.parse(socialLinks||'[]') : (socialLinks||[]);
+  for (const l of links) {
+    const url = l.url || '';
+    const m = url.match(/instagram\.com\/([A-Za-z0-9_.]+)/);
+    if (m && m[1] && !['p','reel','stories','explore'].includes(m[1])) return m[1];
+    if (l.handle && url.includes('instagram.com')) return l.handle.replace('@','');
+  }
+  return null;
+}
+
+async function loadIgPhoto(profileEl, socialLinks) {
+  const igUser = extractIgUsername(socialLinks);
+  if (!igUser) return;
+  try {
+    const d = await kAuthFetch('/api/k108/instagram-photo', { igUsername: igUser });
+    if (!d || !d.url) return;
+    profileEl.innerHTML = '<img src="'+esc(d.url)+'" onerror="this.parentElement.innerHTML=this.parentElement.dataset.initials" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+  } catch(e) {}
+}
 
 function detectPlatform(url) {
   if (url.includes('instagram.com')) return { abbr: SOCIAL_SVGS.instagram, color:'#E1306C', name:'Instagram' };
