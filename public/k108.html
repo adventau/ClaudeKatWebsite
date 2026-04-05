@@ -455,11 +455,13 @@
     .pi-preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
     .pi-preview-thumb .pi-remove { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; background: rgba(0,0,0,0.7); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
     .pi-preview-thumb:hover .pi-remove { opacity: 1; }
-    .pi-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .pi-img-card { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--bg-base); border: 1px solid var(--border-subtle); cursor: pointer; }
-    .pi-img-card img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s; }
-    .pi-img-card:hover img { transform: scale(1.05); }
-    .pi-img-card .pi-del-btn { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; background: rgba(239,68,68,0.85); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
+    .pi-gallery { display: flex; flex-direction: column; gap: 10px; }
+    .pi-side-panel { width: 260px; flex-shrink: 0; position: sticky; top: 16px; }
+    .pi-side-panel .profile-section-title { margin-bottom: 10px; }
+    .pi-img-card { position: relative; border-radius: 10px; overflow: hidden; background: var(--bg-base); border: 1px solid var(--border-subtle); cursor: pointer; }
+    .pi-img-card img { width: 100%; height: auto; display: block; transition: opacity 0.2s; }
+    .pi-img-card:hover img { opacity: 0.92; }
+    .pi-img-card .pi-del-btn { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; background: rgba(239,68,68,0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
     .pi-img-card:hover .pi-del-btn { opacity: 1; }
     .pi-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 9999; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
     .pi-lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
@@ -1967,7 +1969,27 @@ async function viewProfileReadonly(id) {
   }
   h += '</div></div>';
 
-  h += '<div class="profile-sections">';
+  // Build right-side images panel
+  const roImgs = (d.files||[]).filter(f => f.mime_type && f.mime_type.startsWith('image/'));
+  const roOther = (d.files||[]).filter(f => !f.mime_type || !f.mime_type.startsWith('image/'));
+  let roImgPanel = '';
+  if (roImgs.length || roOther.length) {
+    roImgPanel += '<div class="pi-side-panel">';
+    if (roImgs.length) {
+      roImgPanel += '<div class="profile-section-title">Images ('+roImgs.length+')</div><div class="pi-gallery">';
+      roImgs.forEach(f => { roImgPanel += '<div class="pi-img-card" onclick="openProfileLightbox(\'/uploads/'+esc(f.filename)+'\')"><img src="/uploads/'+esc(f.filename)+'" loading="lazy"></div>'; });
+      roImgPanel += '</div>';
+    }
+    if (roOther.length) {
+      roImgPanel += '<div class="profile-section-title" style="margin-top:'+(roImgs.length?'14px':'0')+'">Files</div>';
+      roOther.forEach(f => { roImgPanel += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:11px">'+esc(f.original_name)+'</a></div>'; });
+    }
+    roImgPanel += '</div>';
+  }
+
+  // Outer flex: left=sections, right=images
+  h += '<div style="display:flex;gap:16px;align-items:flex-start">';
+  h += '<div style="flex:1;min-width:0"><div class="profile-sections">';
   // Address
   const addr = typeof p.address === 'string' ? JSON.parse(p.address||'{}') : (p.address||{});
   if (addr.street || addr.city || addr.state || addr.zip) {
@@ -1981,11 +2003,6 @@ async function viewProfileReadonly(id) {
   if (links.length) { h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Social Media</div>'; links.forEach(l => { const pl = detectPlatform(l.url||''); h += '<a class="social-link" href="'+esc(l.url)+'" target="_blank"><span class="social-icon" style="color:'+pl.color+'">'+pl.abbr+'</span>'+esc(l.handle||l.url)+'</a>'; }); h += '</div>'; }
   // Notes
   if (p.notes) { h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Notes</div><div style="font-size:13px;color:var(--text-secondary);white-space:pre-wrap">'+esc(p.notes)+'</div></div>'; }
-  // Images (read-only)
-  const roImgs = (d.files||[]).filter(f => f.mime_type && f.mime_type.startsWith('image/'));
-  const roOther = (d.files||[]).filter(f => !f.mime_type || !f.mime_type.startsWith('image/'));
-  if (roImgs.length) { h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Images ('+roImgs.length+')</div><div class="pi-gallery">'+roImgs.map(f=>'<div class="pi-img-card" onclick="openProfileLightbox(\'/uploads/'+esc(f.filename)+'\')"><img src="/uploads/'+esc(f.filename)+'" loading="lazy"></div>').join('')+'</div></div>'; }
-  if (roOther.length) { h += '<div class="profile-section"><div class="profile-section-title">Files ('+roOther.length+')</div>'; roOther.forEach(f => { h += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue)">'+esc(f.original_name)+'</a></div>'; }); h += '</div>'; }
   // Relations
   if (d.relations && d.relations.length) { h += '<div class="profile-section"><div class="profile-section-title">Related Profiles</div>'; d.relations.forEach(r => { const lbl = r.label ? '<span class="rel-label-badge">'+esc(r.label)+'</span>' : ''; h += '<div class="related-card" onclick="viewProfileReadonly('+r.related_profile_id+')"><div class="profile-af-avatar" style="width:28px;height:28px;font-size:10px;flex-shrink:0">'+(r.photo_url?'<img src="'+esc(r.photo_url)+'">':esc((r.first_name||'?')[0]+(r.last_name||'?')[0]))+'</div><div><div style="font-size:12px">'+esc(r.first_name+' '+r.last_name)+'</div>'+lbl+'</div></div>'; }); h += '</div>'; }
 
@@ -2006,7 +2023,10 @@ async function viewProfileReadonly(id) {
     h += '<div class="profile-section" style="grid-column:1/-1"><div style="text-align:center;color:var(--text-dim);font-size:12px;padding:20px">No details added yet. Click "Edit Profile" to add information.</div></div>';
   }
 
-  h += '</div></div>';
+  h += '</div></div>'; // close profile-sections + left col
+  h += roImgPanel;    // right col: images
+  h += '</div>';       // close outer flex
+  h += '</div>';       // close profile-detail
   el.innerHTML = h;
 
   // Instagram photo fallback
@@ -2058,7 +2078,25 @@ async function viewProfile(id) {
   h += '</div>';
   h += '<div id="apply-label-list" style="display:none;margin-bottom:16px"></div>';
 
-  // Info sections in grid
+  // Build images panel HTML (right column)
+  const imgs = (d.files||[]).filter(f => f.mime_type && f.mime_type.startsWith('image/'));
+  const otherFiles = (d.files||[]).filter(f => !f.mime_type || !f.mime_type.startsWith('image/'));
+  let imgPanelHtml = '<div class="pi-side-panel">';
+  imgPanelHtml += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div class="profile-section-title" style="margin-bottom:0">Images'+(imgs.length?' ('+imgs.length+')':'')+'</div><button class="k-btn k-btn-sm" onclick="openProfileImagesModal('+id+')" style="font-size:9px;padding:3px 10px">+ Add</button></div>';
+  if (imgs.length) {
+    imgPanelHtml += '<div class="pi-gallery">';
+    imgs.forEach(f => { imgPanelHtml += '<div class="pi-img-card" onclick="openProfileLightbox(\'/uploads/'+esc(f.filename)+'\')"><img src="/uploads/'+esc(f.filename)+'" loading="lazy"><div class="pi-del-btn" onclick="event.stopPropagation();deleteProfileImage('+id+','+f.id+')" title="Remove"><svg width="10" height="10" viewBox="0 0 10 10" stroke="white" stroke-width="2"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg></div></div>'; });
+    imgPanelHtml += '</div>';
+  } else {
+    imgPanelHtml += '<div style="border:1px dashed var(--border-main);border-radius:10px;padding:24px 12px;text-align:center;cursor:pointer" onclick="openProfileImagesModal('+id+')"><div style="font-size:11px;color:var(--text-dim)">No images yet</div><div style="font-size:10px;color:var(--text-dim);margin-top:4px">Click to add</div></div>';
+  }
+  imgPanelHtml += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle)">';
+  if (otherFiles.length) { otherFiles.forEach(f => { imgPanelHtml += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:11px">'+esc(f.original_name)+'</a></div>'; }); }
+  imgPanelHtml += '<input type="file" id="profile-file-input" multiple style="display:none" onchange="uploadProfileFiles('+id+',this.files)"><button class="k-btn k-btn-sm" onclick="document.getElementById(\'profile-file-input\').click()" style="margin-top:6px;font-size:9px">+ Attach Files</button></div>';
+  imgPanelHtml += '</div>';
+
+  // Outer two-column: left=sections, right=images
+  h += '<div style="display:flex;gap:16px;align-items:flex-start"><div style="flex:1;min-width:0">';
   h += '<div class="profile-sections">';
 
   // Phones (labeled chips)
@@ -2102,24 +2140,6 @@ async function viewProfile(id) {
   h += '<textarea class="k-input" id="pf-notes" rows="4" style="resize:vertical;font-size:12px">'+esc(p.notes||'')+'</textarea>';
   h += '</div>';
 
-  // Images
-  const imgs = (d.files||[]).filter(f => f.mime_type && f.mime_type.startsWith('image/'));
-  const otherFiles = (d.files||[]).filter(f => !f.mime_type || !f.mime_type.startsWith('image/'));
-  h += '<div class="profile-section" style="grid-column:1/-1"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div class="profile-section-title" style="margin-bottom:0">Images'+(imgs.length?' ('+imgs.length+')':'')+'</div><button class="k-btn k-btn-sm" onclick="openProfileImagesModal('+id+')" style="font-size:9px;padding:3px 10px">+ Add Images</button></div>';
-  if (imgs.length) {
-    h += '<div class="pi-gallery">';
-    imgs.forEach(f => { h += '<div class="pi-img-card" onclick="openProfileLightbox(\''+esc('/uploads/'+f.filename)+'\')"><img src="/uploads/'+esc(f.filename)+'" loading="lazy"><div class="pi-del-btn" onclick="event.stopPropagation();deleteProfileImage('+id+','+f.id+')" title="Remove"><svg width="10" height="10" viewBox="0 0 10 10" stroke="white" stroke-width="2"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg></div></div>'; });
-    h += '</div>';
-  } else {
-    h += '<div style="font-size:11px;color:var(--text-dim);padding:12px 0">No images yet — click Add Images to upload</div>';
-  }
-  h += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle)">';
-  if (otherFiles.length) {
-    otherFiles.forEach(f => { h += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:12px">'+esc(f.original_name)+'</a></div>'; });
-  }
-  h += '<input type="file" id="profile-file-input" multiple style="display:none" onchange="uploadProfileFiles('+id+',this.files)"><button class="k-btn k-btn-sm" onclick="document.getElementById(\'profile-file-input\').click()" style="margin-top:6px;font-size:9px">+ Attach Files</button></div>';
-  h += '</div>';
-
   // Relations
   h += '<div class="profile-section"><div class="profile-section-title">Related Profiles</div>';
   if (d.relations && d.relations.length) {
@@ -2133,7 +2153,10 @@ async function viewProfile(id) {
   h += '<div style="margin-top:8px"><input class="k-input" id="pf-link-search" placeholder="Search profile to link..." style="font-size:11px" oninput="searchProfileToLink(this.value,'+id+')"><div id="pf-link-results" style="margin-top:4px"></div></div>';
   h += '</div>';
 
-  h += '</div></div>';
+  h += '</div></div>'; // close profile-sections + left column
+  h += imgPanelHtml;  // right column: images panel
+  h += '</div>';       // close outer flex row
+  h += '</div>';       // close profile-detail
   el.innerHTML = h;
 
   // Instagram photo fallback for edit view
