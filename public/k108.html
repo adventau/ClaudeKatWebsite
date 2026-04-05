@@ -1438,7 +1438,7 @@ function renderLookupResults(data) {
   const area = document.getElementById('lookup-results');
   if (!data.results || data.results.length === 0) { area.innerHTML = '<div class="k-empty">No subjects found matching criteria.</div>'; return; }
   lookupResultsCache = data.results;
-  let h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border-subtle)"><span style="font-size:13px;color:var(--text-secondary)"><strong>'+data.results.length+'</strong> subject'+(data.results.length!==1?'s':'')+' located</span><div style="display:flex;align-items:center;gap:12px"><span style="font-family:JetBrains Mono;font-size:11px;color:var(--text-dim)">'+data.meta.duration+'ms</span><button class="k-btn k-btn-sm" id="save-all-btn" onclick="saveAllLookupResults()" style="font-size:10px;padding:4px 14px;background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.3);color:var(--accent-indigo)">Save All to Profiles</button></div></div>';
+  let h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border-subtle)"><span style="font-size:13px;color:var(--text-secondary)"><strong>'+data.results.length+'</strong> subject'+(data.results.length!==1?'s':'')+' located</span><div style="display:flex;align-items:center;gap:8px"><span style="font-family:JetBrains Mono;font-size:11px;color:var(--text-dim)">'+data.meta.duration+'ms</span><button class="k-btn k-btn-sm" id="save-all-results-btn" onclick="saveAllSearchResults()" style="font-size:10px;padding:4px 14px">Save All Results</button><button class="k-btn k-btn-sm" id="save-all-btn" onclick="saveAllLookupResults()" style="font-size:10px;padding:4px 14px;background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.3);color:var(--accent-indigo)">Save All to Profiles</button></div></div>';
   data.results.forEach((p, idx) => {
     const cc = p.confidence>=70?'high':p.confidence>=40?'mid':'low';
     const loc = p.addresses&&p.addresses.length>0?[p.addresses[0].city,p.addresses[0].state].filter(Boolean).join(', '):'';
@@ -1557,6 +1557,98 @@ async function saveAllLookupResults() {
     btn.style.color = 'var(--accent-green)';
   }
   loadDashboardData();
+}
+
+// ═══ Saved Results ═══
+function getSavedResults() {
+  try { return JSON.parse(localStorage.getItem('k108-saved-results') || '[]'); } catch(e) { return []; }
+}
+function setSavedResults(arr) {
+  localStorage.setItem('k108-saved-results', JSON.stringify(arr));
+}
+
+function saveSearchResult(btnOrIdx) {
+  let result;
+  if (typeof btnOrIdx === 'number') {
+    result = lookupResultsCache[btnOrIdx];
+  } else {
+    try { result = JSON.parse(btnOrIdx.dataset.result); } catch(e) { return; }
+  }
+  if (!result) return;
+  const saved = getSavedResults();
+  const already = saved.find(r => r.fullName === result.fullName && JSON.stringify(r.addresses) === JSON.stringify(result.addresses));
+  if (!already) { saved.unshift({ ...result, savedAt: Date.now() }); setSavedResults(saved); }
+  renderSavedResults();
+  // Flash the Saved button
+  const tog = document.getElementById('saved-search-toggle');
+  if (tog) { tog.textContent = 'Saved (' + getSavedResults().length + ')'; tog.style.color = 'var(--accent-blue)'; setTimeout(() => { tog.style.color = ''; }, 1200); }
+  if (typeof btnOrIdx !== 'number' && btnOrIdx.tagName) { btnOrIdx.textContent = 'Saved'; btnOrIdx.disabled = true; }
+}
+
+function saveAllSearchResults() {
+  const btn = document.getElementById('save-all-results-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  lookupResultsCache.forEach(r => {
+    const saved = getSavedResults();
+    const already = saved.find(s => s.fullName === r.fullName && JSON.stringify(s.addresses) === JSON.stringify(r.addresses));
+    if (!already) { saved.unshift({ ...r, savedAt: Date.now() }); setSavedResults(saved); }
+  });
+  renderSavedResults();
+  const count = getSavedResults().length;
+  const tog = document.getElementById('saved-search-toggle');
+  if (tog) tog.textContent = 'Saved (' + count + ')';
+  if (btn) { btn.textContent = lookupResultsCache.length + ' saved'; btn.style.color = 'var(--accent-blue)'; }
+}
+
+function removeSavedResult(idx) {
+  const saved = getSavedResults();
+  saved.splice(idx, 1);
+  setSavedResults(saved);
+  renderSavedResults();
+  const tog = document.getElementById('saved-search-toggle');
+  if (tog) tog.textContent = saved.length ? 'Saved (' + saved.length + ')' : 'Saved';
+}
+
+function renderSavedResults() {
+  const list = document.getElementById('saved-searches-list');
+  if (!list) return;
+  const saved = getSavedResults();
+  if (!saved.length) { list.innerHTML = '<div style="font-size:11px;color:var(--text-dim)">No saved results yet</div>'; return; }
+  list.innerHTML = saved.map((p, i) => {
+    const loc = p.addresses && p.addresses.length ? [p.addresses[0].city, p.addresses[0].state].filter(Boolean).join(', ') : '';
+    const cc = p.confidence>=70?'high':p.confidence>=40?'mid':'low';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-subtle)">'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="font-size:12px;font-weight:600;color:#fff">'+esc(p.fullName)+'</div>'
+      + '<div style="font-size:10px;color:var(--text-dim);margin-top:2px">'+(p.age?'Age '+p.age+(loc?'  ·  ':''):'')+(loc?esc(loc):'')+'</div>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
+      + '<div class="conf-pill '+cc+'" style="font-size:9px">'+p.confidence+'%</div>'
+      + '<button class="k-btn k-btn-sm" onclick="loadSavedResultIntoCache('+i+')" style="font-size:9px;padding:3px 8px">View</button>'
+      + '<button class="k-btn k-btn-sm" onclick="removeSavedResult('+i+')" style="font-size:9px;padding:3px 8px;color:var(--status-red);border-color:rgba(239,68,68,0.3)">&times;</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+function loadSavedResultIntoCache(idx) {
+  const saved = getSavedResults();
+  const r = saved[idx];
+  if (!r) return;
+  lookupResultsCache = [r];
+  document.getElementById('saved-searches-panel').style.display = 'none';
+  viewLookupDetail(0);
+}
+
+function toggleSavedSearches() {
+  const panel = document.getElementById('saved-searches-panel');
+  const tog = document.getElementById('saved-search-toggle');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    renderSavedResults();
+    const count = getSavedResults().length;
+    if (tog) tog.textContent = count ? 'Saved (' + count + ')' : 'Saved';
+  }
 }
 
 // ═══ Vehicle Lookup ═══
