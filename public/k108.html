@@ -1518,22 +1518,6 @@ function searchProfiles(term) {
     // Check for matching labels
     const matchedLabels = term.length >= 3 ? allLabels.filter(l => l.name.toLowerCase().startsWith(term.toLowerCase())) : [];
 
-    // Also include profiles that belong to matching labels
-    if (matchedLabels.length) {
-      const labelProfileIds = new Set();
-      matchedLabels.forEach(l => (l.profileIds||[]).forEach(pid => labelProfileIds.add(String(pid))));
-      const existingIds = new Set(d.profiles.map(p => String(p.id)));
-      // Fetch any label-member profiles not already in results
-      for (const pid of labelProfileIds) {
-        if (!existingIds.has(pid)) {
-          try {
-            const pd = await kAuthFetch('/api/k108/profiles/'+pid);
-            if (pd && pd.profile) d.profiles.push(pd.profile);
-          } catch(e) {}
-        }
-      }
-    }
-
     if (d.profiles.length === 0 && matchedLabels.length === 0) { af.classList.remove('active'); return; }
 
     let labelHtml = matchedLabels.map(l => '<div class="profile-af-item" onclick="showLabelProfiles(\''+l.id+'\')"><div class="profile-af-avatar" style="width:32px;height:32px;background:'+l.color+'20;color:'+l.color+';font-size:14px">'+(LABEL_ICONS[l.icon]||'\u25CF')+'</div><div><div class="profile-af-name" style="color:'+l.color+'">'+esc(l.name)+'</div><div class="profile-af-rel" style="color:var(--text-dim)">(Label)</div></div></div>').join('');
