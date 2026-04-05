@@ -6794,21 +6794,33 @@ app.post('/api/k108/instagram-photo', async (req, res) => {
   const { igUsername } = req.body;
   if (!igUsername || !/^[\w.]+$/.test(igUsername)) return res.status(400).json({ error: 'Invalid username' });
   try {
-    const r = await nodeFetch(`https://www.instagram.com/${igUsername}/`, {
+    // Use Instagram's internal web profile info API
+    const r = await nodeFetch(`https://i.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(igUsername)}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept': '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache',
-        'Sec-Fetch-Mode': 'navigate',
+        'x-ig-app-id': '936619743392459',
+        'Origin': 'https://www.instagram.com',
+        'Referer': 'https://www.instagram.com/',
       },
       timeout: 8000,
     });
-    const html = await r.text();
-    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-    if (!m) return res.status(404).json({ error: 'No profile photo found' });
-    res.json({ url: m[1] });
+    if (!r.ok) return res.status(404).json({ error: 'Instagram profile not found' });
+    const json = await r.json();
+    const picUrl = json?.data?.user?.profile_pic_url_hd || json?.data?.user?.profile_pic_url;
+    if (!picUrl) return res.status(404).json({ error: 'No profile photo found' });
+    // Proxy the image through server to avoid CORS issues with Instagram CDN
+    const imgRes = await nodeFetch(picUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.instagram.com/' },
+      timeout: 8000,
+    });
+    if (!imgRes.ok) return res.status(404).json({ error: 'Could not fetch profile image' });
+    const buf = await imgRes.buffer();
+    const ct = imgRes.headers.get('content-type') || 'image/jpeg';
+    res.set('Content-Type', ct);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(buf);
   } catch(e) {
     res.status(502).json({ error: 'Failed to fetch Instagram profile' });
   }

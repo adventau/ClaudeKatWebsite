@@ -2572,9 +2572,18 @@ async function loadIgPhoto(profileEl, socialLinks) {
   const igUser = extractIgUsername(socialLinks);
   if (!igUser) return;
   try {
-    const d = await kAuthFetch('/api/k108/instagram-photo', { igUsername: igUser });
-    if (!d || !d.url) return;
-    profileEl.innerHTML = '<img src="'+esc(d.url)+'" onerror="this.parentElement.innerHTML=this.parentElement.dataset.initials" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+    // Server proxies the image directly — use a fetch to check it works, then set as img src via blob URL
+    const r = await fetch('/api/k108/instagram-photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: authToken, igUsername: igUser }),
+    });
+    if (!r.ok) return;
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.startsWith('image/')) return; // got JSON error response
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    profileEl.innerHTML = '<img src="'+url+'" onerror="this.parentElement.innerHTML=this.parentElement.dataset.initials" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
   } catch(e) {}
 }
 
