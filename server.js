@@ -6653,9 +6653,21 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
   if (db.pool) {
     try {
       const aliasVal = Array.isArray(aliases) ? aliases : (aliases ? [aliases] : []);
-      // Always store phones/emails as JSONB array of {number,label} / {address,label} objects
       const normalizePhones = (arr) => (arr || []).map(p => typeof p === 'string' ? { number: p, label: '' } : { number: p.number || '', label: p.label || '' });
       const normalizeEmails = (arr) => (arr || []).map(e => typeof e === 'string' ? { address: e, label: '' } : { address: e.address || '', label: e.label || '' });
+
+      // Check column type; auto-migrate TEXT[] → JSONB if needed
+      const colInfo = await db.query(`SELECT data_type FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
+      const isJsonb = colInfo.rows[0]?.data_type === 'jsonb';
+      if (!isJsonb) {
+        try {
+          await db.query(`ALTER TABLE k108_profiles ALTER COLUMN phones TYPE JSONB USING array_to_json(phones)::jsonb`);
+          await db.query(`ALTER TABLE k108_profiles ALTER COLUMN phones SET DEFAULT '[]'::jsonb`);
+          await db.query(`ALTER TABLE k108_profiles ALTER COLUMN emails TYPE JSONB USING array_to_json(emails)::jsonb`);
+          await db.query(`ALTER TABLE k108_profiles ALTER COLUMN emails SET DEFAULT '[]'::jsonb`);
+          console.log('[K108] Auto-migrated phones/emails TEXT[] → JSONB');
+        } catch(migErr) { console.warn('[K108] Phone migration failed:', migErr.message); }
+      }
       const phoneVal = JSON.stringify(normalizePhones(phones));
       const emailVal = JSON.stringify(normalizeEmails(emails));
 
@@ -6750,19 +6762,21 @@ app.delete('/api/k108/profiles/:id/files/:fid', async (req, res) => {
 app.post('/api/k108/profiles/:id/relations', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { relatedProfileId, label } = req.body;
+  const { relatedProfileId, label, bidirectional } = req.body;
   if (!relatedProfileId) return res.status(400).json({ error: 'Related profile ID required' });
+  const bidir = bidirectional !== false; // default true
 
   if (db.pool) {
-    // Add both directions
     const r = await db.query(
       'INSERT INTO k108_profile_relations (profile_id, related_profile_id, label) VALUES ($1,$2,$3) RETURNING *',
       [req.params.id, relatedProfileId, label || '']
     );
-    await db.query(
-      'INSERT INTO k108_profile_relations (profile_id, related_profile_id, label) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-      [relatedProfileId, req.params.id, label || '']
-    );
+    if (bidir) {
+      await db.query(
+        'INSERT INTO k108_profile_relations (profile_id, related_profile_id, label) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+        [relatedProfileId, req.params.id, label || '']
+      );
+    }
     return res.json({ relation: r.rows[0] });
   }
   // JSON fallback — bidirectional
