@@ -3115,7 +3115,13 @@ async function applyCrop() {
     const r = await fetch('/api/k108/profiles/'+cropProfileId+'/photo', { method:'POST', body: fd });
     const d = await r.json();
     cancelCrop();
-    if (d.url) viewProfile(cropProfileId);
+    if (d.url) {
+      // Update photo in-place without rebuilding the form (which would reset unsaved fields)
+      const photoEl = document.getElementById('edit-profile-photo');
+      if (photoEl) {
+        photoEl.innerHTML = '<img src="'+d.url+'">';
+      }
+    }
   }, 'image/png');
 }
 
@@ -3624,17 +3630,19 @@ async function showLabelProfiles(labelId) {
   document.getElementById('profiles-main').style.display = 'none';
   const el = document.getElementById('profile-detail');
   el.style.display = 'block';
+  // Fetch all label profiles and filter out deleted/missing ones
+  const validProfiles = [];
+  for (const pid of label.profileIds) {
+    const d = await kAuthFetch('/api/k108/profiles/'+pid);
+    if (d && d.profile) validProfiles.push(d.profile);
+  }
   let h = '<div class="profile-detail"><button class="k-btn k-btn-sm" onclick="closeProfile()" style="margin-bottom:20px">&larr; Back</button>';
-  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:20px;color:'+label.color+'">'+(LABEL_ICONS[label.icon]||'')+'</span><h2 style="font-size:18px;color:'+label.color+'">'+esc(label.name)+'</h2><span style="font-size:11px;color:var(--text-dim)">('+label.profileIds.length+' profiles)</span></div>';
-  if (!label.profileIds.length) {
+  h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px"><span style="font-size:20px;color:'+label.color+'">'+(LABEL_ICONS[label.icon]||'')+'</span><h2 style="font-size:18px;color:'+label.color+'">'+esc(label.name)+'</h2><span style="font-size:11px;color:var(--text-dim)">('+validProfiles.length+' profiles)</span></div>';
+  if (!validProfiles.length) {
     h += '<div class="k-empty">No profiles with this label</div>';
   } else {
-    for (const pid of label.profileIds) {
-      const d = await kAuthFetch('/api/k108/profiles/'+pid);
-      if (d && d.profile) {
-        const p = d.profile;
-        h += '<div class="related-card" onclick="viewProfileReadonly('+p.id+')" style="margin-bottom:8px;padding:12px 16px"><div class="profile-af-avatar" style="width:36px;height:36px;font-size:13px">'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':esc(((p.first_name||'?')[0]+(p.last_name||'?')[0]).toUpperCase()))+'</div><div><div style="font-size:14px;font-weight:500">'+esc((p.first_name||'')+' '+(p.last_name||''))+'</div><div style="font-size:11px;color:var(--text-dim)">'+esc(p.relation||'')+'</div></div></div>';
-      }
+    for (const p of validProfiles) {
+      h += '<div class="related-card" onclick="viewProfileReadonly('+p.id+')" style="margin-bottom:8px;padding:12px 16px"><div class="profile-af-avatar" style="width:36px;height:36px;font-size:13px">'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':esc(((p.first_name||'?')[0]+(p.last_name||'?')[0]).toUpperCase()))+'</div><div><div style="font-size:14px;font-weight:500">'+esc((p.first_name||'')+' '+(p.last_name||''))+'</div><div style="font-size:11px;color:var(--text-dim)">'+esc(p.relation||'')+'</div></div></div>';
     }
   }
   h += '</div>';
@@ -3784,6 +3792,22 @@ async function confirmLinkProfile() {
   const bidirectional = document.getElementById('rel-bidir-check').checked;
   await kAuthFetch('/api/k108/profiles/'+pendingLinkProfileId+'/relations', { relatedProfileId: pendingLinkTargetId, label, bidirectional });
   closeModal('relation-modal');
+  const lnPanel = document.getElementById('pf-lname-suggest');
+  if (lnPanel) lnPanel.style.display = 'none';
+  // Show green success message where the suggestion box was
+  const lname = (document.getElementById('pf-lname')?.value || '').trim();
+  if (lname && lnPanel) {
+    let msg = document.getElementById('pf-lname-linked-msg');
+    if (!msg) {
+      msg = document.createElement('div');
+      msg.id = 'pf-lname-linked-msg';
+      msg.style.cssText = 'font-size:11px;color:#34d399;margin-top:-4px;margin-bottom:8px;font-weight:500';
+      lnPanel.insertAdjacentElement('afterend', msg);
+    }
+    msg.textContent = '\u2713 Linked to the ' + lname + ' family';
+    msg.style.opacity = '1';
+    setTimeout(() => { if (msg) msg.style.opacity = '0.5'; }, 4000);
+  }
   await refreshRelationsSection(pendingLinkProfileId);
 }
 
