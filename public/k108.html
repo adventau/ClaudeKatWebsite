@@ -2810,7 +2810,7 @@ async function viewProfile(id) {
   // Command badge + Labels under photo
   if (isCommandProfile(p.first_name)) h += '<div style="margin-bottom:12px"><span class="command-badge">Command</span></div>';
   const lblsEdit = renderProfileLabels(id);
-  h += '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:16px">';
+  h += '<div id="pf-labels-row" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:16px">';
   if (lblsEdit) h += lblsEdit;
   h += '<button class="k-btn k-btn-sm" onclick="showApplyLabelUI('+id+')" style="font-size:9px;padding:4px 10px">+ Label</button>';
   h += '<button class="k-btn k-btn-sm" onclick="openModal(\'create-label-modal\')" style="font-size:9px;padding:4px 10px">Create Label</button>';
@@ -3604,6 +3604,18 @@ function renderProfileLabels(profileId) {
   return profileLabels.map(l => '<span class="profile-label" style="background:'+l.color+'20;color:'+l.color+';border:1px solid '+l.color+'30" title="'+esc(l.name)+'">'+(LABEL_ICONS[l.icon]||'\u25CF')+' '+esc(l.name)+'</span>').join(' ');
 }
 
+function refreshLabelsInPlace(profileId) {
+  const row = document.getElementById('pf-labels-row');
+  if (!row) return;
+  let html = renderProfileLabels(profileId);
+  html += '<button class="k-btn k-btn-sm" onclick="showApplyLabelUI('+profileId+')" style="font-size:9px;padding:4px 10px">+ Label</button>';
+  html += '<button class="k-btn k-btn-sm" onclick="openModal(\'create-label-modal\')" style="font-size:9px;padding:4px 10px">Create Label</button>';
+  row.innerHTML = html;
+  // Also hide the apply-label list since selection is done
+  const applyList = document.getElementById('apply-label-list');
+  if (applyList) applyList.style.display = 'none';
+}
+
 function isCommandProfile(firstName) {
   const fn = (firstName||'').trim();
   return fn === 'Kathrine' || fn === 'Kaliph';
@@ -3612,13 +3624,13 @@ function isCommandProfile(firstName) {
 async function applyLabelToProfile(labelId, profileId) {
   await kAuthFetch('/api/k108/labels/'+labelId+'/apply', { profileId });
   await loadLabels();
-  if (currentProfileId) viewProfile(currentProfileId);
+  refreshLabelsInPlace(profileId);
 }
 
 async function removeLabelFromProfile(labelId, profileId) {
   await kAuthFetch('/api/k108/labels/'+labelId+'/remove', { profileId });
   await loadLabels();
-  if (currentProfileId) viewProfile(currentProfileId);
+  refreshLabelsInPlace(profileId);
 }
 
 async function showLabelProfiles(labelId) {
@@ -3790,7 +3802,7 @@ async function confirmLinkProfile() {
   if (!pendingLinkProfileId || !pendingLinkTargetId) return;
   const label = document.getElementById('rel-label').value.trim();
   const bidirectional = document.getElementById('rel-bidir-check').checked;
-  await kAuthFetch('/api/k108/profiles/'+pendingLinkProfileId+'/relations', { relatedProfileId: pendingLinkTargetId, label, bidirectional });
+  await kAuthFetch('/api/k108/profiles/'+pendingLinkProfileId+'/relations', { relatedProfileId: pendingLinkTargetId, label, bidirectional, transitive: true });
   closeModal('relation-modal');
   const lnPanel = document.getElementById('pf-lname-suggest');
   if (lnPanel) lnPanel.style.display = 'none';

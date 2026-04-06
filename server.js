@@ -6755,7 +6755,7 @@ app.delete('/api/k108/profiles/:id/files/:fid', async (req, res) => {
 app.post('/api/k108/profiles/:id/relations', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { relatedProfileId, label, bidirectional } = req.body;
+  const { relatedProfileId, label, bidirectional, transitive } = req.body;
   if (!relatedProfileId) return res.status(400).json({ error: 'Related profile ID required' });
   const bidir = bidirectional !== false; // default true
 
@@ -6770,7 +6770,8 @@ app.post('/api/k108/profiles/:id/relations', async (req, res) => {
         [relatedProfileId, req.params.id, label || '']
       );
     }
-    // Transitive linking: also link to all existing relations of the target that share the same last name
+    // Transitive linking: only when triggered from last-name suggestion box
+    if (transitive) {
     const targetProfile = await db.query('SELECT last_name FROM k108_profiles WHERE id = $1', [relatedProfileId]);
     if (targetProfile.rows.length && targetProfile.rows[0].last_name) {
       const targetLastName = targetProfile.rows[0].last_name.toLowerCase();
@@ -6784,17 +6785,18 @@ app.post('/api/k108/profiles/:id/relations', async (req, res) => {
         if ((er.last_name || '').toLowerCase() === targetLastName) {
           await db.query(
             'INSERT INTO k108_profile_relations (profile_id, related_profile_id, label) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-            [req.params.id, er.related_profile_id, label || '']
+            [req.params.id, er.related_profile_id, 'Relative']
           );
           if (bidir) {
             await db.query(
               'INSERT INTO k108_profile_relations (profile_id, related_profile_id, label) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-              [er.related_profile_id, req.params.id, label || '']
+              [er.related_profile_id, req.params.id, 'Relative']
             );
           }
         }
       }
     }
+    } // end transitive
     return res.json({ relation: r.rows[0] });
   }
   // JSON fallback — bidirectional
@@ -6808,8 +6810,8 @@ app.post('/api/k108/profiles/:id/relations', async (req, res) => {
   const relReverse = { id: Date.now() + 1, related_profile_id: req.params.id, label: label || '' };
   p1.relations.push(rel);
   p2.relations.push(relReverse);
-  // Transitive linking for JSON fallback
-  if (p2.last_name) {
+  // Transitive linking for JSON fallback — only when triggered from last-name suggestion box
+  if (transitive && p2.last_name) {
     const targetLN = p2.last_name.toLowerCase();
     (p2.relations || []).forEach(er => {
       if (String(er.related_profile_id) === String(req.params.id)) return;
@@ -6818,8 +6820,8 @@ app.post('/api/k108/profiles/:id/relations', async (req, res) => {
         if (!linked.relations) linked.relations = [];
         const already1 = p1.relations.some(rr => String(rr.related_profile_id) === String(linked.id));
         if (!already1) {
-          p1.relations.push({ id: Date.now() + 2 + Math.random(), related_profile_id: linked.id, label: label || '' });
-          linked.relations.push({ id: Date.now() + 3 + Math.random(), related_profile_id: p1.id, label: label || '' });
+          p1.relations.push({ id: Date.now() + 2 + Math.random(), related_profile_id: linked.id, label: 'Relative' });
+          linked.relations.push({ id: Date.now() + 3 + Math.random(), related_profile_id: p1.id, label: 'Relative' });
         }
       }
     });
