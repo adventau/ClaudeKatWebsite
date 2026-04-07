@@ -268,6 +268,35 @@ async function createK108Tables() {
   // ── Surveillance (legacy column kept for compat) ──
   await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS surveillance_active BOOLEAN DEFAULT FALSE`);
 
+  // ── Employer info + Classified data columns ──
+  await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS employer_info JSONB DEFAULT '{}'`);
+  await query(`ALTER TABLE k108_profiles ADD COLUMN IF NOT EXISTS classified_data JSONB DEFAULT '[]'`);
+
+  // ── Profile Activity Log (per-profile audit trail) ──
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_profile_activity_log (
+      id SERIAL PRIMARY KEY,
+      profile_id INT REFERENCES k108_profiles(id) ON DELETE CASCADE,
+      username TEXT NOT NULL,
+      action VARCHAR(50) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_k108_profile_activity ON k108_profile_activity_log (profile_id, created_at DESC)`);
+
+  // ── Classified files table ──
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_classified_files (
+      id SERIAL PRIMARY KEY,
+      profile_id INT REFERENCES k108_profiles(id) ON DELETE CASCADE,
+      filename TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type TEXT,
+      size BIGINT,
+      uploaded_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
   // ── Case Management tables ──
   await query(`
     CREATE TABLE IF NOT EXISTS k108_cases (

@@ -474,7 +474,7 @@
     .profile-af-name { font-size: 13px; color: var(--text-primary); }
     .profile-af-rel { font-size: 10px; color: var(--text-dim); }
 
-    .profile-detail { max-width: 720px; margin: 0 auto; }
+    .profile-detail { max-width: 720px; margin: 0 auto; position: relative; }
     .profile-top { display: flex; gap: 20px; align-items: flex-start; margin-bottom: 24px; }
     .profile-photo { width: 80px; height: 80px; border-radius: 50%; background: var(--bg-raised); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 600; color: var(--text-muted); overflow: hidden; border: 2px solid var(--border-main); flex-shrink: 0; cursor: pointer; }
     .profile-photo img { width: 100%; height: 100%; object-fit: cover; }
@@ -582,7 +582,7 @@
     .vehicle-photo-badge { position: absolute; bottom: 10px; right: 12px; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); color: #fff; font-size: 10px; padding: 3px 9px; border-radius: 10px; pointer-events: none; }
 
     /* ═══ Command Bar ═══ */
-    #cmd-bar-overlay { display:none; position:fixed; inset:0; z-index:9999; background:rgba(4,6,12,0.75); backdrop-filter:blur(6px); align-items:flex-start; justify-content:center; padding-top:min(18vh,160px); }
+    #cmd-bar-overlay { display:none; position:fixed; inset:0; z-index:10010; background:rgba(4,6,12,0.75); backdrop-filter:blur(6px); align-items:flex-start; justify-content:center; padding-top:min(18vh,160px); }
     #cmd-bar-overlay.active { display:flex; }
     .cmd-bar { width:620px; max-width:92vw; background:var(--bg-card); border:1px solid var(--border-main); border-radius:14px; box-shadow:0 24px 80px rgba(0,0,0,0.7),0 0 1px rgba(56,189,248,0.2); overflow:hidden; animation:modalSlideUp 0.2s ease; }
     .cmd-bar-input { width:100%; padding:16px 20px; background:transparent; border:none; border-bottom:1px solid var(--border-main); color:var(--text-primary); font-family:'JetBrains Mono',monospace; font-size:14px; outline:none; letter-spacing:0.03em; }
@@ -1378,7 +1378,7 @@ async function loadDashboardData() {
   try {
     const logData = await kAuthFetch('/api/k108/log', { limit: 3 });
     if (logData && logData.entries && logData.entries.length > 0) {
-      const colors = { session_entry:'var(--status-green)', people_search:'var(--accent-blue)', sms_sent:'var(--status-amber)', profile_create:'var(--accent-indigo)', profile_change:'var(--accent-indigo)', file_transfer:'var(--accent-violet)', metadata_extract:'var(--status-amber)', vehicle_lookup:'var(--status-amber)', vehicle_save:'var(--accent-indigo)' };
+      const colors = { session_entry:'var(--status-green)', people_search:'var(--accent-blue)', sms_sent:'var(--status-amber)', profile_create:'var(--accent-indigo)', profile_change:'var(--accent-indigo)', file_transfer:'var(--accent-violet)', metadata_extract:'var(--status-amber)', vehicle_lookup:'var(--status-amber)', vehicle_save:'var(--accent-indigo)', classified_accessed:'var(--status-red)' };
       document.getElementById('dash-log-preview').innerHTML = logData.entries.map(e => {
         const c = colors[e.action_type] || 'var(--text-dim)';
         return '<div class="dc-pline"><div class="dc-pline-dot" style="background:'+c+'"></div><div class="dc-pline-text">'+esc(e.action_type.replace(/_/g,' '))+'</div><div class="dc-pline-time">'+fmtDate(e.created_at)+'</div></div>';
@@ -2669,11 +2669,11 @@ document.addEventListener('keydown', function(e) {
 
 let currentProfileId = null;
 
-async function viewProfileReadonly(id) {
+async function viewProfileReadonly(id, skipLog) {
   document.getElementById('profile-autofill').classList.remove('active');
   const ps = document.getElementById('profile-search');
   if (ps) ps.value = '';
-  const d = await kAuthFetch('/api/k108/profiles/'+id);
+  const d = await kAuthFetch('/api/k108/profiles/'+id+(skipLog?'?skipLog=1':''));
   if (!d || !d.profile) return;
   const p = d.profile;
   currentProfileId = id;
@@ -2684,7 +2684,37 @@ async function viewProfileReadonly(id) {
   const links = typeof p.social_links === 'string' ? JSON.parse(p.social_links||'[]') : (p.social_links||[]);
 
   let h = '<div class="profile-detail">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><div style="display:flex;gap:8px;align-items:center"><button class="case-add-btn" onclick="addProfileToCaseBtn('+id+')">+ Add to Case</button><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div></div>';
+
+  // Activity Log panel (absolute positioned to the left of the profile)
+  const actLog = d.activityLog || [];
+  if (actLog.length) {
+    const actIcons = { viewed:'👁', edited:'✏️', created:'✚', classified_accessed:'🔓', export_generated:'📄' };
+    const actColors = { viewed:'#58a6ff', edited:'#d29922', created:'#3fb950', classified_accessed:'#f85149', export_generated:'#bc8cff' };
+    h += '<div style="position:absolute;right:calc(100% + 16px);top:60px;width:220px;border:1px solid rgba(76,201,240,0.12);border-radius:10px;padding:14px 16px;background:linear-gradient(135deg,rgba(13,17,23,0.95),rgba(22,27,34,0.95));backdrop-filter:blur(8px);box-shadow:0 4px 24px rgba(0,0,0,0.3)">';
+    h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(76,201,240,0.1)">';
+    h += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4cc9f0" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    h += '<span style="font-size:10px;font-weight:600;color:#4cc9f0;letter-spacing:1.5px;text-transform:uppercase">Activity</span></div>';
+    h += '<div style="position:relative;padding-left:16px">';
+    h += '<div style="position:absolute;left:5px;top:4px;bottom:4px;width:1px;background:linear-gradient(to bottom,rgba(76,201,240,0.3),rgba(76,201,240,0.05))"></div>';
+    actLog.forEach((e, i) => {
+      const ts = new Date(e.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      const actionBase = e.action.includes(':') ? e.action.split(':')[0].trim() : e.action;
+      const actionDetail = e.action.includes(':') ? e.action.split(':').slice(1).join(':').trim() : '';
+      const dotColor = actColors[actionBase] || '#58a6ff';
+      const icon = actIcons[actionBase] || '•';
+      const actionLabel = actionBase.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+      h += '<div style="position:relative;padding:6px 0'+(i<actLog.length-1?';margin-bottom:4px':'')+'">';
+      h += '<div style="position:absolute;left:-14px;top:9px;width:9px;height:9px;border-radius:50%;background:'+dotColor+';box-shadow:0 0 6px '+dotColor+'44;border:1.5px solid rgba(13,17,23,0.8)"></div>';
+      h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--text-dim);letter-spacing:0.5px">'+esc(ts)+'</div>';
+      h += '<div style="font-size:10px;margin-top:2px;line-height:1.4"><span style="color:'+dotColor+';font-weight:600">'+icon+' '+esc(actionLabel)+'</span></div>';
+      h += '<div style="font-size:9px;color:var(--text-secondary);margin-top:1px">by <span style="color:var(--accent-blue);font-weight:500">'+esc(e.username)+'</span></div>';
+      if (actionDetail) h += '<div style="font-size:8px;color:var(--text-dim);margin-top:2px;font-style:italic;line-height:1.3;word-break:break-word">&ldquo;'+esc(actionDetail)+'&rdquo;</div>';
+      h += '</div>';
+    });
+    h += '</div></div>';
+  }
+
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><div style="display:flex;gap:8px;align-items:center"><button class="k-btn k-btn-sm" onclick="downloadDossier('+id+')" style="display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Dossier</button><button class="case-add-btn" onclick="addProfileToCaseBtn('+id+')">+ Add to Case</button><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div></div>';
 
   // Photo + Name + Badges
   const roInitials = esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase());
@@ -2754,6 +2784,27 @@ async function viewProfileReadonly(id) {
     if (veh.plate) h += '<div style="font-size:11px;color:var(--text-dim);margin-top:2px">'+esc(veh.plate+(veh.state?' ('+veh.state+')':''))+'</div>';
     if (veh.vin) h += '<div style="font-family:\'JetBrains Mono\';font-size:9px;color:var(--text-dim);margin-top:2px">'+esc(veh.vin)+'</div>';
     h += '</div></div></div>';
+  }
+
+  // Employer
+  const roEmp = typeof p.employer_info === 'string' ? JSON.parse(p.employer_info||'{}') : (p.employer_info||{});
+  if (roEmp.name || roEmp.address || roEmp.industry) {
+    h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Employer</div>';
+    if (roEmp.name) h += '<div class="profile-section-item"><span style="font-size:10px;color:var(--text-dim);margin-right:6px">Name:</span>'+esc(roEmp.name)+'</div>';
+    if (roEmp.address) h += '<div class="profile-section-item"><span style="font-size:10px;color:var(--text-dim);margin-right:6px">Address:</span>'+esc(roEmp.address)+'</div>';
+    if (roEmp.industry) h += '<div class="profile-section-item"><span style="font-size:10px;color:var(--text-dim);margin-right:6px">Industry:</span>'+esc(roEmp.industry)+'</div>';
+    h += '</div>';
+  }
+
+  // Classified sealed banner (only show if classified data exists)
+  const hasClassified = !!d.hasClassified;
+  if (hasClassified) {
+    h += '<div class="profile-section" style="grid-column:1/-1" id="ro-classified-section">';
+    h += '<div id="ro-classified-sealed" style="background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.2);border-radius:8px;padding:16px 20px;text-align:center">';
+    h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:600;color:var(--status-red);letter-spacing:2px">CLASSIFIED — ACCESS RESTRICTED</div>';
+    h += '</div>';
+    h += '<div id="ro-classified-revealed" style="display:none"></div>';
+    h += '</div>';
   }
 
   // Empty sections notice
@@ -2858,6 +2909,52 @@ async function viewProfile(id) {
   // Notes
   h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Notes</div>';
   h += '<textarea class="k-input" id="pf-notes" rows="4" style="resize:vertical;font-size:12px">'+esc(p.notes||'')+'</textarea>';
+  h += '</div>';
+
+  // Employer
+  const emp = typeof p.employer_info === 'string' ? JSON.parse(p.employer_info||'{}') : (p.employer_info||{});
+  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Employer</div>';
+  h += '<div class="form-row"><div class="fg"><label class="k-label">Employer Name</label><input class="k-input" id="pf-emp-name" value="'+esc(emp.name||'')+'" placeholder="Company / Organization"></div></div>';
+  h += '<div class="form-row"><div class="fg"><label class="k-label">Address</label><input class="k-input" id="pf-emp-address" value="'+esc(emp.address||'')+'" placeholder="Employer address"></div></div>';
+  h += '<div class="form-row"><div class="fg"><label class="k-label">Industry</label><input class="k-input" id="pf-emp-industry" value="'+esc(emp.industry||'')+'" placeholder="e.g. Finance, Technology"></div></div>';
+  h += '</div>';
+
+  // Classified Section
+  const isRevealed = _revealedProfiles.has(String(id));
+  const revealedData = isRevealed ? (_revealedClassifiedData[String(id)] || { data: [], files: [] }) : null;
+  h += '<div class="profile-section" style="grid-column:1/-1;border:1px solid rgba(248,113,113,0.2);border-radius:8px;padding:12px;background:rgba(248,113,113,0.03)">';
+  if (isRevealed) {
+    h += '<div class="profile-section-title" style="color:var(--status-red)">Classified Data — Editing</div>';
+    h += '<input type="hidden" id="pf-classified-mode" value="replace">';
+    h += '<div id="pf-classified-fields">';
+    (revealedData.data || []).forEach(c => {
+      h += '<div class="classified-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">';
+      h += '<input class="k-input pf-cl-label" value="'+esc(c.label||'')+'" placeholder="Label" style="font-size:11px;flex:1">';
+      h += '<input class="k-input pf-cl-value" value="'+esc(c.value||'')+'" placeholder="Value" style="font-size:11px;flex:2">';
+      h += '<button class="k-btn k-btn-sm k-btn-danger" onclick="this.closest(\'.classified-row\').remove()" style="font-size:9px;padding:4px 8px;flex-shrink:0">Remove</button>';
+      h += '</div>';
+    });
+    h += '</div>';
+    h += '<button class="k-btn k-btn-sm" onclick="addClassifiedRow()" style="margin-top:6px;font-size:10px">+ Add Field</button>';
+    // Show classified files for management
+    h += '<div style="margin-top:10px"><div style="font-size:10px;font-weight:600;color:var(--status-red);margin-bottom:4px">Classified Files</div>';
+    h += '<div id="pf-classified-files-list">';
+    (revealedData.files || []).forEach(f => {
+      h += '<div class="profile-section-item" style="display:flex;align-items:center;gap:8px"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:11px;flex:1">'+esc(f.original_name)+'</a><button class="k-btn k-btn-sm k-btn-danger" onclick="deleteClassifiedFile('+id+','+f.id+')" style="font-size:8px;padding:2px 6px">x</button></div>';
+    });
+    h += '</div>';
+    h += '<input type="file" id="classified-file-input" multiple style="display:none" onchange="uploadClassifiedFiles('+id+',this.files)"><button class="k-btn k-btn-sm" onclick="document.getElementById(\'classified-file-input\').click()" style="margin-top:4px;font-size:10px">+ Attach Classified Files</button>';
+    h += '</div>';
+  } else {
+    h += '<div class="profile-section-title" style="color:var(--status-red)">Add Classified Data</div>';
+    h += '<input type="hidden" id="pf-classified-mode" value="append">';
+    h += '<div style="font-size:10px;color:var(--text-dim);margin-bottom:8px">Existing classified data is hidden. New entries will be appended. Use <span style="font-family:\'JetBrains Mono\',monospace;color:var(--accent-blue)">reveal classified</span> in the Command Bar to edit existing data.</div>';
+    h += '<div id="pf-classified-fields"></div>';
+    h += '<button class="k-btn k-btn-sm" onclick="addClassifiedRow()" style="margin-top:6px;font-size:10px">+ Add Field</button>';
+    h += '<div style="margin-top:10px">';
+    h += '<input type="file" id="classified-file-input" multiple style="display:none" onchange="uploadClassifiedFiles('+id+',this.files)"><button class="k-btn k-btn-sm" onclick="document.getElementById(\'classified-file-input\').click()" style="font-size:10px">+ Attach Classified Files</button>';
+    h += '</div>';
+  }
   h += '</div>';
 
   // Attached Files
@@ -3340,6 +3437,20 @@ async function saveProfile(id) {
     zip: document.getElementById('pf-addr-zip').value.trim()
   };
 
+  const employer_info = {
+    name: document.getElementById('pf-emp-name')?.value.trim() || '',
+    address: document.getElementById('pf-emp-address')?.value.trim() || '',
+    industry: document.getElementById('pf-emp-industry')?.value.trim() || ''
+  };
+
+  const classifiedRows = document.querySelectorAll('#pf-classified-fields .classified-row');
+  const classified_data = [];
+  classifiedRows.forEach(row => {
+    const label = row.querySelector('.pf-cl-label')?.value.trim() || '';
+    const value = row.querySelector('.pf-cl-value')?.value.trim() || '';
+    if (label || value) classified_data.push({ label, value });
+  });
+
   const body = {
     first_name: document.getElementById('pf-fname').value.trim(),
     middle_name: document.getElementById('pf-mname')?.value.trim() || null,
@@ -3352,7 +3463,10 @@ async function saveProfile(id) {
     social_links,
     age: document.getElementById('pf-age').value.trim(),
     birthday: document.getElementById('pf-birthday').value || null,
-    address
+    address,
+    employer_info,
+    classified_data,
+    classified_mode: document.getElementById('pf-classified-mode')?.value || 'append'
   };
   try {
     const r = await fetch('/api/k108/profiles/'+id, {
@@ -3361,10 +3475,10 @@ async function saveProfile(id) {
       body: JSON.stringify({ token: authToken, ...body })
     });
     const d = await r.json();
-    if (d.ok) viewProfileReadonly(id);
-    else alert('Save failed: ' + (d.error || 'Unknown error'));
+    if (d.ok) viewProfileReadonly(id, true);
+    else showToast('Save failed: ' + (d.error || 'Unknown error'));
   } catch(e) {
-    alert('Save failed: ' + e.message);
+    showToast('Save failed: ' + e.message);
   }
 }
 
@@ -3906,7 +4020,7 @@ async function loadActivityLog() {
   if (!d) return;
   const el = document.getElementById('log-entries');
   if (!d.entries || d.entries.length === 0) { el.innerHTML = '<div class="k-empty">No activity recorded yet.</div>'; return; }
-  const colors = { session_entry:'k-tag-green', people_search:'k-tag-blue', profile_view:'k-tag-cyan', profile_create:'k-tag-indigo', profile_change:'k-tag-indigo', profile_delete:'k-tag-red', file_upload:'k-tag-indigo', file_transfer:'k-tag-indigo', metadata_extract:'k-tag-blue', sms_sent:'k-tag-amber', vehicle_lookup:'k-tag-amber', vehicle_save:'k-tag-indigo' };
+  const colors = { session_entry:'k-tag-green', people_search:'k-tag-blue', profile_view:'k-tag-cyan', profile_create:'k-tag-indigo', profile_change:'k-tag-indigo', profile_delete:'k-tag-red', file_upload:'k-tag-indigo', file_transfer:'k-tag-indigo', metadata_extract:'k-tag-blue', sms_sent:'k-tag-amber', vehicle_lookup:'k-tag-amber', vehicle_save:'k-tag-indigo', classified_accessed:'k-tag-red' };
   const userColors = { kaliph: 'var(--accent-indigo, #818cf8)', kathrine: 'var(--accent-cyan, #22d3ee)' };
   el.innerHTML = d.entries.map(e => {
     const detail = e.detail || {};
@@ -3921,6 +4035,7 @@ async function loadActivityLog() {
     else if (e.action_type==='file_transfer') desc = 'Transferred: ' + (detail.filename||'');
     else if (e.action_type==='file_upload') desc = 'Uploaded: ' + (detail.filename||'');
     else if (e.action_type==='metadata_extract') desc = 'Extracted: ' + (detail.filename||'');
+    else if (e.action_type==='classified_accessed') desc = 'Classified accessed — Reason: ' + (detail.reason||'N/A');
     else if (e.action_type==='session_entry') desc = 'Session started' + (detail.firstSetup?' (first setup)':'');
     const uColor = userColors[e.username] || 'var(--text-secondary)';
     return '<div class="log-entry"><span class="log-time">'+fmtDate(e.created_at)+'</span><span class="log-badge k-tag '+(colors[e.action_type]||'k-tag-blue')+'">'+esc(e.action_type)+'</span><span class="log-user" style="color:'+uColor+';font-weight:600">'+esc(e.username)+'</span><span class="log-detail">'+esc(desc)+'</span></div>';
@@ -4036,6 +4151,8 @@ const CMD_LIST = [
   { cmd:'activity', desc:'Show last 10 Activity Log entries', cat:'K-108' },
   { cmd:'goto ', desc:'Navigate to any K-108 module', cat:'K-108' },
   { cmd:'k108 reset-passcode ', desc:'Reset K-108 passcode', cat:'K-108' },
+  { cmd:'reveal classified', desc:'Reveal classified data on current profile', cat:'K-108' },
+  { cmd:'approve export', desc:'Approve a pending classified export', cat:'K-108' },
 ];
 let cmdBarIdx = 0;
 
@@ -4129,6 +4246,21 @@ async function execCmdBar(raw) {
       out.innerHTML = h;
       return;
     }
+    // Handle special actions
+    if (d.action === 'reveal_classified') {
+      closeCmdBar();
+      if (!currentProfileId) { showToast('No profile open'); return; }
+      showClassifiedPasscodeModal(currentProfileId);
+      return;
+    }
+    if (d.action === 'approve_export') {
+      closeCmdBar();
+      if (!currentProfileId || !_pendingExportProfileId) { showToast('No pending export approval'); return; }
+      socket.emit('k108:export_approval', { profileId: _pendingExportProfileId, user: d.username });
+      showToast('Export approved by ' + d.username);
+      return;
+    }
+
     if (d.navigate) { closeCmdBar(); navigateTo(d.navigate); }
     if (d.profileResults) {
       let h = '';
@@ -4249,6 +4381,234 @@ socket.on('k108:briefing:new', () => {
   loadDashboardBriefings();
   if (document.getElementById('view-briefing')?.classList.contains('active')) loadBriefings();
 });
+
+// ═══ Classified Section ═══
+const _revealedProfiles = new Set(); // track which profiles have been revealed this session
+function addClassifiedRow() {
+  const container = document.getElementById('pf-classified-fields');
+  if (!container) return;
+  const row = document.createElement('div');
+  row.className = 'classified-row';
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
+  row.innerHTML = '<input class="k-input pf-cl-label" placeholder="Label" style="font-size:11px;flex:1"><input class="k-input pf-cl-value" placeholder="Value" style="font-size:11px;flex:2"><button class="k-btn k-btn-sm k-btn-danger" onclick="this.closest(\'.classified-row\').remove()" style="font-size:9px;padding:4px 8px;flex-shrink:0">Remove</button>';
+  container.appendChild(row);
+}
+
+async function uploadClassifiedFiles(profileId, fileList) {
+  if (!fileList || !fileList.length) return;
+  const fd = new FormData();
+  for (const f of fileList) fd.append('files', f);
+  fd.append('token', authToken);
+  try {
+    const r = await fetch('/api/k108/profiles/'+profileId+'/classified-files', { method:'POST', body: fd });
+    const d = await r.json();
+    if (d.files) { showToast('Classified files uploaded'); viewProfile(profileId); }
+  } catch(e) { showToast('Upload failed'); }
+}
+
+async function deleteClassifiedFile(profileId, fileId) {
+  await kAuthFetch('/api/k108/profiles/'+profileId+'/classified-files/'+fileId, {}, 'DELETE');
+  viewProfile(profileId);
+}
+
+// ═══ Classified Reveal Flow ═══
+function showClassifiedPasscodeModal(profileId) {
+  const overlay = document.createElement('div');
+  overlay.id = 'classified-passcode-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(4,6,12,0.92);display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease';
+  overlay.innerHTML = '<div style="background:var(--bg-card);border:1px solid rgba(248,113,113,0.3);border-radius:12px;padding:28px 32px;max-width:360px;width:100%;text-align:center;animation:profileSlideIn 0.3s ease">'
+    + '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;font-weight:600;color:var(--status-red);letter-spacing:2px;margin-bottom:16px">CLASSIFIED ACCESS</div>'
+    + '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">Enter your K-108 passcode to reveal classified data</div>'
+    + '<input class="k-input" id="classified-passcode-input" type="password" placeholder="Passcode" style="text-align:center;font-family:\'JetBrains Mono\',monospace;letter-spacing:4px;margin-bottom:12px">'
+    + '<textarea class="k-input" id="classified-reason-input" placeholder="Reason for access" rows="2" style="font-size:11px;margin-bottom:4px;resize:none"></textarea>'
+    + '<div style="font-size:9px;color:var(--text-dim);margin-bottom:12px;font-style:italic">&quot;Just wanting to see&quot; or &quot;just checking&quot; are not valid reasons</div>'
+    + '<div id="classified-passcode-err" style="font-size:11px;color:var(--status-red);margin-bottom:8px;display:none"></div>'
+    + '<div style="display:flex;gap:10px;justify-content:center">'
+    + '<button class="k-btn k-btn-sm" onclick="document.getElementById(\'classified-passcode-overlay\').remove()">Cancel</button>'
+    + '<button class="k-btn k-btn-sm" id="classified-passcode-ok" style="border-color:var(--status-red);color:var(--status-red)" onclick="submitClassifiedPasscode('+profileId+')">Verify</button>'
+    + '</div></div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  setTimeout(() => {
+    const inp = document.getElementById('classified-passcode-input');
+    if (inp) { inp.focus(); inp.addEventListener('keydown', e => { if (e.key === 'Enter') submitClassifiedPasscode(profileId); }); }
+  }, 100);
+}
+
+async function submitClassifiedPasscode(profileId) {
+  const inp = document.getElementById('classified-passcode-input');
+  const reasonInp = document.getElementById('classified-reason-input');
+  const errEl = document.getElementById('classified-passcode-err');
+  const passcode = inp ? inp.value : '';
+  const reason = reasonInp ? reasonInp.value.trim() : '';
+  if (!passcode) { errEl.textContent = 'Passcode required'; errEl.style.display = 'block'; return; }
+  if (!reason) { errEl.textContent = 'A valid reason is required'; errEl.style.display = 'block'; return; }
+  try {
+    const r = await fetch('/api/k108/profiles/'+profileId+'/reveal-classified', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: authToken, passcode, reason })
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Access denied'; errEl.style.display = 'block'; return; }
+    // Remove overlay
+    const ov = document.getElementById('classified-passcode-overlay');
+    if (ov) ov.remove();
+    // Reveal the classified data in the readonly view
+    revealClassifiedData(d.classifiedData || [], d.classifiedFiles || []);
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message; errEl.style.display = 'block';
+  }
+}
+
+let _revealedClassifiedData = {}; // profileId -> { data, files }
+
+function revealClassifiedData(data, files) {
+  // Store revealed data so edit form can access it
+  if (currentProfileId) {
+    _revealedProfiles.add(String(currentProfileId));
+    _revealedClassifiedData[String(currentProfileId)] = { data: data || [], files: files || [] };
+  }
+  const sealed = document.getElementById('ro-classified-sealed');
+  const revealed = document.getElementById('ro-classified-revealed');
+  if (sealed) sealed.style.display = 'none';
+  if (!revealed) return;
+  revealed.style.display = 'block';
+  let h = '<div style="border:1px solid rgba(248,113,113,0.3);border-radius:8px;padding:14px;background:rgba(248,113,113,0.04)">';
+  h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:600;color:var(--status-red);letter-spacing:1px;margin-bottom:10px">CLASSIFIED DATA — SESSION ONLY</div>';
+  if (data.length) {
+    data.forEach(c => {
+      h += '<div style="display:flex;gap:8px;padding:4px 0;font-size:12px">';
+      h += '<span style="color:var(--text-dim);font-weight:600;min-width:100px">'+esc(c.label)+'</span>';
+      h += '<span style="color:var(--text-primary)">'+esc(c.value)+'</span>';
+      h += '</div>';
+    });
+  }
+  if (files.length) {
+    h += '<div style="margin-top:8px;font-size:10px;color:var(--text-dim);font-weight:600">Classified Files</div>';
+    files.forEach(f => {
+      h += '<div style="padding:2px 0"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:11px">'+esc(f.original_name)+'</a></div>';
+    });
+  }
+  if (!data.length && !files.length) {
+    h += '<div style="font-size:11px;color:var(--text-dim)">No classified data on file</div>';
+  }
+  h += '</div>';
+  revealed.innerHTML = h;
+  showToast('Classified data revealed for this session');
+}
+
+// ═══ Dossier PDF Export ═══
+let _pendingExportProfileId = null;
+let _exportApprovals = new Set();
+let _exportTimer = null;
+
+async function downloadDossier(profileId) {
+  // Check if profile has classified data
+  const d = await kAuthFetch('/api/k108/profiles/'+profileId);
+  if (!d || !d.profile) return;
+  const p = d.profile;
+  const hasClassified = !!d.hasClassified;
+
+  if (!hasClassified) {
+    // No classified — generate immediately
+    triggerDossierDownload(profileId, false);
+    return;
+  }
+
+  // Has classified — ask user
+  const overlay = document.createElement('div');
+  overlay.id = 'dossier-choice-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(4,6,12,0.92);display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease';
+  overlay.innerHTML = '<div style="background:var(--bg-card);border:1px solid var(--border-main);border-radius:12px;padding:28px 32px;max-width:400px;width:100%;text-align:center;animation:profileSlideIn 0.3s ease">'
+    + '<div style="font-size:14px;font-weight:600;color:#fff;margin-bottom:8px">Include classified information in this export?</div>'
+    + '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px">Classified data requires dual approval from both authorized users</div>'
+    + '<div style="display:flex;gap:10px;justify-content:center">'
+    + '<button class="k-btn k-btn-sm" onclick="document.getElementById(\'dossier-choice-overlay\').remove();triggerDossierDownload('+profileId+',false)">No, exclude</button>'
+    + '<button class="k-btn k-btn-sm" style="border-color:var(--status-red);color:var(--status-red)" onclick="document.getElementById(\'dossier-choice-overlay\').remove();startDualApproval('+profileId+')">Yes, include</button>'
+    + '</div></div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+function startDualApproval(profileId) {
+  _pendingExportProfileId = profileId;
+  _exportApprovals = new Set();
+  const overlay = document.createElement('div');
+  overlay.id = 'dual-approval-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:10001;background:rgba(4,6,12,0.92);display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease';
+  overlay.innerHTML = '<div style="background:var(--bg-card);border:1px solid rgba(248,113,113,0.2);border-radius:12px;padding:28px 32px;max-width:420px;width:100%;text-align:center;animation:profileSlideIn 0.3s ease">'
+    + '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;font-weight:600;color:var(--status-red);letter-spacing:2px;margin-bottom:16px">AWAITING DUAL APPROVAL</div>'
+    + '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px">Both users must run <span style="font-family:\'JetBrains Mono\',monospace;color:var(--accent-blue)">approve export</span> in the Command Bar within 60 seconds</div>'
+    + '<div style="display:flex;justify-content:center;gap:24px;margin-bottom:20px">'
+    + '<div style="text-align:center"><div style="width:40px;height:40px;border-radius:50%;border:2px solid var(--border-main);display:flex;align-items:center;justify-content:center;margin:0 auto 6px" id="approval-kaliph"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div><div style="font-size:11px;color:var(--text-dim)">kaliph</div></div>'
+    + '<div style="text-align:center"><div style="width:40px;height:40px;border-radius:50%;border:2px solid var(--border-main);display:flex;align-items:center;justify-content:center;margin:0 auto 6px" id="approval-kathrine"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div><div style="font-size:11px;color:var(--text-dim)">kathrine</div></div>'
+    + '</div>'
+    + '<div style="font-family:\'JetBrains Mono\',monospace;font-size:24px;color:var(--accent-blue)" id="export-countdown">60</div>'
+    + '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">seconds remaining</div>'
+    + '<div style="margin-top:16px"><button class="k-btn k-btn-sm" onclick="cancelDualApproval()">Cancel</button></div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+
+  // Start countdown
+  let remaining = 60;
+  _exportTimer = setInterval(() => {
+    remaining--;
+    const el = document.getElementById('export-countdown');
+    if (el) el.textContent = String(remaining);
+    if (remaining <= 0) {
+      cancelDualApproval();
+      showToast('Export approval timed out');
+    }
+  }, 1000);
+}
+
+function cancelDualApproval() {
+  if (_exportTimer) { clearInterval(_exportTimer); _exportTimer = null; }
+  _pendingExportProfileId = null;
+  _exportApprovals = new Set();
+  const ov = document.getElementById('dual-approval-overlay');
+  if (ov) ov.remove();
+}
+
+function handleExportApproval(data) {
+  if (!_pendingExportProfileId || String(data.profileId) !== String(_pendingExportProfileId)) return;
+  _exportApprovals.add(data.user);
+  // Update UI checkmarks
+  const el = document.getElementById('approval-' + data.user);
+  if (el) { el.style.borderColor = 'var(--status-green)'; el.querySelector('svg')?.setAttribute('stroke', 'var(--status-green)'); }
+  // Check if both approved
+  if (_exportApprovals.has('kaliph') && _exportApprovals.has('kathrine')) {
+    if (_exportTimer) { clearInterval(_exportTimer); _exportTimer = null; }
+    const pid = _pendingExportProfileId;
+    cancelDualApproval();
+    showToast('Both users approved — generating classified dossier');
+    triggerDossierDownload(pid, true);
+  }
+}
+
+socket.on('k108:export_approval', handleExportApproval);
+
+async function triggerDossierDownload(profileId, includeClassified) {
+  showToast('Generating dossier PDF...');
+  try {
+    const r = await fetch('/api/k108/profiles/'+profileId+'/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: authToken, includeClassified })
+    });
+    if (!r.ok) { const d = await r.json(); showToast('Export failed: ' + (d.error||'Unknown error')); return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = r.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'K108_Dossier.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('Dossier downloaded');
+  } catch(e) { showToast('Export failed: ' + e.message); }
+}
 
 </script>
 </body>
