@@ -444,32 +444,45 @@
     .case-note-body { font-size: 13px; color: var(--text-primary); line-height: 1.55; white-space: pre-wrap; }
     .case-note-foot { font-size: 10px; color: var(--text-dim); font-family: 'JetBrains Mono'; margin-top: 8px; }
 
-    .case-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 9000; }
-    .case-modal-overlay.open { display: flex; }
-    .case-modal-box { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 4px; padding: 24px 26px; width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
-    .case-modal-title { font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 600; color: var(--accent-blue); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 18px; }
-    .case-modal-field { margin-bottom: 14px; }
-    .case-modal-field label { display: block; font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
-    .case-modal-field input, .case-modal-field select, .case-modal-field textarea { width: 100%; background: #161b22; border: 1px solid var(--border-main); border-radius: 4px; padding: 10px 12px; color: #fff; font-family: inherit; font-size: 13px; outline: none; box-sizing: border-box; }
-    .case-modal-field input:focus, .case-modal-field select:focus, .case-modal-field textarea:focus { border-color: #4cc9f0; box-shadow: 0 0 0 2px rgba(76,201,240,0.15); }
+    .case-modal-overlay { position: fixed; inset: 0; background: rgba(4,8,16,0.85); backdrop-filter: blur(12px); display: none; align-items: center; justify-content: center; z-index: 9000; opacity: 0; transition: opacity 0.2s ease; }
+    .case-modal-overlay.open { display: flex; opacity: 1; }
+    .case-modal-box { background: linear-gradient(165deg, #141c2e 0%, #0f1524 40%, #111927 100%); border: 1px solid rgba(56,189,248,0.12); border-radius: 16px; padding: 32px; width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto; box-shadow: 0 0 0 1px rgba(56,189,248,0.04), 0 24px 80px rgba(0,0,0,0.7), 0 0 60px rgba(56,189,248,0.04), inset 0 1px 0 rgba(255,255,255,0.03); }
+    .case-modal-header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .case-modal-icon { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(129,140,248,0.08)); border: 1px solid rgba(56,189,248,0.15); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .case-modal-title { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600; color: #f1f5f9; letter-spacing: -0.01em; margin: 0; }
+    .case-modal-subtitle { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--text-muted); letter-spacing: 0.06em; margin-top: 2px; }
+    .case-modal-field { margin-bottom: 20px; }
+    .case-modal-field label { display: block; font-size: 10px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+    .case-modal-field input, .case-modal-field select, .case-modal-field textarea { width: 100%; background: rgba(15,21,36,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px 14px; color: #f1f5f9; font-family: inherit; font-size: 13px; outline: none; box-sizing: border-box; transition: border-color 0.2s, box-shadow 0.2s; }
+    .case-modal-field input:focus, .case-modal-field select:focus, .case-modal-field textarea:focus { border-color: rgba(56,189,248,0.5); box-shadow: 0 0 0 3px rgba(56,189,248,0.1), 0 0 20px rgba(56,189,248,0.06); }
     .case-modal-field input::placeholder, .case-modal-field textarea::placeholder { color: var(--text-dim); }
     .case-modal-field textarea { resize: vertical; min-height: 72px; }
-    .case-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+    .case-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); }
     .case-add-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); color: var(--accent-blue); font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
     .case-add-btn:hover { background: rgba(56,189,248,0.16); }
 
     /* Create Case modal pill selectors */
     .cnm-pill-group { display: flex; gap: 8px; }
-    .cnm-pill { flex: 1; padding: 8px 6px; background: transparent; border: 1px solid var(--border-main); border-radius: 4px; color: var(--text-muted); font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; cursor: pointer; transition: all 0.15s; text-align: center; }
-    .cnm-pill:hover { border-color: rgba(76,201,240,0.4); color: var(--text-primary); }
-    .cnm-pill.active { border-color: #4cc9f0; color: #4cc9f0; background: rgba(76,201,240,0.08); box-shadow: 0 0 8px rgba(76,201,240,0.15); }
-    .cnm-cancel-btn { background: transparent !important; border: 1px solid var(--border-main) !important; color: var(--text-muted) !important; font-family: 'JetBrains Mono' !important; font-size: 11px !important; letter-spacing: 0.08em !important; border-radius: 4px !important; padding: 10px !important; }
-    .cnm-cancel-btn:hover { border-color: var(--text-muted) !important; color: var(--text-primary) !important; }
-    .cnm-create-btn { background: #4cc9f0 !important; border: 1px solid #4cc9f0 !important; color: #0d1117 !important; font-family: 'JetBrains Mono' !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: 0.08em !important; border-radius: 4px !important; padding: 10px !important; }
-    .cnm-create-btn:hover { background: #3ab8df !important; }
-    .cnm-create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .case-modal-box input, .case-modal-box textarea { background: #161b22 !important; border: 1px solid var(--border-main) !important; border-radius: 4px !important; color: #fff !important; font-size: 13px !important; padding: 10px 12px !important; }
-    .case-modal-box input:focus, .case-modal-box textarea:focus { border-color: #4cc9f0 !important; outline: none; box-shadow: 0 0 0 2px rgba(76,201,240,0.15); }
+    .cnm-pill { flex: 1; padding: 10px 8px; background: rgba(15,21,36,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; color: var(--text-muted); font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; cursor: pointer; transition: all 0.2s; text-align: center; }
+    .cnm-pill:hover { border-color: rgba(56,189,248,0.3); color: var(--text-primary); background: rgba(56,189,248,0.04); }
+    .cnm-pill.active { border-color: rgba(56,189,248,0.5); color: #38bdf8; background: rgba(56,189,248,0.1); box-shadow: 0 0 12px rgba(56,189,248,0.1), inset 0 0 12px rgba(56,189,248,0.04); }
+    .cnm-cancel-btn { background: rgba(255,255,255,0.03) !important; border: 1px solid rgba(255,255,255,0.08) !important; color: var(--text-secondary) !important; font-family: 'Inter' !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0.02em !important; border-radius: 10px !important; padding: 12px 20px !important; transition: all 0.2s !important; }
+    .cnm-cancel-btn:hover { border-color: rgba(255,255,255,0.15) !important; color: var(--text-primary) !important; background: rgba(255,255,255,0.06) !important; }
+    .cnm-create-btn { background: linear-gradient(135deg, #38bdf8, #2da1d4) !important; border: none !important; color: #0a0f1e !important; font-family: 'Inter' !important; font-size: 12px !important; font-weight: 600 !important; letter-spacing: 0.02em !important; border-radius: 10px !important; padding: 12px 24px !important; box-shadow: 0 4px 16px rgba(56,189,248,0.25), 0 0 0 1px rgba(56,189,248,0.3) !important; transition: all 0.2s !important; }
+    .cnm-create-btn:hover { background: linear-gradient(135deg, #4cc9f0, #38bdf8) !important; box-shadow: 0 6px 24px rgba(56,189,248,0.35), 0 0 0 1px rgba(56,189,248,0.4) !important; transform: translateY(-1px) !important; }
+    .cnm-create-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+    /* Target name autofill dropdown */
+    .cnm-target-wrap { position: relative; }
+    .cnm-target-results { position: absolute; top: 100%; left: 0; right: 0; background: #141c2e; border: 1px solid rgba(56,189,248,0.2); border-top: none; border-radius: 0 0 10px 10px; max-height: 200px; overflow-y: auto; z-index: 100; display: none; box-shadow: 0 12px 32px rgba(0,0,0,0.5); }
+    .cnm-target-results.active { display: block; }
+    .cnm-target-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; transition: background 0.12s; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .cnm-target-item:hover { background: rgba(56,189,248,0.06); }
+    .cnm-target-item:last-child { border-bottom: none; }
+    .cnm-target-avatar { width: 28px; height: 28px; border-radius: 50%; background: rgba(56,189,248,0.1); display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 700; color: #38bdf8; flex-shrink: 0; overflow: hidden; }
+    .cnm-target-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .cnm-target-name { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+    .cnm-target-tag { font-family: 'JetBrains Mono'; font-size: 9px; color: var(--text-muted); letter-spacing: 0.04em; }
 
     /* Case delete button */
     .case-delete-btn { background: transparent; border: 1px solid rgba(248,113,113,0.3); color: var(--status-red); font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; padding: 5px 12px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
@@ -524,10 +537,9 @@
     .case-tab-panel textarea::placeholder { color: var(--text-dim); }
 
     /* Case pick modal styling */
-    #case-pick-modal .case-modal-box { border: 1px solid rgba(76,201,240,0.25); }
-    #case-pick-modal .case-modal-title { font-size: 12px; letter-spacing: 0.14em; color: #4cc9f0; }
-    #case-pick-modal .case-ws-navbtn { background: #161b22; border: 1px solid var(--border-main); border-radius: 4px; transition: all 0.15s; }
-    #case-pick-modal .case-ws-navbtn:hover { border-color: rgba(76,201,240,0.4); background: rgba(76,201,240,0.04); }
+    #case-pick-modal .case-modal-box { border: 1px solid rgba(56,189,248,0.12); }
+    #case-pick-modal .case-ws-navbtn { background: rgba(15,21,36,0.6); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; transition: all 0.2s; padding: 12px 14px; }
+    #case-pick-modal .case-ws-navbtn:hover { border-color: rgba(56,189,248,0.3); background: rgba(56,189,248,0.06); }
 
     /* Case upload zone refined */
     .case-upload-zone { border-color: var(--border-main); border-radius: 4px; background: rgba(22,27,34,0.5); }
@@ -740,11 +752,12 @@
     @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
 
     /* Confirm dialog */
-    .k108-confirm-overlay { display:none; position:fixed; inset:0; z-index:10001; background:rgba(4,6,12,0.8); backdrop-filter:blur(4px); align-items:center; justify-content:center; }
+    .k108-confirm-overlay { display:none; position:fixed; inset:0; z-index:10001; background:rgba(4,8,16,0.85); backdrop-filter:blur(12px); align-items:center; justify-content:center; }
     .k108-confirm-overlay.active { display:flex; }
-    .k108-confirm-box { background:var(--bg-card); border:1px solid var(--border-main); border-radius:12px; padding:28px; width:400px; max-width:90vw; text-align:center; }
-    .k108-confirm-title { font-size:15px; font-weight:600; margin-bottom:8px; }
-    .k108-confirm-msg { font-size:12px; color:var(--text-muted); margin-bottom:20px; }
+    .k108-confirm-box { background:linear-gradient(165deg, #141c2e 0%, #0f1524 40%, #111927 100%); border:1px solid rgba(248,113,113,0.12); border-radius:16px; padding:32px; width:420px; max-width:90vw; text-align:center; box-shadow: 0 0 0 1px rgba(248,113,113,0.04), 0 24px 80px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.03); }
+    .k108-confirm-icon { width:48px; height:48px; border-radius:14px; background:linear-gradient(135deg, rgba(248,113,113,0.12), rgba(248,113,113,0.06)); border:1px solid rgba(248,113,113,0.15); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:22px; }
+    .k108-confirm-title { font-family:'Inter',sans-serif; font-size:16px; font-weight:600; color:#f1f5f9; margin-bottom:8px; }
+    .k108-confirm-msg { font-size:13px; color:var(--text-secondary); margin-bottom:24px; line-height:1.5; }
     .k108-confirm-btns { display:flex; gap:10px; justify-content:center; }
 
     /* ═══ Mobile ═══ */
@@ -785,13 +798,14 @@
   <div id="k108-toast-container"></div>
 
   <!-- ═══ Confirm Dialog ═══ -->
-  <div class="k108-confirm-overlay" id="k108-confirm-overlay">
+  <div class="k108-confirm-overlay" id="k108-confirm-overlay" onclick="if(event.target===this)resolveConfirm(false)">
     <div class="k108-confirm-box">
+      <div class="k108-confirm-icon" id="k108-confirm-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
       <div class="k108-confirm-title" id="k108-confirm-title">Are you sure?</div>
       <div class="k108-confirm-msg" id="k108-confirm-msg">This action cannot be undone.</div>
-      <div class="k108-confirm-btns">
-        <button class="k-btn" id="k108-confirm-ok" onclick="resolveConfirm(true)">Confirm</button>
-        <button class="k-btn k-btn-danger" onclick="resolveConfirm(false)">Cancel</button>
+      <div class="k108-confirm-btns" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button class="cnm-cancel-btn" onclick="resolveConfirm(false)" style="padding:12px 20px;border-radius:10px;cursor:pointer;font-size:12px">Cancel</button>
+        <button id="k108-confirm-ok" onclick="resolveConfirm(true)" style="padding:12px 20px;border-radius:10px;cursor:pointer;font-family:'Inter';font-size:12px;font-weight:600;letter-spacing:0.02em;border:none;background:linear-gradient(135deg,#f87171,#dc2626);color:#fff;box-shadow:0 4px 16px rgba(248,113,113,0.25)">Confirm</button>
       </div>
     </div>
   </div>
@@ -1191,17 +1205,25 @@
       </div>
 
       <!-- Case Modals -->
-      <div class="case-modal-overlay" id="case-new-modal">
-        <div class="case-modal-box" style="border:1px solid rgba(76,201,240,0.25)">
-          <div class="case-modal-title" style="font-size:12px;letter-spacing:0.14em;color:#4cc9f0;margin-bottom:20px">OPEN NEW CASE</div>
+      <div class="case-modal-overlay" id="case-new-modal" onclick="if(event.target===this)closeNewCaseModal()">
+        <div class="case-modal-box">
+          <div class="case-modal-header">
+            <div class="case-modal-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg></div>
+            <div>
+              <div class="case-modal-title">Open New Case</div>
+              <div class="case-modal-subtitle" id="cnm-id-preview"></div>
+            </div>
+          </div>
           <div class="case-modal-field">
             <label>Case Name</label>
             <input type="text" id="cnm-name" placeholder="Operation codename" oninput="updateCaseIdPreview()" autocomplete="off">
-            <div id="cnm-id-preview" style="margin-top:6px;font-family:'JetBrains Mono';font-size:11px;color:rgba(76,201,240,0.7);letter-spacing:0.06em;min-height:16px"></div>
           </div>
           <div class="case-modal-field">
             <label>Target Name</label>
-            <input type="text" id="cnm-target" placeholder="Primary subject" autocomplete="off">
+            <div class="cnm-target-wrap">
+              <input type="text" id="cnm-target" placeholder="Search Intel Profiles or type a name..." oninput="cnmTargetSearch()" autocomplete="off">
+              <div class="cnm-target-results" id="cnm-target-results"></div>
+            </div>
           </div>
           <div class="case-modal-field">
             <label>Priority</label>
@@ -1220,20 +1242,25 @@
             </div>
           </div>
           <div class="k-error" id="cnm-error" style="margin-top:6px"></div>
-          <div class="case-modal-actions" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px">
-            <button class="k-btn k-btn-sm cnm-cancel-btn" onclick="closeNewCaseModal()">CANCEL</button>
-            <button class="k-btn k-btn-sm cnm-create-btn" id="cnm-submit-btn" onclick="submitNewCase()">CREATE CASE</button>
+          <div class="case-modal-actions" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <button class="k-btn k-btn-sm cnm-cancel-btn" onclick="closeNewCaseModal()">Cancel</button>
+            <button class="k-btn k-btn-sm cnm-create-btn" id="cnm-submit-btn" onclick="submitNewCase()">Create Case</button>
           </div>
         </div>
       </div>
 
-      <div class="case-modal-overlay" id="case-pick-modal">
-        <div class="case-modal-box" style="border:1px solid rgba(76,201,240,0.25)">
-          <div class="case-modal-title" style="font-size:12px;letter-spacing:0.14em;color:#4cc9f0;margin-bottom:16px">SELECT CASE</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;font-family:'JetBrains Mono';letter-spacing:0.04em" id="cpm-subject"></div>
-          <div id="cpm-list" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto"></div>
-          <div class="case-modal-actions" style="margin-top:16px">
-            <button class="k-btn k-btn-sm cnm-cancel-btn" onclick="closeCasePickModal()" style="width:100%">CANCEL</button>
+      <div class="case-modal-overlay" id="case-pick-modal" onclick="if(event.target===this)closeCasePickModal()">
+        <div class="case-modal-box">
+          <div class="case-modal-header">
+            <div class="case-modal-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></div>
+            <div>
+              <div class="case-modal-title">Add to Case</div>
+              <div class="case-modal-subtitle" id="cpm-subject"></div>
+            </div>
+          </div>
+          <div id="cpm-list" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto"></div>
+          <div class="case-modal-actions" style="display:grid;grid-template-columns:1fr">
+            <button class="k-btn k-btn-sm cnm-cancel-btn" onclick="closeCasePickModal()">Cancel</button>
           </div>
         </div>
       </div>
@@ -2327,16 +2354,21 @@ async function deleteCaseFromList(caseId, caseIdStr) {
 }
 
 let cnmCaseIdPreview = '';
+let cnmTargetDebounce = null;
+let cnmSelectedProfileId = null;
 function openNewCaseModal() {
   document.getElementById('cnm-name').value = '';
   document.getElementById('cnm-target').value = '';
+  cnmSelectedProfileId = null;
   selectPill('cnm-priority-group', 'medium');
   selectPill('cnm-class-group', 'unclassified');
   hideErr('cnm-error');
   const btn = document.getElementById('cnm-submit-btn');
   btn.disabled = false;
-  btn.textContent = 'CREATE CASE';
+  btn.textContent = 'Create Case';
   document.getElementById('cnm-id-preview').textContent = '';
+  const results = document.getElementById('cnm-target-results');
+  if (results) { results.classList.remove('active'); results.innerHTML = ''; }
   document.getElementById('case-new-modal').classList.add('open');
   setTimeout(() => document.getElementById('cnm-name').focus(), 80);
   updateCaseIdPreview();
@@ -2344,6 +2376,58 @@ function openNewCaseModal() {
 function closeNewCaseModal() {
   document.getElementById('case-new-modal').classList.remove('open');
 }
+function cnmTargetSearch() {
+  clearTimeout(cnmTargetDebounce);
+  cnmSelectedProfileId = null;
+  const input = document.getElementById('cnm-target');
+  const results = document.getElementById('cnm-target-results');
+  const q = (input ? input.value.trim() : '');
+  if (q.length < 2) { results.classList.remove('active'); results.innerHTML = ''; return; }
+  cnmTargetDebounce = setTimeout(async () => {
+    const currentVal = document.getElementById('cnm-target').value.trim();
+    if (currentVal !== q) return;
+    const d = await kAuthFetch('/api/k108/cases/profiles/search', { q });
+    if (!d || !d.profiles) return;
+    if (!d.profiles.length) {
+      results.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:var(--text-muted)">No profiles found — name will be used as-is</div>';
+      results.classList.add('active');
+      return;
+    }
+    window._cnmTargetProfiles = d.profiles;
+    results.innerHTML = d.profiles.map((p, idx) => {
+      const nameParts = (p.name || '').split(' ').filter(Boolean);
+      let initials = '';
+      if (nameParts.length >= 2) initials = nameParts[0][0] + nameParts[nameParts.length-1][0];
+      else if (nameParts.length === 1) initials = nameParts[0][0];
+      initials = initials.toUpperCase();
+      return '<div class="cnm-target-item" onclick="cnmSelectTarget('+idx+')">' +
+        '<div class="cnm-target-avatar">' + (p.photoUrl ? '<img src="'+esc(p.photoUrl)+'" alt="">' : esc(initials)) + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="cnm-target-name">'+esc(p.name)+'</div>' +
+          (p.relation ? '<div class="cnm-target-tag">'+esc(p.relation)+'</div>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+    results.classList.add('active');
+  }, 250);
+}
+function cnmSelectTarget(idx) {
+  const p = (window._cnmTargetProfiles || [])[idx];
+  if (!p) return;
+  document.getElementById('cnm-target').value = p.name;
+  cnmSelectedProfileId = p.id;
+  const results = document.getElementById('cnm-target-results');
+  results.classList.remove('active');
+  results.innerHTML = '';
+}
+// Close target results on outside click
+document.addEventListener('click', function(ev) {
+  const wrap = document.querySelector('.cnm-target-wrap');
+  if (wrap && !wrap.contains(ev.target)) {
+    const r = document.getElementById('cnm-target-results');
+    if (r) r.classList.remove('active');
+  }
+});
 function selectPill(groupId, value) {
   const group = document.getElementById(groupId);
   if (!group) return;
@@ -2358,7 +2442,7 @@ function getSelectedPill(groupId) {
 function updateCaseIdPreview() {
   const name = document.getElementById('cnm-name').value.trim();
   const el = document.getElementById('cnm-id-preview');
-  if (!name) { el.textContent = ''; return; }
+  if (!name) { el.textContent = 'New investigation file'; return; }
   const d = new Date();
   const ymd = d.getFullYear().toString() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
   cnmCaseIdPreview = 'K108-' + ymd + '-###';
@@ -2373,23 +2457,30 @@ async function submitNewCase() {
   const btn = document.getElementById('cnm-submit-btn');
   if (btn.disabled) return;
   btn.disabled = true;
-  btn.textContent = 'CREATING...';
+  btn.textContent = 'Creating...';
   hideErr('cnm-error');
-  // Check for duplicate name
-  const dupCheck = await kAuthFetch('/api/k108/cases/check-duplicate', { name });
-  if (dupCheck && dupCheck.exists) {
-    showToastK108('A case with this name already exists');
-    showErr('cnm-error', 'A case with this name already exists');
+  try {
+    // Check for duplicate name
+    const dupCheck = await kAuthFetch('/api/k108/cases/check-duplicate', { name });
+    if (dupCheck && dupCheck.exists) {
+      showToastK108('A case with this name already exists');
+      showErr('cnm-error', 'A case with this name already exists');
+      btn.disabled = false;
+      btn.textContent = 'Create Case';
+      return;
+    }
+    const d = await kAuthFetch('/api/k108/cases/create', { name, targetName, priority, classification, summary: '' });
+    if (!d) { btn.disabled = false; btn.textContent = 'Create Case'; return; }
+    if (d.error) { showErr('cnm-error', d.error); btn.disabled = false; btn.textContent = 'Create Case'; return; }
+    closeNewCaseModal();
+    showToastK108('Case '+(d.case.caseId||'')+' opened');
+    navigateTo('#/case/' + d.case.id);
+  } catch (err) {
+    console.error('Create case error:', err);
+    showErr('cnm-error', 'Failed to create case. Please try again.');
     btn.disabled = false;
-    btn.textContent = 'CREATE CASE';
-    return;
+    btn.textContent = 'Create Case';
   }
-  const d = await kAuthFetch('/api/k108/cases/create', { name, targetName, priority, classification, summary: '' });
-  if (!d) { btn.disabled = false; btn.textContent = 'CREATE CASE'; return; }
-  if (d.error) { showErr('cnm-error', d.error); btn.disabled = false; btn.textContent = 'CREATE CASE'; return; }
-  showToastK108('Case '+(d.case.caseId||'')+' opened');
-  closeNewCaseModal();
-  navigateTo('#/case/' + d.case.id);
 }
 
 async function loadCaseWorkspace(caseId, tab) {
@@ -4565,9 +4656,25 @@ function showConfirmDialog({ title, msg, okText, danger } = {}) {
     _k108ConfirmResolve = resolve;
     document.getElementById('k108-confirm-title').textContent = title || 'Are you sure?';
     document.getElementById('k108-confirm-msg').textContent = msg || 'This action cannot be undone.';
+    const icon = document.getElementById('k108-confirm-icon');
+    const box = document.querySelector('.k108-confirm-box');
     const ok = document.getElementById('k108-confirm-ok');
     ok.textContent = okText || 'Confirm';
-    ok.className = danger !== false ? 'k-btn k-btn-danger' : 'k-btn';
+    if (danger !== false) {
+      icon.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+      icon.style.background = 'linear-gradient(135deg, rgba(248,113,113,0.12), rgba(248,113,113,0.06))';
+      icon.style.borderColor = 'rgba(248,113,113,0.15)';
+      box.style.borderColor = 'rgba(248,113,113,0.12)';
+      ok.style.background = 'linear-gradient(135deg,#f87171,#dc2626)';
+      ok.style.boxShadow = '0 4px 16px rgba(248,113,113,0.25)';
+    } else {
+      icon.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+      icon.style.background = 'linear-gradient(135deg, rgba(56,189,248,0.12), rgba(56,189,248,0.06))';
+      icon.style.borderColor = 'rgba(56,189,248,0.15)';
+      box.style.borderColor = 'rgba(56,189,248,0.12)';
+      ok.style.background = 'linear-gradient(135deg,#38bdf8,#2da1d4)';
+      ok.style.boxShadow = '0 4px 16px rgba(56,189,248,0.25)';
+    }
     document.getElementById('k108-confirm-overlay').classList.add('active');
   });
 }
