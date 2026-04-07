@@ -757,6 +757,30 @@ app.get('/api/briefings/yesterday', async (req, res) => {
   }
 });
 
+// Fetch most recent briefings for a user (external API)
+app.get('/api/briefings/recent', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const user = req.query.user;
+  if (!user || !['kaliph', 'kathrine'].includes(user)) {
+    return res.status(400).json({ error: 'Invalid or missing user param' });
+  }
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 7, 1), 10);
+  try {
+    const result = await db.query(
+      `SELECT id, user_id AS "user", content, created_at FROM briefings
+       WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
+      [user, limit]
+    );
+    res.json(result.rows);
+  } catch (e) {
+    console.error('[briefings] Recent error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Save briefing feedback from the app
 app.post('/api/briefings/feedback', mainAuth, async (req, res) => {
   const { feedback_type, section, highlighted_text, note, permanent } = req.body;
@@ -6670,7 +6694,10 @@ app.post('/api/k108/profiles/:id', async (req, res) => {
     const activityLog = await db.query('SELECT * FROM k108_profile_activity_log WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 5', [req.params.id]);
     const classifiedFileCount = await db.query('SELECT COUNT(*)::int AS c FROM k108_classified_files WHERE profile_id = $1', [req.params.id]);
     const hasClassifiedFiles = (classifiedFileCount.rows[0]?.c || 0) > 0;
-    return res.json({ profile: p, files: files.rows, relations: relations.rows, activityLog: activityLog.rows, hasClassified: hasClassified || hasClassifiedFiles });
+    // Surveillance queue + results
+    const sqRow = await db.query(`SELECT id FROM surveillance_queue WHERE profile_id = $1 AND status = 'pending' LIMIT 1`, [req.params.id]);
+    const srRows = await db.query(`SELECT id, name, requested_by, report, searched_at, created_at FROM surveillance_results WHERE profile_id = $1 ORDER BY created_at DESC`, [req.params.id]);
+    return res.json({ profile: p, files: files.rows, relations: relations.rows, activityLog: activityLog.rows, hasClassified: hasClassified || hasClassifiedFiles, surveillancePending: sqRow.rows.length > 0, surveillanceResults: srRows.rows });
   }
   // JSON fallback
   const profiles = getK108Profiles();
@@ -6685,7 +6712,7 @@ app.post('/api/k108/profiles/:id', async (req, res) => {
     const rp = profiles.find(p => String(p.id) === String(r.related_profile_id));
     return { ...r, first_name: rp?.first_name||'', last_name: rp?.last_name||'', photo_url: rp?.photo_url||null, p_relation: rp?.relation||'' };
   });
-  res.json({ profile: profileCopy, files: pFiles, relations: pRelations, hasClassified, activityLog: getProfileActivity(req.params.id) });
+  res.json({ profile: profileCopy, files: pFiles, relations: pRelations, hasClassified, activityLog: getProfileActivity(req.params.id), surveillancePending: false, surveillanceResults: [] });
 });
 
 app.put('/api/k108/profiles/:id', async (req, res) => {
@@ -8012,6 +8039,135 @@ app.post('/api/k108/cases/notes/add', async (req, res) => {
   await k108TouchCase(id);
   k108EmitCaseUpdate(id);
   res.json({ note: r.rows[0] });
+});
+
+// ── Surveillance Queue (external API — protected by briefing secret) ────────
+
+// GET /api/surveillance/queue — returns pending items for Cowork to process
+app.get('/api/surveillance/queue', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!db.pool) return res.json([]);
+  const r = await db.query(
+    `SELECT id, profile_id, name, requested_by, created_at FROM surveillance_queue WHERE status = 'pending' ORDER BY created_at ASC`
+  );
+  res.json(r.rows);
+});
+
+// POST /api/surveillance/results — Cowork submits a completed surveillance report
+app.post('/api/surveillance/results', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id, name, requested_by, report } = req.body;
+  if (!id || !report) return res.status(400).json({ error: 'id and report required' });
+
+  // Find the queue item
+  const qr = await db.query('SELECT * FROM surveillance_queue WHERE id = $1', [id]);
+  if (!qr.rows[0]) return res.status(404).json({ error: 'Queue item not found' });
+  const queueItem = qr.rows[0];
+  const profileId = queueItem.profile_id;
+
+  // Save result
+  await db.query(
+    `INSERT INTO surveillance_results (profile_id, queue_id, name, requested_by, report, searched_at) VALUES ($1,$2,$3,$4,$5,NOW())`,
+    [profileId, id, name || queueItem.name, requested_by || queueItem.requested_by, report]
+  );
+
+  // Delete queue item
+  await db.query('DELETE FROM surveillance_queue WHERE id = $1', [id]);
+
+  // Check if profile has an open case linked to it via case_entities
+  try {
+    const entityRows = await db.query(
+      `SELECT ce.case_id FROM k108_case_entities ce
+       JOIN k108_cases c ON c.id = ce.case_id
+       WHERE ce.entity_type = 'person' AND ce.source = 'intel_profile'
+         AND ce.detail::jsonb->>'profileId' = $1
+         AND c.status != 'closed'
+       LIMIT 1`,
+      [String(profileId)]
+    );
+    if (entityRows.rows[0]) {
+      const caseId = entityRows.rows[0].case_id;
+      await db.query(
+        `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'surveillance',$2,$3,'system')`,
+        [caseId, 'Surveillance report: ' + (name || queueItem.name), report]
+      );
+    }
+  } catch (e) {
+    console.error('[surveillance] Case timeline insert error:', e.message);
+  }
+
+  // Send Brrr push notification
+  const who = requested_by || queueItem.requested_by;
+  const webhookSecret = who === 'kathrine' ? process.env.BRRR_WEBHOOK_KATHRINE : process.env.BRRR_WEBHOOK_KALIPH;
+  if (webhookSecret) {
+    fetch(`https://api.brrr.now/v1/${webhookSecret}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'K-108 Surveillance', message: 'Surveillance report ready for ' + (name || queueItem.name), sound: 'bubble_ding', 'interruption-level': 'active' }),
+    }).catch(err => console.error('[brrr] surveillance notification error:', err.message));
+  }
+
+  // Emit Socket.IO event
+  io.emit('k108:surveillance_complete', { profileId, name: name || queueItem.name });
+
+  res.json({ success: true });
+});
+
+// ── Surveillance Queue (K-108 auth — user-facing) ──────────────────────────
+
+// POST /k108/profiles/:id/surveillance/queue — queue a profile for surveillance
+app.post('/k108/profiles/:id/surveillance/queue', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const profileId = parseInt(req.params.id, 10);
+
+  // Check if already queued
+  const existing = await db.query(
+    `SELECT id FROM surveillance_queue WHERE profile_id = $1 AND status = 'pending'`,
+    [profileId]
+  );
+  if (existing.rows.length > 0) {
+    return res.status(409).json({ error: 'Already queued' });
+  }
+
+  // Get profile name
+  const pr = await db.query('SELECT first_name, middle_name, last_name FROM k108_profiles WHERE id = $1', [profileId]);
+  if (!pr.rows[0]) return res.status(404).json({ error: 'Profile not found' });
+  const p = pr.rows[0];
+  const fullName = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ');
+
+  await db.query(
+    `INSERT INTO surveillance_queue (profile_id, name, requested_by, status) VALUES ($1,$2,$3,'pending')`,
+    [profileId, fullName, username]
+  );
+
+  await k108Log(username, 'surveillance_queue', { profileId, name: fullName }, req.ip);
+  res.json({ success: true });
+});
+
+// DELETE /k108/profiles/:id/surveillance/queue — cancel pending surveillance
+app.delete('/k108/profiles/:id/surveillance/queue', async (req, res) => {
+  const token = req.headers['x-k108-token'] || req.query.token;
+  if (!token || !k108Tokens.has(token)) {
+    return res.status(401).json({ error: 'Session expired', reauth: true });
+  }
+  const username = k108Tokens.get(token);
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const profileId = parseInt(req.params.id, 10);
+  await db.query(
+    `DELETE FROM surveillance_queue WHERE profile_id = $1 AND status = 'pending'`,
+    [profileId]
+  );
+  await k108Log(username, 'surveillance_cancel', { profileId }, req.ip);
+  res.json({ success: true });
 });
 
 // ── K-108 Daily Briefing ─────────────────────────────────────────────────────

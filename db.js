@@ -457,6 +457,32 @@ async function createK108Tables() {
   try { await query(`ALTER TABLE k108_surveillance_results ADD COLUMN IF NOT EXISTS confidence TEXT DEFAULT 'unverified'`); } catch(e) {}
   try { await query(`ALTER TABLE k108_surveillance_results ADD COLUMN IF NOT EXISTS read BOOLEAN DEFAULT FALSE`); } catch(e) {}
 
+  // ── Surveillance Queue (external Cowork integration) ──
+  await query(`
+    CREATE TABLE IF NOT EXISTS surveillance_queue (
+      id SERIAL PRIMARY KEY,
+      profile_id INT REFERENCES k108_profiles(id) ON DELETE CASCADE,
+      name VARCHAR(255),
+      requested_by VARCHAR(50),
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  // ── Surveillance Results ──
+  await query(`
+    CREATE TABLE IF NOT EXISTS surveillance_results (
+      id SERIAL PRIMARY KEY,
+      profile_id INT REFERENCES k108_profiles(id) ON DELETE CASCADE,
+      queue_id INT,
+      name VARCHAR(255),
+      requested_by VARCHAR(50),
+      report TEXT,
+      searched_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
   // ── K-108 Briefings ──
   await query(`
     CREATE TABLE IF NOT EXISTS k108_briefings (

@@ -455,6 +455,22 @@
     .case-add-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); color: var(--accent-blue); font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
     .case-add-btn:hover { background: rgba(56,189,248,0.16); }
 
+    /* ═══ Surveillance ═══ */
+    .surv-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(76,201,240,0.08); border: 1px solid rgba(76,201,240,0.3); color: #4cc9f0; font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
+    .surv-btn:hover { background: rgba(76,201,240,0.18); }
+    .surv-btn.pending { background: rgba(251,191,36,0.10); border-color: rgba(251,191,36,0.35); color: var(--status-amber); cursor: pointer; }
+    .surv-btn.pending:hover { background: rgba(251,191,36,0.18); }
+    .surv-pulse { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--status-amber); animation: survPulse 1.4s ease-in-out infinite; }
+    @keyframes survPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .surv-reports-link { font-family: 'JetBrains Mono'; font-size: 9px; color: #4cc9f0; text-decoration: none; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.8; }
+    .surv-reports-link:hover { opacity: 1; text-decoration: underline; }
+    .surv-section { margin-top: 24px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 18px; }
+    .surv-section-title { font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 600; color: #4cc9f0; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; }
+    .surv-report-card { background: var(--bg-raised); border: 1px solid var(--border-main); border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+    .surv-report-meta { font-family: 'JetBrains Mono'; font-size: 9px; color: var(--text-dim); margin-bottom: 8px; display: flex; gap: 12px; }
+    .surv-report-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; white-space: pre-wrap; }
+    .surv-empty { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-dim); text-align: center; padding: 20px; }
+
     /* ═══ Vault ═══ */
     .vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
     .vault-card { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 16px; }
@@ -2685,6 +2701,9 @@ async function viewProfileReadonly(id, skipLog) {
   el.style.display = 'block';
 
   const links = typeof p.social_links === 'string' ? JSON.parse(p.social_links||'[]') : (p.social_links||[]);
+  const survPending = !!d.surveillancePending;
+  const survResults = d.surveillanceResults || [];
+  const profileFullName = esc([p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' '));
 
   let h = '<div class="profile-detail">';
 
@@ -2717,7 +2736,15 @@ async function viewProfileReadonly(id, skipLog) {
     h += '</div></div>';
   }
 
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><div style="display:flex;gap:8px;align-items:center"><button class="k-btn k-btn-sm" onclick="downloadDossier('+id+')" style="display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Dossier</button><button class="case-add-btn" onclick="addProfileToCaseBtn('+id+')">+ Add to Case</button><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div></div>';
+  // Action bar with surveillance button
+  let survBtnHtml;
+  if (survPending) {
+    survBtnHtml = '<button class="surv-btn pending" id="surv-btn-'+id+'" onclick="cancelSurveillance('+id+',\''+profileFullName.replace(/'/g,"\\'")+'\')"><span class="surv-pulse"></span> SURVEILLANCE PENDING</button>';
+  } else {
+    survBtnHtml = '<button class="surv-btn" id="surv-btn-'+id+'" onclick="queueSurveillance('+id+')">Run Surveillance</button>';
+  }
+  if (survResults.length) survBtnHtml += ' <a href="#" class="surv-reports-link" onclick="event.preventDefault();document.getElementById(\'surv-reports-'+id+'\').scrollIntoView({behavior:\'smooth\'})">View Reports</a>';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><div style="display:flex;gap:8px;align-items:center">'+survBtnHtml+'<button class="k-btn k-btn-sm" onclick="downloadDossier('+id+')" style="display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Dossier</button><button class="case-add-btn" onclick="addProfileToCaseBtn('+id+')">+ Add to Case</button><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div></div>';
 
   // Photo + Name + Badges
   const roInitials = esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase());
@@ -2818,6 +2845,19 @@ async function viewProfileReadonly(id, skipLog) {
   h += '</div></div>'; // close profile-sections + left col
   h += roImgPanel;    // right col: images
   h += '</div>';       // close outer flex
+
+  // Surveillance Reports section
+  h += '<div class="surv-section" id="surv-reports-'+id+'"><div class="surv-section-title">Surveillance Reports</div>';
+  h += '<div id="surv-reports-list-'+id+'">';
+  if (survResults.length) {
+    survResults.forEach(sr => {
+      h += '<div class="surv-report-card"><div class="surv-report-meta"><span>'+esc(new Date(sr.searched_at || sr.created_at).toLocaleString('en-US', {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}))+'</span><span>Requested by: '+esc(sr.requested_by||'unknown')+'</span></div><div class="surv-report-body">'+esc(sr.report||'')+'</div></div>';
+    });
+  } else {
+    h += '<div class="surv-empty">No surveillance reports on file</div>';
+  }
+  h += '</div></div>';
+
   h += '</div>';       // close profile-detail
   el.innerHTML = h;
 
@@ -4840,6 +4880,82 @@ async function _sendMiniMsg() {
     input.value = text;
   }
 }
+
+// ═══ Surveillance ═══
+async function queueSurveillance(profileId) {
+  const r = await kAuthFetch('/k108/profiles/' + profileId + '/surveillance/queue');
+  if (!r) return;
+  if (r.error) { showToast('Already queued for surveillance'); return; }
+  // Switch button to pending state immediately
+  const btn = document.getElementById('surv-btn-' + profileId);
+  if (btn) {
+    const name = btn.closest('.profile-detail')?.querySelector('h2')?.textContent?.trim() || '';
+    btn.className = 'surv-btn pending';
+    btn.innerHTML = '<span class="surv-pulse"></span> SURVEILLANCE PENDING';
+    btn.onclick = function() { cancelSurveillance(profileId, name); };
+  }
+  showToast('Queued for surveillance');
+}
+
+async function cancelSurveillance(profileId, name) {
+  const ok = await showConfirmDialog({ title: 'Cancel surveillance request for ' + name + '?', msg: 'The pending request will be removed.', okText: 'Cancel Request', danger: true });
+  if (!ok) return;
+  const r = await fetch('/k108/profiles/' + profileId + '/surveillance/queue', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', 'x-k108-token': authToken }
+  });
+  const d = await r.json();
+  if (d.success) {
+    const btn = document.getElementById('surv-btn-' + profileId);
+    if (btn) {
+      btn.className = 'surv-btn';
+      btn.innerHTML = 'Run Surveillance';
+      btn.onclick = function() { queueSurveillance(profileId); };
+    }
+    showToast('Surveillance request cancelled');
+  }
+}
+
+socket.on('k108:surveillance_complete', async (data) => {
+  if (!currentProfileId || String(currentProfileId) !== String(data.profileId)) return;
+  // Refresh the profile page to update button + results
+  const btn = document.getElementById('surv-btn-' + data.profileId);
+  if (btn) {
+    btn.className = 'surv-btn';
+    btn.innerHTML = 'Run Surveillance';
+    btn.onclick = function() { queueSurveillance(data.profileId); };
+  }
+  // Reload surveillance results section
+  try {
+    const d = await kAuthFetch('/api/k108/profiles/' + data.profileId);
+    if (d && d.surveillanceResults) {
+      const list = document.getElementById('surv-reports-list-' + data.profileId);
+      if (list) {
+        if (d.surveillanceResults.length) {
+          list.innerHTML = d.surveillanceResults.map(sr =>
+            '<div class="surv-report-card"><div class="surv-report-meta"><span>' + esc(new Date(sr.searched_at || sr.created_at).toLocaleString('en-US', {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})) + '</span><span>Requested by: ' + esc(sr.requested_by || 'unknown') + '</span></div><div class="surv-report-body">' + esc(sr.report || '') + '</div></div>'
+          ).join('');
+        } else {
+          list.innerHTML = '<div class="surv-empty">No surveillance reports on file</div>';
+        }
+      }
+      // Add View Reports link if not already present
+      const reportsSection = document.getElementById('surv-reports-' + data.profileId);
+      if (reportsSection && d.surveillanceResults.length) {
+        const existingLink = btn?.parentElement?.querySelector('.surv-reports-link');
+        if (!existingLink && btn) {
+          const link = document.createElement('a');
+          link.href = '#';
+          link.className = 'surv-reports-link';
+          link.textContent = 'View Reports';
+          link.onclick = function(e) { e.preventDefault(); reportsSection.scrollIntoView({behavior:'smooth'}); };
+          btn.insertAdjacentElement('afterend', link);
+        }
+      }
+    }
+  } catch(e) { console.error('[surv] refresh error:', e); }
+  showToast('Surveillance report received for ' + esc(data.name));
+});
 
 </script>
 
