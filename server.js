@@ -8043,8 +8043,8 @@ app.post('/api/k108/cases/notes/add', async (req, res) => {
 
 // ── Surveillance Queue (external API — protected by briefing secret) ────────
 
-// GET /api/surveillance/queue — returns pending items for Cowork to process
-app.get('/api/surveillance/queue', async (req, res) => {
+// GET /api/archivist/queue — returns pending items for Cowork to process
+app.get('/api/archivist/queue', async (req, res) => {
   const secret = req.headers['x-briefing-secret'];
   if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -8056,8 +8056,8 @@ app.get('/api/surveillance/queue', async (req, res) => {
   res.json(r.rows);
 });
 
-// POST /api/surveillance/results — Cowork submits a completed surveillance report
-app.post('/api/surveillance/results', async (req, res) => {
+// POST /api/archivist/results — Cowork submits a completed surveillance report
+app.post('/api/archivist/results', async (req, res) => {
   const secret = req.headers['x-briefing-secret'];
   if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -8122,8 +8122,8 @@ app.post('/api/surveillance/results', async (req, res) => {
 
 // ── Surveillance Approvals (external API — protected by briefing secret) ────
 
-// POST /api/surveillance/approve/submit — auto-approve names for surveillance
-app.post('/api/surveillance/approve/submit', async (req, res) => {
+// POST /api/archivist/submit — auto-approve names for surveillance
+app.post('/api/archivist/submit', async (req, res) => {
   const secret = req.headers['x-briefing-secret'];
   if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -8141,8 +8141,8 @@ app.post('/api/surveillance/approve/submit', async (req, res) => {
   res.json({ success: true });
 });
 
-// GET /api/surveillance/approve/decisions — fetch and clear all approval decisions
-app.get('/api/surveillance/approve/decisions', async (req, res) => {
+// GET /api/archivist/decisions — fetch and clear all approval decisions
+app.get('/api/archivist/decisions', async (req, res) => {
   const secret = req.headers['x-briefing-secret'];
   if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
