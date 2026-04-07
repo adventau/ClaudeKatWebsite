@@ -5880,6 +5880,16 @@ const PLATETOVIN_API_KEY = process.env.PLATETOVIN_API_KEY || '';
 const AUTODEV_API_KEY = process.env.AUTODEV_API_KEY || '';
 
 const k108Tokens = new Map(); // token -> username
+const k108ProfileActivityMem = {}; // in-memory fallback for profile activity log (profileId -> [{username, action, created_at}])
+function logProfileActivity(profileId, username, action) {
+  const key = String(profileId);
+  if (!k108ProfileActivityMem[key]) k108ProfileActivityMem[key] = [];
+  k108ProfileActivityMem[key].unshift({ username, action, created_at: new Date().toISOString() });
+  if (k108ProfileActivityMem[key].length > 20) k108ProfileActivityMem[key].length = 20;
+}
+function getProfileActivity(profileId, limit = 5) {
+  return (k108ProfileActivityMem[String(profileId)] || []).slice(0, limit);
+}
 const k108RateMap = new Map(); // token -> { count, resetAt }
 const K108_USERS_FILE = path.join(DATA_DIR, 'k108-users.json');
 
@@ -6598,7 +6608,7 @@ app.post('/api/k108/profiles', async (req, res) => {
 app.post('/api/k108/profiles/create', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { first_name, middle_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address } = req.body;
+  const { first_name, middle_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address, employer_info, classified_data } = req.body;
 
   if (db.pool) {
     try {
@@ -6611,11 +6621,14 @@ app.post('/api/k108/profiles/create', async (req, res) => {
       const emailSql = isJsonb ? '$8::jsonb' : '$8';
 
       const r = await db.query(
-        `INSERT INTO k108_profiles (first_name, middle_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address, created_by)
-         VALUES ($1,$2,$3,$4,$5,$6,${phoneSql},${emailSql},$9,$10,$11,$12,$13) RETURNING *`,
+        `INSERT INTO k108_profiles (first_name, middle_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address, created_by, employer_info, classified_data)
+         VALUES ($1,$2,$3,$4,$5,$6,${phoneSql},${emailSql},$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb) RETURNING *`,
         [first_name || '', middle_name || null, last_name || '', aliasVal, relation || '', notes || '',
-         phoneVal, emailVal, JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), username]
+         phoneVal, emailVal, JSON.stringify(social_links || []), age || '', birthday || null, JSON.stringify(address || {}), username,
+         JSON.stringify(employer_info || {}), JSON.stringify(classified_data || [])]
       );
+      // Log profile creation to profile activity log
+      await db.query('INSERT INTO k108_profile_activity_log (profile_id, username, action) VALUES ($1, $2, $3)', [r.rows[0].id, username, 'created']);
       await k108Log(username, 'profile_create', { name: `${first_name} ${last_name}`.trim() }, req.ip);
       return res.json({ profile: r.rows[0] });
     } catch(e) {
@@ -6625,9 +6638,10 @@ app.post('/api/k108/profiles/create', async (req, res) => {
   }
   // JSON fallback
   const profiles = getK108Profiles();
-  const profile = { id: Date.now(), first_name: first_name||'', last_name: last_name||'', aliases: aliases||[], photo_url: null, relation: relation||'', notes: notes||'', phones: phones||[], emails: emails||[], social_links: social_links||[], age: age||'', birthday: birthday||null, address: address||{}, created_by: username, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  const profile = { id: Date.now(), first_name: first_name||'', last_name: last_name||'', aliases: aliases||[], photo_url: null, relation: relation||'', notes: notes||'', phones: phones||[], emails: emails||[], social_links: social_links||[], age: age||'', birthday: birthday||null, address: address||{}, employer_info: employer_info||{}, classified_data: classified_data||[], created_by: username, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   profiles.push(profile);
   saveK108Profiles(profiles);
+  logProfileActivity(profile.id, username, 'created');
   await k108Log(username, 'profile_create', { name: `${first_name} ${last_name}`.trim() }, req.ip);
   res.json({ profile });
 });
@@ -6640,6 +6654,11 @@ app.post('/api/k108/profiles/:id', async (req, res) => {
     const r = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [req.params.id]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Profile not found' });
     const p = r.rows[0];
+    // Never expose classified data in normal profile response — only via reveal-classified
+    const hasClassified = (Array.isArray(p.classified_data) ? p.classified_data : []).length > 0;
+    delete p.classified_data;
+    // Log profile view to profile activity log (skip if reloading after save)
+    if (!req.query.skipLog) await db.query('INSERT INTO k108_profile_activity_log (profile_id, username, action) VALUES ($1, $2, $3)', [req.params.id, username, 'viewed']);
     await k108Log(username, 'profile_view', { profileId: req.params.id, name: `${p.first_name||''} ${p.last_name||''}`.trim() }, req.ip);
     const files = await db.query('SELECT * FROM k108_profile_files WHERE profile_id = $1 ORDER BY uploaded_at DESC', [req.params.id]);
     const relations = await db.query(
@@ -6648,24 +6667,31 @@ app.post('/api/k108/profiles/:id', async (req, res) => {
        WHERE r.profile_id = $1`,
       [req.params.id]
     );
-    return res.json({ profile: p, files: files.rows, relations: relations.rows });
+    const activityLog = await db.query('SELECT * FROM k108_profile_activity_log WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 5', [req.params.id]);
+    const classifiedFileCount = await db.query('SELECT COUNT(*)::int AS c FROM k108_classified_files WHERE profile_id = $1', [req.params.id]);
+    const hasClassifiedFiles = (classifiedFileCount.rows[0]?.c || 0) > 0;
+    return res.json({ profile: p, files: files.rows, relations: relations.rows, activityLog: activityLog.rows, hasClassified: hasClassified || hasClassifiedFiles });
   }
   // JSON fallback
   const profiles = getK108Profiles();
   const profile = profiles.find(p => String(p.id) === String(req.params.id));
   if (!profile) return res.status(404).json({ error: 'Profile not found' });
+  if (!req.query.skipLog) logProfileActivity(req.params.id, username, 'viewed');
+  const hasClassified = (profile.classified_data || []).length > 0;
+  const profileCopy = { ...profile };
+  delete profileCopy.classified_data;
   const pFiles = profile.files || [];
   const pRelations = (profile.relations || []).map(r => {
     const rp = profiles.find(p => String(p.id) === String(r.related_profile_id));
     return { ...r, first_name: rp?.first_name||'', last_name: rp?.last_name||'', photo_url: rp?.photo_url||null, p_relation: rp?.relation||'' };
   });
-  res.json({ profile, files: pFiles, relations: pRelations });
+  res.json({ profile: profileCopy, files: pFiles, relations: pRelations, hasClassified, activityLog: getProfileActivity(req.params.id) });
 });
 
 app.put('/api/k108/profiles/:id', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  const { first_name, middle_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address } = req.body;
+  const { first_name, middle_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address, employer_info, classified_data, classified_mode } = req.body;
 
   if (db.pool) {
     try {
@@ -6689,8 +6715,6 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
         }
       }
 
-      // For JSONB: pass JSON string with explicit ::jsonb cast
-      // For TEXT[]: pass plain JS string array — pg formats it as a PG array literal, NOT JSON.stringify
       let param7, param8, phoneSql, emailSql;
       if (isJsonb) {
         param7 = JSON.stringify(normalizePhones(phones));
@@ -6704,12 +6728,30 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
         emailSql = '$8';
       }
 
+      // classified_mode: 'replace' = full edit (user revealed classified), 'append' = add-only
+      let classifiedSql = '';
+      const extraParams = [JSON.stringify(employer_info || {})];
+      const newClassified = (classified_data || []).filter(c => c.label || c.value);
+      if (classified_mode === 'replace') {
+        // Full replace — user has revealed access and is editing all classified data
+        extraParams.push(JSON.stringify(newClassified));
+        classifiedSql = `, classified_data = $${13 + extraParams.length}::jsonb`;
+      } else if (newClassified.length) {
+        // Append only — user hasn't revealed, just adding new entries
+        extraParams.push(JSON.stringify(newClassified));
+        classifiedSql = `, classified_data = COALESCE(classified_data, '[]'::jsonb) || $${13 + extraParams.length}::jsonb`;
+      }
+
       await db.query(
         `UPDATE k108_profiles SET first_name=$1, middle_name=$2, last_name=$3, aliases=$4, relation=$5, notes=$6,
-         phones=${phoneSql}, emails=${emailSql}, social_links=$9, age=$10, birthday=$11, address=$12, updated_at=NOW() WHERE id=$13`,
+         phones=${phoneSql}, emails=${emailSql}, social_links=$9, age=$10, birthday=$11, address=$12,
+         employer_info=$${13 + 1}::jsonb${classifiedSql}, updated_at=NOW() WHERE id=$13`,
         [first_name, middle_name || null, last_name, aliasVal, relation || '', notes || '',
-         param7, param8, JSON.stringify(social_links || []), age || null, birthday || null, JSON.stringify(address || {}), req.params.id]
+         param7, param8, JSON.stringify(social_links || []), age || null, birthday || null, JSON.stringify(address || {}), req.params.id,
+         ...extraParams]
       );
+      // Log edit to profile activity log
+      await db.query('INSERT INTO k108_profile_activity_log (profile_id, username, action) VALUES ($1, $2, $3)', [req.params.id, username, 'edited']);
       await k108Log(username, 'profile_change', { profileId: req.params.id, name: `${first_name} ${last_name}`.trim() }, req.ip);
       return res.json({ ok: true });
     } catch(e) {
@@ -6721,8 +6763,12 @@ app.put('/api/k108/profiles/:id', async (req, res) => {
   const profiles = getK108Profiles();
   const idx = profiles.findIndex(p => String(p.id) === String(req.params.id));
   if (idx === -1) return res.status(404).json({ error: 'Profile not found' });
-  Object.assign(profiles[idx], { first_name, last_name, aliases: aliases||[], relation: relation||'', notes: notes||'', phones: phones||[], emails: emails||[], social_links: social_links||[], age: age||'', birthday: birthday||null, address: address||{}, updated_at: new Date().toISOString() });
+  const newClassified = (classified_data || []).filter(c => c.label || c.value);
+  const existingClassified = profiles[idx].classified_data || [];
+  const finalClassified = classified_mode === 'replace' ? newClassified : [...existingClassified, ...newClassified];
+  Object.assign(profiles[idx], { first_name, last_name, aliases: aliases||[], relation: relation||'', notes: notes||'', phones: phones||[], emails: emails||[], social_links: social_links||[], age: age||'', birthday: birthday||null, address: address||{}, employer_info: employer_info||{}, classified_data: finalClassified, updated_at: new Date().toISOString() });
   saveK108Profiles(profiles);
+  logProfileActivity(req.params.id, username, 'edited');
   await k108Log(username, 'profile_change', { profileId: req.params.id, name: `${first_name} ${last_name}`.trim() }, req.ip);
   res.json({ ok: true });
 });
@@ -6908,6 +6954,280 @@ app.put('/api/k108/profiles/relations/:rid/label', async (req, res) => {
   saveK108Profiles(profiles);
   res.json({ ok: true });
 });
+
+// ── K-108 Classified Files Upload ────────────────────────────────────────────
+app.post('/api/k108/profiles/:id/classified-files', upload.array('files', 10), async (req, res) => {
+  req.body.token = req.body.token || req.query.token;
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const inserted = [];
+  for (const file of (req.files || [])) {
+    const r = await db.query(
+      'INSERT INTO k108_classified_files (profile_id, filename, original_name, mime_type, size) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [req.params.id, file.filename, file.originalname, file.mimetype, file.size]
+    );
+    inserted.push(r.rows[0]);
+  }
+  res.json({ files: inserted });
+});
+
+app.delete('/api/k108/profiles/:id/classified-files/:fid', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  await db.query('DELETE FROM k108_classified_files WHERE id = $1 AND profile_id = $2', [req.params.fid, req.params.id]);
+  res.json({ ok: true });
+});
+
+// ── K-108 Reveal Classified (passcode verification) ─────────────────────────
+app.post('/api/k108/profiles/:id/reveal-classified', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { passcode, reason } = req.body;
+  if (!passcode) return res.status(400).json({ error: 'Passcode required' });
+  if (!reason || !reason.trim()) return res.status(400).json({ error: 'A valid reason is required' });
+
+  // Verify against the user's K-108 passcode
+  let match = false;
+  if (db.pool) {
+    const user = await getK108User(username);
+    if (user) match = await bcrypt.compare(passcode, user.passcode_hash);
+  } else {
+    match = (passcode === getK108LocalPassword());
+  }
+  if (!match) return res.status(403).json({ error: 'Invalid passcode' });
+
+  // Log classified access with reason
+  const reasonText = reason.trim();
+  if (db.pool) {
+    await db.query('INSERT INTO k108_profile_activity_log (profile_id, username, action) VALUES ($1, $2, $3)', [req.params.id, username, 'classified_accessed: ' + reasonText]);
+  } else {
+    logProfileActivity(req.params.id, username, 'classified_accessed: ' + reasonText);
+  }
+  await k108Log(username, 'classified_accessed', { profileId: req.params.id, reason: reasonText }, req.ip);
+
+  // Return the classified data
+  if (db.pool) {
+    const r = await db.query('SELECT classified_data FROM k108_profiles WHERE id = $1', [req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Profile not found' });
+    const classifiedFiles = await db.query('SELECT * FROM k108_classified_files WHERE profile_id = $1 ORDER BY uploaded_at DESC', [req.params.id]);
+    return res.json({ classifiedData: r.rows[0].classified_data || [], classifiedFiles: classifiedFiles.rows });
+  }
+  const profiles = getK108Profiles();
+  const p = profiles.find(p => String(p.id) === String(req.params.id));
+  if (!p) return res.status(404).json({ error: 'Profile not found' });
+  res.json({ classifiedData: p.classified_data || [], classifiedFiles: [] });
+});
+
+// ── K-108 Profile Activity Log ──────────────────────────────────────────────
+app.post('/api/k108/profiles/:id/activity-log', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.json({ log: [] });
+  const r = await db.query('SELECT * FROM k108_profile_activity_log WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 5', [req.params.id]);
+  res.json({ log: r.rows });
+});
+
+// ── K-108 Dossier PDF Export ────────────────────────────────────────────────
+const pendingExportApprovals = new Map(); // profileId -> { approvedBy: Set, timer, res?, includeClassified }
+
+app.post('/api/k108/profiles/:id/export', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { includeClassified } = req.body;
+  const profileId = req.params.id;
+
+  // Fetch full profile data
+  let profileData;
+  if (db.pool) {
+    const r = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [profileId]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Profile not found' });
+    profileData = r.rows[0];
+    const files = await db.query('SELECT * FROM k108_profile_files WHERE profile_id = $1 ORDER BY uploaded_at DESC', [profileId]);
+    const relations = await db.query(
+      `SELECT r.*, p.first_name, p.last_name FROM k108_profile_relations r JOIN k108_profiles p ON p.id = r.related_profile_id WHERE r.profile_id = $1`, [profileId]);
+    const activityLog = await db.query('SELECT * FROM k108_profile_activity_log WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 5', [profileId]);
+    profileData._files = files.rows;
+    profileData._relations = relations.rows;
+    profileData._activityLog = activityLog.rows;
+    if (includeClassified) {
+      const cf = await db.query('SELECT * FROM k108_classified_files WHERE profile_id = $1', [profileId]);
+      profileData._classifiedFiles = cf.rows;
+    }
+  } else {
+    const profiles = getK108Profiles();
+    profileData = profiles.find(p => String(p.id) === String(profileId));
+    if (!profileData) return res.status(404).json({ error: 'Profile not found' });
+    profileData._files = profileData.files || [];
+    profileData._relations = profileData.relations || [];
+    profileData._activityLog = [];
+  }
+
+  // Log export
+  if (db.pool) {
+    await db.query('INSERT INTO k108_profile_activity_log (profile_id, username, action) VALUES ($1, $2, $3)', [profileId, username, 'export_generated']);
+  } else {
+    logProfileActivity(profileId, username, 'export_generated');
+  }
+  await k108Log(username, 'profile_export', { profileId, includeClassified: !!includeClassified }, req.ip);
+
+  // Generate PDF via Puppeteer
+  try {
+    const html = generateDossierHTML(profileData, username, !!includeClassified);
+    const puppeteer = require('puppeteer');
+    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const pdfBuffer = await page.pdf({ format: 'A4', margin: { top: '40px', bottom: '40px', left: '40px', right: '40px' }, printBackground: true });
+    await browser.close();
+
+    const name = [profileData.first_name, profileData.last_name].filter(Boolean).join('_') || 'profile';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="K108_Dossier_${name}_${Date.now()}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (e) {
+    console.error('[K108] PDF export error:', e.message);
+    res.status(500).json({ error: 'PDF generation failed: ' + e.message });
+  }
+});
+
+function generateDossierHTML(p, generatedBy, includeClassified) {
+  const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+  const fmtTS = d => d ? new Date(d).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const now = new Date().toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const fullName = esc([p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' '));
+
+  const addr = typeof p.address === 'string' ? JSON.parse(p.address || '{}') : (p.address || {});
+  const employer = typeof p.employer_info === 'string' ? JSON.parse(p.employer_info || '{}') : (p.employer_info || {});
+  const links = typeof p.social_links === 'string' ? JSON.parse(p.social_links || '[]') : (p.social_links || []);
+  const phones = typeof p.phones === 'string' ? JSON.parse(p.phones || '[]') : (p.phones || []);
+  const emails = typeof p.emails === 'string' ? JSON.parse(p.emails || '[]') : (p.emails || []);
+  const vehicle = typeof p.vehicle === 'string' ? JSON.parse(p.vehicle || '{}') : (p.vehicle || {});
+  const classified = includeClassified ? (typeof p.classified_data === 'string' ? JSON.parse(p.classified_data || '[]') : (p.classified_data || [])) : [];
+
+  let watermark = '';
+  if (includeClassified) {
+    watermark = `<div style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;display:flex;align-items:center;justify-content:center">
+      <div style="transform:rotate(-45deg);font-size:80px;color:rgba(0,0,0,0.06);font-weight:700;letter-spacing:12px;font-family:monospace">CLASSIFIED</div></div>`;
+  }
+
+  let sections = '';
+
+  // Personal Info
+  sections += '<div class="section"><div class="section-title">PERSONAL INFORMATION</div>';
+  sections += '<table class="info-table">';
+  if (fullName) sections += '<tr><td class="label">Full Name</td><td>' + fullName + '</td></tr>';
+  if ((p.aliases || []).length) sections += '<tr><td class="label">Aliases</td><td>' + (p.aliases || []).map(a => esc(a)).join(', ') + '</td></tr>';
+  if (p.age) sections += '<tr><td class="label">Age</td><td>' + esc(p.age) + '</td></tr>';
+  if (p.birthday) sections += '<tr><td class="label">Date of Birth</td><td>' + fmtDate(p.birthday) + '</td></tr>';
+  if (p.relation) sections += '<tr><td class="label">Relation</td><td>' + esc(p.relation) + '</td></tr>';
+  sections += '</table></div>';
+
+  // Contact Info
+  if (phones.length || emails.length) {
+    sections += '<div class="section"><div class="section-title">CONTACT INFORMATION</div><table class="info-table">';
+    phones.forEach(ph => { const num = typeof ph === 'string' ? ph : (ph.number || ''); const lbl = typeof ph === 'object' ? (ph.label || '') : ''; sections += '<tr><td class="label">Phone' + (lbl ? ' (' + esc(lbl) + ')' : '') + '</td><td>' + esc(num) + '</td></tr>'; });
+    emails.forEach(e => { const a = typeof e === 'string' ? e : (e.address || ''); const lbl = typeof e === 'object' ? (e.label || '') : ''; sections += '<tr><td class="label">Email' + (lbl ? ' (' + esc(lbl) + ')' : '') + '</td><td>' + esc(a) + '</td></tr>'; });
+    sections += '</table></div>';
+  }
+
+  // Address
+  if (addr.street || addr.city) {
+    sections += '<div class="section"><div class="section-title">ADDRESS</div><table class="info-table">';
+    sections += '<tr><td class="label">Home Address</td><td>' + esc([addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', ')) + '</td></tr>';
+    sections += '</table></div>';
+  }
+
+  // Employer
+  if (employer.name || employer.address || employer.industry) {
+    sections += '<div class="section"><div class="section-title">EMPLOYER</div><table class="info-table">';
+    if (employer.name) sections += '<tr><td class="label">Employer Name</td><td>' + esc(employer.name) + '</td></tr>';
+    if (employer.address) sections += '<tr><td class="label">Address</td><td>' + esc(employer.address) + '</td></tr>';
+    if (employer.industry) sections += '<tr><td class="label">Industry</td><td>' + esc(employer.industry) + '</td></tr>';
+    sections += '</table></div>';
+  }
+
+  // Vehicle
+  if (vehicle.make || vehicle.vin) {
+    sections += '<div class="section"><div class="section-title">VEHICLE</div><table class="info-table">';
+    const vTitle = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ');
+    if (vTitle) sections += '<tr><td class="label">Vehicle</td><td>' + esc(vTitle) + '</td></tr>';
+    if (vehicle.plate) sections += '<tr><td class="label">Plate</td><td>' + esc(vehicle.plate + (vehicle.state ? ' (' + vehicle.state + ')' : '')) + '</td></tr>';
+    if (vehicle.vin) sections += '<tr><td class="label">VIN</td><td class="mono">' + esc(vehicle.vin) + '</td></tr>';
+    sections += '</table></div>';
+  }
+
+  // Social Links
+  if (links.length) {
+    sections += '<div class="section"><div class="section-title">SOCIAL MEDIA</div><table class="info-table">';
+    links.forEach(l => { sections += '<tr><td class="label">' + esc(l.handle || 'Link') + '</td><td>' + esc(l.url) + '</td></tr>'; });
+    sections += '</table></div>';
+  }
+
+  // Associates / Relations
+  if ((p._relations || []).length) {
+    sections += '<div class="section"><div class="section-title">ASSOCIATES</div><table class="info-table">';
+    p._relations.forEach(r => { sections += '<tr><td class="label">' + esc(r.label || 'Associate') + '</td><td>' + esc((r.first_name || '') + ' ' + (r.last_name || '')) + '</td></tr>'; });
+    sections += '</table></div>';
+  }
+
+  // Notes
+  if (p.notes) {
+    sections += '<div class="section"><div class="section-title">NOTES</div><div style="font-size:11px;line-height:1.6;white-space:pre-wrap">' + esc(p.notes) + '</div></div>';
+  }
+
+  // Activity Log
+  if ((p._activityLog || []).length) {
+    sections += '<div class="section"><div class="section-title">ACTIVITY LOG</div><table class="info-table">';
+    p._activityLog.forEach(e => { sections += '<tr><td class="label mono" style="font-size:10px">' + fmtTS(e.created_at) + '</td><td>' + esc(e.username) + ' — ' + esc(e.action) + '</td></tr>'; });
+    sections += '</table></div>';
+  }
+
+  // Classified section (only if included)
+  if (includeClassified && classified.length) {
+    sections += '<div class="section" style="border:2px solid #c00;padding:16px;margin-top:20px"><div class="section-title" style="color:#c00">CLASSIFIED INFORMATION</div><table class="info-table">';
+    classified.forEach(c => { sections += '<tr><td class="label">' + esc(c.label) + '</td><td>' + esc(c.value) + '</td></tr>'; });
+    sections += '</table></div>';
+  }
+
+  const footer = includeClassified
+    ? 'CLASSIFIED — AUTHORIZED EYES ONLY'
+    : 'Generated by K-108 Intelligence System — For authorized use only';
+
+  return `<!DOCTYPE html><html><head><style>
+    @page { margin: 0; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a1a; font-size: 12px; line-height: 1.5; position: relative; }
+    .mono { font-family: 'Courier New', monospace; }
+    .header { border-bottom: 2px solid #1a1a1a; padding-bottom: 12px; margin-bottom: 20px; }
+    .header-title { font-size: 16px; font-weight: 700; letter-spacing: 3px; font-family: 'Courier New', monospace; }
+    .header-sub { font-size: 10px; color: #666; margin-top: 4px; font-family: 'Courier New', monospace; }
+    .subject { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding: 12px; background: #f8f9fa; border-radius: 6px; }
+    .subject-name { font-size: 18px; font-weight: 600; }
+    .section { margin-bottom: 16px; }
+    .section-title { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 8px; }
+    .info-table { width: 100%; border-collapse: collapse; }
+    .info-table td { padding: 4px 8px; font-size: 11px; vertical-align: top; }
+    .info-table .label { font-weight: 600; width: 140px; color: #555; }
+    .footer { margin-top: 30px; border-top: 1px solid #ccc; padding-top: 8px; text-align: center; font-size: 9px; color: #888; font-family: 'Courier New', monospace; letter-spacing: 1px; }
+  </style></head><body>
+  ${watermark}
+  <div style="position:relative;z-index:1">
+    <div class="header">
+      <div class="header-title">K-108 INTELLIGENCE DOSSIER</div>
+      <div class="header-sub">PROFILE ID: ${esc(String(p.id))} &nbsp;|&nbsp; GENERATED: ${esc(now)} &nbsp;|&nbsp; BY: ${esc(generatedBy)}</div>
+    </div>
+    <div class="subject">
+      <div><div class="subject-name">${fullName || 'UNKNOWN SUBJECT'}</div>
+      ${p.relation ? '<div style="font-size:10px;color:#666;margin-top:2px">' + esc(p.relation) + '</div>' : ''}
+      </div>
+    </div>
+    ${sections}
+    <div class="footer">${esc(footer)}</div>
+  </div>
+  </body></html>`;
+}
 
 // ── K-108 Instagram Photo Proxy ──────────────────────────────────────────────
 app.post('/api/k108/instagram-photo', async (req, res) => {
@@ -7366,6 +7686,15 @@ app.post('/api/k108/command', async (req, res) => {
       await deleteK108Passcode(target);
       await k108Log(username, 'command_bar', { command: raw }, req.ip);
       return res.json(lines(`K-108 passcode reset for ${target}`, 'success'));
+    }
+
+    // ── Classified / Export commands ──
+    if (raw.toLowerCase() === 'reveal classified') {
+      return res.json({ action: 'reveal_classified' });
+    }
+
+    if (raw.toLowerCase() === 'approve export') {
+      return res.json({ action: 'approve_export', username });
     }
 
     if (cmd === 'help') {
@@ -7960,6 +8289,14 @@ io.on('connection', socket => {
         revealStep: debriefPresenterState.revealStep
       });
     }
+  });
+
+  // ── K-108 Export Approval ──
+  socket.on('k108:export_approval', (data) => {
+    io.emit('k108:export_approval', data);
+  });
+  socket.on('k108:export_ready', (data) => {
+    io.emit('k108:export_ready', data);
   });
 
   socket.on('disconnect', () => {
