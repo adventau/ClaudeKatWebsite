@@ -405,7 +405,13 @@
     .case-ws-header .cwh-caseid { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--accent-blue); letter-spacing: 0.06em; }
     .case-ws-header .cwh-name { font-size: 20px; font-weight: 600; color: #f1f5f9; letter-spacing: -0.01em; }
     .case-ws-header .cwh-target { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-    .case-ws-header .cwh-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .case-ws-header .cwh-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .cwh-action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: var(--text-secondary); font-family: 'Inter'; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .cwh-action-btn:hover { background: rgba(56,189,248,0.08); border-color: rgba(56,189,248,0.2); color: var(--accent-blue); }
+    .cwh-action-btn.cwh-danger { color: var(--text-dim); }
+    .cwh-action-btn.cwh-danger:hover { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.2); color: var(--status-red); }
+    .cwh-action-btn.cwh-ghost { border-color: transparent; background: transparent; color: var(--text-dim); }
+    .cwh-action-btn.cwh-ghost:hover { color: var(--text-secondary); background: rgba(255,255,255,0.04); }
 
     .case-section { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 12px; overflow: hidden; }
     .case-section-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border-subtle); }
@@ -2507,11 +2513,21 @@ async function loadCaseWorkspace(caseId, tab) {
   if (c.targetName) h += '    <div class="cwh-target">Target: '+esc(c.targetName)+'</div>';
   h += '  </div>';
   h += '  <div class="cwh-right">';
-  h += '    '+caseStatusPill(c.status);
-  h += '    '+casePriorityPill(c.priority);
-  h += '    <button class="k-btn k-btn-sm" onclick="toggleCaseStatus('+c.id+')">'+toggleBtnLabel+'</button>';
-  h += '    <button class="case-delete-btn" onclick="deleteCaseFromWorkspace('+c.id+',\''+esc(c.caseId||'')+'\')">DELETE</button>';
-  h += '    <button class="k-btn k-btn-sm" onclick="navigateTo(\'#/cases\')" style="background:transparent;border-color:var(--border-main);color:var(--text-muted)">← Back</button>';
+  // Status + Priority as text labels
+  const statusColor = c.status === 'open' ? 'var(--status-green)' : 'var(--text-muted)';
+  const prioColors = { high: 'var(--status-red)', medium: 'var(--accent-blue)', low: 'var(--text-secondary)' };
+  const prioColor = prioColors[c.priority] || 'var(--text-secondary)';
+  h += '    <div style="display:flex;align-items:center;gap:16px;margin-right:8px">';
+  h += '      <div style="text-align:right"><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:2px">Status</div><div style="font-size:12px;font-weight:600;color:'+statusColor+'">'+c.status.toUpperCase()+'</div></div>';
+  h += '      <div style="width:1px;height:24px;background:rgba(255,255,255,0.06)"></div>';
+  h += '      <div style="text-align:right"><div style="font-size:9px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:2px">Priority</div><div style="font-size:12px;font-weight:600;color:'+prioColor+'">'+c.priority.toUpperCase()+'</div></div>';
+  h += '    </div>';
+  // Action buttons
+  h += '    <div style="display:flex;gap:6px">';
+  h += '      <button class="cwh-action-btn" onclick="toggleCaseStatus('+c.id+')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(c.status==='open'?'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>':'<path d="M21 12a9 9 0 1 1-9-9"/><path d="M15 3h6v6"/>')+'</svg>'+toggleBtnLabel+'</button>';
+  h += '      <button class="cwh-action-btn cwh-danger" onclick="deleteCaseFromWorkspace('+c.id+',\''+esc(c.caseId||'')+'\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Delete</button>';
+  h += '      <button class="cwh-action-btn cwh-ghost" onclick="navigateTo(\'#/cases\')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>';
+  h += '    </div>';
   h += '  </div>';
   h += '</div>';
   // Two-column grid
