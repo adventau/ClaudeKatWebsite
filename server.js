@@ -7106,13 +7106,13 @@ app.post('/api/k108/profiles/:id/export', async (req, res) => {
     const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({ format: 'A4', margin: { top: '40px', bottom: '40px', left: '40px', right: '40px' }, printBackground: true });
+    const pdfBytes = await page.pdf({ format: 'A4', margin: { top: '40px', bottom: '40px', left: '40px', right: '40px' }, printBackground: true });
     await browser.close();
 
     const name = [profileData.first_name, profileData.last_name].filter(Boolean).join('_') || 'profile';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="K108_Dossier_${name}_${Date.now()}.pdf"`);
-    res.send(pdfBuffer);
+    res.send(Buffer.from(pdfBytes));
   } catch (e) {
     console.error('[K108] PDF export error:', e.message);
     res.status(500).json({ error: 'PDF generation failed: ' + e.message });
@@ -7125,6 +7125,8 @@ function generateDossierHTML(p, generatedBy, includeClassified) {
   const fmtTS = d => d ? new Date(d).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   const now = new Date().toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const fullName = esc([p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' '));
+  const initials = esc(((p.first_name||'?')[0]+(p.last_name||'?')[0]).toUpperCase());
+  const capFirst = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 
   const addr = typeof p.address === 'string' ? JSON.parse(p.address || '{}') : (p.address || {});
   const employer = typeof p.employer_info === 'string' ? JSON.parse(p.employer_info || '{}') : (p.employer_info || {});
@@ -7133,126 +7135,193 @@ function generateDossierHTML(p, generatedBy, includeClassified) {
   const emails = typeof p.emails === 'string' ? JSON.parse(p.emails || '[]') : (p.emails || []);
   const vehicle = typeof p.vehicle === 'string' ? JSON.parse(p.vehicle || '{}') : (p.vehicle || {});
   const classified = includeClassified ? (typeof p.classified_data === 'string' ? JSON.parse(p.classified_data || '[]') : (p.classified_data || [])) : [];
+  const classifiedFiles = includeClassified ? (p._classifiedFiles || []) : [];
 
-  let watermark = '';
-  if (includeClassified) {
-    watermark = `<div style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;display:flex;align-items:center;justify-content:center">
-      <div style="transform:rotate(-45deg);font-size:80px;color:rgba(0,0,0,0.06);font-weight:700;letter-spacing:12px;font-family:monospace">CLASSIFIED</div></div>`;
-  }
+  const classLevel = includeClassified ? 'CLASSIFIED' : 'UNCLASSIFIED';
+  const classBadgeColor = includeClassified ? '#dc2626' : '#22c55e';
+
+  // Build section helper
+  function row(label, value) { return value ? '<tr><td class="lbl">' + esc(label) + '</td><td class="val">' + esc(value) + '</td></tr>' : ''; }
+  function monoRow(label, value) { return value ? '<tr><td class="lbl">' + esc(label) + '</td><td class="val mono">' + esc(value) + '</td></tr>' : ''; }
 
   let sections = '';
 
-  // Personal Info
-  sections += '<div class="section"><div class="section-title">PERSONAL INFORMATION</div>';
-  sections += '<table class="info-table">';
-  if (fullName) sections += '<tr><td class="label">Full Name</td><td>' + fullName + '</td></tr>';
-  if ((p.aliases || []).length) sections += '<tr><td class="label">Aliases</td><td>' + (p.aliases || []).map(a => esc(a)).join(', ') + '</td></tr>';
-  if (p.age) sections += '<tr><td class="label">Age</td><td>' + esc(p.age) + '</td></tr>';
-  if (p.birthday) sections += '<tr><td class="label">Date of Birth</td><td>' + fmtDate(p.birthday) + '</td></tr>';
-  if (p.relation) sections += '<tr><td class="label">Relation</td><td>' + esc(p.relation) + '</td></tr>';
+  // ── Personal Info
+  sections += '<div class="sec"><div class="sec-head"><svg class="sec-icon" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Personal Information</span></div>';
+  sections += '<table class="tbl">';
+  sections += row('Full Name', [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' '));
+  if ((p.aliases || []).length) sections += row('Known Aliases', (p.aliases || []).join(', '));
+  sections += row('Age', p.age);
+  sections += row('Date of Birth', p.birthday ? fmtDate(p.birthday) : '');
+  sections += row('Classification', p.relation);
   sections += '</table></div>';
 
-  // Contact Info
+  // ── Contact
   if (phones.length || emails.length) {
-    sections += '<div class="section"><div class="section-title">CONTACT INFORMATION</div><table class="info-table">';
-    phones.forEach(ph => { const num = typeof ph === 'string' ? ph : (ph.number || ''); const lbl = typeof ph === 'object' ? (ph.label || '') : ''; sections += '<tr><td class="label">Phone' + (lbl ? ' (' + esc(lbl) + ')' : '') + '</td><td>' + esc(num) + '</td></tr>'; });
-    emails.forEach(e => { const a = typeof e === 'string' ? e : (e.address || ''); const lbl = typeof e === 'object' ? (e.label || '') : ''; sections += '<tr><td class="label">Email' + (lbl ? ' (' + esc(lbl) + ')' : '') + '</td><td>' + esc(a) + '</td></tr>'; });
+    sections += '<div class="sec"><div class="sec-head"><svg class="sec-icon" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg><span>Contact Information</span></div>';
+    sections += '<table class="tbl">';
+    phones.forEach(ph => { const num = typeof ph === 'string' ? ph : (ph.number || ''); const lbl = typeof ph === 'object' ? (ph.label || '') : ''; sections += monoRow('Phone' + (lbl ? ' (' + lbl + ')' : ''), num); });
+    emails.forEach(e => { const a = typeof e === 'string' ? e : (e.address || ''); const lbl = typeof e === 'object' ? (e.label || '') : ''; sections += row('Email' + (lbl ? ' (' + lbl + ')' : ''), a); });
     sections += '</table></div>';
   }
 
-  // Address
+  // ── Address
   if (addr.street || addr.city) {
-    sections += '<div class="section"><div class="section-title">ADDRESS</div><table class="info-table">';
-    sections += '<tr><td class="label">Home Address</td><td>' + esc([addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', ')) + '</td></tr>';
+    sections += '<div class="sec"><div class="sec-head"><svg class="sec-icon" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>Address</span></div>';
+    sections += '<table class="tbl">';
+    sections += row('Home Address', [addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', '));
     sections += '</table></div>';
   }
 
-  // Employer
+  // ── Employer
   if (employer.name || employer.address || employer.industry) {
-    sections += '<div class="section"><div class="section-title">EMPLOYER</div><table class="info-table">';
-    if (employer.name) sections += '<tr><td class="label">Employer Name</td><td>' + esc(employer.name) + '</td></tr>';
-    if (employer.address) sections += '<tr><td class="label">Address</td><td>' + esc(employer.address) + '</td></tr>';
-    if (employer.industry) sections += '<tr><td class="label">Industry</td><td>' + esc(employer.industry) + '</td></tr>';
+    sections += '<div class="sec"><div class="sec-head"><svg class="sec-icon" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg><span>Employment</span></div>';
+    sections += '<table class="tbl">';
+    sections += row('Employer', employer.name);
+    sections += row('Address', employer.address);
+    sections += row('Industry', employer.industry);
     sections += '</table></div>';
   }
 
-  // Vehicle
+  // ── Vehicle
   if (vehicle.make || vehicle.vin) {
-    sections += '<div class="section"><div class="section-title">VEHICLE</div><table class="info-table">';
+    sections += '<div class="sec"><div class="sec-head"><svg class="sec-icon" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><path d="M5 17h14M5 17a2 2 0 01-2-2V9a2 2 0 012-2h1l2-3h8l2 3h1a2 2 0 012 2v6a2 2 0 01-2 2"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/></svg><span>Vehicle</span></div>';
+    sections += '<table class="tbl">';
     const vTitle = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ');
-    if (vTitle) sections += '<tr><td class="label">Vehicle</td><td>' + esc(vTitle) + '</td></tr>';
-    if (vehicle.plate) sections += '<tr><td class="label">Plate</td><td>' + esc(vehicle.plate + (vehicle.state ? ' (' + vehicle.state + ')' : '')) + '</td></tr>';
-    if (vehicle.vin) sections += '<tr><td class="label">VIN</td><td class="mono">' + esc(vehicle.vin) + '</td></tr>';
+    sections += row('Vehicle', vTitle);
+    sections += row('Color', vehicle.color);
+    sections += row('Plate', vehicle.plate ? vehicle.plate + (vehicle.state ? ' (' + vehicle.state + ')' : '') : '');
+    sections += monoRow('VIN', vehicle.vin);
     sections += '</table></div>';
   }
 
-  // Social Links
+  // ── Social
   if (links.length) {
-    sections += '<div class="section"><div class="section-title">SOCIAL MEDIA</div><table class="info-table">';
-    links.forEach(l => { sections += '<tr><td class="label">' + esc(l.handle || 'Link') + '</td><td>' + esc(l.url) + '</td></tr>'; });
+    sections += '<div class="sec"><div class="sec-head"><svg class="sec-icon" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><span>Social Media</span></div>';
+    sections += '<table class="tbl">';
+    links.forEach(l => { sections += row(l.handle || 'Link', l.url); });
     sections += '</table></div>';
   }
 
-  // Associates / Relations
+  // ── Associates
   if ((p._relations || []).length) {
-    sections += '<div class="section"><div class="section-title">ASSOCIATES</div><table class="info-table">';
-    p._relations.forEach(r => { sections += '<tr><td class="label">' + esc(r.label || 'Associate') + '</td><td>' + esc((r.first_name || '') + ' ' + (r.last_name || '')) + '</td></tr>'; });
+    sections += '<div class="sec"><div class="sec-head"><svg class="sec-icon" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg><span>Known Associates</span></div>';
+    sections += '<table class="tbl">';
+    p._relations.forEach(r => { sections += row(r.label || 'Associate', (r.first_name || '') + ' ' + (r.last_name || '')); });
     sections += '</table></div>';
   }
 
-  // Notes
+  // ── Notes
   if (p.notes) {
-    sections += '<div class="section"><div class="section-title">NOTES</div><div style="font-size:11px;line-height:1.6;white-space:pre-wrap">' + esc(p.notes) + '</div></div>';
+    sections += '<div class="sec"><div class="sec-head"><svg class="sec-icon" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span>Analyst Notes</span></div>';
+    sections += '<div class="notes">' + esc(p.notes) + '</div></div>';
   }
 
-  // Activity Log
+  // ── Activity Log
   if ((p._activityLog || []).length) {
-    sections += '<div class="section"><div class="section-title">ACTIVITY LOG</div><table class="info-table">';
-    p._activityLog.forEach(e => { sections += '<tr><td class="label mono" style="font-size:10px">' + fmtTS(e.created_at) + '</td><td>' + esc(e.username) + ' — ' + esc(e.action) + '</td></tr>'; });
+    sections += '<div class="sec"><div class="sec-head"><svg class="sec-icon" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>Recent Activity</span></div>';
+    sections += '<table class="tbl">';
+    p._activityLog.forEach(e => {
+      const actionBase = e.action.includes(':') ? e.action.split(':')[0].trim() : e.action;
+      const label = actionBase.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+      sections += '<tr><td class="lbl mono" style="font-size:9px">' + fmtTS(e.created_at) + '</td><td class="val"><span style="font-weight:600;color:#334155">' + esc(capFirst(e.username)) + '</span> &mdash; ' + esc(label) + '</td></tr>';
+    });
     sections += '</table></div>';
   }
 
-  // Classified section (only if included)
-  if (includeClassified && classified.length) {
-    sections += '<div class="section" style="border:2px solid #c00;padding:16px;margin-top:20px"><div class="section-title" style="color:#c00">CLASSIFIED INFORMATION</div><table class="info-table">';
-    classified.forEach(c => { sections += '<tr><td class="label">' + esc(c.label) + '</td><td>' + esc(c.value) + '</td></tr>'; });
+  // ── Classified
+  if (includeClassified && (classified.length || classifiedFiles.length)) {
+    sections += '<div class="sec classified-sec"><div class="sec-head" style="border-color:rgba(220,38,38,0.3)"><svg class="sec-icon" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span style="color:#dc2626">Classified Information</span></div>';
+    sections += '<table class="tbl">';
+    classified.forEach(c => { sections += '<tr><td class="lbl">' + esc(c.label) + '</td><td class="val">' + esc(c.value) + '</td></tr>'; });
+    if (classifiedFiles.length) {
+      classifiedFiles.forEach(f => { sections += '<tr><td class="lbl">File</td><td class="val mono">' + esc(f.filename || f.original_name || 'Attached') + '</td></tr>'; });
+    }
     sections += '</table></div>';
   }
 
   const footer = includeClassified
-    ? 'CLASSIFIED — AUTHORIZED EYES ONLY'
-    : 'Generated by K-108 Intelligence System — For authorized use only';
+    ? 'CLASSIFIED // AUTHORIZED EYES ONLY // DO NOT DISTRIBUTE'
+    : 'K-108 Intelligence Division // For Authorized Use Only';
 
   return `<!DOCTYPE html><html><head><style>
-    @page { margin: 0; }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a1a; font-size: 12px; line-height: 1.5; position: relative; }
-    .mono { font-family: 'Courier New', monospace; }
-    .header { border-bottom: 2px solid #1a1a1a; padding-bottom: 12px; margin-bottom: 20px; }
-    .header-title { font-size: 16px; font-weight: 700; letter-spacing: 3px; font-family: 'Courier New', monospace; }
-    .header-sub { font-size: 10px; color: #666; margin-top: 4px; font-family: 'Courier New', monospace; }
-    .subject { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding: 12px; background: #f8f9fa; border-radius: 6px; }
-    .subject-name { font-size: 18px; font-weight: 600; }
-    .section { margin-bottom: 16px; }
-    .section-title { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: #444; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 8px; }
-    .info-table { width: 100%; border-collapse: collapse; }
-    .info-table td { padding: 4px 8px; font-size: 11px; vertical-align: top; }
-    .info-table .label { font-weight: 600; width: 140px; color: #555; }
-    .footer { margin-top: 30px; border-top: 1px solid #ccc; padding-top: 8px; text-align: center; font-size: 9px; color: #888; font-family: 'Courier New', monospace; letter-spacing: 1px; }
+    @page { margin: 0; size: A4; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1e293b; font-size: 11px; line-height: 1.55; }
+    .mono { font-family: 'Courier New', Courier, monospace; letter-spacing: 0.02em; }
+
+    /* Watermark */
+    .watermark { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+    .watermark span { transform: rotate(-35deg); font-size: 72px; font-weight: 800; letter-spacing: 16px; font-family: 'Courier New', monospace; color: rgba(180,30,30,0.045); text-transform: uppercase; }
+
+    /* Header bar */
+    .hdr { background: #0c1222; padding: 24px 40px; display: flex; align-items: center; justify-content: space-between; }
+    .hdr-left { display: flex; align-items: center; gap: 16px; }
+    .hdr-logo { width: 38px; height: 38px; border-radius: 8px; border: 1.5px solid rgba(76,201,240,0.35); display: flex; align-items: center; justify-content: center; font-family: 'Courier New', monospace; font-size: 12px; font-weight: 700; color: #4cc9f0; letter-spacing: 1px; background: rgba(76,201,240,0.08); }
+    .hdr-text h1 { font-size: 13px; font-weight: 700; letter-spacing: 4px; color: #e2e8f0; text-transform: uppercase; font-family: 'Courier New', monospace; }
+    .hdr-text .sub { font-size: 8.5px; color: #64748b; margin-top: 3px; letter-spacing: 0.5px; font-family: 'Courier New', monospace; }
+    .class-badge { font-size: 8px; font-weight: 700; letter-spacing: 2px; padding: 4px 14px; border-radius: 3px; font-family: 'Courier New', monospace; }
+
+    /* Body content */
+    .content { padding: 28px 40px 32px; position: relative; }
+
+    /* Subject block */
+    .subject { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding: 16px 18px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; border-left: 3px solid #0c1222; position: relative; z-index: 1; }
+    .subject-avatar { width: 48px; height: 48px; border-radius: 8px; background: #0c1222; display: flex; align-items: center; justify-content: center; font-family: 'Courier New', monospace; font-weight: 700; font-size: 15px; color: #4cc9f0; letter-spacing: 1px; flex-shrink: 0; }
+    .subject-info h2 { font-size: 18px; font-weight: 700; color: #0f172a; letter-spacing: 0.3px; }
+    .subject-info .tag { display: inline-block; font-size: 8px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; padding: 2px 8px; border-radius: 3px; background: #0c1222; color: #4cc9f0; margin-top: 4px; }
+    .subject-meta { margin-left: auto; text-align: right; font-size: 9px; color: #94a3b8; font-family: 'Courier New', monospace; line-height: 1.8; }
+
+    /* Sections */
+    .sec { margin-bottom: 18px; position: relative; z-index: 1; }
+    .sec-head { display: flex; align-items: center; gap: 7px; font-size: 9.5px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: #64748b; padding-bottom: 6px; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+    .sec-icon { width: 13px; height: 13px; flex-shrink: 0; }
+    .classified-sec { border: 1px solid #fca5a5; border-radius: 6px; padding: 14px 16px; background: #fef2f2; }
+    .classified-sec .sec-head { border-color: #fecaca; }
+
+    /* Tables */
+    .tbl { width: 100%; border-collapse: collapse; }
+    .tbl td { padding: 4px 0; font-size: 11px; vertical-align: top; }
+    .tbl tr { border-bottom: 1px solid #f1f5f9; }
+    .tbl tr:last-child { border-bottom: none; }
+    .tbl .lbl { font-weight: 600; width: 130px; color: #94a3b8; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px; padding-right: 12px; }
+    .tbl .val { color: #1e293b; }
+
+    /* Notes */
+    .notes { font-size: 11px; line-height: 1.7; color: #475569; white-space: pre-wrap; padding: 10px 14px; background: #f8fafc; border-radius: 4px; border-left: 2px solid #cbd5e1; }
+
+    /* Footer */
+    .ftr { padding: 14px 40px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 7.5px; color: #94a3b8; font-family: 'Courier New', monospace; letter-spacing: 1.2px; text-transform: uppercase; }
   </style></head><body>
-  ${watermark}
-  <div style="position:relative;z-index:1">
-    <div class="header">
-      <div class="header-title">K-108 INTELLIGENCE DOSSIER</div>
-      <div class="header-sub">PROFILE ID: ${esc(String(p.id))} &nbsp;|&nbsp; GENERATED: ${esc(now)} &nbsp;|&nbsp; BY: ${esc(generatedBy)}</div>
+    ${includeClassified ? '<div class="watermark"><span>Classified</span></div>' : ''}
+    <div class="hdr">
+      <div class="hdr-left">
+        <div class="hdr-logo">108</div>
+        <div class="hdr-text">
+          <h1>Intelligence Dossier</h1>
+          <div class="sub">Profile #${esc(String(p.id))} &nbsp;&bull;&nbsp; ${esc(now)}</div>
+        </div>
+      </div>
+      <div class="class-badge" style="background:${classBadgeColor}15;color:${classBadgeColor};border:1px solid ${classBadgeColor}40">${classLevel}</div>
     </div>
+    <div class="content">
     <div class="subject">
-      <div><div class="subject-name">${fullName || 'UNKNOWN SUBJECT'}</div>
-      ${p.relation ? '<div style="font-size:10px;color:#666;margin-top:2px">' + esc(p.relation) + '</div>' : ''}
+      ${p.photo_url ? '<img src="' + esc(p.photo_url) + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0">' : '<div class="subject-avatar">' + initials + '</div>'}
+      <div class="subject-info">
+        <h2>${fullName || 'UNKNOWN SUBJECT'}</h2>
+        ${p.relation ? '<div class="tag">' + esc(p.relation) + '</div>' : ''}
+      </div>
+      <div class="subject-meta">
+        Prepared by: ${esc(capFirst(generatedBy))}<br>
+        ${p.created_at ? 'Indexed: ' + fmtDate(p.created_at) : ''}
       </div>
     </div>
     ${sections}
-    <div class="footer">${esc(footer)}</div>
-  </div>
+    </div>
+    <div class="ftr">
+      <span>${esc(footer)}</span>
+      <span>K-108 Intelligence Division</span>
+    </div>
   </body></html>`;
 }
 
@@ -7902,6 +7971,77 @@ app.post('/api/k108/cases/status', async (req, res) => {
   res.json({ ok: true, status: target });
 });
 
+// Delete case
+app.post('/api/k108/cases/delete', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'Case id required' });
+  const check = await db.query('SELECT * FROM k108_cases WHERE id = $1', [id]);
+  if (!check.rows.length) return res.status(404).json({ error: 'Case not found' });
+  const caseName = check.rows[0].name;
+  const caseIdStr = check.rows[0].case_id;
+  // CASCADE handles child rows (timeline, evidence, entities, notes)
+  await db.query('DELETE FROM k108_cases WHERE id = $1', [id]);
+  await k108Log(username, 'case_delete', { case_id: caseIdStr, name: caseName }, req.ip);
+  k108EmitCaseUpdate(id);
+  res.json({ success: true });
+});
+
+// Check duplicate case name
+app.post('/api/k108/cases/check-duplicate', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.json({ exists: false });
+  const { name } = req.body || {};
+  if (!name) return res.json({ exists: false });
+  const r = await db.query('SELECT id FROM k108_cases WHERE LOWER(name) = LOWER($1) LIMIT 1', [String(name).trim()]);
+  res.json({ exists: r.rows.length > 0 });
+});
+
+// Search intel profiles for entity import
+app.post('/api/k108/cases/profiles/search', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.json({ profiles: [] });
+  const { q } = req.body || {};
+  if (!q || String(q).trim().length < 2) return res.json({ profiles: [] });
+  const search = '%' + String(q).trim() + '%';
+  const r = await db.query(
+    `SELECT id, first_name, last_name, middle_name, photo_url, relation
+     FROM k108_profiles
+     WHERE CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', last_name) ILIKE $1
+     ORDER BY updated_at DESC LIMIT 10`,
+    [search]
+  );
+  res.json({ profiles: r.rows.map(p => ({
+    id: p.id,
+    name: [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' '),
+    photoUrl: p.photo_url || '',
+    relation: p.relation || ''
+  })) });
+});
+
+// Remove entity from case
+app.post('/api/k108/cases/entities/remove', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id, entityId } = req.body || {};
+  if (!id || !entityId) return res.status(400).json({ error: 'id and entityId required' });
+  const ent = await db.query('SELECT * FROM k108_case_entities WHERE id = $1 AND case_id = $2', [entityId, id]);
+  if (!ent.rows.length) return res.status(404).json({ error: 'Entity not found' });
+  await db.query('DELETE FROM k108_case_entities WHERE id = $1', [entityId]);
+  await db.query(
+    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'entity','Entity removed',$2,$3)`,
+    [id, 'Removed "' + ent.rows[0].name + '" from case.', username]
+  );
+  await k108TouchCase(id);
+  k108EmitCaseUpdate(id);
+  res.json({ success: true });
+});
+
 // ── Timeline ──
 app.post('/api/k108/cases/timeline/list', async (req, res) => {
   const username = k108Auth(req, res);
@@ -7987,23 +8127,28 @@ app.post('/api/k108/cases/entities/list', async (req, res) => {
   if (!db.pool) return res.json({ entities: [] });
   const { id } = req.body || {};
   const r = await db.query('SELECT * FROM k108_case_entities WHERE case_id = $1 ORDER BY added_at DESC', [id]);
-  res.json({ entities: r.rows.map(e => ({ id: e.id, entityType: e.entity_type, name: e.name, detail: e.detail || '', source: e.source || '', addedBy: e.added_by || '', addedAt: e.added_at })) });
+  res.json({ entities: r.rows.map(e => ({ id: e.id, entityType: e.entity_type, name: e.name, detail: e.detail || '', source: e.source || '', addedBy: e.added_by || '', addedAt: e.added_at, profileId: e.profile_id || null })) });
 });
 
 app.post('/api/k108/cases/entities/add', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
   if (!db.pool) return res.status(503).json({ error: 'Database required' });
-  const { id, entityType, name, detail, source } = req.body || {};
+  const { id, entityType, name, detail, source, profileId } = req.body || {};
   if (!id || !name) return res.status(400).json({ error: 'id and name required' });
   const type = (entityType === 'vehicle') ? 'vehicle' : 'person';
   const detailStr = typeof detail === 'string' ? detail : JSON.stringify(detail || {});
+  // Check duplicate by profile_id if provided
+  if (profileId) {
+    const dup = await db.query('SELECT id FROM k108_case_entities WHERE case_id = $1 AND profile_id = $2', [id, profileId]);
+    if (dup.rows.length) return res.json({ duplicate: true, error: 'Already linked to this case' });
+  }
   const r = await db.query(
-    `INSERT INTO k108_case_entities (case_id, entity_type, name, detail, source, added_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-    [id, type, String(name), detailStr, String(source || ''), username]
+    `INSERT INTO k108_case_entities (case_id, entity_type, name, detail, source, added_by, profile_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+    [id, type, String(name), detailStr, String(source || ''), username, profileId || null]
   );
   await db.query(
-    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'entity','Entity added',$2,$3)`,
+    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'entity','Entity linked',$2,$3)`,
     [id, (type === 'vehicle' ? 'Vehicle ' : 'Person ') + '"' + name + '" added from ' + (source || 'manual') + '.', username]
   );
   await k108TouchCase(id);
@@ -8051,7 +8196,13 @@ app.get('/api/archivist/queue', async (req, res) => {
   }
   if (!db.pool) return res.json([]);
   const r = await db.query(
-    `SELECT id, profile_id, name, requested_by, created_at FROM surveillance_queue WHERE status = 'pending' ORDER BY created_at ASC`
+    `SELECT sq.id, sq.profile_id, sq.name, sq.requested_by, sq.created_at,
+            ip.address, ip.date_of_birth, ip.phone_numbers, ip.emails,
+            ip.social_links, ip.occupation, ip.employer_info
+     FROM surveillance_queue sq
+     LEFT JOIN intel_profiles ip ON ip.id = sq.profile_id
+     WHERE sq.status = 'pending'
+     ORDER BY sq.created_at ASC`
   );
   res.json(r.rows);
 });

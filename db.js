@@ -368,6 +368,7 @@ async function createK108Tables() {
       added_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await query(`ALTER TABLE k108_case_entities ADD COLUMN IF NOT EXISTS profile_id INT`);
 
   await query(`
     CREATE TABLE IF NOT EXISTS k108_case_notes (
