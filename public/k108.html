@@ -394,22 +394,29 @@
     .case-pill.prio-medium { background: rgba(56,189,248,0.1); color: var(--accent-blue); border: 1px solid rgba(56,189,248,0.25); }
     .case-pill.prio-high { background: rgba(248,113,113,0.12); color: var(--status-red); border: 1px solid rgba(248,113,113,0.25); }
 
-    .case-workspace { display: flex; gap: 20px; align-items: flex-start; }
-    .case-ws-sidebar { width: 180px; flex-shrink: 0; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 10px; position: sticky; top: 20px; }
+    .case-workspace { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+    @media (max-width: 900px) { .case-workspace { grid-template-columns: 1fr; } }
+    .case-ws-col { display: flex; flex-direction: column; gap: 16px; }
     .case-ws-navbtn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--text-muted); font-family: 'Inter'; font-size: 12px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; text-align: left; transition: all 0.15s; margin-bottom: 4px; }
     .case-ws-navbtn:hover { background: rgba(56,189,248,0.05); color: var(--text-primary); }
     .case-ws-navbtn.active { background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(129,140,248,0.06)); border-color: rgba(56,189,248,0.25); color: var(--accent-blue); }
-    .case-ws-main { flex: 1; min-width: 0; }
-    .case-ws-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; margin-bottom: 16px; gap: 16px; flex-wrap: wrap; }
+    .case-ws-header { display: flex; align-items: center; justify-content: space-between; padding: 22px 24px; background: linear-gradient(165deg, #141c2e 0%, #0f1524 40%, #111927 100%); border: 1px solid rgba(56,189,248,0.1); border-radius: 14px; margin-bottom: 16px; gap: 16px; flex-wrap: wrap; box-shadow: 0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03); }
     .case-ws-header .cwh-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
     .case-ws-header .cwh-caseid { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--accent-blue); letter-spacing: 0.06em; }
-    .case-ws-header .cwh-name { font-size: 17px; font-weight: 600; color: var(--text-primary); }
-    .case-ws-header .cwh-target { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-    .case-ws-header .cwh-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .case-ws-header .cwh-name { font-size: 20px; font-weight: 600; color: #f1f5f9; letter-spacing: -0.01em; }
+    .case-ws-header .cwh-target { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .case-ws-header .cwh-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
+    .case-section { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 12px; overflow: hidden; }
+    .case-section-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border-subtle); }
+    .case-section-title { font-size: 11px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.1em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+    .case-section-title svg { opacity: 0.5; }
+    .case-section-count { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--text-dim); letter-spacing: 0.04em; }
+    .case-section-body { padding: 16px 18px; }
+    .case-section-body:empty::after { content: 'Nothing here yet.'; color: var(--text-dim); font-size: 12px; }
     .case-tab-panel { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 20px 22px; }
     .case-tab-title { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); }
-    .case-kv { display: grid; grid-template-columns: 140px 1fr; gap: 10px 16px; font-size: 13px; }
+    .case-kv { display: grid; grid-template-columns: 100px 1fr; gap: 10px 12px; font-size: 13px; }
     .case-kv-label { font-size: 10px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; padding-top: 2px; }
     .case-kv-val { color: var(--text-primary); font-size: 13px; }
     .case-summary-box { background: #161b22; border: 1px solid var(--border-subtle); border-radius: 4px; padding: 14px 16px; font-size: 13px; color: var(--text-primary); line-height: 1.55; white-space: pre-wrap; }
@@ -1599,9 +1606,7 @@ function handleRoute() {
   if (viewName === 'vehicle') loadVehicleQuota();
   if (viewName === 'cases') loadCasesList();
   if (viewName === 'case') {
-    const caseId = sub;
-    const tab = hash.split('/')[2] || 'overview';
-    if (caseId) loadCaseWorkspace(caseId, tab);
+    if (sub) loadCaseWorkspace(sub);
   }
 }
 
@@ -2496,7 +2501,6 @@ async function submitNewCase() {
 }
 
 async function loadCaseWorkspace(caseId, tab) {
-  tab = tab || 'overview';
   const area = document.getElementById('case-ws-area');
   area.innerHTML = '<div class="k-empty">Loading case…</div>';
   const d = await kAuthFetch('/api/k108/cases/get', { id: parseInt(caseId, 10) });
@@ -2504,16 +2508,9 @@ async function loadCaseWorkspace(caseId, tab) {
   if (d.error) { area.innerHTML = '<div class="k-empty">'+esc(d.error)+'</div>'; return; }
   currentCase = d.case;
   const c = d.case;
-  const counts = d.counts || {};
-  const tabs = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'timeline', label: 'Timeline' + (counts.timeline_count ? ' ('+counts.timeline_count+')' : '') },
-    { key: 'evidence', label: 'Evidence' + (counts.evidence_count ? ' ('+counts.evidence_count+')' : '') },
-    { key: 'entities', label: 'Entities' + (counts.entity_count ? ' ('+counts.entity_count+')' : '') },
-    { key: 'notes', label: 'Notes' + (counts.notes_count ? ' ('+counts.notes_count+')' : '') },
-  ];
   const toggleBtnLabel = c.status === 'open' ? 'Close Case' : 'Reopen Case';
   let h = '';
+  // Header
   h += '<div class="case-ws-header">';
   h += '  <div class="cwh-left">';
   h += '    <div class="cwh-caseid">'+esc(c.caseId || '')+'</div>';
@@ -2525,66 +2522,121 @@ async function loadCaseWorkspace(caseId, tab) {
   h += '    '+caseClassPill(c.classification);
   h += '    '+casePriorityPill(c.priority);
   h += '    <button class="k-btn k-btn-sm" onclick="toggleCaseStatus('+c.id+')">'+toggleBtnLabel+'</button>';
-  h += '    <button class="case-delete-btn" onclick="deleteCaseFromWorkspace('+c.id+',\''+esc(c.caseId||'')+'\')">DELETE CASE</button>';
+  h += '    <button class="case-delete-btn" onclick="deleteCaseFromWorkspace('+c.id+',\''+esc(c.caseId||'')+'\')">DELETE</button>';
   h += '    <button class="k-btn k-btn-sm" onclick="navigateTo(\'#/cases\')" style="background:transparent;border-color:var(--border-main);color:var(--text-muted)">← Back</button>';
   h += '  </div>';
   h += '</div>';
+  // Two-column grid
   h += '<div class="case-workspace">';
-  h += '  <div class="case-ws-sidebar">';
-  tabs.forEach(t => {
-    const active = t.key === tab ? ' active' : '';
-    h += '<button class="case-ws-navbtn'+active+'" onclick="navigateTo(\'#/case/'+c.id+'/'+t.key+'\')">'+esc(t.label)+'</button>';
-  });
+  // Left column: Summary, Timeline, Notes
+  h += '<div class="case-ws-col">';
+  // Summary section
+  h += '<div class="case-section">';
+  h += '  <div class="case-section-head">';
+  h += '    <div class="case-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Summary</div>';
+  h += '    <button class="case-add-btn" onclick="editCaseSummary()">EDIT</button>';
   h += '  </div>';
-  h += '  <div class="case-ws-main"><div id="case-tab-content"><div class="k-empty">Loading…</div></div></div>';
+  h += '  <div class="case-section-body" id="cws-summary"></div>';
   h += '</div>';
+  // Timeline section
+  h += '<div class="case-section">';
+  h += '  <div class="case-section-head">';
+  h += '    <div class="case-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Timeline <span class="case-section-count" id="cws-timeline-count"></span></div>';
+  h += '    <button class="case-add-btn" onclick="toggleTimelineForm()">+ ADD</button>';
+  h += '  </div>';
+  h += '  <div id="cws-timeline-form" style="display:none;padding:14px 18px;border-bottom:1px solid var(--border-subtle)">';
+  h += '    <input type="text" id="tl-title" class="k-input" placeholder="Entry title" style="margin-bottom:8px;width:100%;background:#161b22;border:1px solid var(--border-main);border-radius:8px;padding:10px 12px;color:#fff;font-size:13px;outline:none;box-sizing:border-box">';
+  h += '    <textarea id="tl-body" style="width:100%;background:#161b22;border:1px solid var(--border-main);border-radius:8px;padding:10px 12px;color:#fff;font-size:13px;outline:none;resize:vertical;min-height:60px;font-family:inherit;box-sizing:border-box" placeholder="Details (optional)"></textarea>';
+  h += '    <div style="margin-top:8px;display:flex;justify-content:flex-end;gap:8px"><button class="cnm-cancel-btn" style="padding:6px 14px;border-radius:8px;cursor:pointer;font-size:11px" onclick="toggleTimelineForm()">Cancel</button><button class="k-btn k-btn-sm" onclick="submitTimelineEntry('+c.id+')">Add Entry</button></div>';
+  h += '  </div>';
+  h += '  <div class="case-section-body" id="cws-timeline" style="max-height:400px;overflow-y:auto"></div>';
+  h += '</div>';
+  // Notes section
+  h += '<div class="case-section">';
+  h += '  <div class="case-section-head">';
+  h += '    <div class="case-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Notes <span class="case-section-count" id="cws-notes-count"></span></div>';
+  h += '  </div>';
+  h += '  <div class="case-section-body" style="padding-bottom:0">';
+  h += '    <div style="display:flex;gap:8px;margin-bottom:14px"><textarea id="note-body" style="flex:1;background:#161b22;border:1px solid var(--border-main);border-radius:8px;padding:10px 12px;color:#fff;font-size:13px;outline:none;resize:none;min-height:44px;font-family:inherit;box-sizing:border-box" placeholder="Add a note..."></textarea><button class="k-btn k-btn-sm" onclick="submitCaseNote('+c.id+')" style="align-self:flex-end;white-space:nowrap">Add</button></div>';
+  h += '  </div>';
+  h += '  <div id="cws-notes" style="padding:0 18px 16px;max-height:320px;overflow-y:auto"></div>';
+  h += '</div>';
+  h += '</div>'; // end left col
+  // Right column: Details, Entities, Evidence
+  h += '<div class="case-ws-col">';
+  // Details section
+  h += '<div class="case-section">';
+  h += '  <div class="case-section-head">';
+  h += '    <div class="case-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>Details</div>';
+  h += '  </div>';
+  h += '  <div class="case-section-body" id="cws-details"></div>';
+  h += '</div>';
+  // Entities section
+  h += '<div class="case-section">';
+  h += '  <div class="case-section-head">';
+  h += '    <div class="case-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Entities <span class="case-section-count" id="cws-entities-count"></span></div>';
+  h += '  </div>';
+  h += '  <div class="case-section-body" id="cws-entities"></div>';
+  h += '</div>';
+  // Evidence section
+  h += '<div class="case-section">';
+  h += '  <div class="case-section-head">';
+  h += '    <div class="case-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Evidence <span class="case-section-count" id="cws-evidence-count"></span></div>';
+  h += '  </div>';
+  h += '  <div class="case-section-body" id="cws-evidence"></div>';
+  h += '</div>';
+  h += '</div>'; // end right col
+  h += '</div>'; // end grid
   area.innerHTML = h;
-  loadCaseTab(c.id, tab);
+  // Load all sections in parallel
+  loadAllCaseSections(c.id);
+}
+function toggleTimelineForm() {
+  const f = document.getElementById('cws-timeline-form');
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+async function loadAllCaseSections(caseId) {
+  renderCaseDetails();
+  renderCaseSummarySection();
+  renderCaseTimeline(caseId);
+  renderCaseEvidence(caseId);
+  renderCaseEntities(caseId);
+  renderCaseNotes(caseId);
 }
 
-async function loadCaseTab(caseId, tab) {
-  const target = document.getElementById('case-tab-content');
-  if (!target) return;
-  target.innerHTML = '<div class="k-empty">Loading…</div>';
-  if (tab === 'overview') return renderCaseOverview(caseId);
-  if (tab === 'timeline') return renderCaseTimeline(caseId);
-  if (tab === 'evidence') return renderCaseEvidence(caseId);
-  if (tab === 'entities') return renderCaseEntities(caseId);
-  if (tab === 'notes') return renderCaseNotes(caseId);
-}
-
-function renderCaseOverview() {
+function renderCaseDetails() {
   const c = currentCase;
   if (!c) return;
   const priorities = ['low','medium','high'];
   const classifications = ['unclassified','confidential','classified'];
-  let h = '<div class="case-tab-panel">';
-  h += '<div class="case-tab-title">Case Overview</div>';
-  h += '<div class="case-kv">';
+  let h = '<div class="case-kv">';
   h += '<div class="case-kv-label">Target</div><div class="case-kv-val">'+esc(c.targetName || '—')+'</div>';
-  h += '<div class="case-kv-label">Priority</div><div class="case-kv-val"><div class="cnm-pill-group" style="gap:6px">';
+  h += '<div class="case-kv-label">Priority</div><div class="case-kv-val"><div class="cnm-pill-group" style="gap:4px;flex-wrap:wrap">';
   priorities.forEach(p => {
     const active = c.priority === p ? ' active' : '';
-    h += '<button class="cnm-pill prio-'+p+active+'" style="flex:0;padding:4px 12px;font-size:9px" onclick="updateCaseField(\'priority\',\''+p+'\')">'+p.toUpperCase()+'</button>';
+    h += '<button class="cnm-pill prio-'+p+active+'" style="flex:0;padding:3px 8px;font-size:8px" onclick="updateCaseField(\'priority\',\''+p+'\')">'+p.toUpperCase()+'</button>';
   });
   h += '</div></div>';
-  h += '<div class="case-kv-label">Classification</div><div class="case-kv-val"><div class="cnm-pill-group" style="gap:6px">';
+  h += '<div class="case-kv-label">Classification</div><div class="case-kv-val"><div class="cnm-pill-group" style="gap:4px;flex-wrap:wrap">';
   classifications.forEach(cl => {
     const active = c.classification === cl ? ' active' : '';
-    h += '<button class="cnm-pill class-'+cl+active+'" style="flex:0;padding:4px 12px;font-size:9px" onclick="updateCaseField(\'classification\',\''+cl+'\')">'+cl.toUpperCase()+'</button>';
+    h += '<button class="cnm-pill class-'+cl+active+'" style="flex:0;padding:3px 8px;font-size:8px" onclick="updateCaseField(\'classification\',\''+cl+'\')">'+cl.toUpperCase()+'</button>';
   });
   h += '</div></div>';
   h += '<div class="case-kv-label">Status</div><div class="case-kv-val">'+caseStatusPill(c.status)+'</div>';
   h += '<div class="case-kv-label">Created By</div><div class="case-kv-val">'+esc(c.createdBy || '—')+'</div>';
   h += '<div class="case-kv-label">Created</div><div class="case-kv-val">'+esc(fmtCaseDate(c.createdAt))+'</div>';
-  h += '<div class="case-kv-label">Last Updated</div><div class="case-kv-val">'+esc(fmtCaseDate(c.updatedAt))+'</div>';
+  h += '<div class="case-kv-label">Updated</div><div class="case-kv-val">'+esc(fmtCaseDate(c.updatedAt))+'</div>';
   h += '</div>';
-  h += '<div style="margin-top:22px"><div class="case-tab-title" style="margin-bottom:10px">Case Summary</div>';
-  h += '<div id="case-summary-display" class="case-summary-box">'+(c.summary ? esc(c.summary) : '<span style="color:var(--text-dim)">No summary yet. Click Edit to add one.</span>')+'</div>';
-  h += '<div style="margin-top:10px;display:flex;gap:8px"><button class="k-btn k-btn-sm" onclick="editCaseSummary()">Edit Summary</button></div>';
-  h += '</div>';
-  h += '</div>';
-  document.getElementById('case-tab-content').innerHTML = h;
+  document.getElementById('cws-details').innerHTML = h;
+}
+function renderCaseSummarySection() {
+  const c = currentCase;
+  if (!c) return;
+  const el = document.getElementById('cws-summary');
+  el.innerHTML = '<div id="case-summary-display" class="case-summary-box" style="border-radius:8px">' +
+    (c.summary ? esc(c.summary) : '<span style="color:var(--text-dim);font-style:italic">No summary yet. Click Edit to add one.</span>') +
+    '</div>';
 }
 
 async function updateCaseField(field, value) {
@@ -2595,23 +2647,20 @@ async function updateCaseField(field, value) {
   if (!d) return;
   if (d.case) currentCase = d.case;
   showToastK108(field.charAt(0).toUpperCase() + field.slice(1) + ' updated');
-  renderCaseOverview();
-  // Also refresh the workspace header pills
+  // Refresh details and header
+  renderCaseDetails();
   const hash = window.location.hash || '';
   const parts = hash.replace('#/', '').split('/');
-  if (parts[0] === 'case' && parts[1]) loadCaseWorkspace(parts[1], 'overview');
+  if (parts[0] === 'case' && parts[1]) loadCaseWorkspace(parts[1]);
 }
 
 function editCaseSummary() {
   const c = currentCase;
-  const box = document.getElementById('case-summary-display');
-  if (!box) return;
-  box.outerHTML = '<textarea id="case-summary-edit" class="case-summary-edit">'+esc(c.summary || '')+'</textarea>' +
-    '<div style="margin-top:10px;display:flex;gap:8px"><button class="k-btn k-btn-sm" onclick="saveCaseSummary()">Save</button><button class="k-btn k-btn-sm" onclick="renderCaseOverview()" style="background:transparent;border-color:var(--border-main);color:var(--text-muted)">Cancel</button></div>';
-  const btns = document.querySelector('#case-tab-content button.k-btn-sm');
-  // Hide the original edit buttons row
-  const editRow = document.querySelectorAll('#case-tab-content > .case-tab-panel > div');
-  // simpler: do nothing — original buttons are still there but harmless
+  const el = document.getElementById('cws-summary');
+  if (!el) return;
+  el.innerHTML = '<textarea id="case-summary-edit" style="width:100%;background:#161b22;border:1px solid var(--border-main);border-radius:8px;padding:12px 14px;font-family:inherit;font-size:13px;color:#fff;resize:vertical;min-height:90px;outline:none;box-sizing:border-box">'+esc(c.summary || '')+'</textarea>' +
+    '<div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end"><button class="cnm-cancel-btn" style="padding:6px 14px;border-radius:8px;cursor:pointer;font-size:11px" onclick="renderCaseSummarySection()">Cancel</button><button class="k-btn k-btn-sm" onclick="saveCaseSummary()">Save</button></div>';
+  document.getElementById('case-summary-edit').focus();
 }
 
 async function saveCaseSummary() {
@@ -2621,16 +2670,17 @@ async function saveCaseSummary() {
   if (!d) return;
   if (d.case) currentCase = d.case;
   showToastK108('Summary saved');
-  renderCaseOverview();
+  renderCaseSummarySection();
 }
 
 async function renderCaseTimeline(caseId) {
   const d = await kAuthFetch('/api/k108/cases/timeline/list', { id: caseId });
   if (!d) return;
-  let h = '<div class="case-tab-panel">';
-  h += '<div class="case-tab-title">Timeline <span style="color:var(--text-dim);font-weight:400;margin-left:8px">'+(d.entries.length)+' entries</span></div>';
+  const countEl = document.getElementById('cws-timeline-count');
+  if (countEl) countEl.textContent = d.entries.length ? '(' + d.entries.length + ')' : '';
+  let h = '';
   if (!d.entries.length) {
-    h += '<div class="k-empty">No timeline entries yet.</div>';
+    h += '<div style="color:var(--text-dim);font-size:12px">No timeline entries yet.</div>';
   } else {
     d.entries.forEach(e => {
       h += '<div class="case-timeline-item">' +
@@ -2643,14 +2693,7 @@ async function renderCaseTimeline(caseId) {
       '</div>';
     });
   }
-  h += '<div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border-subtle)">';
-  h += '<div class="case-kv-label" style="margin-bottom:6px">Add Timeline Entry</div>';
-  h += '<input type="text" id="tl-title" class="k-input" placeholder="Title" style="margin-bottom:8px">';
-  h += '<textarea id="tl-body" class="case-summary-edit" placeholder="Details (optional)"></textarea>';
-  h += '<div style="margin-top:10px;display:flex;justify-content:flex-end"><button class="k-btn k-btn-sm" onclick="submitTimelineEntry('+caseId+')">Add Entry</button></div>';
-  h += '</div>';
-  h += '</div>';
-  document.getElementById('case-tab-content').innerHTML = h;
+  document.getElementById('cws-timeline').innerHTML = h;
 }
 async function submitTimelineEntry(caseId) {
   const title = document.getElementById('tl-title').value.trim();
@@ -2659,30 +2702,33 @@ async function submitTimelineEntry(caseId) {
   const d = await kAuthFetch('/api/k108/cases/timeline/add', { id: caseId, entryType: 'note', title, body });
   if (!d) return;
   showToastK108('Timeline entry added');
+  toggleTimelineForm();
+  document.getElementById('tl-title').value = '';
+  document.getElementById('tl-body').value = '';
   renderCaseTimeline(caseId);
 }
 
 async function renderCaseEvidence(caseId) {
   const d = await kAuthFetch('/api/k108/cases/evidence/list', { id: caseId });
   if (!d) return;
-  let h = '<div class="case-tab-panel">';
-  h += '<div class="case-tab-title">Evidence Vault <span style="color:var(--text-dim);font-weight:400;margin-left:8px">'+(d.files.length)+' files</span></div>';
-  h += '<div class="case-upload-zone"><div style="flex:1;font-size:12px;color:var(--text-muted)">Upload a file to the case evidence vault</div>' +
+  const countEl = document.getElementById('cws-evidence-count');
+  if (countEl) countEl.textContent = d.files.length ? '(' + d.files.length + ')' : '';
+  let h = '';
+  h += '<div class="case-upload-zone" style="margin-bottom:12px"><div style="flex:1;font-size:11px;color:var(--text-muted)">Upload evidence</div>' +
        '<input type="file" id="case-ev-file" style="display:none" onchange="uploadCaseEvidence('+caseId+', this.files[0])">' +
-       '<button class="k-btn k-btn-sm" onclick="document.getElementById(\'case-ev-file\').click()">Select File</button></div>';
+       '<button class="case-add-btn" onclick="document.getElementById(\'case-ev-file\').click()">SELECT FILE</button></div>';
   if (!d.files.length) {
-    h += '<div class="k-empty">No evidence files yet.</div>';
+    h += '<div style="color:var(--text-dim);font-size:12px">No evidence files yet.</div>';
   } else {
     d.files.forEach(f => {
       const href = f.filename && f.filename.startsWith('/uploads/') ? f.filename : '';
       h += '<div class="case-evidence-row">' +
-        '<div class="case-evidence-name">'+ (href ? '<a href="'+esc(href)+'" target="_blank" style="color:var(--text-primary);text-decoration:none">'+esc(f.originalName || '')+'</a>' : esc(f.originalName || '')) +'</div>' +
-        '<div class="case-evidence-meta">'+esc(fmtFileSize(f.fileSize))+' · '+esc(f.uploadedBy || '')+' · '+esc(fmtCaseDate(f.uploadedAt))+'</div>' +
+        '<div class="case-evidence-name" style="font-size:12px">'+ (href ? '<a href="'+esc(href)+'" target="_blank" style="color:var(--text-primary);text-decoration:none">'+esc(f.originalName || '')+'</a>' : esc(f.originalName || '')) +'</div>' +
+        '<div class="case-evidence-meta" style="font-size:9px">'+esc(fmtFileSize(f.fileSize))+'</div>' +
       '</div>';
     });
   }
-  h += '</div>';
-  document.getElementById('case-tab-content').innerHTML = h;
+  document.getElementById('cws-evidence').innerHTML = h;
 }
 async function uploadCaseEvidence(caseId, file) {
   if (!file) return;
@@ -2703,26 +2749,25 @@ let entitySearchDebounce = null;
 async function renderCaseEntities(caseId) {
   const d = await kAuthFetch('/api/k108/cases/entities/list', { id: caseId });
   if (!d) return;
-  let h = '<div class="case-tab-panel">';
-  h += '<div class="case-tab-title">Entities <span style="color:var(--text-dim);font-weight:400;margin-left:8px">'+(d.entities.length)+' linked</span></div>';
+  const countEl = document.getElementById('cws-entities-count');
+  if (countEl) countEl.textContent = d.entities.length ? '(' + d.entities.length + ')' : '';
+  let h = '';
   // Search bar for Intel Profiles
-  h += '<div class="entity-search-wrap">';
-  h += '<input type="text" class="entity-search-input" id="entity-profile-search" placeholder="Search Intel Profiles..." oninput="entityProfileSearch('+caseId+')" autocomplete="off">';
+  h += '<div class="entity-search-wrap" style="margin-bottom:12px">';
+  h += '<input type="text" class="entity-search-input" id="entity-profile-search" placeholder="Search Intel Profiles..." oninput="entityProfileSearch('+caseId+')" autocomplete="off" style="font-size:12px;padding:8px 10px;border-radius:8px">';
   h += '<div class="entity-search-results" id="entity-search-results"></div>';
   h += '</div>';
   // Entity list
   h += '<div id="entity-cards-list">';
   if (!d.entities.length) {
-    h += '<div class="k-empty">No entities linked yet. Search Intel Profiles above or use Add to Case from other tools.</div>';
+    h += '<div style="color:var(--text-dim);font-size:12px">No entities linked yet.</div>';
   } else {
     d.entities.forEach(e => {
       h += renderEntityCard(e, caseId);
     });
   }
   h += '</div>';
-  h += '</div>';
-  document.getElementById('case-tab-content').innerHTML = h;
-  // Close search results on outside click
+  document.getElementById('cws-entities').innerHTML = h;
   document.addEventListener('click', function closeEntitySearch(ev) {
     const wrap = document.querySelector('.entity-search-wrap');
     if (wrap && !wrap.contains(ev.target)) {
@@ -2851,28 +2896,28 @@ async function removeEntityFromCase(caseId, entityId, entityName) {
 async function renderCaseNotes(caseId) {
   const d = await kAuthFetch('/api/k108/cases/notes/list', { id: caseId });
   if (!d) return;
-  let h = '<div class="case-tab-panel">';
-  h += '<div class="case-tab-title">Analyst Notes <span style="color:var(--text-dim);font-weight:400;margin-left:8px">'+(d.notes.length)+' notes</span></div>';
-  h += '<div style="margin-bottom:16px"><textarea id="note-body" class="case-summary-edit" placeholder="Add a note…"></textarea>' +
-       '<div style="margin-top:10px;display:flex;justify-content:flex-end"><button class="k-btn k-btn-sm" onclick="submitCaseNote('+caseId+')">Add Note</button></div></div>';
+  const countEl = document.getElementById('cws-notes-count');
+  if (countEl) countEl.textContent = d.notes.length ? '(' + d.notes.length + ')' : '';
+  let h = '';
   if (!d.notes.length) {
-    h += '<div class="k-empty">No notes yet.</div>';
+    h += '<div style="color:var(--text-dim);font-size:12px">No notes yet.</div>';
   } else {
     d.notes.forEach(n => {
-      h += '<div class="case-note-item">' +
+      h += '<div class="case-note-item" style="border-radius:8px;margin-bottom:8px">' +
         '<div class="case-note-body">'+esc(n.body)+'</div>' +
         '<div class="case-note-foot">'+esc(n.createdBy || '')+' · '+esc(fmtCaseDate(n.createdAt))+'</div>' +
       '</div>';
     });
   }
-  h += '</div>';
-  document.getElementById('case-tab-content').innerHTML = h;
+  document.getElementById('cws-notes').innerHTML = h;
 }
 async function submitCaseNote(caseId) {
-  const body = document.getElementById('note-body').value.trim();
+  const noteEl = document.getElementById('note-body');
+  const body = noteEl.value.trim();
   if (!body) { showToastK108('Note is empty'); return; }
   const d = await kAuthFetch('/api/k108/cases/notes/add', { id: caseId, body });
   if (!d) return;
+  noteEl.value = '';
   showToastK108('Note added');
   renderCaseNotes(caseId);
 }
@@ -2884,8 +2929,7 @@ async function toggleCaseStatus(caseId) {
   if (!d) return;
   if (d.error) { showToastK108('Failed: ' + d.error); return; }
   showToastK108('Case marked ' + next);
-  const tab = (window.location.hash.split('/')[2] || 'overview');
-  loadCaseWorkspace(caseId, tab);
+  loadCaseWorkspace(caseId);
 }
 
 async function deleteCaseFromWorkspace(caseId, caseIdStr) {
