@@ -284,14 +284,14 @@
     .icon-choice.active { border-color: var(--accent-blue); background: rgba(56,189,248,0.1); color: var(--accent-blue); }
 
     .chip-container { display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.15); border-radius: 16px; font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-primary); cursor: pointer; transition: all 0.15s; }
-    .chip:hover { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.2); }
+    .chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; background: rgba(129,140,248,0.06); border: 1px solid rgba(129,140,248,0.12); border-radius: 10px; font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-primary); cursor: pointer; transition: all 0.15s; }
+    .chip:hover { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.18); }
     .chip-x { font-size: 13px; color: var(--text-dim); margin-left: 2px; }
     .chip:hover .chip-x { color: var(--status-red); }
 
-    .profile-label { display: inline-flex; align-items: center; gap: 3px; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 500; letter-spacing: 0.03em; cursor: pointer; transition: opacity 0.2s; }
+    .profile-label { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 8px; font-size: 11px; font-weight: 500; letter-spacing: 0.02em; cursor: pointer; transition: all 0.2s; }
     .profile-label svg { vertical-align: middle; }
-    .profile-label:hover { opacity: 0.8; }
+    .profile-label:hover { opacity: 0.8; transform: translateY(-1px); }
 
     /* Label panel */
     .label-panel { background: var(--bg-raised); border: 1px solid var(--border-main); border-radius: 10px; padding: 12px; margin-bottom: 14px; }
@@ -309,7 +309,7 @@
     .label-chip-remove { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; cursor: pointer; transition: filter 0.15s; border: none; outline: none; }
     .label-chip-remove:hover { filter: brightness(1.2); }
     .label-chip-x { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(0,0,0,0.2); font-size: 9px; line-height: 1; }
-    .command-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 12px; font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(129,140,248,0.12)); border: 1px solid rgba(56,189,248,0.3); color: var(--accent-blue); }
+    .command-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: linear-gradient(135deg, rgba(129,140,248,0.12), rgba(56,189,248,0.08)); border: 1px solid rgba(129,140,248,0.2); color: var(--accent-indigo); }
     .neon-blue { color: var(--accent-blue); }
     .neon-cyan { color: var(--accent-cyan); }
     .neon-indigo { color: var(--accent-indigo); }
@@ -533,22 +533,23 @@
     .case-upload-zone { border-color: var(--border-main); border-radius: 4px; background: rgba(22,27,34,0.5); }
 
     /* ═══ Profile Action Bar ═══ */
-    .pab { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding: 10px 14px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; }
-    .pab-group { display: flex; align-items: center; gap: 6px; }
-    .pab-btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; background: transparent; border: 1px solid rgba(76,201,240,0.18); color: #4cc9f0; font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 6px; cursor: pointer; transition: all 0.18s ease; white-space: nowrap; line-height: 1; }
-    .pab-btn:hover { background: rgba(76,201,240,0.10); border-color: rgba(76,201,240,0.35); }
-    .pab-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
-    .pab-sep { width: 1px; height: 18px; background: var(--border-main); margin: 0 4px; flex-shrink: 0; }
-    .pab-btn.pab-pending { border-color: rgba(251,191,36,0.35); color: var(--status-amber); }
-    .pab-btn.pab-pending:hover { background: rgba(251,191,36,0.10); }
+    .pab { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding: 8px 10px; background: rgba(18,24,40,0.4); border: 1px solid rgba(255,255,255,0.04); border-radius: 14px; }
+    .pab-group { display: flex; align-items: center; gap: 4px; }
+    .pab-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); color: var(--text-secondary); font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.02em; border-radius: 10px; cursor: pointer; transition: all 0.18s ease; white-space: nowrap; line-height: 1; }
+    .pab-btn:hover { background: rgba(129,140,248,0.08); border-color: rgba(129,140,248,0.2); color: var(--text-primary); }
+    .pab-btn svg { width: 13px; height: 13px; flex-shrink: 0; opacity: 0.7; }
+    .pab-sep { width: 1px; height: 18px; background: rgba(255,255,255,0.06); margin: 0 2px; flex-shrink: 0; }
+    .pab-btn.pab-pending { border-color: rgba(251,191,36,0.25); color: var(--status-amber); background: rgba(251,191,36,0.06); }
+    .pab-btn.pab-pending:hover { background: rgba(251,191,36,0.12); }
     .pab-pulse { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--status-amber); animation: survPulse 1.4s ease-in-out infinite; flex-shrink: 0; }
     @keyframes survPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-    .surv-section { margin-top: 14px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 12px 14px; }
-    .surv-section-title { font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 600; color: #4cc9f0; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
-    .surv-report-card { background: var(--bg-raised); border: 1px solid var(--border-main); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
-    .surv-report-meta { font-family: 'JetBrains Mono'; font-size: 9px; color: var(--text-dim); margin-bottom: 8px; display: flex; gap: 12px; }
-    .surv-report-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; white-space: pre-wrap; }
-    .surv-empty { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-dim); text-align: center; padding: 12px; }
+    .surv-section { margin-top: 20px; background: rgba(18,24,40,0.5); border: 1px solid rgba(255,255,255,0.04); border-radius: 16px; padding: 20px 22px; }
+    .surv-section-title { font-size: 10px; font-weight: 600; color: var(--accent-indigo); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .surv-report-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; padding: 16px 18px; margin-bottom: 10px; transition: border-color 0.2s; }
+    .surv-report-card:hover { border-color: rgba(255,255,255,0.08); }
+    .surv-report-meta { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--text-dim); margin-bottom: 10px; display: flex; gap: 16px; }
+    .surv-report-body { font-size: 13.5px; color: var(--text-secondary); line-height: 1.7; white-space: pre-wrap; }
+    .surv-empty { font-size: 12px; color: var(--text-dim); text-align: center; padding: 24px 12px; }
 
     /* ═══ Vault ═══ */
     .vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
@@ -558,39 +559,44 @@
 
     /* ═══ Profiles ═══ */
     .profile-search-wrap { position: relative; margin-bottom: 20px; }
-    .profile-search-group.focused { box-shadow: 0 0 0 3px var(--glow-blue), 0 0 20px var(--glow-blue); border-radius: 8px; }
-    .profile-autofill { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 8px; margin-top: 4px; z-index: 10; max-height: 300px; overflow-y: auto; display: none; }
+    .profile-search-group.focused { box-shadow: 0 0 0 2px rgba(129,140,248,0.25), 0 8px 32px rgba(0,0,0,0.3); border-radius: 14px; }
+    .profile-autofill { position: absolute; top: 100%; left: 0; right: 0; background: rgba(15,20,32,0.98); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; margin-top: 6px; z-index: 10; max-height: 380px; overflow-y: auto; display: none; box-shadow: 0 16px 48px rgba(0,0,0,0.5); }
     .profile-autofill.active { display: block; }
-    .profile-af-item { padding: 10px 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: background 0.15s; }
-    .profile-af-item:hover, .profile-af-item.af-highlight { background: var(--bg-card-hover); }
-    .profile-af-item.af-highlight { border-left: 2px solid var(--accent-blue); }
-    .profile-af-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--bg-raised); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--text-muted); overflow: hidden; flex-shrink: 0; }
-    .profile-af-avatar img { width: 100%; height: 100%; object-fit: cover; }
-    .profile-af-name { font-size: 13px; color: var(--text-primary); }
-    .profile-af-rel { font-size: 10px; color: var(--text-dim); }
+    .profile-autofill::-webkit-scrollbar { width: 4px; } .profile-autofill::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+    .profile-af-item { padding: 12px 18px; cursor: pointer; display: flex; align-items: center; gap: 14px; transition: all 0.15s; border-left: 2px solid transparent; }
+    .profile-af-item:hover, .profile-af-item.af-highlight { background: rgba(129,140,248,0.06); border-left-color: var(--accent-indigo); }
+    .profile-af-avatar { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg, rgba(129,140,248,0.12), rgba(56,189,248,0.08)); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: var(--accent-indigo); overflow: hidden; flex-shrink: 0; }
+    .profile-af-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+    .profile-af-name { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+    .profile-af-rel { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
 
-    .profile-detail { max-width: 720px; margin: 0 auto; position: relative; }
-    .profile-top { display: flex; gap: 20px; align-items: flex-start; margin-bottom: 24px; }
-    .profile-photo { width: 80px; height: 80px; border-radius: 50%; background: var(--bg-raised); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 600; color: var(--text-muted); overflow: hidden; border: 2px solid var(--border-main); flex-shrink: 0; cursor: pointer; }
-    .profile-photo img { width: 100%; height: 100%; object-fit: cover; }
-    .profile-info h2 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
-    .profile-info .rel-badge { font-size: 11px; color: var(--accent-indigo); }
-    .profile-sections { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
-    .profile-section { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 12px 14px; }
-    .profile-section-title { font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
-    .profile-section-item { font-size: 12px; color: var(--text-secondary); padding: 2px 0; }
-    .social-link { display: flex; align-items: center; gap: 8px; padding: 4px 0; text-decoration: none; color: var(--accent-blue); font-size: 12.5px; }
-    .social-link:hover { text-decoration: underline; }
-    .social-icon { width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+    .profile-detail { max-width: 820px; margin: 0 auto; position: relative; }
+    .profile-top { display: flex; gap: 24px; align-items: center; margin-bottom: 0; padding: 28px 32px; background: linear-gradient(135deg, rgba(129,140,248,0.06) 0%, rgba(56,189,248,0.04) 50%, rgba(15,20,32,0) 100%); border-radius: 20px; border: 1px solid rgba(255,255,255,0.04); }
+    .profile-photo { width: 96px; height: 96px; border-radius: 18px; background: linear-gradient(135deg, rgba(129,140,248,0.15), rgba(56,189,248,0.1)); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 600; color: var(--accent-indigo); overflow: hidden; border: 2px solid rgba(129,140,248,0.2); flex-shrink: 0; cursor: pointer; transition: border-color 0.2s, transform 0.2s; }
+    .profile-photo:hover { border-color: rgba(129,140,248,0.4); transform: scale(1.03); }
+    .profile-photo:hover .photo-hover-overlay { opacity: 1 !important; }
+    .profile-photo img { width: 100%; height: 100%; object-fit: cover; border-radius: 16px; }
+    .profile-info { flex: 1; min-width: 0; }
+    .profile-info h2 { font-size: 24px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.01em; line-height: 1.2; }
+    .profile-info .rel-badge { font-size: 12px; color: var(--accent-indigo); font-weight: 500; }
+    .profile-sections { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
+    .profile-section { background: rgba(18,24,40,0.5); border: 1px solid rgba(255,255,255,0.04); border-radius: 14px; padding: 18px 20px; transition: border-color 0.2s, background 0.2s; }
+    .profile-section:hover { border-color: rgba(255,255,255,0.07); background: rgba(18,24,40,0.7); }
+    .profile-section-title { font-size: 10px; font-weight: 600; color: var(--accent-indigo); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .profile-section-title svg { width: 13px; height: 13px; opacity: 0.7; }
+    .profile-section-item { font-size: 13px; color: var(--text-secondary); padding: 4px 0; line-height: 1.5; }
+    .social-link { display: flex; align-items: center; gap: 10px; padding: 6px 0; text-decoration: none; color: var(--text-secondary); font-size: 13px; transition: color 0.15s; }
+    .social-link:hover { color: var(--accent-blue); }
+    .social-icon { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; background: rgba(255,255,255,0.04); }
     .social-icon svg { width: 14px; height: 14px; }
-    .related-card { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg-raised); border-radius: 8px; cursor: pointer; transition: background 0.15s; margin-bottom: 6px; }
-    .related-card:hover { background: var(--bg-card-hover); }
+    .related-card { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; cursor: pointer; transition: all 0.15s; margin-bottom: 8px; }
+    .related-card:hover { background: rgba(129,140,248,0.06); border-color: rgba(129,140,248,0.15); }
     .related-card-actions { display: flex; gap: 4px; margin-left: auto; opacity: 0; transition: opacity 0.15s; }
     .related-card:hover .related-card-actions { opacity: 1; }
     .rel-action-btn { background: none; border: none; cursor: pointer; padding: 2px 5px; border-radius: 4px; font-size: 11px; color: var(--text-dim); transition: background 0.12s, color 0.12s; }
     .rel-action-btn:hover { background: var(--bg-input); color: var(--text-primary); }
     .rel-action-btn.danger:hover { background: rgba(239,68,68,0.15); color: #ef4444; }
-    .rel-label-badge { display: inline-block; font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 10px; background: rgba(99,102,241,0.15); color: var(--accent-indigo); border: 1px solid rgba(99,102,241,0.25); margin-top: 2px; }
+    .rel-label-badge { display: inline-block; font-size: 9px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: rgba(99,102,241,0.12); color: var(--accent-indigo); border: 1px solid rgba(99,102,241,0.2); margin-top: 2px; }
 
     /* ═══ Activity Log ═══ */
     .log-date-sep { font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:600; color:var(--text-dim); letter-spacing:1.8px; text-transform:uppercase; padding:18px 0 8px; margin:0 0 2px; }
@@ -631,26 +637,27 @@
     .lname-suggest-card .ls-name { font-size:11px; font-weight:500; color:var(--text-primary); }
     .lname-suggest-card .ls-link { font-size:9px; font-weight:700; color:var(--accent-blue); letter-spacing:0.06em; text-transform:uppercase; margin-left:4px; }
     /* ═══ Profile Images ═══ */
-    .pi-drop-zone { border: 1.5px dashed var(--border-main); border-radius: 12px; padding: 36px 24px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
-    .pi-drop-zone:hover, .pi-drop-zone.drag-over { border-color: var(--accent-blue); background: rgba(56,189,248,0.04); }
+    .pi-drop-zone { border: 1.5px dashed rgba(129,140,248,0.2); border-radius: 16px; padding: 40px 24px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+    .pi-drop-zone:hover, .pi-drop-zone.drag-over { border-color: var(--accent-indigo); background: rgba(129,140,248,0.04); }
     .pi-drop-icon { width: 40px; height: 40px; margin: 0 auto 12px; color: var(--text-dim); }
     .pi-drop-title { font-size: 14px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
     .pi-drop-sub { font-size: 11px; color: var(--text-dim); }
     .pi-preview-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 16px; }
-    .pi-preview-thumb { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--bg-base); border: 1px solid var(--border-main); }
+    .pi-preview-thumb { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--bg-base); border: 1px solid rgba(255,255,255,0.04); }
     .pi-preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
     .pi-preview-thumb .pi-remove { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; background: rgba(0,0,0,0.7); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
     .pi-preview-thumb:hover .pi-remove { opacity: 1; }
     .pi-gallery { display: flex; flex-direction: column; gap: 10px; }
-    .pi-side-panel { width: 260px; flex-shrink: 0; position: sticky; top: 16px; }
-    .pi-side-panel .profile-section-title { margin-bottom: 10px; }
-    .pi-img-card { position: relative; border-radius: 10px; overflow: hidden; background: var(--bg-base); border: 1px solid var(--border-subtle); cursor: pointer; }
+    .pi-side-panel { width: 280px; flex-shrink: 0; position: sticky; top: 16px; background: rgba(18,24,40,0.4); border: 1px solid rgba(255,255,255,0.04); border-radius: 16px; padding: 18px; }
+    .pi-side-panel .profile-section-title { margin-bottom: 12px; }
+    .pi-img-card { position: relative; border-radius: 12px; overflow: hidden; background: var(--bg-base); border: 1px solid rgba(255,255,255,0.04); cursor: pointer; transition: transform 0.2s; }
+    .pi-img-card:hover { transform: scale(1.02); }
     .pi-img-card img { width: 100%; height: auto; display: block; transition: opacity 0.2s; }
     .pi-img-card:hover img { opacity: 0.92; }
-    .pi-img-card .pi-del-btn { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; background: rgba(239,68,68,0.9); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
+    .pi-img-card .pi-del-btn { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; background: rgba(239,68,68,0.85); border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.15s; }
     .pi-img-card:hover .pi-del-btn { opacity: 1; }
     .pi-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 9999; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
-    .pi-lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+    .pi-lightbox img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 12px; }
     /* ═══ Vehicle Lookup ═══ */
     .vehicle-tab-row { display: flex; gap: 6px; margin-bottom: 28px; }
     .vehicle-tab { padding: 8px 22px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; background: transparent; border: 1px solid var(--border-main); color: var(--text-dim); transition: all 0.18s; }
@@ -748,7 +755,11 @@
       .sms-layout { flex-direction: column; height: auto; }
       .sms-threads { width: 100%; border-right: none; border-bottom: 1px solid var(--border-main); max-height: 200px; }
       .profile-sections { grid-template-columns: 1fr; }
-      .profile-top { flex-direction: column; align-items: center; text-align: center; }
+      .profile-detail { max-width: 100%; }
+      .profile-top { flex-direction: column; align-items: center; text-align: center; padding: 20px 16px; }
+      .pi-side-panel { width: 100%; position: static; margin-top: 16px; }
+      .pab { flex-wrap: wrap; gap: 6px; }
+      .pab-group { flex-wrap: wrap; }
       .topbar { padding: 0 14px; }
       .dash-main { padding: 20px 14px; }
     }
@@ -1146,14 +1157,17 @@
       <!-- Intel Profiles -->
       <div class="k108-view" id="view-profiles">
         <div id="profiles-main">
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;padding-top:40px">
-            <div style="font-family:Orbitron;font-size:18px;font-weight:600;color:var(--accent-indigo);letter-spacing:0.1em;margin-bottom:6px">Intel Profiles</div>
-            <div style="font-size:11px;color:var(--text-dim);margin-bottom:32px;letter-spacing:0.06em">Search by name, alias, or handle</div>
-            <div class="profile-search-wrap" style="width:100%;max-width:560px">
-              <div class="profile-search-group" style="display:flex;gap:0;align-items:stretch;border-radius:8px;transition:box-shadow 0.2s,border-color 0.2s">
-                <input class="k-input" id="profile-search" placeholder="Search profiles..." oninput="searchProfiles(this.value)" onfocus="this.parentElement.classList.add('focused')" onblur="this.parentElement.classList.remove('focused')" style="border-radius:8px 0 0 8px;border-right:none;font-size:15px;padding:16px 18px;flex:1;box-shadow:none !important" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" role="presentation" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
-                <button onclick="searchProfiles(document.getElementById('profile-search').value)" style="padding:0 16px;background:var(--bg-base);border:1px solid var(--border-main);border-left:none;cursor:pointer;display:flex;align-items:center;transition:all 0.2s;border-right:1px solid var(--border-subtle)" title="Search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 3px var(--accent-blue))"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
-                <button onclick="navigateToNewProfile()" style="padding:0 16px;background:var(--bg-base);border:1px solid var(--border-main);border-left:none;border-radius:0 8px 8px 0;cursor:pointer;display:flex;align-items:center;transition:all 0.2s" title="Create new profile"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent-indigo)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 3px var(--accent-indigo))"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;padding-top:60px">
+            <div style="width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,rgba(129,140,248,0.12),rgba(56,189,248,0.08));display:flex;align-items:center;justify-content:center;margin-bottom:20px;border:1px solid rgba(129,140,248,0.15)">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-indigo)" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div style="font-size:22px;font-weight:600;color:var(--text-primary);letter-spacing:-0.01em;margin-bottom:6px">Intel Profiles</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-bottom:36px">Search by name, alias, or handle</div>
+            <div class="profile-search-wrap" style="width:100%;max-width:520px">
+              <div class="profile-search-group" style="display:flex;gap:0;align-items:stretch;border-radius:14px;transition:box-shadow 0.2s,border-color 0.2s">
+                <input class="k-input" id="profile-search" placeholder="Search profiles..." oninput="searchProfiles(this.value)" onfocus="this.parentElement.classList.add('focused')" onblur="this.parentElement.classList.remove('focused')" style="border-radius:14px 0 0 14px;border-right:none;font-size:15px;padding:16px 20px;flex:1;box-shadow:none !important;background:rgba(18,24,40,0.5);border-color:rgba(255,255,255,0.06)" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" role="presentation" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
+                <button onclick="searchProfiles(document.getElementById('profile-search').value)" style="padding:0 18px;background:rgba(18,24,40,0.5);border:1px solid rgba(255,255,255,0.06);border-left:none;cursor:pointer;display:flex;align-items:center;transition:all 0.2s" title="Search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-indigo)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+                <button onclick="navigateToNewProfile()" style="padding:0 18px;background:rgba(18,24,40,0.5);border:1px solid rgba(255,255,255,0.06);border-left:none;border-radius:0 14px 14px 0;cursor:pointer;display:flex;align-items:center;transition:all 0.2s" title="Create new profile"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-indigo)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
               </div>
               <div class="profile-autofill" id="profile-autofill"></div>
             </div>
@@ -3034,64 +3048,36 @@ async function viewProfileReadonly(id, skipLog) {
 
   let h = '<div class="profile-detail">';
 
-  // Activity Log panel (absolute positioned to the left of the profile)
-  const actLog = d.activityLog || [];
-  if (actLog.length) {
-    const actIcons = { viewed:'👁', edited:'✏️', created:'✚', classified_accessed:'🔓', export_generated:'📄' };
-    const actColors = { viewed:'#58a6ff', edited:'#d29922', created:'#3fb950', classified_accessed:'#f85149', export_generated:'#bc8cff' };
-    h += '<div style="position:absolute;right:calc(100% + 16px);top:60px;width:220px;border:1px solid rgba(76,201,240,0.12);border-radius:10px;padding:14px 16px;background:linear-gradient(135deg,rgba(13,17,23,0.95),rgba(22,27,34,0.95));backdrop-filter:blur(8px);box-shadow:0 4px 24px rgba(0,0,0,0.3)">';
-    h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(76,201,240,0.1)">';
-    h += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4cc9f0" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
-    h += '<span style="font-size:10px;font-weight:600;color:#4cc9f0;letter-spacing:1.5px;text-transform:uppercase">Activity</span></div>';
-    h += '<div style="position:relative;padding-left:16px">';
-    h += '<div style="position:absolute;left:5px;top:4px;bottom:4px;width:1px;background:linear-gradient(to bottom,rgba(76,201,240,0.3),rgba(76,201,240,0.05))"></div>';
-    actLog.forEach((e, i) => {
-      const ts = new Date(e.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-      const actionBase = e.action.includes(':') ? e.action.split(':')[0].trim() : e.action;
-      const actionDetail = e.action.includes(':') ? e.action.split(':').slice(1).join(':').trim() : '';
-      const dotColor = actColors[actionBase] || '#58a6ff';
-      const icon = actIcons[actionBase] || '•';
-      const actionLabel = actionBase.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
-      h += '<div style="position:relative;padding:6px 0'+(i<actLog.length-1?';margin-bottom:4px':'')+'">';
-      h += '<div style="position:absolute;left:-14px;top:9px;width:9px;height:9px;border-radius:50%;background:'+dotColor+';box-shadow:0 0 6px '+dotColor+'44;border:1.5px solid rgba(13,17,23,0.8)"></div>';
-      h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--text-dim);letter-spacing:0.5px">'+esc(ts)+'</div>';
-      h += '<div style="font-size:10px;margin-top:2px;line-height:1.4"><span style="color:'+dotColor+';font-weight:600">'+icon+' '+esc(actionLabel)+'</span></div>';
-      h += '<div style="font-size:9px;color:var(--text-secondary);margin-top:1px">by <span style="color:var(--accent-blue);font-weight:500">'+esc(capFirst(e.username))+'</span></div>';
-      if (actionDetail) h += '<div style="font-size:8px;color:var(--text-dim);margin-top:2px;font-style:italic;line-height:1.3;word-break:break-word">&ldquo;'+esc(actionDetail)+'&rdquo;</div>';
-      h += '</div>';
-    });
-    h += '</div></div>';
-  }
-
   // Action bar
   let survBtnHtml;
   if (survPending) {
     survBtnHtml = '<button class="pab-btn pab-pending" id="surv-btn-'+id+'" onclick="cancelSurveillance('+id+',\''+profileFullName.replace(/'/g,"\\'")+'\')"><span class="pab-pulse"></span> Surveillance Pending</button>';
   } else {
-    survBtnHtml = '<button class="pab-btn" id="surv-btn-'+id+'" onclick="queueSurveillance('+id+')">Run Surveillance</button>';
+    survBtnHtml = '<button class="pab-btn" id="surv-btn-'+id+'" onclick="queueSurveillance('+id+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><circle cx="12" cy="12" r="3"/><path d="M20 12c-1.5 2.5-4.5 5-8 5s-6.5-2.5-8-5c1.5-2.5 4.5-5 8-5s6.5 2.5 8 5z"/></svg> Surveillance</button>';
   }
-  if (survResults.length) survBtnHtml += '<button class="pab-btn" onclick="document.getElementById(\'surv-reports-'+id+'\').scrollIntoView({behavior:\'smooth\'})">View Reports</button>';
-  h += '<div class="pab"><button class="pab-btn" onclick="closeProfile()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg> Back</button><div class="pab-group">'+survBtnHtml+'<span class="pab-sep"></span><button class="pab-btn" onclick="downloadDossier('+id+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button><button class="pab-btn" onclick="addProfileToCaseBtn('+id+')">+ Add to Case</button><span class="pab-sep"></span><button class="pab-btn" onclick="viewProfile('+id+')">Edit Profile</button></div></div>';
+  if (survResults.length) survBtnHtml += '<button class="pab-btn" onclick="document.getElementById(\'surv-reports-'+id+'\').scrollIntoView({behavior:\'smooth\'})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Reports</button>';
+  h += '<div class="pab"><button class="pab-btn" onclick="closeProfile()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg> Back</button><div class="pab-group">'+survBtnHtml+'<span class="pab-sep"></span><button class="pab-btn" onclick="downloadDossier('+id+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button><button class="pab-btn" onclick="addProfileToCaseBtn('+id+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg> Add to Case</button><span class="pab-sep"></span><button class="pab-btn" onclick="viewProfile('+id+')" style="color:var(--accent-indigo);border-color:rgba(129,140,248,0.2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit</button></div></div>';
 
-  // Photo + Name + Badges
+  // Hero header: Photo + Name + Badges
   const roInitials = esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase());
   h += '<div class="profile-top"><div class="profile-photo" id="ro-profile-photo"'+(p.photo_url?' onclick="enlargePhoto(\''+esc(p.photo_url)+'\')" style="cursor:pointer" title="Click to enlarge"':' data-initials="'+roInitials+'"')+'>'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':roInitials)+'</div>';
-  h += '<div class="profile-info"><h2>'+esc([p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' '))+' ';
-  if (isCommandProfile(p.first_name)) h += '<span class="command-badge">Command</span>';
+  h += '<div class="profile-info"><h2>'+esc([p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' '));
+  if (isCommandProfile(p.first_name)) h += ' <span class="command-badge" style="vertical-align:middle;font-size:9px">Command</span>';
   h += '</h2>';
-  if (p.relation) h += '<div class="rel-badge">'+esc(p.relation)+'</div>';
-  // Labels
-  const lbls = renderProfileLabels(id);
-  if (lbls) h += '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">'+lbls+'</div>';
-  if ((p.aliases||[]).length) h += '<div style="font-size:11px;color:var(--text-dim);margin-top:4px">Also Known As: '+p.aliases.map(a=>esc(a)).join(', ')+'</div>';
-  // Age + Birthday
+  if (p.relation) h += '<div class="rel-badge" style="margin-top:2px">'+esc(p.relation)+'</div>';
+  // Age + Birthday inline
   const displayAge = computeAge(p);
   if (displayAge || p.birthday) {
-    h += '<div style="font-size:12px;color:var(--text-secondary);margin-top:6px">';
-    if (displayAge) h += 'Age: ' + esc(displayAge);
-    if (p.birthday) h += (displayAge ? ' &middot; ' : '') + 'Birthday: ' + esc(fmtBirthday(p.birthday));
+    h += '<div style="font-size:13px;color:var(--text-muted);margin-top:6px;display:flex;align-items:center;gap:6px">';
+    if (displayAge) h += '<span>Age ' + esc(displayAge)+'</span>';
+    if (displayAge && p.birthday) h += '<span style="opacity:0.3">&bull;</span>';
+    if (p.birthday) h += '<span>' + esc(fmtBirthday(p.birthday))+'</span>';
     h += '</div>';
   }
+  if ((p.aliases||[]).length) h += '<div style="font-size:12px;color:var(--text-dim);margin-top:6px;font-style:italic">aka '+p.aliases.map(a=>esc(a)).join(', ')+'</div>';
+  // Labels
+  const lbls = renderProfileLabels(id);
+  if (lbls) h += '<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">'+lbls+'</div>';
   h += '</div></div>';
 
   // Build right-side images panel
@@ -3101,64 +3087,66 @@ async function viewProfileReadonly(id, skipLog) {
   if (roImgs.length || roOther.length) {
     roImgPanel += '<div class="pi-side-panel">';
     if (roImgs.length) {
-      roImgPanel += '<div class="profile-section-title">Images ('+roImgs.length+')</div><div class="pi-gallery">';
+      roImgPanel += '<div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg> Images ('+roImgs.length+')</div><div class="pi-gallery">';
       roImgs.forEach(f => { roImgPanel += '<div class="pi-img-card" onclick="openProfileLightbox(\'/uploads/'+esc(f.filename)+'\')"><img src="/uploads/'+esc(f.filename)+'" loading="lazy"></div>'; });
       roImgPanel += '</div>';
     }
     if (roOther.length) {
-      roImgPanel += '<div class="profile-section-title" style="margin-top:'+(roImgs.length?'14px':'0')+'">Files</div>';
-      roOther.forEach(f => { roImgPanel += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:11px">'+esc(f.original_name)+'</a></div>'; });
+      roImgPanel += '<div class="profile-section-title" style="margin-top:'+(roImgs.length?'18px':'0')+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Files</div>';
+      roOther.forEach(f => { roImgPanel += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-indigo);font-size:12px;text-decoration:none;transition:color 0.15s" onmouseover="this.style.color=\'var(--accent-blue)\'" onmouseout="this.style.color=\'var(--accent-indigo)\'">'+esc(f.original_name)+'</a></div>'; });
     }
     roImgPanel += '</div>';
   }
 
   // Outer flex: left=sections, right=images
-  h += '<div style="display:flex;gap:12px;align-items:flex-start">';
+  h += '<div style="display:flex;gap:20px;align-items:flex-start;margin-top:20px">';
   h += '<div style="flex:1;min-width:0"><div class="profile-sections">';
   // Address
   const addr = typeof p.address === 'string' ? JSON.parse(p.address||'{}') : (p.address||{});
   if (addr.street || addr.city || addr.state || addr.zip) {
-    h += '<div class="profile-section"><div class="profile-section-title">Home Address</div><div class="profile-section-item">'+esc([addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', '))+'</div></div>';
+    h += '<div class="profile-section"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Address</div><div class="profile-section-item">'+esc([addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', '))+'</div></div>';
   }
   // Phones
-  if ((p.phones||[]).length) { h += '<div class="profile-section"><div class="profile-section-title">Phone Numbers</div>'; p.phones.forEach(ph => { const num = typeof ph === 'string' ? ph : (ph.number||ph); const lbl = typeof ph === 'object' ? (ph.label||'') : ''; h += '<div class="profile-section-item">'+esc(fmtPhone(num))+(lbl?' <span style="font-size:10px;color:var(--accent-blue);opacity:0.7;margin-left:6px">'+esc(lbl)+'</span>':'')+'</div>'; }); h += '</div>'; }
+  if ((p.phones||[]).length) { h += '<div class="profile-section"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Phone</div>'; p.phones.forEach(ph => { const num = typeof ph === 'string' ? ph : (ph.number||ph); const lbl = typeof ph === 'object' ? (ph.label||'') : ''; h += '<div class="profile-section-item">'+esc(fmtPhone(num))+(lbl?' <span style="font-size:10px;color:var(--accent-indigo);opacity:0.7;margin-left:8px">'+esc(lbl)+'</span>':'')+'</div>'; }); h += '</div>'; }
   // Emails
-  if ((p.emails||[]).length) { h += '<div class="profile-section"><div class="profile-section-title">Emails</div>'; p.emails.forEach(e => { const addr = typeof e === 'string' ? e : (e.address||e); const lbl = typeof e === 'object' ? (e.label||'') : ''; h += '<div class="profile-section-item">'+esc(addr)+(lbl?' <span style="font-size:10px;color:var(--accent-blue);opacity:0.7;margin-left:6px">'+esc(lbl)+'</span>':'')+'</div>'; }); h += '</div>'; }
+  if ((p.emails||[]).length) { h += '<div class="profile-section"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email</div>'; p.emails.forEach(e => { const addr = typeof e === 'string' ? e : (e.address||e); const lbl = typeof e === 'object' ? (e.label||'') : ''; h += '<div class="profile-section-item">'+esc(addr)+(lbl?' <span style="font-size:10px;color:var(--accent-indigo);opacity:0.7;margin-left:8px">'+esc(lbl)+'</span>':'')+'</div>'; }); h += '</div>'; }
   // Social
-  if (links.length) { h += '<div class="profile-section"><div class="profile-section-title">Social Media</div>'; links.forEach(l => { const pl = detectPlatform(l.url||''); h += '<a class="social-link" href="'+esc(l.url)+'" target="_blank"><span class="social-icon" style="color:'+pl.color+'">'+pl.abbr+'</span>'+esc(l.handle||l.url)+'</a>'; }); h += '</div>'; }
+  if (links.length) { h += '<div class="profile-section"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Social</div>'; links.forEach(l => { const pl = detectPlatform(l.url||''); h += '<a class="social-link" href="'+esc(l.url)+'" target="_blank"><span class="social-icon" style="color:'+pl.color+'">'+pl.abbr+'</span>'+esc(l.handle||l.url)+'</a>'; }); h += '</div>'; }
   // Notes
-  if (p.notes) { h += '<div class="profile-section"><div class="profile-section-title">Notes</div><div style="font-size:12px;color:var(--text-secondary);white-space:pre-wrap">'+esc(p.notes)+'</div></div>'; }
+  if (p.notes) { h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Notes</div><div style="font-size:13px;color:var(--text-secondary);white-space:pre-wrap;line-height:1.6">'+esc(p.notes)+'</div></div>'; }
   // Relations
-  if (d.relations && d.relations.length) { h += '<div class="profile-section"><div class="profile-section-title">Related Profiles</div>'; d.relations.forEach(r => { const lbl = r.label ? '<span class="rel-label-badge">'+esc(r.label)+'</span>' : ''; h += '<div class="related-card" onclick="viewProfileReadonly('+r.related_profile_id+')"><div class="profile-af-avatar" style="width:28px;height:28px;font-size:10px;flex-shrink:0">'+(r.photo_url?'<img src="'+esc(r.photo_url)+'">':esc((r.first_name||'?')[0]+(r.last_name||'?')[0]))+'</div><div><div style="font-size:12px">'+esc(r.first_name+' '+r.last_name)+'</div>'+lbl+'</div></div>'; }); h += '</div>'; }
+  if (d.relations && d.relations.length) { h += '<div class="profile-section"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Related Profiles</div>'; d.relations.forEach(r => { const lbl = r.label ? '<span class="rel-label-badge">'+esc(r.label)+'</span>' : ''; h += '<div class="related-card" onclick="viewProfileReadonly('+r.related_profile_id+')"><div class="profile-af-avatar" style="width:32px;height:32px;font-size:11px;flex-shrink:0">'+(r.photo_url?'<img src="'+esc(r.photo_url)+'">':esc((r.first_name||'?')[0]+(r.last_name||'?')[0]))+'</div><div><div style="font-size:13px;font-weight:500">'+esc(r.first_name+' '+r.last_name)+'</div>'+lbl+'</div></div>'; }); h += '</div>'; }
 
   // Vehicle
   const veh = typeof p.vehicle === 'string' ? JSON.parse(p.vehicle||'{}') : (p.vehicle||{});
   if (veh.make || veh.vin) {
     const vTitle = [veh.year, veh.make, veh.model].filter(Boolean).join(' ');
-    h += '<div class="profile-section"><div class="profile-section-title">Vehicle</div><div style="display:flex;align-items:center;gap:12px">';
-    if (veh.photo_url) h += '<img src="'+esc(veh.photo_url)+'" style="width:72px;height:52px;object-fit:cover;border-radius:6px;cursor:pointer;flex-shrink:0;border:1px solid var(--border-main)" onclick="enlargePhoto(\''+esc(veh.photo_url)+'\')" title="Click to enlarge">';
-    h += '<div><div style="font-size:13px;font-weight:500;color:var(--text-primary)">'+esc(vTitle||'Unknown Vehicle')+'</div>';
-    if (veh.plate) h += '<div style="font-size:11px;color:var(--text-dim);margin-top:2px">'+esc(veh.plate+(veh.state?' ('+veh.state+')':''))+'</div>';
-    if (veh.vin) h += '<div style="font-family:\'JetBrains Mono\';font-size:9px;color:var(--text-dim);margin-top:2px">'+esc(veh.vin)+'</div>';
+    h += '<div class="profile-section"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Vehicle</div><div style="display:flex;align-items:center;gap:14px">';
+    if (veh.photo_url) h += '<img src="'+esc(veh.photo_url)+'" style="width:80px;height:56px;object-fit:cover;border-radius:10px;cursor:pointer;flex-shrink:0;border:1px solid rgba(255,255,255,0.04)" onclick="enlargePhoto(\''+esc(veh.photo_url)+'\')" title="Click to enlarge">';
+    h += '<div><div style="font-size:14px;font-weight:500;color:var(--text-primary)">'+esc(vTitle||'Unknown Vehicle')+'</div>';
+    if (veh.color) h += '<div style="font-size:12px;color:var(--text-muted);margin-top:3px">'+esc(veh.color)+'</div>';
+    if (veh.plate) h += '<div style="font-size:12px;color:var(--text-muted);margin-top:3px">'+esc(veh.plate+(veh.state?' ('+veh.state+')':''))+'</div>';
+    if (veh.vin) h += '<div style="font-family:\'JetBrains Mono\';font-size:10px;color:var(--text-dim);margin-top:3px">'+esc(veh.vin)+'</div>';
     h += '</div></div></div>';
   }
 
   // Employer
   const roEmp = typeof p.employer_info === 'string' ? JSON.parse(p.employer_info||'{}') : (p.employer_info||{});
   if (roEmp.name || roEmp.address || roEmp.industry) {
-    h += '<div class="profile-section"><div class="profile-section-title">Employer</div>';
-    if (roEmp.name) h += '<div class="profile-section-item"><span style="font-size:10px;color:var(--text-dim);margin-right:6px">Name:</span>'+esc(roEmp.name)+'</div>';
-    if (roEmp.address) h += '<div class="profile-section-item"><span style="font-size:10px;color:var(--text-dim);margin-right:6px">Address:</span>'+esc(roEmp.address)+'</div>';
-    if (roEmp.industry) h += '<div class="profile-section-item"><span style="font-size:10px;color:var(--text-dim);margin-right:6px">Industry:</span>'+esc(roEmp.industry)+'</div>';
+    h += '<div class="profile-section"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> Employer</div>';
+    if (roEmp.name) h += '<div class="profile-section-item" style="font-weight:500;color:var(--text-primary)">'+esc(roEmp.name)+'</div>';
+    if (roEmp.industry) h += '<div class="profile-section-item" style="font-size:12px;color:var(--accent-indigo);opacity:0.8">'+esc(roEmp.industry)+'</div>';
+    if (roEmp.address) h += '<div class="profile-section-item" style="font-size:12px;color:var(--text-dim)">'+esc(roEmp.address)+'</div>';
     h += '</div>';
   }
 
   // Classified sealed banner (only show if classified data exists)
   const hasClassified = !!d.hasClassified;
   if (hasClassified) {
-    h += '<div class="profile-section" style="grid-column:1/-1" id="ro-classified-section">';
-    h += '<div id="ro-classified-sealed" style="background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.2);border-radius:8px;padding:16px 20px;text-align:center">';
-    h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:600;color:var(--status-red);letter-spacing:2px">CLASSIFIED — ACCESS RESTRICTED</div>';
+    h += '<div class="profile-section" style="grid-column:1/-1;border-color:rgba(248,113,113,0.1);background:rgba(248,113,113,0.03)" id="ro-classified-section">';
+    h += '<div id="ro-classified-sealed" style="text-align:center;padding:20px">';
+    h += '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--status-red)" stroke-width="2" style="margin-bottom:8px"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+    h += '<div style="font-size:12px;font-weight:600;color:var(--status-red);letter-spacing:1.5px">CLASSIFIED — ACCESS RESTRICTED</div>';
     h += '</div>';
     h += '<div id="ro-classified-revealed" style="display:none"></div>';
     h += '</div>';
@@ -3166,15 +3154,37 @@ async function viewProfileReadonly(id, skipLog) {
 
   // Empty sections notice
   if (!(p.phones||[]).length && !(p.emails||[]).length && !links.length && !p.notes) {
-    h += '<div class="profile-section" style="grid-column:1/-1"><div style="text-align:center;color:var(--text-dim);font-size:12px;padding:20px">No details added yet. Click "Edit Profile" to add information.</div></div>';
+    h += '<div class="profile-section" style="grid-column:1/-1"><div style="text-align:center;color:var(--text-dim);font-size:13px;padding:32px 20px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1.5" style="margin:0 auto 10px;display:block;opacity:0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>No details added yet. Click Edit to add information.</div></div>';
   }
 
   h += '</div></div>'; // close profile-sections + left col
   h += roImgPanel;    // right col: images
   h += '</div>';       // close outer flex
 
+  // Activity Log (collapsible at bottom)
+  const actLog = d.activityLog || [];
+  if (actLog.length) {
+    const actColors = { viewed:'#818cf8', edited:'#fbbf24', created:'#34d399', classified_accessed:'#f87171', export_generated:'#a78bfa' };
+    h += '<div style="margin-top:20px;background:rgba(18,24,40,0.4);border:1px solid rgba(255,255,255,0.04);border-radius:16px;padding:18px 22px">';
+    h += '<div onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.act-chevron\').style.transform=this.nextElementSibling.style.display===\'none\'?\'rotate(0deg)\':\'rotate(180deg)\'" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none">';
+    h += '<div style="display:flex;align-items:center;gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-indigo)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span style="font-size:10px;font-weight:600;color:var(--accent-indigo);letter-spacing:0.1em;text-transform:uppercase">Activity Log</span><span style="font-size:10px;color:var(--text-dim)">('+actLog.length+')</span></div>';
+    h += '<svg class="act-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2" style="transition:transform 0.2s"><polyline points="6 9 12 15 18 9"/></svg></div>';
+    h += '<div style="display:none;margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    actLog.forEach(e => {
+      const ts = new Date(e.created_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      const actionBase = e.action.includes(':') ? e.action.split(':')[0].trim() : e.action;
+      const dotColor = actColors[actionBase] || '#818cf8';
+      const actionLabel = actionBase.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+      h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,0.02);border-radius:8px">';
+      h += '<div style="width:7px;height:7px;border-radius:50%;background:'+dotColor+';flex-shrink:0"></div>';
+      h += '<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;color:var(--text-secondary)">'+esc(actionLabel)+'</div>';
+      h += '<div style="font-size:10px;color:var(--text-dim)">'+esc(e.username)+' &middot; '+esc(ts)+'</div></div></div>';
+    });
+    h += '</div></div>';
+  }
+
   // Surveillance Reports section
-  h += '<div class="surv-section" id="surv-reports-'+id+'"><div class="surv-section-title">Surveillance Reports</div>';
+  h += '<div class="surv-section" id="surv-reports-'+id+'"><div class="surv-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Surveillance Reports</div>';
   h += '<div id="surv-reports-list-'+id+'">';
   if (survResults.length) {
     survResults.forEach(sr => {
@@ -3209,32 +3219,35 @@ async function viewProfile(id) {
   el.style.display = 'block';
 
   let h = '<div class="profile-detail">';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><div style="display:flex;gap:8px"><button class="k-btn k-btn-sm" onclick="openProfileImagesModal('+id+')" style="display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg>Add Images</button><button class="k-btn k-btn-sm" onclick="saveProfile('+id+')">Save Changes</button><button class="k-btn k-btn-sm k-btn-danger" onclick="deleteProfile('+id+')">Delete</button></div></div>';
 
-  // Photo + Name row
+  // Action bar matching readonly style
+  h += '<div class="pab"><button class="pab-btn" onclick="closeProfile()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg> Back</button><div class="pab-group"><button class="pab-btn" onclick="openProfileImagesModal('+id+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg> Images</button><span class="pab-sep"></span><button class="pab-btn" onclick="saveProfile('+id+')" style="color:var(--status-green);border-color:rgba(52,211,153,0.2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="20 6 9 17 4 12"/></svg> Save</button><button class="pab-btn" onclick="deleteProfile('+id+')" style="color:var(--status-red);border-color:rgba(248,113,113,0.15)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete</button></div></div>';
+
+  // Photo + Name row — hero header
   h += '<div class="profile-top">';
   const editInitials = esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase());
-  h += '<div class="profile-photo" id="edit-profile-photo" onclick="uploadProfilePhoto('+id+')" title="Click to change photo" data-initials="'+editInitials+'">'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':editInitials)+'</div>';
+  h += '<div class="profile-photo" id="edit-profile-photo" onclick="uploadProfilePhoto('+id+')" title="Click to change photo" data-initials="'+editInitials+'" style="position:relative">'+(p.photo_url?'<img src="'+esc(p.photo_url)+'">':editInitials)+'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);border-radius:16px;opacity:0;transition:opacity 0.2s;pointer-events:none" class="photo-hover-overlay"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div></div>';
   h += '<input type="file" id="profile-photo-input" style="display:none" accept="image/*">';
-  h += '<div class="profile-info" style="flex:1"><div class="form-row" style="margin-bottom:10px"><div class="fg"><label class="k-label">First Name</label><input class="k-input" id="pf-fname" value="'+esc(p.first_name||'')+'" oninput="checkEditDupeProfile(this.value,'+id+')" autocomplete="off"></div><div class="fg" style="max-width:140px"><label class="k-label">Middle Name</label><input class="k-input" id="pf-mname" value="'+esc(p.middle_name||'')+'"></div><div class="fg"><label class="k-label">Last Name</label><input class="k-input" id="pf-lname" value="'+esc(p.last_name||'')+'" oninput="checkLastNameMatch(this.value,'+id+')" autocomplete="off"></div></div>';
-  h += '<div id="pf-dupe-warn" style="display:none;margin-top:-6px;margin-bottom:10px;background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:10px 12px"><div style="font-size:10px;font-weight:600;color:var(--status-amber);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">&#9888; Similar profiles exist</div><div id="pf-dupe-list" style="display:flex;flex-wrap:wrap;gap:8px"></div></div>';
-  h += '<div id="pf-lname-suggest" style="display:none;margin-top:-6px;margin-bottom:10px" class="lname-suggest"><div class="lname-suggest-title">&#128101; Same last name — link as related?</div><div class="lname-suggest-cards" id="pf-lname-cards"></div></div>';
+  h += '<div class="profile-info" style="flex:1">';
+  h += '<div class="form-row" style="margin-bottom:10px"><div class="fg"><label class="k-label">First Name</label><input class="k-input" id="pf-fname" value="'+esc(p.first_name||'')+'" oninput="checkEditDupeProfile(this.value,'+id+')" autocomplete="off"></div><div class="fg" style="max-width:140px"><label class="k-label">Middle Name</label><input class="k-input" id="pf-mname" value="'+esc(p.middle_name||'')+'"></div><div class="fg"><label class="k-label">Last Name</label><input class="k-input" id="pf-lname" value="'+esc(p.last_name||'')+'" oninput="checkLastNameMatch(this.value,'+id+')" autocomplete="off"></div></div>';
+  h += '<div id="pf-dupe-warn" style="display:none;margin-top:-6px;margin-bottom:10px;background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.15);border-radius:12px;padding:12px 14px"><div style="font-size:10px;font-weight:600;color:var(--status-amber);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">Similar profiles exist</div><div id="pf-dupe-list" style="display:flex;flex-wrap:wrap;gap:8px"></div></div>';
+  h += '<div id="pf-lname-suggest" style="display:none;margin-top:-6px;margin-bottom:10px" class="lname-suggest"><div class="lname-suggest-title">Same last name — link as related?</div><div class="lname-suggest-cards" id="pf-lname-cards"></div></div>';
   h += '<div class="form-row"><div class="fg"><label class="k-label">Relation</label><input class="k-input" id="pf-relation" value="'+esc(p.relation||'')+'" placeholder="e.g. Friend, Family, Coworker"></div><div class="fg"><label class="k-label">Aliases (comma separated)</label><input class="k-input" id="pf-aliases" value="'+esc((p.aliases||[]).join(', '))+'"></div></div>';
   const bdParsed = parseBirthday(p.birthday); const bdVal = bdParsed ? bdParsed.toISOString().split('T')[0] : '';
-  h += '<div class="form-row"><div class="fg"><label class="k-label">Age</label><input class="k-input" id="pf-age" value="'+esc(computeAge(p))+'" placeholder="e.g. 25 or 30-35"'+(p.birthday?' disabled title="Auto-calculated from birthday"':'')+'></div><div class="fg"><label class="k-label">Birthday <span style="font-size:9px;color:var(--text-dim)">(optional)</span></label><input class="k-input" id="pf-birthday" type="date" value="'+esc(bdVal)+'"></div></div>';
+  h += '<div class="form-row"><div class="fg"><label class="k-label">Age</label><input class="k-input" id="pf-age" value="'+esc(computeAge(p))+'" placeholder="e.g. 25 or 30-35"'+(p.birthday?' disabled title="Auto-calculated from birthday"':'')+'></div><div class="fg"><label class="k-label">Birthday</label><input class="k-input" id="pf-birthday" type="date" value="'+esc(bdVal)+'"></div></div>';
   const addr = typeof p.address === 'string' ? JSON.parse(p.address||'{}') : (p.address||{});
-  h += '<div style="margin-top:8px"><label class="k-label">Home Address</label></div>';
+  h += '<div style="margin-top:10px"><label class="k-label">Home Address</label></div>';
   h += '<div class="form-row" style="margin-top:4px"><div class="fg" style="flex:2"><input class="k-input" id="pf-addr-street" value="'+esc(addr.street||'')+'" placeholder="Street"></div></div>';
   h += '<div class="form-row"><div class="fg"><input class="k-input" id="pf-addr-city" value="'+esc(addr.city||'')+'" placeholder="City"></div><div class="fg" style="max-width:80px"><input class="k-input" id="pf-addr-state" value="'+esc(addr.state||'')+'" placeholder="State" maxlength="2"></div><div class="fg" style="max-width:110px"><input class="k-input" id="pf-addr-zip" value="'+esc(addr.zip||'')+'" placeholder="ZIP"></div></div>';
   h += '</div></div>';
 
-  // Command badge + Labels under photo
+  // Labels section
   if (isCommandProfile(p.first_name)) h += '<div style="margin-bottom:12px"><span class="command-badge">Command</span></div>';
   const lblsEdit = renderProfileLabels(id);
-  h += '<div id="pf-labels-row" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:16px">';
+  h += '<div id="pf-labels-row" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:20px;padding:0 4px">';
   if (lblsEdit) h += lblsEdit;
-  h += '<button class="k-btn k-btn-sm" onclick="showApplyLabelUI('+id+')" style="font-size:9px;padding:4px 10px">+ Label</button>';
-  h += '<button class="k-btn k-btn-sm" onclick="openModal(\'create-label-modal\')" style="font-size:9px;padding:4px 10px">Create Label</button>';
+  h += '<button class="pab-btn" onclick="showApplyLabelUI('+id+')" style="font-size:10px;padding:6px 12px">+ Label</button>';
+  h += '<button class="pab-btn" onclick="openModal(\'create-label-modal\')" style="font-size:10px;padding:6px 12px">Create Label</button>';
   h += '</div>';
   h += '<div id="apply-label-list" style="display:none;margin-bottom:16px"></div>';
 
@@ -3243,30 +3256,30 @@ async function viewProfile(id) {
   h += '<div class="profile-sections">';
 
   // Phones (labeled chips)
-  h += '<div class="profile-section"><div class="profile-section-title">Phone Numbers</div>';
+  h += '<div class="profile-section"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Phone Numbers</div>';
   h += '<div id="pf-phones-list">';
   (p.phones||[]).forEach(ph => {
     const num = typeof ph === 'string' ? ph : (ph.number||ph);
     h += phoneChipHTML(num);
   });
   h += '</div>';
-  h += '<div style="display:flex;gap:6px;margin-top:6px"><input class="k-input" id="pf-phone-input" placeholder="Number" style="font-size:12px;flex:1" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addPhoneChip();}"></div>';
+  h += '<div style="display:flex;gap:6px;margin-top:8px"><input class="k-input" id="pf-phone-input" placeholder="Add phone number..." style="font-size:12px;flex:1" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addPhoneChip();}"></div>';
   h += '</div>';
 
   // Emails (labeled chips)
-  h += '<div class="profile-section"><div class="profile-section-title">Email Addresses</div>';
+  h += '<div class="profile-section"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email Addresses</div>';
   h += '<div id="pf-emails-list">';
   (p.emails||[]).forEach(e => {
     const addr = typeof e === 'string' ? e : (e.address||e);
     h += emailChipHTML(addr);
   });
   h += '</div>';
-  h += '<div style="display:flex;gap:6px;margin-top:6px"><input class="k-input" id="pf-email-input" placeholder="Email" style="font-size:12px;flex:1" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addEmailChip();}"></div>';
+  h += '<div style="display:flex;gap:6px;margin-top:8px"><input class="k-input" id="pf-email-input" placeholder="Add email address..." style="font-size:12px;flex:1" autocomplete="off" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addEmailChip();}"></div>';
   h += '</div>';
 
   // Social Links
   const links = typeof p.social_links === 'string' ? JSON.parse(p.social_links || '[]') : (p.social_links || []);
-  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Social Media Links</div>';
+  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Social Media</div>';
   h += '<div id="pf-social-links">';
   if (links.length) {
     links.forEach((l, i) => {
@@ -3274,16 +3287,16 @@ async function viewProfile(id) {
       h += socialRowHTML(l.url||'', l.handle||'', platform);
     });
   }
-  h += '</div><button class="k-btn k-btn-sm" onclick="addSocialRow()" style="margin-top:8px;font-size:10px">+ Add Link</button></div>';
+  h += '</div><button class="pab-btn" onclick="addSocialRow()" style="margin-top:10px;font-size:10px;padding:6px 12px">+ Add Link</button></div>';
 
   // Notes
-  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Notes</div>';
-  h += '<textarea class="k-input" id="pf-notes" rows="4" style="resize:vertical;font-size:12px">'+esc(p.notes||'')+'</textarea>';
+  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Notes</div>';
+  h += '<textarea class="k-input" id="pf-notes" rows="4" style="resize:vertical;font-size:13px;line-height:1.6">'+esc(p.notes||'')+'</textarea>';
   h += '</div>';
 
   // Employer
   const emp = typeof p.employer_info === 'string' ? JSON.parse(p.employer_info||'{}') : (p.employer_info||{});
-  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Employer</div>';
+  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> Employer</div>';
   h += '<div class="form-row"><div class="fg"><label class="k-label">Employer Name</label><input class="k-input" id="pf-emp-name" value="'+esc(emp.name||'')+'" placeholder="Company / Organization"></div></div>';
   h += '<div class="form-row"><div class="fg"><label class="k-label">Address</label><input class="k-input" id="pf-emp-address" value="'+esc(emp.address||'')+'" placeholder="Employer address"></div></div>';
   h += '<div class="form-row"><div class="fg"><label class="k-label">Industry</label><input class="k-input" id="pf-emp-industry" value="'+esc(emp.industry||'')+'" placeholder="e.g. Finance, Technology"></div></div>';
@@ -3292,55 +3305,54 @@ async function viewProfile(id) {
   // Classified Section
   const isRevealed = _revealedProfiles.has(String(id));
   const revealedData = isRevealed ? (_revealedClassifiedData[String(id)] || { data: [], files: [] }) : null;
-  h += '<div class="profile-section" style="grid-column:1/-1;border:1px solid rgba(248,113,113,0.2);border-radius:8px;padding:12px;background:rgba(248,113,113,0.03)">';
+  h += '<div class="profile-section" style="grid-column:1/-1;border-color:rgba(248,113,113,0.12);background:rgba(248,113,113,0.03)">';
   if (isRevealed) {
-    h += '<div class="profile-section-title" style="color:var(--status-red)">Classified Data — Editing</div>';
+    h += '<div class="profile-section-title" style="color:var(--status-red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Classified Data — Editing</div>';
     h += '<input type="hidden" id="pf-classified-mode" value="replace">';
     h += '<div id="pf-classified-fields">';
     (revealedData.data || []).forEach(c => {
-      h += '<div class="classified-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">';
-      h += '<input class="k-input pf-cl-label" value="'+esc(c.label||'')+'" placeholder="Label" style="font-size:11px;flex:1">';
-      h += '<input class="k-input pf-cl-value" value="'+esc(c.value||'')+'" placeholder="Value" style="font-size:11px;flex:2">';
-      h += '<button class="k-btn k-btn-sm k-btn-danger" onclick="this.closest(\'.classified-row\').remove()" style="font-size:9px;padding:4px 8px;flex-shrink:0">Remove</button>';
+      h += '<div class="classified-row" style="display:flex;gap:8px;margin-bottom:8px;align-items:center">';
+      h += '<input class="k-input pf-cl-label" value="'+esc(c.label||'')+'" placeholder="Label" style="font-size:12px;flex:1">';
+      h += '<input class="k-input pf-cl-value" value="'+esc(c.value||'')+'" placeholder="Value" style="font-size:12px;flex:2">';
+      h += '<button class="pab-btn" onclick="this.closest(\'.classified-row\').remove()" style="font-size:10px;padding:6px 10px;color:var(--status-red);border-color:rgba(248,113,113,0.15);flex-shrink:0">Remove</button>';
       h += '</div>';
     });
     h += '</div>';
-    h += '<button class="k-btn k-btn-sm" onclick="addClassifiedRow()" style="margin-top:6px;font-size:10px">+ Add Field</button>';
-    // Show classified files for management
-    h += '<div style="margin-top:10px"><div style="font-size:10px;font-weight:600;color:var(--status-red);margin-bottom:4px">Classified Files</div>';
+    h += '<button class="pab-btn" onclick="addClassifiedRow()" style="margin-top:8px;font-size:10px;padding:6px 12px">+ Add Field</button>';
+    h += '<div style="margin-top:14px"><div style="font-size:10px;font-weight:600;color:var(--status-red);margin-bottom:6px">Classified Files</div>';
     h += '<div id="pf-classified-files-list">';
     (revealedData.files || []).forEach(f => {
-      h += '<div class="profile-section-item" style="display:flex;align-items:center;gap:8px"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:11px;flex:1">'+esc(f.original_name)+'</a><button class="k-btn k-btn-sm k-btn-danger" onclick="deleteClassifiedFile('+id+','+f.id+')" style="font-size:8px;padding:2px 6px">x</button></div>';
+      h += '<div class="profile-section-item" style="display:flex;align-items:center;gap:8px"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-indigo);font-size:12px;flex:1;text-decoration:none">'+esc(f.original_name)+'</a><button class="pab-btn" onclick="deleteClassifiedFile('+id+','+f.id+')" style="font-size:9px;padding:4px 8px;color:var(--status-red);border-color:rgba(248,113,113,0.15)">x</button></div>';
     });
     h += '</div>';
-    h += '<input type="file" id="classified-file-input" multiple style="display:none" onchange="uploadClassifiedFiles('+id+',this.files)"><button class="k-btn k-btn-sm" onclick="document.getElementById(\'classified-file-input\').click()" style="margin-top:4px;font-size:10px">+ Attach Classified Files</button>';
+    h += '<input type="file" id="classified-file-input" multiple style="display:none" onchange="uploadClassifiedFiles('+id+',this.files)"><button class="pab-btn" onclick="document.getElementById(\'classified-file-input\').click()" style="margin-top:6px;font-size:10px;padding:6px 12px">+ Attach Classified Files</button>';
     h += '</div>';
   } else {
-    h += '<div class="profile-section-title" style="color:var(--status-red)">Add Classified Data</div>';
+    h += '<div class="profile-section-title" style="color:var(--status-red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Add Classified Data</div>';
     h += '<input type="hidden" id="pf-classified-mode" value="append">';
-    h += '<div style="font-size:10px;color:var(--text-dim);margin-bottom:8px">Existing classified data is hidden. New entries will be appended. Use <span style="font-family:\'JetBrains Mono\',monospace;color:var(--accent-blue)">reveal classified</span> in the Command Bar to edit existing data.</div>';
+    h += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;line-height:1.5">Existing classified data is hidden. New entries will be appended. Use <span style="font-family:\'JetBrains Mono\',monospace;color:var(--accent-indigo)">reveal classified</span> in the Command Bar to edit existing data.</div>';
     h += '<div id="pf-classified-fields"></div>';
-    h += '<button class="k-btn k-btn-sm" onclick="addClassifiedRow()" style="margin-top:6px;font-size:10px">+ Add Field</button>';
-    h += '<div style="margin-top:10px">';
-    h += '<input type="file" id="classified-file-input" multiple style="display:none" onchange="uploadClassifiedFiles('+id+',this.files)"><button class="k-btn k-btn-sm" onclick="document.getElementById(\'classified-file-input\').click()" style="font-size:10px">+ Attach Classified Files</button>';
+    h += '<button class="pab-btn" onclick="addClassifiedRow()" style="margin-top:8px;font-size:10px;padding:6px 12px">+ Add Field</button>';
+    h += '<div style="margin-top:12px">';
+    h += '<input type="file" id="classified-file-input" multiple style="display:none" onchange="uploadClassifiedFiles('+id+',this.files)"><button class="pab-btn" onclick="document.getElementById(\'classified-file-input\').click()" style="font-size:10px;padding:6px 12px">+ Attach Classified Files</button>';
     h += '</div>';
   }
   h += '</div>';
 
   // Attached Files
-  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Attached Files</div>';
+  h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg> Attached Files</div>';
   if (otherFiles.length) {
-    otherFiles.forEach(f => { h += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-blue);font-size:12px">'+esc(f.original_name)+'</a></div>'; });
+    otherFiles.forEach(f => { h += '<div class="profile-section-item"><a href="/uploads/'+esc(f.filename)+'" target="_blank" style="color:var(--accent-indigo);font-size:12px;text-decoration:none">'+esc(f.original_name)+'</a></div>'; });
   } else {
-    h += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">No files attached</div>';
+    h += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">No files attached</div>';
   }
-  h += '<input type="file" id="profile-file-input" multiple style="display:none" onchange="uploadProfileFiles('+id+',this.files)"><button class="k-btn k-btn-sm" onclick="document.getElementById(\'profile-file-input\').click()" style="margin-top:6px;font-size:10px">+ Attach Files</button>';
+  h += '<input type="file" id="profile-file-input" multiple style="display:none" onchange="uploadProfileFiles('+id+',this.files)"><button class="pab-btn" onclick="document.getElementById(\'profile-file-input\').click()" style="margin-top:8px;font-size:10px;padding:6px 12px">+ Attach Files</button>';
   h += '</div>';
 
   // Relations
-  h += '<div class="profile-section"><div class="profile-section-title">Related Profiles</div>';
+  h += '<div class="profile-section"><div class="profile-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Related Profiles</div>';
   h += '<div id="pf-relations-cards">'+renderRelationCards(d.relations, id)+'</div>';
-  h += '<div style="margin-top:8px"><input class="k-input" id="pf-link-search" placeholder="Search profile to link..." style="font-size:11px" oninput="searchProfileToLink(this.value,'+id+')"><div id="pf-link-results" style="margin-top:4px"></div></div>';
+  h += '<div style="margin-top:10px"><input class="k-input" id="pf-link-search" placeholder="Search profile to link..." style="font-size:12px" oninput="searchProfileToLink(this.value,'+id+')"><div id="pf-link-results" style="margin-top:4px"></div></div>';
   h += '</div>';
 
   h += '</div>'; // close profile-sections
