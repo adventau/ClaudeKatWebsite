@@ -1240,14 +1240,6 @@
               <button type="button" class="cnm-pill prio-high" data-value="high" onclick="selectPill('cnm-priority-group','high')">HIGH</button>
             </div>
           </div>
-          <div class="case-modal-field">
-            <label>Classification</label>
-            <div class="cnm-pill-group" id="cnm-class-group">
-              <button type="button" class="cnm-pill class-unclassified active" data-value="unclassified" onclick="selectPill('cnm-class-group','unclassified')">UNCLASSIFIED</button>
-              <button type="button" class="cnm-pill class-confidential" data-value="confidential" onclick="selectPill('cnm-class-group','confidential')">CONFIDENTIAL</button>
-              <button type="button" class="cnm-pill class-classified" data-value="classified" onclick="selectPill('cnm-class-group','classified')">CLASSIFIED</button>
-            </div>
-          </div>
           <div class="k-error" id="cnm-error" style="margin-top:6px"></div>
           <div class="case-modal-actions" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <button class="k-btn k-btn-sm cnm-cancel-btn" onclick="closeNewCaseModal()">Cancel</button>
@@ -2341,7 +2333,6 @@ async function loadCasesList() {
       '</div>' +
       '<div style="display:flex;gap:6px;flex-shrink:0;align-items:center">' +
         caseStatusPill(c.status) +
-        caseClassPill(c.classification) +
         casePriorityPill(c.priority) +
         '<button class="case-row-delete" onclick="event.stopPropagation();deleteCaseFromList('+c.id+',\''+esc(c.caseId||'')+'\')">DEL</button>' +
       '</div>' +
@@ -2374,7 +2365,6 @@ function openNewCaseModal() {
   document.getElementById('cnm-target').value = '';
   cnmSelectedProfileId = null;
   selectPill('cnm-priority-group', 'medium');
-  selectPill('cnm-class-group', 'unclassified');
   hideErr('cnm-error');
   const btn = document.getElementById('cnm-submit-btn');
   btn.disabled = false;
@@ -2465,7 +2455,6 @@ async function submitNewCase() {
   const name = document.getElementById('cnm-name').value.trim();
   const targetName = document.getElementById('cnm-target').value.trim();
   const priority = getSelectedPill('cnm-priority-group');
-  const classification = getSelectedPill('cnm-class-group');
   if (!name) { showErr('cnm-error', 'Case name is required'); return; }
   const btn = document.getElementById('cnm-submit-btn');
   if (btn.disabled) return;
@@ -2482,7 +2471,7 @@ async function submitNewCase() {
       btn.textContent = 'Create Case';
       return;
     }
-    const d = await kAuthFetch('/api/k108/cases/create', { name, targetName, priority, classification, summary: '' });
+    const d = await kAuthFetch('/api/k108/cases/create', { name, targetName, priority, summary: '' });
     if (!d || d.error || !d.case) {
       showErr('cnm-error', (d && d.error) || 'Failed to create case');
       btn.disabled = false;
@@ -2519,7 +2508,6 @@ async function loadCaseWorkspace(caseId, tab) {
   h += '  </div>';
   h += '  <div class="cwh-right">';
   h += '    '+caseStatusPill(c.status);
-  h += '    '+caseClassPill(c.classification);
   h += '    '+casePriorityPill(c.priority);
   h += '    <button class="k-btn k-btn-sm" onclick="toggleCaseStatus('+c.id+')">'+toggleBtnLabel+'</button>';
   h += '    <button class="case-delete-btn" onclick="deleteCaseFromWorkspace('+c.id+',\''+esc(c.caseId||'')+'\')">DELETE</button>';
@@ -2608,19 +2596,12 @@ function renderCaseDetails() {
   const c = currentCase;
   if (!c) return;
   const priorities = ['low','medium','high'];
-  const classifications = ['unclassified','confidential','classified'];
   let h = '<div class="case-kv">';
   h += '<div class="case-kv-label">Target</div><div class="case-kv-val">'+esc(c.targetName || '—')+'</div>';
   h += '<div class="case-kv-label">Priority</div><div class="case-kv-val"><div class="cnm-pill-group" style="gap:4px;flex-wrap:wrap">';
   priorities.forEach(p => {
     const active = c.priority === p ? ' active' : '';
     h += '<button class="cnm-pill prio-'+p+active+'" style="flex:0;padding:3px 8px;font-size:8px" onclick="updateCaseField(\'priority\',\''+p+'\')">'+p.toUpperCase()+'</button>';
-  });
-  h += '</div></div>';
-  h += '<div class="case-kv-label">Classification</div><div class="case-kv-val"><div class="cnm-pill-group" style="gap:4px;flex-wrap:wrap">';
-  classifications.forEach(cl => {
-    const active = c.classification === cl ? ' active' : '';
-    h += '<button class="cnm-pill class-'+cl+active+'" style="flex:0;padding:3px 8px;font-size:8px" onclick="updateCaseField(\'classification\',\''+cl+'\')">'+cl.toUpperCase()+'</button>';
   });
   h += '</div></div>';
   h += '<div class="case-kv-label">Status</div><div class="case-kv-val">'+caseStatusPill(c.status)+'</div>';
