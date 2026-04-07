@@ -1268,6 +1268,7 @@ async function checkK108Auth() {
     updateGreeting();
     loadLabels();
     handleRoute();
+    initK108Presence();
     return;
   }
   // Not pre-authenticated - check if setup needed
@@ -1307,6 +1308,7 @@ async function authenticate() {
       updateGreeting();
       loadLabels();
       handleRoute();
+      initK108Presence();
     }, 280);
   } catch(e) { err.textContent = 'Connection failed'; }
 }
@@ -1334,6 +1336,7 @@ async function submitSetup() {
       updateGreeting();
       loadLabels();
       handleRoute();
+      initK108Presence();
     }, 280);
   } catch(e) { err.textContent = 'Connection failed'; }
 }
@@ -4250,6 +4253,407 @@ socket.on('k108:briefing:new', () => {
   if (document.getElementById('view-briefing')?.classList.contains('active')) loadBriefings();
 });
 
+// ═══════════════════════════════════════════════════════════
+// K-108 PRESENCE + MINI CHAT
+// ═══════════════════════════════════════════════════════════
+
+window.k108ChatHintSeen = true;
+let _k108PresenceInit = false;
+let _k108PopupTimeout = null;
+let _k108MiniOpen = false;
+let _k108TriggerMsg = null;
+let _k108OtherUser = null;
+let _k108OtherAvatar = null;
+let _k108OtherName = null;
+
+async function initK108Presence() {
+  if (_k108PresenceInit) return;
+  _k108PresenceInit = true;
+
+  // Emit in_k108 presence
+  socket.emit('k108:enter', { user: currentUser });
+
+  // Tab visibility — go idle when hidden, re-enter k108 when visible
+  document.addEventListener('visibilitychange', () => {
+    if (!currentUser) return;
+    if (document.hidden) {
+      socket.emit('user-idle', { user: currentUser });
+    } else {
+      socket.emit('k108:enter', { user: currentUser });
+    }
+  });
+
+  // Fetch chat hint flag
+  try {
+    const d = await kAuthFetch('/api/k108/chat-hint');
+    if (d) window.k108ChatHintSeen = !!d.seen;
+  } catch(e) {}
+
+  // Pre-fetch other user's data (avatar + display name)
+  try {
+    const r = await fetch('/api/users');
+    if (r.ok) {
+      const users = await r.json();
+      const other = Object.keys(users).find(u => u !== currentUser);
+      if (other) {
+        _k108OtherUser = other;
+        _k108OtherAvatar = users[other]?.avatar || null;
+        _k108OtherName = users[other]?.displayName || users[other]?.name || other;
+      }
+    }
+  } catch(e) {}
+
+  // Listen for main chat messages
+  socket.on('new-message', (msg) => {
+    if (!currentUser || !msg) return;
+    if (msg.system_message) return;
+    if (msg.sender === currentUser) {
+      // Own message sent via mini chat — append if open
+      if (_k108MiniOpen) _appendMiniMsg(msg);
+      return;
+    }
+    // Message from other user
+    if (_k108MiniOpen) {
+      _appendMiniMsg(msg);
+    } else {
+      _k108TriggerMsg = msg;
+      _k108OtherUser = msg.sender;
+      _showK108Popup(msg);
+    }
+  });
+}
+
+function _showK108Popup(msg) {
+  if (_k108PopupTimeout) { clearTimeout(_k108PopupTimeout); _k108PopupTimeout = null; }
+
+  const popup = document.getElementById('k108mc-popup');
+  if (!popup) return;
+
+  // Populate avatar
+  const avatarEl = document.getElementById('k108mc-notif-avatar');
+  if (_k108OtherAvatar) {
+    avatarEl.innerHTML = '<img src="'+esc(_k108OtherAvatar)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+  } else {
+    const initial = (_k108OtherName || msg.sender || '?')[0].toUpperCase();
+    avatarEl.textContent = initial;
+  }
+
+  // Populate sender name and preview
+  const senderName = _k108OtherName || (msg.sender.charAt(0).toUpperCase() + msg.sender.slice(1));
+  document.getElementById('k108mc-notif-name').textContent = senderName;
+  const raw = msg.content || (msg.files && msg.files.length ? '[File attached]' : '');
+  document.getElementById('k108mc-notif-preview').textContent = raw.length > 60 ? raw.slice(0, 60) + '...' : raw;
+
+  // First-time hint
+  const hint = document.getElementById('k108mc-notif-hint');
+  if (!window.k108ChatHintSeen) {
+    hint.style.display = 'block';
+    window.k108ChatHintSeen = true;
+    kAuthFetch('/api/k108/chat-hint/seen', {}, 'POST').catch(() => {});
+  } else {
+    hint.style.display = 'none';
+  }
+
+  // Show notification, hide mini chat body
+  document.getElementById('k108mc-notif').style.display = 'flex';
+  document.getElementById('k108mc-body').style.display = 'none';
+
+  // Slide in from top
+  popup.style.display = 'block';
+  popup.style.transform = 'translateY(-120%)';
+  popup.style.opacity = '0';
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      popup.style.transition = 'transform 0.32s cubic-bezier(0.34,1.2,0.64,1), opacity 0.25s ease';
+      popup.style.transform = 'translateY(0)';
+      popup.style.opacity = '1';
+    });
+  });
+
+  _k108PopupTimeout = setTimeout(() => _dismissK108Popup(), 4000);
+}
+
+function _dismissK108Popup() {
+  if (_k108PopupTimeout) { clearTimeout(_k108PopupTimeout); _k108PopupTimeout = null; }
+  const popup = document.getElementById('k108mc-popup');
+  if (!popup) return;
+  popup.style.transition = 'transform 0.28s ease, opacity 0.28s ease';
+  popup.style.transform = 'translateY(-120%)';
+  popup.style.opacity = '0';
+  setTimeout(() => { popup.style.display = 'none'; popup.style.transition = ''; }, 300);
+}
+
+async function _openMiniChat() {
+  if (_k108PopupTimeout) { clearTimeout(_k108PopupTimeout); _k108PopupTimeout = null; }
+  _k108MiniOpen = true;
+
+  const popup = document.getElementById('k108mc-popup');
+  if (!popup) return;
+
+  // Stop slide-out if mid-animation
+  popup.style.transition = '';
+  popup.style.transform = 'translateY(0)';
+  popup.style.opacity = '1';
+
+  // Swap to mini chat view
+  document.getElementById('k108mc-notif').style.display = 'none';
+  const body = document.getElementById('k108mc-body');
+  body.style.display = 'flex';
+
+  // Set header
+  const senderName = _k108OtherName || (_k108OtherUser ? _k108OtherUser.charAt(0).toUpperCase() + _k108OtherUser.slice(1) : '');
+  document.getElementById('k108mc-header-name').textContent = senderName;
+  const hAv = document.getElementById('k108mc-header-avatar');
+  if (_k108OtherAvatar) {
+    hAv.innerHTML = '<img src="'+esc(_k108OtherAvatar)+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+  } else {
+    hAv.textContent = (senderName || '?')[0].toUpperCase();
+  }
+
+  // Load context + trigger message
+  const msgs = document.getElementById('k108mc-messages');
+  msgs.innerHTML = '<div style="text-align:center;color:var(--text-muted,#475569);font-size:11px;padding:16px">Loading...</div>';
+
+  let ctx = [];
+  if (_k108TriggerMsg) {
+    try {
+      const r = await fetch('/api/chat/context?before=' + encodeURIComponent(_k108TriggerMsg.id) + '&limit=3');
+      if (r.ok) ctx = await r.json();
+    } catch(e) {}
+    msgs.innerHTML = [...ctx, _k108TriggerMsg].map(_renderMiniMsg).join('');
+  } else {
+    msgs.innerHTML = '';
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+
+  // Focus input
+  setTimeout(() => document.getElementById('k108mc-input')?.focus(), 50);
+}
+
+function _closeMiniChat() {
+  _k108MiniOpen = false;
+  const popup = document.getElementById('k108mc-popup');
+  if (popup) {
+    popup.style.transition = 'transform 0.28s ease, opacity 0.28s ease';
+    popup.style.transform = 'translateY(-120%)';
+    popup.style.opacity = '0';
+    setTimeout(() => { popup.style.display = 'none'; popup.style.transition = ''; }, 300);
+  }
+}
+
+function _renderMiniMsg(msg) {
+  if (!msg) return '';
+  const isMe = msg.sender === currentUser;
+  const text = esc(msg.content || (msg.files && msg.files.length ? '[File attached]' : ''));
+  const time = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  return '<div style="display:flex;flex-direction:column;align-items:'+(isMe?'flex-end':'flex-start')+';margin-bottom:6px;padding:0 12px">'
+    + '<div style="max-width:82%;background:'+(isMe?'rgba(76,201,240,0.12)':'rgba(255,255,255,0.05)')+';border:1px solid '+(isMe?'rgba(76,201,240,0.28)':'rgba(255,255,255,0.08)')+';border-radius:'+(isMe?'10px 10px 2px 10px':'10px 10px 10px 2px')+';padding:7px 11px;font-size:12.5px;color:#e2e8f0;line-height:1.4;word-break:break-word">'+text+'</div>'
+    + '<div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:3px">'+time+'</div>'
+    + '</div>';
+}
+
+function _appendMiniMsg(msg) {
+  const msgs = document.getElementById('k108mc-messages');
+  if (!msgs) return;
+  const div = document.createElement('div');
+  div.innerHTML = _renderMiniMsg(msg);
+  const node = div.firstChild;
+  if (node) msgs.appendChild(node);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function _sendMiniMsg() {
+  const input = document.getElementById('k108mc-input');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+  try {
+    const fd = new FormData();
+    fd.append('text', text);
+    const r = await fetch('/api/messages', { method: 'POST', body: fd });
+    if (!r.ok) throw new Error('failed');
+  } catch(e) {
+    showToast('Failed to send');
+    input.value = text;
+  }
+}
+
 </script>
+
+<!-- K-108 Mini Chat Popup -->
+<style>
+#k108mc-popup {
+  display: none;
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10000;
+  width: 300px;
+  font-family: 'Inter', sans-serif;
+  filter: drop-shadow(0 8px 32px rgba(0,0,0,0.7));
+}
+
+/* ── Notification banner ── */
+#k108mc-notif {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #0d1117;
+  border: 1px solid rgba(76,201,240,0.35);
+  border-radius: 12px;
+  padding: 11px 14px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+#k108mc-notif:hover { border-color: rgba(76,201,240,0.6); }
+
+.k108mc-av {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(76,201,240,0.15); border: 1px solid rgba(76,201,240,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 14px;
+  font-weight: 600; color: #4cc9f0; overflow: hidden;
+}
+
+.k108mc-notif-text { flex: 1; min-width: 0; }
+.k108mc-notif-name { font-size: 12px; font-weight: 600; color: #e2e8f0; margin-bottom: 2px; }
+.k108mc-notif-preview { font-size: 11.5px; color: rgba(226,232,240,0.6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#k108mc-notif-hint {
+  display: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; color: #4cc9f0; letter-spacing: 0.08em;
+  text-transform: uppercase; margin-top: 4px;
+}
+
+/* ── Mini chat body ── */
+#k108mc-body {
+  display: none;
+  flex-direction: column;
+  background: #0d1117;
+  border: 1px solid rgba(76,201,240,0.35);
+  border-radius: 12px;
+  overflow: hidden;
+  height: 420px;
+}
+
+.k108mc-header {
+  display: flex; align-items: center; gap: 9px;
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(76,201,240,0.15);
+  background: rgba(76,201,240,0.04);
+  flex-shrink: 0;
+}
+.k108mc-header-info { flex: 1; min-width: 0; }
+.k108mc-header-name { font-size: 12px; font-weight: 600; color: #e2e8f0; }
+.k108mc-header-sub { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: #4cc9f0; letter-spacing: 0.05em; }
+.k108mc-close {
+  background: none; border: none; cursor: pointer;
+  color: rgba(226,232,240,0.45); font-size: 16px; line-height: 1;
+  padding: 2px 4px; border-radius: 4px;
+  transition: color 0.15s;
+}
+.k108mc-close:hover { color: #e2e8f0; }
+
+#k108mc-messages {
+  flex: 1; overflow-y: auto; padding: 10px 0;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  min-height: 0;
+}
+#k108mc-messages::-webkit-scrollbar { width: 3px; }
+#k108mc-messages::-webkit-scrollbar-track { background: transparent; }
+#k108mc-messages::-webkit-scrollbar-thumb { background: rgba(76,201,240,0.2); border-radius: 2px; }
+
+.k108mc-input-row {
+  display: flex; align-items: flex-end; gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(76,201,240,0.12);
+  background: rgba(0,0,0,0.2);
+  flex-shrink: 0;
+}
+#k108mc-input {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(76,201,240,0.2);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #e2e8f0;
+  font-size: 12.5px;
+  font-family: 'Inter', sans-serif;
+  resize: none;
+  outline: none;
+  line-height: 1.4;
+  max-height: 80px;
+  overflow-y: auto;
+  transition: border-color 0.15s;
+}
+#k108mc-input:focus { border-color: rgba(76,201,240,0.45); }
+#k108mc-input::placeholder { color: rgba(226,232,240,0.3); }
+.k108mc-send {
+  background: rgba(76,201,240,0.12);
+  border: 1px solid rgba(76,201,240,0.3);
+  border-radius: 8px;
+  color: #4cc9f0;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+  padding: 7px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.k108mc-send:hover { background: rgba(76,201,240,0.2); border-color: rgba(76,201,240,0.5); }
+</style>
+
+<div id="k108mc-popup">
+  <!-- Notification banner -->
+  <div id="k108mc-notif" onclick="_openMiniChat()">
+    <div class="k108mc-av" id="k108mc-notif-avatar"></div>
+    <div class="k108mc-notif-text">
+      <div class="k108mc-notif-name" id="k108mc-notif-name"></div>
+      <div class="k108mc-notif-preview" id="k108mc-notif-preview"></div>
+      <div id="k108mc-notif-hint">Tap to reply</div>
+    </div>
+  </div>
+  <!-- Mini chat -->
+  <div id="k108mc-body">
+    <div class="k108mc-header">
+      <div class="k108mc-av" id="k108mc-header-avatar"></div>
+      <div class="k108mc-header-info">
+        <div class="k108mc-header-name" id="k108mc-header-name"></div>
+        <div class="k108mc-header-sub">VAULT CHAT</div>
+      </div>
+      <button class="k108mc-close" onclick="_closeMiniChat()" title="Close">&times;</button>
+    </div>
+    <div id="k108mc-messages"></div>
+    <div class="k108mc-input-row">
+      <textarea id="k108mc-input" rows="1" placeholder="Reply..."></textarea>
+      <button class="k108mc-send" onclick="_sendMiniMsg()">SEND</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Auto-resize textarea and handle Enter/Shift+Enter
+(function() {
+  const inp = document.getElementById('k108mc-input');
+  if (!inp) return;
+  inp.addEventListener('input', () => {
+    inp.style.height = 'auto';
+    inp.style.height = Math.min(inp.scrollHeight, 80) + 'px';
+  });
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      _sendMiniMsg();
+    }
+  });
+})();
+</script>
+
 </body>
 </html>
