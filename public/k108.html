@@ -2612,18 +2612,23 @@ function renderCaseDetails() {
   const c = currentCase;
   if (!c) return;
   const priorities = ['low','medium','high'];
-  let h = '<div class="case-kv">';
-  h += '<div class="case-kv-label">Target</div><div class="case-kv-val">'+esc(c.targetName || '—')+'</div>';
-  h += '<div class="case-kv-label">Priority</div><div class="case-kv-val"><div class="cnm-pill-group" style="gap:4px;flex-wrap:wrap">';
+  const prioColors = { high:'var(--status-red)', medium:'var(--accent-blue)', low:'var(--text-secondary)' };
+  let h = '';
+  // Priority selector
+  h += '<div style="margin-bottom:16px">';
+  h += '  <div style="font-size:9px;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px">Priority</div>';
+  h += '  <div class="cnm-pill-group" style="gap:6px">';
   priorities.forEach(p => {
     const active = c.priority === p ? ' active' : '';
-    h += '<button class="cnm-pill prio-'+p+active+'" style="flex:0;padding:3px 8px;font-size:8px" onclick="updateCaseField(\'priority\',\''+p+'\')">'+p.toUpperCase()+'</button>';
+    h += '<button class="cnm-pill prio-'+p+active+'" style="flex:1;padding:6px 8px;font-size:9px;border-radius:8px" onclick="updateCaseField(\'priority\',\''+p+'\')">'+p.toUpperCase()+'</button>';
   });
-  h += '</div></div>';
-  h += '<div class="case-kv-label">Status</div><div class="case-kv-val">'+caseStatusPill(c.status)+'</div>';
-  h += '<div class="case-kv-label">Created By</div><div class="case-kv-val">'+esc(capFirst(c.createdBy) || '—')+'</div>';
-  h += '<div class="case-kv-label">Created</div><div class="case-kv-val">'+esc(fmtCaseDate(c.createdAt))+'</div>';
-  h += '<div class="case-kv-label">Updated</div><div class="case-kv-val">'+esc(fmtCaseDate(c.updatedAt))+'</div>';
+  h += '  </div>';
+  h += '</div>';
+  // Metadata
+  h += '<div style="display:flex;flex-direction:column;gap:10px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.04)">';
+  h += '  <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:var(--text-dim)">Opened by</span><span style="font-size:12px;color:var(--text-primary);font-weight:500">'+esc(capFirst(c.createdBy) || '—')+'</span></div>';
+  h += '  <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:var(--text-dim)">Created</span><span style="font-size:11px;color:var(--text-secondary);font-family:JetBrains Mono">'+esc(fmtCaseDate(c.createdAt))+'</span></div>';
+  h += '  <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:var(--text-dim)">Last activity</span><span style="font-size:11px;color:var(--text-secondary);font-family:JetBrains Mono">'+esc(fmtCaseDate(c.updatedAt))+'</span></div>';
   h += '</div>';
   document.getElementById('cws-details').innerHTML = h;
 }
