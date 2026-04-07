@@ -1050,6 +1050,32 @@ app.get('/api/messages', mainAuth, async (req, res) => {
   res.json(main);
 });
 
+// Context messages for K-108 mini chat: GET /api/chat/context?before=<msgId>&limit=3
+app.get('/api/chat/context', mainAuth, async (req, res) => {
+  const beforeId = req.query.before;
+  const limit = Math.min(parseInt(req.query.limit) || 3, 10);
+  if (!beforeId) return res.json([]);
+
+  if (db.pool) {
+    try {
+      const ref = await db.getMessageById(beforeId);
+      if (!ref) return res.json([]);
+      const msgs = await db.getMessages({ before: ref.timestamp, limit });
+      return res.json(msgs);
+    } catch (e) {
+      console.error('[db] context error:', e.message);
+    }
+  }
+
+  // JSON fallback
+  const msgs = rd(F.messages);
+  const main = msgs?.main || [];
+  const refIdx = main.findIndex(m => m.id === beforeId);
+  if (refIdx === -1) return res.json([]);
+  const start = Math.max(0, refIdx - limit);
+  return res.json(main.slice(start, refIdx));
+});
+
 app.post('/api/messages', mainAuth, upload.array('files', 20), async (req, res) => {
   const settings = rd(F.settings);
 
@@ -6019,6 +6045,8 @@ app.post('/api/k108/auth', async (req, res) => {
     if (passcode === getK108LocalPassword()) {
       const token = uuidv4();
       k108Tokens.set(token, localUser);
+      // Ensure mainAuth works from K-108 (needed for mini chat send)
+      if (!req.session.user) { req.session.user = localUser; req.session.save(() => {}); }
       await k108Log(localUser, 'session_entry', {}, req.ip);
       return res.json({ token, username: localUser });
     }
@@ -6034,6 +6062,8 @@ app.post('/api/k108/auth', async (req, res) => {
 
   const token = uuidv4();
   k108Tokens.set(token, username);
+  // Ensure mainAuth works from K-108 (needed for mini chat send)
+  if (!req.session.user) { req.session.user = username; req.session.save(() => {}); }
   await k108Log(username, 'session_entry', {}, req.ip);
   res.json({ token, username });
 });
@@ -6052,6 +6082,26 @@ app.post('/api/k108/set-passcode', async (req, res) => {
   k108Tokens.set(token, username);
   await k108Log(username, 'session_entry', { firstSetup: true }, req.ip);
   res.json({ token, username });
+});
+
+// ── K-108 Chat Hint Flag ─────────────────────────────────────────────────────
+app.get('/api/k108/chat-hint', (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const users = rd(F.users);
+  const seen = !!(users?.[username]?.k108ChatHintSeen);
+  res.json({ seen });
+});
+
+app.post('/api/k108/chat-hint/seen', (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const users = rd(F.users);
+  if (users?.[username]) {
+    users[username].k108ChatHintSeen = true;
+    wd(F.users, users);
+  }
+  res.json({ ok: true });
 });
 
 // ── K-108 Activity Log Route ─────────────────────────────────────────────────
@@ -8191,6 +8241,19 @@ io.on('connection', socket => {
       users[user].lastSeen = Date.now();
       wd(F.users, users);
     }
+  });
+  socket.on('k108:enter', ({ user }) => {
+    // User navigated to K-108 — join private-chat room so they receive new-message events
+    socket.join('private-chat');
+    if (onlineUsers[user]) onlineUsers[user].state = 'in_k108';
+    else onlineUsers[user] = { socketId: socket.id, state: 'in_k108' };
+    socket.broadcast.emit('user-presence', { user, state: 'in_k108' });
+  });
+  socket.on('k108:exit', ({ user }) => {
+    // User left K-108 without navigating away — revert to online
+    if (onlineUsers[user]) onlineUsers[user].state = 'online';
+    else onlineUsers[user] = { socketId: socket.id, state: 'online' };
+    socket.broadcast.emit('user-presence', { user, state: 'online' });
   });
   // ── Debrief presentation sync ──
   socket.on('debrief:presenter-join', () => {

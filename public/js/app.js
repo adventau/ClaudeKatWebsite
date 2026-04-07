@@ -2580,21 +2580,30 @@ function setupSocketEvents() {
   });
 
   // user-presence fires when user connects/disconnects/goes idle
-  // state: 'online' | 'idle' | 'offline'
+  // state: 'online' | 'idle' | 'in_k108' | 'offline'
   socket.on('user-presence', ({ user, state }) => {
     if (user === otherUser) {
       if (state === 'online') {
         stopLastSeenUpdater();
         setStatusDot('other-status-dot', 'online');
         document.getElementById('other-status-label').textContent = buildStatusText('Online', otherUser);
+        document.getElementById('other-status-label').removeAttribute('data-ink108');
       } else if (state === 'idle') {
         stopLastSeenUpdater();
         setStatusDot('other-status-dot', 'idle');
         document.getElementById('other-status-label').textContent = buildStatusText('Idle', otherUser);
+        document.getElementById('other-status-label').removeAttribute('data-ink108');
+      } else if (state === 'in_k108') {
+        stopLastSeenUpdater();
+        setStatusDot('other-status-dot', 'in_k108');
+        const lbl = document.getElementById('other-status-label');
+        lbl.textContent = 'In K-108';
+        lbl.setAttribute('data-ink108', '1');
       } else {
         // offline — show last seen
         setStatusDot('other-status-dot', 'invisible');
         document.getElementById('other-status-label').textContent = 'Last seen just now';
+        document.getElementById('other-status-label').removeAttribute('data-ink108');
         window._lastSeenTime = Date.now();
         startLastSeenUpdater();
       }
@@ -6208,7 +6217,7 @@ function setStatusDot(id, status) {
   const dot = document.getElementById(id);
   if (!dot) return;
   dot.className = `status-indicator ${status}`;
-  const colors = { online:'var(--status-online)', idle:'var(--status-idle)', dnd:'var(--status-dnd)', invisible:'var(--status-invisible)' };
+  const colors = { online:'var(--status-online)', idle:'var(--status-idle)', dnd:'var(--status-dnd)', invisible:'var(--status-invisible)', in_k108:'#4cc9f0' };
   dot.style.background = colors[status] || colors.online;
 }
 
