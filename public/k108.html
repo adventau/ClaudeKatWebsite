@@ -2658,7 +2658,7 @@ function editCaseSummary() {
   const c = currentCase;
   const el = document.getElementById('cws-summary');
   if (!el) return;
-  el.innerHTML = '<textarea id="case-summary-edit" style="width:100%;background:transparent;border:none;border-bottom:1px solid rgba(56,189,248,0.2);border-radius:0;padding:14px 16px;font-family:inherit;font-size:13px;color:var(--text-primary);line-height:1.55;resize:none;min-height:90px;outline:none;box-sizing:border-box">'+esc(c.summary || '')+'</textarea>' +
+  el.innerHTML = '<textarea id="case-summary-edit" style="width:100%;background:rgba(56,189,248,0.03);border:1px solid rgba(56,189,248,0.15);border-radius:10px;padding:14px 16px;font-family:inherit;font-size:13px;color:var(--text-primary);line-height:1.55;resize:none;min-height:90px;outline:none;box-sizing:border-box;transition:border-color 0.2s" onfocus="this.style.borderColor=\'rgba(56,189,248,0.35)\'" onblur="this.style.borderColor=\'rgba(56,189,248,0.15)\'">'+esc(c.summary || '')+'</textarea>' +
     '<div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="cnm-cancel-btn" style="padding:6px 14px;border-radius:8px;cursor:pointer;font-size:11px" onclick="renderCaseSummarySection()">Cancel</button><button class="k-btn k-btn-sm" onclick="saveCaseSummary()">Save</button></div>';
   document.getElementById('case-summary-edit').focus();
 }
