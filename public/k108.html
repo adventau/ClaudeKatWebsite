@@ -412,8 +412,9 @@
     .case-kv { display: grid; grid-template-columns: 140px 1fr; gap: 10px 16px; font-size: 13px; }
     .case-kv-label { font-size: 10px; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; padding-top: 2px; }
     .case-kv-val { color: var(--text-primary); font-size: 13px; }
-    .case-summary-box { background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 14px 16px; font-size: 13px; color: var(--text-primary); line-height: 1.55; white-space: pre-wrap; }
-    .case-summary-edit { width: 100%; background: var(--bg-raised); border: 1px solid var(--border-main); border-radius: 8px; padding: 12px 14px; font-family: inherit; font-size: 13px; color: var(--text-primary); resize: vertical; min-height: 90px; }
+    .case-summary-box { background: #161b22; border: 1px solid var(--border-subtle); border-radius: 4px; padding: 14px 16px; font-size: 13px; color: var(--text-primary); line-height: 1.55; white-space: pre-wrap; }
+    .case-summary-edit { width: 100%; background: #161b22; border: 1px solid var(--border-main); border-radius: 4px; padding: 12px 14px; font-family: inherit; font-size: 13px; color: #fff; resize: vertical; min-height: 90px; outline: none; }
+    .case-summary-edit:focus { border-color: #4cc9f0; box-shadow: 0 0 0 2px rgba(76,201,240,0.15); }
 
     .case-timeline-item { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--border-subtle); }
     .case-timeline-item:last-child { border-bottom: none; }
@@ -445,15 +446,91 @@
 
     .case-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 9000; }
     .case-modal-overlay.open { display: flex; }
-    .case-modal-box { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 12px; padding: 24px 26px; width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+    .case-modal-box { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 4px; padding: 24px 26px; width: 100%; max-width: 480px; max-height: 86vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
     .case-modal-title { font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 600; color: var(--accent-blue); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 18px; }
     .case-modal-field { margin-bottom: 14px; }
     .case-modal-field label { display: block; font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
-    .case-modal-field input, .case-modal-field select, .case-modal-field textarea { width: 100%; background: var(--bg-raised); border: 1px solid var(--border-main); border-radius: 8px; padding: 10px 12px; color: var(--text-primary); font-family: inherit; font-size: 12px; }
+    .case-modal-field input, .case-modal-field select, .case-modal-field textarea { width: 100%; background: #161b22; border: 1px solid var(--border-main); border-radius: 4px; padding: 10px 12px; color: #fff; font-family: inherit; font-size: 13px; outline: none; box-sizing: border-box; }
+    .case-modal-field input:focus, .case-modal-field select:focus, .case-modal-field textarea:focus { border-color: #4cc9f0; box-shadow: 0 0 0 2px rgba(76,201,240,0.15); }
+    .case-modal-field input::placeholder, .case-modal-field textarea::placeholder { color: var(--text-dim); }
     .case-modal-field textarea { resize: vertical; min-height: 72px; }
     .case-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
     .case-add-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); color: var(--accent-blue); font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
     .case-add-btn:hover { background: rgba(56,189,248,0.16); }
+
+    /* Create Case modal pill selectors */
+    .cnm-pill-group { display: flex; gap: 8px; }
+    .cnm-pill { flex: 1; padding: 8px 6px; background: transparent; border: 1px solid var(--border-main); border-radius: 4px; color: var(--text-muted); font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; cursor: pointer; transition: all 0.15s; text-align: center; }
+    .cnm-pill:hover { border-color: rgba(76,201,240,0.4); color: var(--text-primary); }
+    .cnm-pill.active { border-color: #4cc9f0; color: #4cc9f0; background: rgba(76,201,240,0.08); box-shadow: 0 0 8px rgba(76,201,240,0.15); }
+    .cnm-cancel-btn { background: transparent !important; border: 1px solid var(--border-main) !important; color: var(--text-muted) !important; font-family: 'JetBrains Mono' !important; font-size: 11px !important; letter-spacing: 0.08em !important; border-radius: 4px !important; padding: 10px !important; }
+    .cnm-cancel-btn:hover { border-color: var(--text-muted) !important; color: var(--text-primary) !important; }
+    .cnm-create-btn { background: #4cc9f0 !important; border: 1px solid #4cc9f0 !important; color: #0d1117 !important; font-family: 'JetBrains Mono' !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: 0.08em !important; border-radius: 4px !important; padding: 10px !important; }
+    .cnm-create-btn:hover { background: #3ab8df !important; }
+    .cnm-create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .case-modal-box input, .case-modal-box textarea { background: #161b22 !important; border: 1px solid var(--border-main) !important; border-radius: 4px !important; color: #fff !important; font-size: 13px !important; padding: 10px 12px !important; }
+    .case-modal-box input:focus, .case-modal-box textarea:focus { border-color: #4cc9f0 !important; outline: none; box-shadow: 0 0 0 2px rgba(76,201,240,0.15); }
+
+    /* Case delete button */
+    .case-delete-btn { background: transparent; border: 1px solid rgba(248,113,113,0.3); color: var(--status-red); font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; padding: 5px 12px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+    .case-delete-btn:hover { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.5); }
+    .case-row-delete { background: transparent; border: 1px solid rgba(248,113,113,0.2); color: var(--status-red); font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-family: 'JetBrains Mono'; letter-spacing: 0.06em; transition: all 0.15s; }
+    .case-row-delete:hover { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.4); }
+
+    /* Entity search */
+    .entity-search-wrap { position: relative; margin-bottom: 16px; }
+    .entity-search-input { width: 100%; background: #161b22; border: 1px solid var(--border-main); border-radius: 4px; padding: 10px 12px; color: #fff; font-size: 13px; }
+    .entity-search-input:focus { border-color: #4cc9f0; outline: none; box-shadow: 0 0 0 2px rgba(76,201,240,0.15); }
+    .entity-search-results { position: absolute; top: 100%; left: 0; right: 0; background: #161b22; border: 1px solid rgba(76,201,240,0.25); border-top: none; border-radius: 0 0 4px 4px; max-height: 240px; overflow-y: auto; z-index: 100; display: none; }
+    .entity-search-results.active { display: block; }
+    .entity-search-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; transition: background 0.12s; border-bottom: 1px solid var(--border-subtle); }
+    .entity-search-item:hover { background: rgba(76,201,240,0.06); }
+    .entity-search-item:last-child { border-bottom: none; }
+    .entity-avatar { width: 32px; height: 32px; border-radius: 50%; background: rgba(76,201,240,0.12); display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 700; color: #4cc9f0; flex-shrink: 0; overflow: hidden; }
+    .entity-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .entity-search-name { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+    .entity-search-tag { font-family: 'JetBrains Mono'; font-size: 9px; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; }
+
+    /* Entity card display */
+    .entity-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: 8px; margin-bottom: 8px; }
+    .entity-card-avatar { width: 38px; height: 38px; border-radius: 50%; background: rgba(76,201,240,0.1); display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono'; font-size: 13px; font-weight: 700; color: #4cc9f0; flex-shrink: 0; overflow: hidden; }
+    .entity-card-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .entity-card-info { flex: 1; min-width: 0; }
+    .entity-card-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+    .entity-card-meta { font-size: 10px; color: var(--text-muted); margin-top: 2px; font-family: 'JetBrains Mono'; }
+    .entity-card-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .entity-view-link { font-family: 'JetBrains Mono'; font-size: 9px; color: #4cc9f0; letter-spacing: 0.06em; text-decoration: none; cursor: pointer; }
+    .entity-view-link:hover { text-decoration: underline; }
+    .entity-remove-btn { background: transparent; border: 1px solid rgba(248,113,113,0.2); color: var(--status-red); font-size: 14px; width: 24px; height: 24px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; line-height: 1; }
+    .entity-remove-btn:hover { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.4); }
+
+    /* Duplicate warning banner */
+    .dup-warning-banner { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); border-radius: 4px; padding: 10px 16px; margin-bottom: 14px; font-size: 12px; color: var(--status-amber); font-family: 'JetBrains Mono'; letter-spacing: 0.04em; }
+
+    /* Case workspace inputs — override browser defaults for all tab inputs */
+    .case-tab-panel .k-input,
+    .case-tab-panel input[type="text"],
+    .case-tab-panel textarea {
+      width: 100%; background: #161b22; border: 1px solid var(--border-main); border-radius: 4px;
+      padding: 10px 12px; color: #fff; font-family: inherit; font-size: 13px; outline: none; box-sizing: border-box;
+    }
+    .case-tab-panel .k-input:focus,
+    .case-tab-panel input[type="text"]:focus,
+    .case-tab-panel textarea:focus {
+      border-color: #4cc9f0; box-shadow: 0 0 0 2px rgba(76,201,240,0.15);
+    }
+    .case-tab-panel .k-input::placeholder,
+    .case-tab-panel input[type="text"]::placeholder,
+    .case-tab-panel textarea::placeholder { color: var(--text-dim); }
+
+    /* Case pick modal styling */
+    #case-pick-modal .case-modal-box { border: 1px solid rgba(76,201,240,0.25); }
+    #case-pick-modal .case-modal-title { font-size: 12px; letter-spacing: 0.14em; color: #4cc9f0; }
+    #case-pick-modal .case-ws-navbtn { background: #161b22; border: 1px solid var(--border-main); border-radius: 4px; transition: all 0.15s; }
+    #case-pick-modal .case-ws-navbtn:hover { border-color: rgba(76,201,240,0.4); background: rgba(76,201,240,0.04); }
+
+    /* Case upload zone refined */
+    .case-upload-zone { border-color: var(--border-main); border-radius: 4px; background: rgba(22,27,34,0.5); }
 
     /* ═══ Profile Action Bar ═══ */
     .pab { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding: 10px 14px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; }
@@ -516,11 +593,19 @@
     .rel-label-badge { display: inline-block; font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 10px; background: rgba(99,102,241,0.15); color: var(--accent-indigo); border: 1px solid rgba(99,102,241,0.25); margin-top: 2px; }
 
     /* ═══ Activity Log ═══ */
-    .log-entry { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-subtle); }
-    .log-time { font-family: 'JetBrains Mono'; font-size: 10px; color: var(--text-dim); white-space: nowrap; min-width: 130px; }
-    .log-badge { font-family: 'JetBrains Mono'; font-size: 9px; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.03em; white-space: nowrap; }
-    .log-user { font-size: 11px; color: var(--accent-indigo); font-weight: 500; min-width: 70px; }
-    .log-detail { font-size: 12px; color: var(--text-secondary); }
+    .log-date-sep { font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:600; color:var(--text-dim); letter-spacing:1.8px; text-transform:uppercase; padding:18px 0 8px; margin:0 0 2px; }
+    .log-date-sep:first-child { padding-top:0; }
+    .log-entry { display:flex; align-items:center; gap:12px; padding:7px 10px; border-radius:6px; transition:background 0.12s; }
+    .log-entry:hover { background:rgba(255,255,255,0.025); }
+    .log-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; opacity:0.85; }
+    .log-icon { width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .log-icon svg { width:14px; height:14px; }
+    .log-body { flex:1; min-width:0; display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
+    .log-action { font-size:11.5px; font-weight:600; line-height:1.3; white-space:nowrap; }
+    .log-desc { font-size:11px; color:var(--text-secondary); line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .log-end { display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:auto; padding-left:12px; }
+    .log-user { font-size:10px; font-weight:500; white-space:nowrap; }
+    .log-time { font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--text-dim); letter-spacing:0.3px; white-space:nowrap; }
 
     /* ═══ Create Profile Modal ═══ */
     .modal-overlay { display: none; position: fixed; inset: 0; z-index: 998; background: rgba(4,6,12,0.85); backdrop-filter: blur(8px); align-items: center; justify-content: center; }
@@ -1093,32 +1178,48 @@
 
       <!-- Case Modals -->
       <div class="case-modal-overlay" id="case-new-modal">
-        <div class="case-modal-box">
-          <div class="case-modal-title">Open New Case</div>
-          <div class="case-modal-field"><label>Case Name</label><input type="text" id="cnm-name" placeholder="Operation codename"></div>
-          <div class="case-modal-field"><label>Target Name</label><input type="text" id="cnm-target" placeholder="Primary subject"></div>
-          <div class="case-modal-field"><label>Priority</label>
-            <select id="cnm-priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select>
+        <div class="case-modal-box" style="border:1px solid rgba(76,201,240,0.25)">
+          <div class="case-modal-title" style="font-size:12px;letter-spacing:0.14em;color:#4cc9f0;margin-bottom:20px">OPEN NEW CASE</div>
+          <div class="case-modal-field">
+            <label>Case Name</label>
+            <input type="text" id="cnm-name" placeholder="Operation codename" oninput="updateCaseIdPreview()" autocomplete="off">
+            <div id="cnm-id-preview" style="margin-top:6px;font-family:'JetBrains Mono';font-size:11px;color:rgba(76,201,240,0.7);letter-spacing:0.06em;min-height:16px"></div>
           </div>
-          <div class="case-modal-field"><label>Classification</label>
-            <select id="cnm-class"><option value="unclassified" selected>Unclassified</option><option value="confidential">Confidential</option><option value="classified">Classified</option></select>
+          <div class="case-modal-field">
+            <label>Target Name</label>
+            <input type="text" id="cnm-target" placeholder="Primary subject" autocomplete="off">
           </div>
-          <div class="case-modal-field"><label>Summary (optional)</label><textarea id="cnm-summary" placeholder="Brief case description"></textarea></div>
+          <div class="case-modal-field">
+            <label>Priority</label>
+            <div class="cnm-pill-group" id="cnm-priority-group">
+              <button type="button" class="cnm-pill prio-low" data-value="low" onclick="selectPill('cnm-priority-group','low')">LOW</button>
+              <button type="button" class="cnm-pill prio-medium active" data-value="medium" onclick="selectPill('cnm-priority-group','medium')">MEDIUM</button>
+              <button type="button" class="cnm-pill prio-high" data-value="high" onclick="selectPill('cnm-priority-group','high')">HIGH</button>
+            </div>
+          </div>
+          <div class="case-modal-field">
+            <label>Classification</label>
+            <div class="cnm-pill-group" id="cnm-class-group">
+              <button type="button" class="cnm-pill class-unclassified active" data-value="unclassified" onclick="selectPill('cnm-class-group','unclassified')">UNCLASSIFIED</button>
+              <button type="button" class="cnm-pill class-confidential" data-value="confidential" onclick="selectPill('cnm-class-group','confidential')">CONFIDENTIAL</button>
+              <button type="button" class="cnm-pill class-classified" data-value="classified" onclick="selectPill('cnm-class-group','classified')">CLASSIFIED</button>
+            </div>
+          </div>
           <div class="k-error" id="cnm-error" style="margin-top:6px"></div>
-          <div class="case-modal-actions">
-            <button class="k-btn k-btn-sm" onclick="closeNewCaseModal()" style="background:transparent;border-color:var(--border-main);color:var(--text-muted)">Cancel</button>
-            <button class="k-btn k-btn-sm" onclick="submitNewCase()">Create Case</button>
+          <div class="case-modal-actions" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px">
+            <button class="k-btn k-btn-sm cnm-cancel-btn" onclick="closeNewCaseModal()">CANCEL</button>
+            <button class="k-btn k-btn-sm cnm-create-btn" id="cnm-submit-btn" onclick="submitNewCase()">CREATE CASE</button>
           </div>
         </div>
       </div>
 
       <div class="case-modal-overlay" id="case-pick-modal">
-        <div class="case-modal-box">
-          <div class="case-modal-title">Add to Case</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px" id="cpm-subject"></div>
+        <div class="case-modal-box" style="border:1px solid rgba(76,201,240,0.25)">
+          <div class="case-modal-title" style="font-size:12px;letter-spacing:0.14em;color:#4cc9f0;margin-bottom:16px">SELECT CASE</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;font-family:'JetBrains Mono';letter-spacing:0.04em" id="cpm-subject"></div>
           <div id="cpm-list" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto"></div>
-          <div class="case-modal-actions">
-            <button class="k-btn k-btn-sm" onclick="closeCasePickModal()" style="background:transparent;border-color:var(--border-main);color:var(--text-muted)">Cancel</button>
+          <div class="case-modal-actions" style="margin-top:16px">
+            <button class="k-btn k-btn-sm cnm-cancel-btn" onclick="closeCasePickModal()" style="width:100%">CANCEL</button>
           </div>
         </div>
       </div>
@@ -2168,18 +2269,27 @@ async function loadCasesList() {
     area.innerHTML = '<div class="k-empty">No cases on file. Click <strong>+ New Case</strong> to open one.</div>';
     return;
   }
-  let h = '<div class="case-list">';
+  let h = '';
+  // Duplicate detection banner
+  const nameCount = {};
+  casesCache.forEach(c => { const k = (c.name||'').toLowerCase(); nameCount[k] = (nameCount[k]||0)+1; });
+  const hasDups = Object.values(nameCount).some(v => v > 1);
+  if (hasDups) {
+    h += '<div class="dup-warning-banner">Duplicate cases detected -- you may want to delete extras</div>';
+  }
+  h += '<div class="case-list">';
   casesCache.forEach(c => {
-    h += '<div class="case-row" onclick="navigateTo(\'#/case/'+c.id+'\')">' +
-      '<div class="case-id">'+esc(c.caseId || ('CASE-'+c.id))+'</div>' +
-      '<div style="flex:1;min-width:0">' +
+    h += '<div class="case-row">' +
+      '<div class="case-id" style="cursor:pointer" onclick="navigateTo(\'#/case/'+c.id+'\')">'+esc(c.caseId || ('CASE-'+c.id))+'</div>' +
+      '<div style="flex:1;min-width:0;cursor:pointer" onclick="navigateTo(\'#/case/'+c.id+'\')">' +
         '<div class="case-name">'+esc(c.name)+'</div>' +
         (c.targetName ? '<div class="case-target">Target: '+esc(c.targetName)+'</div>' : '') +
       '</div>' +
-      '<div style="display:flex;gap:6px;flex-shrink:0">' +
+      '<div style="display:flex;gap:6px;flex-shrink:0;align-items:center">' +
         caseStatusPill(c.status) +
         caseClassPill(c.classification) +
         casePriorityPill(c.priority) +
+        '<button class="case-row-delete" onclick="event.stopPropagation();deleteCaseFromList('+c.id+',\''+esc(c.caseId||'')+'\')">DEL</button>' +
       '</div>' +
     '</div>';
   });
@@ -2187,31 +2297,84 @@ async function loadCasesList() {
   area.innerHTML = h;
 }
 
+async function deleteCaseFromList(caseId, caseIdStr) {
+  const confirmed = await showConfirmDialog({
+    title: 'Delete Case ' + caseIdStr + '?',
+    msg: 'Permanently delete this case and all its data? This cannot be undone.',
+    okText: 'Delete Case',
+    danger: true
+  });
+  if (!confirmed) return;
+  const d = await kAuthFetch('/api/k108/cases/delete', { id: caseId });
+  if (!d) return;
+  if (d.error) { showToastK108('Failed: ' + d.error); return; }
+  showToastK108('Case deleted');
+  loadCasesList();
+}
+
+let cnmCaseIdPreview = '';
 function openNewCaseModal() {
   document.getElementById('cnm-name').value = '';
   document.getElementById('cnm-target').value = '';
-  document.getElementById('cnm-priority').value = 'medium';
-  document.getElementById('cnm-class').value = 'unclassified';
-  document.getElementById('cnm-summary').value = '';
+  selectPill('cnm-priority-group', 'medium');
+  selectPill('cnm-class-group', 'unclassified');
   hideErr('cnm-error');
+  const btn = document.getElementById('cnm-submit-btn');
+  btn.disabled = false;
+  btn.textContent = 'CREATE CASE';
+  document.getElementById('cnm-id-preview').textContent = '';
   document.getElementById('case-new-modal').classList.add('open');
   setTimeout(() => document.getElementById('cnm-name').focus(), 80);
+  updateCaseIdPreview();
 }
 function closeNewCaseModal() {
   document.getElementById('case-new-modal').classList.remove('open');
 }
+function selectPill(groupId, value) {
+  const group = document.getElementById(groupId);
+  if (!group) return;
+  group.querySelectorAll('.cnm-pill').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-value') === value);
+  });
+}
+function getSelectedPill(groupId) {
+  const active = document.querySelector('#' + groupId + ' .cnm-pill.active');
+  return active ? active.getAttribute('data-value') : '';
+}
+function updateCaseIdPreview() {
+  const name = document.getElementById('cnm-name').value.trim();
+  const el = document.getElementById('cnm-id-preview');
+  if (!name) { el.textContent = ''; return; }
+  const d = new Date();
+  const ymd = d.getFullYear().toString() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+  cnmCaseIdPreview = 'K108-' + ymd + '-###';
+  el.textContent = cnmCaseIdPreview;
+}
 async function submitNewCase() {
   const name = document.getElementById('cnm-name').value.trim();
   const targetName = document.getElementById('cnm-target').value.trim();
-  const priority = document.getElementById('cnm-priority').value;
-  const classification = document.getElementById('cnm-class').value;
-  const summary = document.getElementById('cnm-summary').value.trim();
+  const priority = getSelectedPill('cnm-priority-group');
+  const classification = getSelectedPill('cnm-class-group');
   if (!name) { showErr('cnm-error', 'Case name is required'); return; }
-  const d = await kAuthFetch('/api/k108/cases/create', { name, targetName, priority, classification, summary });
-  if (!d) return;
-  if (d.error) { showErr('cnm-error', d.error); return; }
-  closeNewCaseModal();
+  const btn = document.getElementById('cnm-submit-btn');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = 'CREATING...';
+  hideErr('cnm-error');
+  // Check for duplicate name
+  const dupCheck = await kAuthFetch('/api/k108/cases/check-duplicate', { name });
+  if (dupCheck && dupCheck.exists) {
+    showToastK108('A case with this name already exists');
+    showErr('cnm-error', 'A case with this name already exists');
+    btn.disabled = false;
+    btn.textContent = 'CREATE CASE';
+    return;
+  }
+  const d = await kAuthFetch('/api/k108/cases/create', { name, targetName, priority, classification, summary: '' });
+  if (!d) { btn.disabled = false; btn.textContent = 'CREATE CASE'; return; }
+  if (d.error) { showErr('cnm-error', d.error); btn.disabled = false; btn.textContent = 'CREATE CASE'; return; }
   showToastK108('Case '+(d.case.caseId||'')+' opened');
+  closeNewCaseModal();
   navigateTo('#/case/' + d.case.id);
 }
 
@@ -2245,6 +2408,7 @@ async function loadCaseWorkspace(caseId, tab) {
   h += '    '+caseClassPill(c.classification);
   h += '    '+casePriorityPill(c.priority);
   h += '    <button class="k-btn k-btn-sm" onclick="toggleCaseStatus('+c.id+')">'+toggleBtnLabel+'</button>';
+  h += '    <button class="case-delete-btn" onclick="deleteCaseFromWorkspace('+c.id+',\''+esc(c.caseId||'')+'\')">DELETE CASE</button>';
   h += '    <button class="k-btn k-btn-sm" onclick="navigateTo(\'#/cases\')" style="background:transparent;border-color:var(--border-main);color:var(--text-muted)">← Back</button>';
   h += '  </div>';
   h += '</div>';
@@ -2275,12 +2439,24 @@ async function loadCaseTab(caseId, tab) {
 function renderCaseOverview() {
   const c = currentCase;
   if (!c) return;
+  const priorities = ['low','medium','high'];
+  const classifications = ['unclassified','confidential','classified'];
   let h = '<div class="case-tab-panel">';
   h += '<div class="case-tab-title">Case Overview</div>';
   h += '<div class="case-kv">';
   h += '<div class="case-kv-label">Target</div><div class="case-kv-val">'+esc(c.targetName || '—')+'</div>';
-  h += '<div class="case-kv-label">Priority</div><div class="case-kv-val">'+casePriorityPill(c.priority)+'</div>';
-  h += '<div class="case-kv-label">Classification</div><div class="case-kv-val">'+caseClassPill(c.classification)+'</div>';
+  h += '<div class="case-kv-label">Priority</div><div class="case-kv-val"><div class="cnm-pill-group" style="gap:6px">';
+  priorities.forEach(p => {
+    const active = c.priority === p ? ' active' : '';
+    h += '<button class="cnm-pill prio-'+p+active+'" style="flex:0;padding:4px 12px;font-size:9px" onclick="updateCaseField(\'priority\',\''+p+'\')">'+p.toUpperCase()+'</button>';
+  });
+  h += '</div></div>';
+  h += '<div class="case-kv-label">Classification</div><div class="case-kv-val"><div class="cnm-pill-group" style="gap:6px">';
+  classifications.forEach(cl => {
+    const active = c.classification === cl ? ' active' : '';
+    h += '<button class="cnm-pill class-'+cl+active+'" style="flex:0;padding:4px 12px;font-size:9px" onclick="updateCaseField(\'classification\',\''+cl+'\')">'+cl.toUpperCase()+'</button>';
+  });
+  h += '</div></div>';
   h += '<div class="case-kv-label">Status</div><div class="case-kv-val">'+caseStatusPill(c.status)+'</div>';
   h += '<div class="case-kv-label">Created By</div><div class="case-kv-val">'+esc(c.createdBy || '—')+'</div>';
   h += '<div class="case-kv-label">Created</div><div class="case-kv-val">'+esc(fmtCaseDate(c.createdAt))+'</div>';
@@ -2292,6 +2468,21 @@ function renderCaseOverview() {
   h += '</div>';
   h += '</div>';
   document.getElementById('case-tab-content').innerHTML = h;
+}
+
+async function updateCaseField(field, value) {
+  if (!currentCase) return;
+  const body = { id: currentCase.id };
+  body[field] = value;
+  const d = await kAuthFetch('/api/k108/cases/update', body);
+  if (!d) return;
+  if (d.case) currentCase = d.case;
+  showToastK108(field.charAt(0).toUpperCase() + field.slice(1) + ' updated');
+  renderCaseOverview();
+  // Also refresh the workspace header pills
+  const hash = window.location.hash || '';
+  const parts = hash.replace('#/', '').split('/');
+  if (parts[0] === 'case' && parts[1]) loadCaseWorkspace(parts[1], 'overview');
 }
 
 function editCaseSummary() {
@@ -2391,34 +2582,153 @@ async function uploadCaseEvidence(caseId, file) {
   } catch (e) { showToastK108('Upload failed'); }
 }
 
+let entitySearchDebounce = null;
 async function renderCaseEntities(caseId) {
   const d = await kAuthFetch('/api/k108/cases/entities/list', { id: caseId });
   if (!d) return;
   let h = '<div class="case-tab-panel">';
   h += '<div class="case-tab-title">Entities <span style="color:var(--text-dim);font-weight:400;margin-left:8px">'+(d.entities.length)+' linked</span></div>';
+  // Search bar for Intel Profiles
+  h += '<div class="entity-search-wrap">';
+  h += '<input type="text" class="entity-search-input" id="entity-profile-search" placeholder="Search Intel Profiles..." oninput="entityProfileSearch('+caseId+')" autocomplete="off">';
+  h += '<div class="entity-search-results" id="entity-search-results"></div>';
+  h += '</div>';
+  // Entity list
+  h += '<div id="entity-cards-list">';
   if (!d.entities.length) {
-    h += '<div class="k-empty">No entities linked yet. Use <strong>Add to Case</strong> from People Lookup, Vehicle Lookup, or Intel Profiles.</div>';
+    h += '<div class="k-empty">No entities linked yet. Search Intel Profiles above or use Add to Case from other tools.</div>';
   } else {
-    h += '<table class="case-entity-table"><thead><tr><th>Type</th><th>Name</th><th>Source</th><th>Added By</th><th>Added</th><th>Detail</th></tr></thead><tbody>';
     d.entities.forEach(e => {
-      let detailShort = '';
-      try {
-        const parsed = JSON.parse(e.detail || '{}');
-        detailShort = Object.entries(parsed).slice(0, 4).map(([k,v]) => k+': '+String(v).substring(0,40)).join(' · ');
-      } catch(err) { detailShort = (e.detail || '').substring(0, 120); }
-      h += '<tr>' +
-        '<td><span class="case-pill class-unclassified">'+esc(e.entityType.toUpperCase())+'</span></td>' +
-        '<td class="case-entity-name">'+esc(e.name)+'</td>' +
-        '<td>'+esc(e.source || '—')+'</td>' +
-        '<td>'+esc(e.addedBy || '')+'</td>' +
-        '<td>'+esc(fmtCaseDate(e.addedAt))+'</td>' +
-        '<td class="case-entity-detail">'+esc(detailShort)+'</td>' +
-      '</tr>';
+      h += renderEntityCard(e, caseId);
     });
-    h += '</tbody></table>';
   }
   h += '</div>';
+  h += '</div>';
   document.getElementById('case-tab-content').innerHTML = h;
+  // Close search results on outside click
+  document.addEventListener('click', function closeEntitySearch(ev) {
+    const wrap = document.querySelector('.entity-search-wrap');
+    if (wrap && !wrap.contains(ev.target)) {
+      const r = document.getElementById('entity-search-results');
+      if (r) r.classList.remove('active');
+    }
+  }, { once: false });
+}
+
+function renderEntityCard(e, caseId) {
+  let initials = '';
+  const nameParts = (e.name || '').split(' ').filter(Boolean);
+  if (nameParts.length >= 2) initials = nameParts[0][0] + nameParts[nameParts.length-1][0];
+  else if (nameParts.length === 1) initials = nameParts[0][0];
+  initials = initials.toUpperCase();
+
+  let photoUrl = '';
+  try {
+    const parsed = JSON.parse(e.detail || '{}');
+    photoUrl = parsed.photoUrl || '';
+  } catch(err) {}
+
+  const sourceBadge = e.source === 'intel_profile' ? 'Intel Profile' : (e.source === 'people_lookup' ? 'People Lookup' : (e.source === 'vehicle_lookup' ? 'Vehicle Lookup' : (e.source || 'Manual')));
+  let viewLink = '';
+  if (e.profileId) {
+    viewLink = '<a class="entity-view-link" onclick="navigateTo(\'#/profiles/'+e.profileId+'\')">VIEW PROFILE</a>';
+  }
+
+  return '<div class="entity-card">' +
+    '<div class="entity-card-avatar">' +
+      (photoUrl ? '<img src="'+esc(photoUrl)+'" alt="">' : esc(initials)) +
+    '</div>' +
+    '<div class="entity-card-info">' +
+      '<div class="entity-card-name">'+esc(e.name)+'</div>' +
+      '<div class="entity-card-meta">' +
+        '<span class="case-pill class-unclassified" style="font-size:8px;padding:2px 6px;margin-right:6px">'+esc(sourceBadge.toUpperCase())+'</span>' +
+        esc(e.addedBy || '')+' · '+esc(fmtCaseDate(e.addedAt)) +
+      '</div>' +
+    '</div>' +
+    '<div class="entity-card-actions">' +
+      viewLink +
+      '<button class="entity-remove-btn" onclick="removeEntityFromCase('+caseId+','+e.id+',\''+esc(e.name)+'\')">x</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function entityProfileSearch(caseId) {
+  clearTimeout(entitySearchDebounce);
+  const input = document.getElementById('entity-profile-search');
+  const results = document.getElementById('entity-search-results');
+  const q = (input ? input.value.trim() : '');
+  if (q.length < 2) { results.classList.remove('active'); results.innerHTML = ''; return; }
+  entitySearchDebounce = setTimeout(async () => {
+    const currentVal = document.getElementById('entity-profile-search').value.trim();
+    if (currentVal !== q) return;
+    const d = await kAuthFetch('/api/k108/cases/profiles/search', { q });
+    if (!d || !d.profiles) return;
+    if (!d.profiles.length) {
+      results.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-muted)">No profiles found</div>';
+      results.classList.add('active');
+      return;
+    }
+    // Store profiles for click handler reference
+    window._entitySearchProfiles = d.profiles;
+    results.innerHTML = d.profiles.map((p, idx) => {
+      const nameParts = (p.name || '').split(' ').filter(Boolean);
+      let initials = '';
+      if (nameParts.length >= 2) initials = nameParts[0][0] + nameParts[nameParts.length-1][0];
+      else if (nameParts.length === 1) initials = nameParts[0][0];
+      initials = initials.toUpperCase();
+      return '<div class="entity-search-item" onclick="importProfileFromSearch('+caseId+','+idx+')">' +
+        '<div class="entity-avatar">' + (p.photoUrl ? '<img src="'+esc(p.photoUrl)+'" alt="">' : esc(initials)) + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="entity-search-name">'+esc(p.name)+'</div>' +
+          (p.relation ? '<div class="entity-search-tag">'+esc(p.relation)+'</div>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+    results.classList.add('active');
+  }, 250);
+}
+
+function importProfileFromSearch(caseId, idx) {
+  const p = (window._entitySearchProfiles || [])[idx];
+  if (!p) return;
+  importProfileToCase(caseId, p.id, p.name, p.photoUrl || '', p.relation || '');
+}
+
+async function importProfileToCase(caseId, profileId, name, photoUrl, relation) {
+  const detail = JSON.stringify({ profileId, photoUrl: photoUrl || '', relation: relation || '' });
+  const d = await kAuthFetch('/api/k108/cases/entities/add', {
+    id: caseId,
+    entityType: 'person',
+    name: name,
+    detail: detail,
+    source: 'intel_profile',
+    profileId: profileId
+  });
+  if (!d) return;
+  if (d.duplicate) { showToastK108('Already linked to this case'); return; }
+  if (d.error) { showToastK108('Failed: ' + d.error); return; }
+  showToastK108(name + ' added to case');
+  // Clear search and re-render
+  const input = document.getElementById('entity-profile-search');
+  if (input) input.value = '';
+  const results = document.getElementById('entity-search-results');
+  if (results) { results.classList.remove('active'); results.innerHTML = ''; }
+  renderCaseEntities(caseId);
+}
+
+async function removeEntityFromCase(caseId, entityId, entityName) {
+  const confirmed = await showConfirmDialog({
+    title: 'Remove Entity?',
+    msg: 'Remove "' + entityName + '" from this case?',
+    okText: 'Remove',
+    danger: true
+  });
+  if (!confirmed) return;
+  const d = await kAuthFetch('/api/k108/cases/entities/remove', { id: caseId, entityId: entityId });
+  if (!d) return;
+  if (d.error) { showToastK108('Failed: ' + d.error); return; }
+  showToastK108(entityName + ' removed');
+  renderCaseEntities(caseId);
 }
 
 async function renderCaseNotes(caseId) {
@@ -2459,6 +2769,21 @@ async function toggleCaseStatus(caseId) {
   showToastK108('Case marked ' + next);
   const tab = (window.location.hash.split('/')[2] || 'overview');
   loadCaseWorkspace(caseId, tab);
+}
+
+async function deleteCaseFromWorkspace(caseId, caseIdStr) {
+  const confirmed = await showConfirmDialog({
+    title: 'Delete Case ' + caseIdStr + '?',
+    msg: 'Permanently delete this case and all its data? This cannot be undone.',
+    okText: 'Delete Case',
+    danger: true
+  });
+  if (!confirmed) return;
+  const d = await kAuthFetch('/api/k108/cases/delete', { id: caseId });
+  if (!d) return;
+  if (d.error) { showToastK108('Failed: ' + d.error); return; }
+  showToastK108('Case deleted');
+  navigateTo('#/cases');
 }
 
 // ── Add to Case (from other tools) ──
@@ -2731,7 +3056,7 @@ async function viewProfileReadonly(id, skipLog) {
       h += '<div style="position:absolute;left:-14px;top:9px;width:9px;height:9px;border-radius:50%;background:'+dotColor+';box-shadow:0 0 6px '+dotColor+'44;border:1.5px solid rgba(13,17,23,0.8)"></div>';
       h += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:var(--text-dim);letter-spacing:0.5px">'+esc(ts)+'</div>';
       h += '<div style="font-size:10px;margin-top:2px;line-height:1.4"><span style="color:'+dotColor+';font-weight:600">'+icon+' '+esc(actionLabel)+'</span></div>';
-      h += '<div style="font-size:9px;color:var(--text-secondary);margin-top:1px">by <span style="color:var(--accent-blue);font-weight:500">'+esc(e.username)+'</span></div>';
+      h += '<div style="font-size:9px;color:var(--text-secondary);margin-top:1px">by <span style="color:var(--accent-blue);font-weight:500">'+esc(capFirst(e.username))+'</span></div>';
       if (actionDetail) h += '<div style="font-size:8px;color:var(--text-dim);margin-top:2px;font-style:italic;line-height:1.3;word-break:break-word">&ldquo;'+esc(actionDetail)+'&rdquo;</div>';
       h += '</div>';
     });
@@ -4060,31 +4385,108 @@ function detectPlatform(url) {
 }
 
 // ═══ Activity Log ═══
+const LOG_SVG = {
+  session:    '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>',
+  search:     '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  eye:        '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  plus:       '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  edit:       '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+  trash:      '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  download:   '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  upload:     '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  file:       '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+  msg:        '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  shield:     '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  radio:      '<circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>',
+  terminal:   '<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>',
+  briefcase:  '<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  link:       '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  x:          '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  car:        '<path d="M5 17h14M5 17a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-3h8l2 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/>',
+  scan:       '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>',
+  flag:       '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+};
+function logSvg(paths, color) {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="'+color+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+paths+'</svg>';
+}
+const LOG_ACTIONS = {
+  session_entry:        { svg:'session',   label:'Session Started',       color:'#3fb950' },
+  people_search:        { svg:'search',    label:'People Search',         color:'#58a6ff' },
+  profile_view:         { svg:'eye',       label:'Profile Viewed',        color:'#58a6ff' },
+  profile_create:       { svg:'plus',      label:'Profile Created',       color:'#3fb950' },
+  profile_change:       { svg:'edit',      label:'Profile Updated',       color:'#d29922' },
+  profile_delete:       { svg:'trash',     label:'Profile Deleted',       color:'#f85149' },
+  profile_export:       { svg:'download',  label:'Dossier Exported',      color:'#bc8cff' },
+  file_upload:          { svg:'upload',    label:'File Uploaded',         color:'#d29922' },
+  file_transfer:        { svg:'file',      label:'File Transferred',      color:'#d29922' },
+  metadata_extract:     { svg:'scan',      label:'Metadata Extracted',    color:'#58a6ff' },
+  sms_sent:             { svg:'msg',       label:'SMS Sent',              color:'#d29922' },
+  vehicle_lookup:       { svg:'car',       label:'Vehicle Lookup',        color:'#d29922' },
+  vehicle_save:         { svg:'car',       label:'Vehicle Saved',         color:'#3fb950' },
+  classified_accessed:  { svg:'shield',    label:'Classified Accessed',   color:'#f85149' },
+  surveillance_queue:   { svg:'radio',     label:'Surveillance Queued',   color:'#bc8cff' },
+  surveillance_cancel:  { svg:'x',         label:'Surveillance Cancelled',color:'#f85149' },
+  command_bar:          { svg:'terminal',  label:'Command Executed',      color:'#8b949e' },
+  case_create:          { svg:'briefcase', label:'Case Created',          color:'#3fb950' },
+  case_status:          { svg:'flag',      label:'Case Status Changed',   color:'#d29922' },
+  case_evidence_upload: { svg:'upload',    label:'Evidence Uploaded',     color:'#d29922' },
+  case_entity_add:      { svg:'link',      label:'Entity Added to Case',  color:'#58a6ff' },
+};
+function logDesc(type, d) {
+  d = d || {};
+  switch(type) {
+    case 'session_entry':        return d.firstSetup ? 'Initial K-108 setup completed' : 'Authenticated into K-108';
+    case 'people_search':        return (d.type||'Name') + ' search — ' + (d.resultCount||0) + ' results found';
+    case 'profile_view':         return d.name || 'Unknown profile';
+    case 'profile_create':       return d.name || 'New profile';
+    case 'profile_change':       return d.name || 'Unknown profile';
+    case 'profile_delete':       return 'Profile #' + (d.profileId||'?') + ' permanently removed';
+    case 'profile_export':       return d.includeClassified ? 'Classified dossier generated' : 'Standard dossier generated';
+    case 'file_upload':          return d.filename || 'Unknown file';
+    case 'file_transfer':        return d.filename || 'Unknown file';
+    case 'metadata_extract':     return d.filename || 'Unknown file';
+    case 'sms_sent':             return 'To ' + (d.phone||'?') + ': "' + (d.preview||'') + '"';
+    case 'vehicle_lookup':       return d.plate ? 'Plate: ' + d.plate + (d.state?' ('+d.state+')':'') : 'VIN: ' + (d.vin||'?');
+    case 'vehicle_save':         return 'Linked to ' + (d.name||'profile');
+    case 'classified_accessed':  return d.reason || 'No reason provided';
+    case 'surveillance_queue':   return (d.name||'Target') + ' queued for surveillance';
+    case 'surveillance_cancel':  return 'Surveillance request cancelled';
+    case 'command_bar':          return d.command || 'Unknown command';
+    case 'case_create':          return d.name || 'New case';
+    case 'case_status':          return 'Status → ' + (d.status||'?');
+    case 'case_evidence_upload': return d.filename || 'Unknown file';
+    case 'case_entity_add':      return (d.type||'Entity') + ': ' + (d.name||'?');
+    default:                     return type.replace(/_/g, ' ');
+  }
+}
+function capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+const LOG_USER_COLORS = { kaliph:'var(--accent-indigo, #818cf8)', kathrine:'var(--accent-cyan, #22d3ee)' };
+
 async function loadActivityLog() {
   const d = await kAuthFetch('/api/k108/log');
   if (!d) return;
   const el = document.getElementById('log-entries');
   if (!d.entries || d.entries.length === 0) { el.innerHTML = '<div class="k-empty">No activity recorded yet.</div>'; return; }
-  const colors = { session_entry:'k-tag-green', people_search:'k-tag-blue', profile_view:'k-tag-cyan', profile_create:'k-tag-indigo', profile_change:'k-tag-indigo', profile_delete:'k-tag-red', file_upload:'k-tag-indigo', file_transfer:'k-tag-indigo', metadata_extract:'k-tag-blue', sms_sent:'k-tag-amber', vehicle_lookup:'k-tag-amber', vehicle_save:'k-tag-indigo', classified_accessed:'k-tag-red' };
-  const userColors = { kaliph: 'var(--accent-indigo, #818cf8)', kathrine: 'var(--accent-cyan, #22d3ee)' };
-  el.innerHTML = d.entries.map(e => {
-    const detail = e.detail || {};
-    let desc = e.action_type;
-    if (e.action_type==='people_search') desc = 'Searched ' + (detail.type||'') + ' (' + (detail.resultCount||0) + ' results)';
-    else if (e.action_type==='profile_view') desc = 'Viewed profile: ' + (detail.name||'');
-    else if (e.action_type==='sms_sent') desc = 'SMS to ' + (detail.phone||'') + ': ' + (detail.preview||'');
-    else if (e.action_type==='vehicle_lookup') desc = 'Vehicle lookup: ' + (detail.plate || detail.vin || '');
-    else if (e.action_type==='vehicle_save') desc = 'Vehicle saved to: ' + (detail.name||'');
-    else if (e.action_type==='profile_create') desc = 'Created profile: ' + (detail.name||'');
-    else if (e.action_type==='profile_change') desc = 'Updated profile: ' + (detail.name||'');
-    else if (e.action_type==='file_transfer') desc = 'Transferred: ' + (detail.filename||'');
-    else if (e.action_type==='file_upload') desc = 'Uploaded: ' + (detail.filename||'');
-    else if (e.action_type==='metadata_extract') desc = 'Extracted: ' + (detail.filename||'');
-    else if (e.action_type==='classified_accessed') desc = 'Classified accessed — Reason: ' + (detail.reason||'N/A');
-    else if (e.action_type==='session_entry') desc = 'Session started' + (detail.firstSetup?' (first setup)':'');
-    const uColor = userColors[e.username] || 'var(--text-secondary)';
-    return '<div class="log-entry"><span class="log-time">'+fmtDate(e.created_at)+'</span><span class="log-badge k-tag '+(colors[e.action_type]||'k-tag-blue')+'">'+esc(e.action_type)+'</span><span class="log-user" style="color:'+uColor+';font-weight:600">'+esc(e.username)+'</span><span class="log-detail">'+esc(desc)+'</span></div>';
-  }).join('');
+  let lastDate = '', html = '';
+  d.entries.forEach(e => {
+    const dt = new Date(e.created_at);
+    const dateStr = dt.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' });
+    if (dateStr !== lastDate) { html += '<div class="log-date-sep">' + esc(dateStr) + '</div>'; lastDate = dateStr; }
+    const cfg = LOG_ACTIONS[e.action_type] || { svg:'file', label:e.action_type.replace(/_/g,' '), color:'#8b949e' };
+    const desc = logDesc(e.action_type, e.detail);
+    const time = dt.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+    const uColor = LOG_USER_COLORS[e.username] || 'var(--text-secondary)';
+    const svgHtml = logSvg(LOG_SVG[cfg.svg] || LOG_SVG.file, cfg.color);
+    html += '<div class="log-entry">'
+      + '<div class="log-icon" style="background:'+cfg.color+'12">' + svgHtml + '</div>'
+      + '<div class="log-body">'
+      + '<span class="log-action" style="color:'+cfg.color+'">'+esc(cfg.label)+'</span>'
+      + '<span class="log-desc" title="'+esc(desc)+'">'+esc(desc)+'</span>'
+      + '</div>'
+      + '<div class="log-end"><span class="log-user" style="color:'+uColor+'">'+esc(capFirst(e.username))+'</span><span class="log-time">'+esc(time)+'</span></div>'
+      + '</div>';
+  });
+  el.innerHTML = html;
 }
 
 // ═══ Saved Searches ═══
@@ -4302,7 +4704,7 @@ async function execCmdBar(raw) {
       closeCmdBar();
       if (!currentProfileId || !_pendingExportProfileId) { showToast('No pending export approval'); return; }
       socket.emit('k108:export_approval', { profileId: _pendingExportProfileId, user: d.username });
-      showToast('Export approved by ' + d.username);
+      showToast('Export approved by ' + capFirst(d.username));
       return;
     }
 
@@ -4585,8 +4987,8 @@ function startDualApproval(profileId) {
     + '<div style="font-family:\'JetBrains Mono\',monospace;font-size:11px;font-weight:600;color:var(--status-red);letter-spacing:2px;margin-bottom:16px">AWAITING DUAL APPROVAL</div>'
     + '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px">Both users must run <span style="font-family:\'JetBrains Mono\',monospace;color:var(--accent-blue)">approve export</span> in the Command Bar within 60 seconds</div>'
     + '<div style="display:flex;justify-content:center;gap:24px;margin-bottom:20px">'
-    + '<div style="text-align:center"><div style="width:40px;height:40px;border-radius:50%;border:2px solid var(--border-main);display:flex;align-items:center;justify-content:center;margin:0 auto 6px" id="approval-kaliph"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div><div style="font-size:11px;color:var(--text-dim)">kaliph</div></div>'
-    + '<div style="text-align:center"><div style="width:40px;height:40px;border-radius:50%;border:2px solid var(--border-main);display:flex;align-items:center;justify-content:center;margin:0 auto 6px" id="approval-kathrine"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div><div style="font-size:11px;color:var(--text-dim)">kathrine</div></div>'
+    + '<div style="text-align:center"><div style="width:40px;height:40px;border-radius:50%;border:2px solid var(--border-main);display:flex;align-items:center;justify-content:center;margin:0 auto 6px" id="approval-kaliph"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div><div style="font-size:11px;color:var(--text-dim)">Kaliph</div></div>'
+    + '<div style="text-align:center"><div style="width:40px;height:40px;border-radius:50%;border:2px solid var(--border-main);display:flex;align-items:center;justify-content:center;margin:0 auto 6px" id="approval-kathrine"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div><div style="font-size:11px;color:var(--text-dim)">Kathrine</div></div>'
     + '</div>'
     + '<div style="font-family:\'JetBrains Mono\',monospace;font-size:24px;color:var(--accent-blue)" id="export-countdown">60</div>'
     + '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">seconds remaining</div>'
