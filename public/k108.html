@@ -455,21 +455,23 @@
     .case-add-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); color: var(--accent-blue); font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
     .case-add-btn:hover { background: rgba(56,189,248,0.16); }
 
-    /* ═══ Surveillance ═══ */
-    .surv-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(76,201,240,0.08); border: 1px solid rgba(76,201,240,0.3); color: #4cc9f0; font-family: 'JetBrains Mono'; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 6px; cursor: pointer; transition: all 0.15s; }
-    .surv-btn:hover { background: rgba(76,201,240,0.18); }
-    .surv-btn.pending { background: rgba(251,191,36,0.10); border-color: rgba(251,191,36,0.35); color: var(--status-amber); cursor: pointer; }
-    .surv-btn.pending:hover { background: rgba(251,191,36,0.18); }
-    .surv-pulse { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--status-amber); animation: survPulse 1.4s ease-in-out infinite; }
+    /* ═══ Profile Action Bar ═══ */
+    .pab { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding: 10px 14px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; }
+    .pab-group { display: flex; align-items: center; gap: 6px; }
+    .pab-btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; background: transparent; border: 1px solid rgba(76,201,240,0.18); color: #4cc9f0; font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 6px; cursor: pointer; transition: all 0.18s ease; white-space: nowrap; line-height: 1; }
+    .pab-btn:hover { background: rgba(76,201,240,0.10); border-color: rgba(76,201,240,0.35); }
+    .pab-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
+    .pab-sep { width: 1px; height: 18px; background: var(--border-main); margin: 0 4px; flex-shrink: 0; }
+    .pab-btn.pab-pending { border-color: rgba(251,191,36,0.35); color: var(--status-amber); }
+    .pab-btn.pab-pending:hover { background: rgba(251,191,36,0.10); }
+    .pab-pulse { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--status-amber); animation: survPulse 1.4s ease-in-out infinite; flex-shrink: 0; }
     @keyframes survPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-    .surv-reports-link { font-family: 'JetBrains Mono'; font-size: 9px; color: #4cc9f0; text-decoration: none; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.8; }
-    .surv-reports-link:hover { opacity: 1; text-decoration: underline; }
-    .surv-section { margin-top: 24px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 18px; }
-    .surv-section-title { font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 600; color: #4cc9f0; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; }
-    .surv-report-card { background: var(--bg-raised); border: 1px solid var(--border-main); border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+    .surv-section { margin-top: 14px; background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 12px 14px; }
+    .surv-section-title { font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 600; color: #4cc9f0; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+    .surv-report-card { background: var(--bg-raised); border: 1px solid var(--border-main); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
     .surv-report-meta { font-family: 'JetBrains Mono'; font-size: 9px; color: var(--text-dim); margin-bottom: 8px; display: flex; gap: 12px; }
     .surv-report-body { font-size: 13px; color: var(--text-secondary); line-height: 1.6; white-space: pre-wrap; }
-    .surv-empty { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-dim); text-align: center; padding: 20px; }
+    .surv-empty { font-family: 'JetBrains Mono'; font-size: 11px; color: var(--text-dim); text-align: center; padding: 12px; }
 
     /* ═══ Vault ═══ */
     .vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
@@ -496,10 +498,10 @@
     .profile-photo img { width: 100%; height: 100%; object-fit: cover; }
     .profile-info h2 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
     .profile-info .rel-badge { font-size: 11px; color: var(--accent-indigo); }
-    .profile-sections { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
-    .profile-section { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 16px; }
-    .profile-section-title { font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
-    .profile-section-item { font-size: 12.5px; color: var(--text-secondary); padding: 4px 0; }
+    .profile-sections { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+    .profile-section { background: var(--bg-card); border: 1px solid var(--border-main); border-radius: 10px; padding: 12px 14px; }
+    .profile-section-title { font-size: 9px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
+    .profile-section-item { font-size: 12px; color: var(--text-secondary); padding: 2px 0; }
     .social-link { display: flex; align-items: center; gap: 8px; padding: 4px 0; text-decoration: none; color: var(--accent-blue); font-size: 12.5px; }
     .social-link:hover { text-decoration: underline; }
     .social-icon { width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
@@ -2736,15 +2738,15 @@ async function viewProfileReadonly(id, skipLog) {
     h += '</div></div>';
   }
 
-  // Action bar with surveillance button
+  // Action bar
   let survBtnHtml;
   if (survPending) {
-    survBtnHtml = '<button class="surv-btn pending" id="surv-btn-'+id+'" onclick="cancelSurveillance('+id+',\''+profileFullName.replace(/'/g,"\\'")+'\')"><span class="surv-pulse"></span> SURVEILLANCE PENDING</button>';
+    survBtnHtml = '<button class="pab-btn pab-pending" id="surv-btn-'+id+'" onclick="cancelSurveillance('+id+',\''+profileFullName.replace(/'/g,"\\'")+'\')"><span class="pab-pulse"></span> Surveillance Pending</button>';
   } else {
-    survBtnHtml = '<button class="surv-btn" id="surv-btn-'+id+'" onclick="queueSurveillance('+id+')">Run Surveillance</button>';
+    survBtnHtml = '<button class="pab-btn" id="surv-btn-'+id+'" onclick="queueSurveillance('+id+')">Run Surveillance</button>';
   }
-  if (survResults.length) survBtnHtml += ' <a href="#" class="surv-reports-link" onclick="event.preventDefault();document.getElementById(\'surv-reports-'+id+'\').scrollIntoView({behavior:\'smooth\'})">View Reports</a>';
-  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px"><button class="k-btn k-btn-sm" onclick="closeProfile()">&larr; Back</button><div style="display:flex;gap:8px;align-items:center">'+survBtnHtml+'<button class="k-btn k-btn-sm" onclick="downloadDossier('+id+')" style="display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Dossier</button><button class="case-add-btn" onclick="addProfileToCaseBtn('+id+')">+ Add to Case</button><button class="k-btn k-btn-sm" onclick="viewProfile('+id+')">Edit Profile</button></div></div>';
+  if (survResults.length) survBtnHtml += '<button class="pab-btn" onclick="document.getElementById(\'surv-reports-'+id+'\').scrollIntoView({behavior:\'smooth\'})">View Reports</button>';
+  h += '<div class="pab"><button class="pab-btn" onclick="closeProfile()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg> Back</button><div class="pab-group">'+survBtnHtml+'<span class="pab-sep"></span><button class="pab-btn" onclick="downloadDossier('+id+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button><button class="pab-btn" onclick="addProfileToCaseBtn('+id+')">+ Add to Case</button><span class="pab-sep"></span><button class="pab-btn" onclick="viewProfile('+id+')">Edit Profile</button></div></div>';
 
   // Photo + Name + Badges
   const roInitials = esc(((p.first_name||'N')[0]+(p.last_name||'P')[0]).toUpperCase());
@@ -2786,21 +2788,21 @@ async function viewProfileReadonly(id, skipLog) {
   }
 
   // Outer flex: left=sections, right=images
-  h += '<div style="display:flex;gap:16px;align-items:flex-start">';
+  h += '<div style="display:flex;gap:12px;align-items:flex-start">';
   h += '<div style="flex:1;min-width:0"><div class="profile-sections">';
   // Address
   const addr = typeof p.address === 'string' ? JSON.parse(p.address||'{}') : (p.address||{});
   if (addr.street || addr.city || addr.state || addr.zip) {
-    h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Home Address</div><div class="profile-section-item">'+esc([addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', '))+'</div></div>';
+    h += '<div class="profile-section"><div class="profile-section-title">Home Address</div><div class="profile-section-item">'+esc([addr.street, addr.city, addr.state, addr.zip].filter(Boolean).join(', '))+'</div></div>';
   }
   // Phones
   if ((p.phones||[]).length) { h += '<div class="profile-section"><div class="profile-section-title">Phone Numbers</div>'; p.phones.forEach(ph => { const num = typeof ph === 'string' ? ph : (ph.number||ph); const lbl = typeof ph === 'object' ? (ph.label||'') : ''; h += '<div class="profile-section-item">'+esc(fmtPhone(num))+(lbl?' <span style="font-size:10px;color:var(--accent-blue);opacity:0.7;margin-left:6px">'+esc(lbl)+'</span>':'')+'</div>'; }); h += '</div>'; }
   // Emails
   if ((p.emails||[]).length) { h += '<div class="profile-section"><div class="profile-section-title">Emails</div>'; p.emails.forEach(e => { const addr = typeof e === 'string' ? e : (e.address||e); const lbl = typeof e === 'object' ? (e.label||'') : ''; h += '<div class="profile-section-item">'+esc(addr)+(lbl?' <span style="font-size:10px;color:var(--accent-blue);opacity:0.7;margin-left:6px">'+esc(lbl)+'</span>':'')+'</div>'; }); h += '</div>'; }
   // Social
-  if (links.length) { h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Social Media</div>'; links.forEach(l => { const pl = detectPlatform(l.url||''); h += '<a class="social-link" href="'+esc(l.url)+'" target="_blank"><span class="social-icon" style="color:'+pl.color+'">'+pl.abbr+'</span>'+esc(l.handle||l.url)+'</a>'; }); h += '</div>'; }
+  if (links.length) { h += '<div class="profile-section"><div class="profile-section-title">Social Media</div>'; links.forEach(l => { const pl = detectPlatform(l.url||''); h += '<a class="social-link" href="'+esc(l.url)+'" target="_blank"><span class="social-icon" style="color:'+pl.color+'">'+pl.abbr+'</span>'+esc(l.handle||l.url)+'</a>'; }); h += '</div>'; }
   // Notes
-  if (p.notes) { h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Notes</div><div style="font-size:13px;color:var(--text-secondary);white-space:pre-wrap">'+esc(p.notes)+'</div></div>'; }
+  if (p.notes) { h += '<div class="profile-section"><div class="profile-section-title">Notes</div><div style="font-size:12px;color:var(--text-secondary);white-space:pre-wrap">'+esc(p.notes)+'</div></div>'; }
   // Relations
   if (d.relations && d.relations.length) { h += '<div class="profile-section"><div class="profile-section-title">Related Profiles</div>'; d.relations.forEach(r => { const lbl = r.label ? '<span class="rel-label-badge">'+esc(r.label)+'</span>' : ''; h += '<div class="related-card" onclick="viewProfileReadonly('+r.related_profile_id+')"><div class="profile-af-avatar" style="width:28px;height:28px;font-size:10px;flex-shrink:0">'+(r.photo_url?'<img src="'+esc(r.photo_url)+'">':esc((r.first_name||'?')[0]+(r.last_name||'?')[0]))+'</div><div><div style="font-size:12px">'+esc(r.first_name+' '+r.last_name)+'</div>'+lbl+'</div></div>'; }); h += '</div>'; }
 
@@ -2819,7 +2821,7 @@ async function viewProfileReadonly(id, skipLog) {
   // Employer
   const roEmp = typeof p.employer_info === 'string' ? JSON.parse(p.employer_info||'{}') : (p.employer_info||{});
   if (roEmp.name || roEmp.address || roEmp.industry) {
-    h += '<div class="profile-section" style="grid-column:1/-1"><div class="profile-section-title">Employer</div>';
+    h += '<div class="profile-section"><div class="profile-section-title">Employer</div>';
     if (roEmp.name) h += '<div class="profile-section-item"><span style="font-size:10px;color:var(--text-dim);margin-right:6px">Name:</span>'+esc(roEmp.name)+'</div>';
     if (roEmp.address) h += '<div class="profile-section-item"><span style="font-size:10px;color:var(--text-dim);margin-right:6px">Address:</span>'+esc(roEmp.address)+'</div>';
     if (roEmp.industry) h += '<div class="profile-section-item"><span style="font-size:10px;color:var(--text-dim);margin-right:6px">Industry:</span>'+esc(roEmp.industry)+'</div>';
@@ -4886,12 +4888,11 @@ async function queueSurveillance(profileId) {
   const r = await kAuthFetch('/k108/profiles/' + profileId + '/surveillance/queue');
   if (!r) return;
   if (r.error) { showToast('Already queued for surveillance'); return; }
-  // Switch button to pending state immediately
   const btn = document.getElementById('surv-btn-' + profileId);
   if (btn) {
     const name = btn.closest('.profile-detail')?.querySelector('h2')?.textContent?.trim() || '';
-    btn.className = 'surv-btn pending';
-    btn.innerHTML = '<span class="surv-pulse"></span> SURVEILLANCE PENDING';
+    btn.className = 'pab-btn pab-pending';
+    btn.innerHTML = '<span class="pab-pulse"></span> Surveillance Pending';
     btn.onclick = function() { cancelSurveillance(profileId, name); };
   }
   showToast('Queued for surveillance');
@@ -4908,7 +4909,7 @@ async function cancelSurveillance(profileId, name) {
   if (d.success) {
     const btn = document.getElementById('surv-btn-' + profileId);
     if (btn) {
-      btn.className = 'surv-btn';
+      btn.className = 'pab-btn';
       btn.innerHTML = 'Run Surveillance';
       btn.onclick = function() { queueSurveillance(profileId); };
     }
@@ -4918,14 +4919,12 @@ async function cancelSurveillance(profileId, name) {
 
 socket.on('k108:surveillance_complete', async (data) => {
   if (!currentProfileId || String(currentProfileId) !== String(data.profileId)) return;
-  // Refresh the profile page to update button + results
   const btn = document.getElementById('surv-btn-' + data.profileId);
   if (btn) {
-    btn.className = 'surv-btn';
+    btn.className = 'pab-btn';
     btn.innerHTML = 'Run Surveillance';
     btn.onclick = function() { queueSurveillance(data.profileId); };
   }
-  // Reload surveillance results section
   try {
     const d = await kAuthFetch('/api/k108/profiles/' + data.profileId);
     if (d && d.surveillanceResults) {
@@ -4939,17 +4938,17 @@ socket.on('k108:surveillance_complete', async (data) => {
           list.innerHTML = '<div class="surv-empty">No surveillance reports on file</div>';
         }
       }
-      // Add View Reports link if not already present
+      // Add View Reports button if not already present
       const reportsSection = document.getElementById('surv-reports-' + data.profileId);
       if (reportsSection && d.surveillanceResults.length) {
-        const existingLink = btn?.parentElement?.querySelector('.surv-reports-link');
-        if (!existingLink && btn) {
-          const link = document.createElement('a');
-          link.href = '#';
-          link.className = 'surv-reports-link';
-          link.textContent = 'View Reports';
-          link.onclick = function(e) { e.preventDefault(); reportsSection.scrollIntoView({behavior:'smooth'}); };
-          btn.insertAdjacentElement('afterend', link);
+        const existing = btn?.parentElement?.querySelector('[data-surv-view]');
+        if (!existing && btn) {
+          const vb = document.createElement('button');
+          vb.className = 'pab-btn';
+          vb.setAttribute('data-surv-view', '1');
+          vb.textContent = 'View Reports';
+          vb.onclick = function() { reportsSection.scrollIntoView({behavior:'smooth'}); };
+          btn.insertAdjacentElement('afterend', vb);
         }
       }
     }
