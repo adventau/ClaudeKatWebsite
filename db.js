@@ -483,6 +483,18 @@ async function createK108Tables() {
     )
   `);
 
+  // ── Surveillance Approvals ──
+  await query(`
+    CREATE TABLE IF NOT EXISTS surveillance_approvals (
+      id SERIAL PRIMARY KEY,
+      queue_id INT,
+      name VARCHAR(255),
+      requested_by VARCHAR(50),
+      approved BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
   // ── K-108 Briefings ──
   await query(`
     CREATE TABLE IF NOT EXISTS k108_briefings (

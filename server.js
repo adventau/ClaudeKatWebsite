@@ -8120,6 +8120,42 @@ app.post('/api/surveillance/results', async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Surveillance Approvals (external API — protected by briefing secret) ────
+
+// POST /api/surveillance/approve/submit — auto-approve names for surveillance
+app.post('/api/surveillance/approve/submit', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { names } = req.body;
+  if (!Array.isArray(names) || !names.length) return res.status(400).json({ error: 'names array required' });
+
+  for (const item of names) {
+    await db.query(
+      `INSERT INTO surveillance_approvals (queue_id, name, requested_by, approved) VALUES ($1,$2,$3,TRUE)`,
+      [item.id, item.name, item.requested_by]
+    );
+  }
+  res.json({ success: true });
+});
+
+// GET /api/surveillance/approve/decisions — fetch and clear all approval decisions
+app.get('/api/surveillance/approve/decisions', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  if (!db.pool) return res.json([]);
+  const r = await db.query('SELECT id, queue_id, name, requested_by, approved FROM surveillance_approvals ORDER BY created_at ASC');
+  const rows = r.rows;
+  if (rows.length) {
+    await db.query('DELETE FROM surveillance_approvals');
+  }
+  res.json(rows);
+});
+
 // ── Surveillance Queue (K-108 auth — user-facing) ──────────────────────────
 
 // POST /k108/profiles/:id/surveillance/queue — queue a profile for surveillance
