@@ -338,6 +338,16 @@ async function createK108Tables() {
   await query(`ALTER TABLE k108_case_timeline ADD COLUMN IF NOT EXISTS title VARCHAR(200) DEFAULT ''`);
   await query(`ALTER TABLE k108_case_timeline ADD COLUMN IF NOT EXISTS body TEXT DEFAULT ''`);
   await query(`ALTER TABLE k108_case_timeline ADD COLUMN IF NOT EXISTS created_by VARCHAR(50)`);
+  // Migration: drop legacy 'description' column (replaced by title + body)
+  try {
+    const descCol = await query(`SELECT column_name FROM information_schema.columns WHERE table_name='k108_case_timeline' AND column_name='description'`);
+    if (descCol.rows.length > 0) {
+      // Copy any existing description data into body before dropping
+      await query(`UPDATE k108_case_timeline SET body = description WHERE (body IS NULL OR body = '') AND description IS NOT NULL AND description != ''`);
+      await query(`ALTER TABLE k108_case_timeline DROP COLUMN description`);
+      console.log('[K108] Migrated k108_case_timeline: dropped legacy description column');
+    }
+  } catch(e) { console.log('[K108] timeline description migration:', e.message); }
 
   await query(`
     CREATE TABLE IF NOT EXISTS k108_case_evidence (
