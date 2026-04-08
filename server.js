@@ -8229,129 +8229,164 @@ function k108EmitCaseUpdate(caseId) {
 
 // List cases
 app.post('/api/k108/cases/list', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.json({ cases: [] });
-  const { status } = req.body || {};
-  let sql = 'SELECT * FROM k108_cases';
-  const params = [];
-  if (status && (status === 'open' || status === 'closed')) {
-    params.push(status);
-    sql += ' WHERE LOWER(status) = $1';
+  try {
+    const username = k108Auth(req, res);
+    if (!username) return;
+    if (!db.pool) return res.json({ cases: [] });
+    const { status } = req.body || {};
+    let sql = 'SELECT * FROM k108_cases';
+    const params = [];
+    if (status && (status === 'open' || status === 'closed')) {
+      params.push(status);
+      sql += ' WHERE LOWER(status) = $1';
+    }
+    sql += ' ORDER BY updated_at DESC';
+    const r = await db.query(sql, params);
+    res.json({ cases: r.rows.map(k108CaseRow) });
+  } catch (err) {
+    console.error('[K108] Case list error:', err);
+    res.status(500).json({ error: 'Failed to load cases', cases: [] });
   }
-  sql += ' ORDER BY updated_at DESC';
-  const r = await db.query(sql, params);
-  res.json({ cases: r.rows.map(k108CaseRow) });
 });
 
 // Create case
 app.post('/api/k108/cases/create', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.status(503).json({ error: 'Database required' });
-  const { name, targetName, priority, classification, summary } = req.body || {};
-  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Case name required' });
-  const safePriority = ['low','medium','high'].includes((priority||'').toLowerCase()) ? priority.toLowerCase() : 'medium';
-  const safeClass = ['unclassified','confidential','classified'].includes((classification||'').toLowerCase()) ? classification.toLowerCase() : 'unclassified';
-  const caseId = await k108GenerateCaseId();
-  const r = await db.query(
-    `INSERT INTO k108_cases (case_id, name, target_name, status, classification, priority, summary, created_by)
-     VALUES ($1,$2,$3,'open',$4,$5,$6,$7) RETURNING *`,
-    [caseId, String(name).trim(), String(targetName || '').trim(), safeClass, safePriority, String(summary || ''), username]
-  );
-  const created = r.rows[0];
-  await db.query(
-    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'created','Case opened',$2,$3)`,
-    [created.id, 'Case "' + created.name + '" created.', username]
-  );
-  await k108Log(username, 'case_create', { case_id: caseId, name: created.name }, req.ip);
-  k108EmitCaseUpdate(created.id);
-  res.json({ case: k108CaseRow(created) });
+  try {
+    const username = k108Auth(req, res);
+    if (!username) return;
+    if (!db.pool) return res.status(503).json({ error: 'Database required' });
+    const { name, targetName, priority, classification, summary } = req.body || {};
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'Case name required' });
+    const safePriority = ['low','medium','high'].includes((priority||'').toLowerCase()) ? priority.toLowerCase() : 'medium';
+    const safeClass = ['unclassified','confidential','classified'].includes((classification||'').toLowerCase()) ? classification.toLowerCase() : 'unclassified';
+    const caseId = await k108GenerateCaseId();
+    const r = await db.query(
+      `INSERT INTO k108_cases (case_id, name, target_name, status, classification, priority, summary, created_by)
+       VALUES ($1,$2,$3,'open',$4,$5,$6,$7) RETURNING *`,
+      [caseId, String(name).trim(), String(targetName || '').trim(), safeClass, safePriority, String(summary || ''), username]
+    );
+    const created = r.rows[0];
+    await db.query(
+      `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'created','Case opened',$2,$3)`,
+      [created.id, 'Case "' + created.name + '" created.', username]
+    );
+    await k108Log(username, 'case_create', { case_id: caseId, name: created.name }, req.ip);
+    k108EmitCaseUpdate(created.id);
+    res.json({ case: k108CaseRow(created) });
+  } catch (err) {
+    console.error('[K108] Case create error:', err);
+    res.status(500).json({ error: 'Failed to create case: ' + (err.message || 'unknown error') });
+  }
 });
 
 // Get case detail (overview + counts)
 app.post('/api/k108/cases/get', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.status(503).json({ error: 'Database required' });
-  const { id } = req.body || {};
-  const r = await db.query('SELECT * FROM k108_cases WHERE id = $1', [id]);
-  if (!r.rows.length) return res.status(404).json({ error: 'Case not found' });
-  const counts = await db.query(
-    `SELECT
-       (SELECT COUNT(*)::int FROM k108_case_timeline WHERE case_id = $1) AS timeline_count,
-       (SELECT COUNT(*)::int FROM k108_case_evidence WHERE case_id = $1 AND filename IS NOT NULL) AS evidence_count,
-       (SELECT COUNT(*)::int FROM k108_case_entities WHERE case_id = $1) AS entity_count,
-       (SELECT COUNT(*)::int FROM k108_case_notes WHERE case_id = $1) AS notes_count`,
-    [id]
-  );
-  res.json({ case: k108CaseRow(r.rows[0]), counts: counts.rows[0] });
+  try {
+    const username = k108Auth(req, res);
+    if (!username) return;
+    if (!db.pool) return res.status(503).json({ error: 'Database required' });
+    const { id } = req.body || {};
+    const r = await db.query('SELECT * FROM k108_cases WHERE id = $1', [id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Case not found' });
+    const counts = await db.query(
+      `SELECT
+         (SELECT COUNT(*)::int FROM k108_case_timeline WHERE case_id = $1) AS timeline_count,
+         (SELECT COUNT(*)::int FROM k108_case_evidence WHERE case_id = $1 AND filename IS NOT NULL) AS evidence_count,
+         (SELECT COUNT(*)::int FROM k108_case_entities WHERE case_id = $1) AS entity_count,
+         (SELECT COUNT(*)::int FROM k108_case_notes WHERE case_id = $1) AS notes_count`,
+      [id]
+    );
+    res.json({ case: k108CaseRow(r.rows[0]), counts: counts.rows[0] });
+  } catch (err) {
+    console.error('[K108] Case get error:', err);
+    res.status(500).json({ error: 'Failed to load case' });
+  }
 });
 
 // Update case summary / target / priority / classification
 app.post('/api/k108/cases/update', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.status(503).json({ error: 'Database required' });
-  const { id, summary, targetName, priority, classification } = req.body || {};
-  const sets = []; const params = [];
-  if (summary !== undefined) { params.push(summary); sets.push(`summary = $${params.length}`); }
-  if (targetName !== undefined) { params.push(targetName); sets.push(`target_name = $${params.length}`); }
-  if (priority !== undefined && ['low','medium','high'].includes(priority)) { params.push(priority); sets.push(`priority = $${params.length}`); }
-  if (classification !== undefined && ['unclassified','confidential','classified'].includes(classification)) { params.push(classification); sets.push(`classification = $${params.length}`); }
-  if (!sets.length) return res.json({ ok: true });
-  sets.push(`updated_at = NOW()`);
-  params.push(id);
-  const r = await db.query(`UPDATE k108_cases SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`, params);
-  k108EmitCaseUpdate(id);
-  res.json({ case: k108CaseRow(r.rows[0]) });
+  try {
+    const username = k108Auth(req, res);
+    if (!username) return;
+    if (!db.pool) return res.status(503).json({ error: 'Database required' });
+    const { id, summary, targetName, priority, classification } = req.body || {};
+    const sets = []; const params = [];
+    if (summary !== undefined) { params.push(summary); sets.push(`summary = $${params.length}`); }
+    if (targetName !== undefined) { params.push(targetName); sets.push(`target_name = $${params.length}`); }
+    if (priority !== undefined && ['low','medium','high'].includes(priority)) { params.push(priority); sets.push(`priority = $${params.length}`); }
+    if (classification !== undefined && ['unclassified','confidential','classified'].includes(classification)) { params.push(classification); sets.push(`classification = $${params.length}`); }
+    if (!sets.length) return res.json({ ok: true });
+    sets.push(`updated_at = NOW()`);
+    params.push(id);
+    const r = await db.query(`UPDATE k108_cases SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`, params);
+    k108EmitCaseUpdate(id);
+    res.json({ case: k108CaseRow(r.rows[0]) });
+  } catch (err) {
+    console.error('[K108] Case update error:', err);
+    res.status(500).json({ error: 'Failed to update case' });
+  }
 });
 
 // Toggle status open/closed
 app.post('/api/k108/cases/status', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.status(503).json({ error: 'Database required' });
-  const { id, status } = req.body || {};
-  const target = (status === 'open' || status === 'closed') ? status : null;
-  if (!target) return res.status(400).json({ error: 'Invalid status' });
-  await db.query('UPDATE k108_cases SET status = $1, updated_at = NOW() WHERE id = $2', [target, id]);
-  await db.query(
-    `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'status','Status changed',$2,$3)`,
-    [id, 'Case marked as ' + target.toUpperCase() + '.', username]
-  );
-  await k108Log(username, 'case_status', { id, status: target }, req.ip);
-  k108EmitCaseUpdate(id);
-  res.json({ ok: true, status: target });
+  try {
+    const username = k108Auth(req, res);
+    if (!username) return;
+    if (!db.pool) return res.status(503).json({ error: 'Database required' });
+    const { id, status } = req.body || {};
+    const target = (status === 'open' || status === 'closed') ? status : null;
+    if (!target) return res.status(400).json({ error: 'Invalid status' });
+    await db.query('UPDATE k108_cases SET status = $1, updated_at = NOW() WHERE id = $2', [target, id]);
+    await db.query(
+      `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'status','Status changed',$2,$3)`,
+      [id, 'Case marked as ' + target.toUpperCase() + '.', username]
+    );
+    await k108Log(username, 'case_status', { id, status: target }, req.ip);
+    k108EmitCaseUpdate(id);
+    res.json({ ok: true, status: target });
+  } catch (err) {
+    console.error('[K108] Case status error:', err);
+    res.status(500).json({ error: 'Failed to update case status' });
+  }
 });
 
 // Delete case
 app.post('/api/k108/cases/delete', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.status(503).json({ error: 'Database required' });
-  const { id } = req.body || {};
-  if (!id) return res.status(400).json({ error: 'Case id required' });
-  const check = await db.query('SELECT * FROM k108_cases WHERE id = $1', [id]);
-  if (!check.rows.length) return res.status(404).json({ error: 'Case not found' });
-  const caseName = check.rows[0].name;
-  const caseIdStr = check.rows[0].case_id;
-  // CASCADE handles child rows (timeline, evidence, entities, notes)
-  await db.query('DELETE FROM k108_cases WHERE id = $1', [id]);
-  await k108Log(username, 'case_delete', { case_id: caseIdStr, name: caseName }, req.ip);
-  k108EmitCaseUpdate(id);
-  res.json({ success: true });
+  try {
+    const username = k108Auth(req, res);
+    if (!username) return;
+    if (!db.pool) return res.status(503).json({ error: 'Database required' });
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'Case id required' });
+    const check = await db.query('SELECT * FROM k108_cases WHERE id = $1', [id]);
+    if (!check.rows.length) return res.status(404).json({ error: 'Case not found' });
+    const caseName = check.rows[0].name;
+    const caseIdStr = check.rows[0].case_id;
+    // CASCADE handles child rows (timeline, evidence, entities, notes)
+    await db.query('DELETE FROM k108_cases WHERE id = $1', [id]);
+    await k108Log(username, 'case_delete', { case_id: caseIdStr, name: caseName }, req.ip);
+    k108EmitCaseUpdate(id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[K108] Case delete error:', err);
+    res.status(500).json({ error: 'Failed to delete case' });
+  }
 });
 
 // Check duplicate case name
 app.post('/api/k108/cases/check-duplicate', async (req, res) => {
-  const username = k108Auth(req, res);
-  if (!username) return;
-  if (!db.pool) return res.json({ exists: false });
-  const { name } = req.body || {};
-  if (!name) return res.json({ exists: false });
-  const r = await db.query('SELECT id FROM k108_cases WHERE LOWER(name) = LOWER($1) LIMIT 1', [String(name).trim()]);
-  res.json({ exists: r.rows.length > 0 });
+  try {
+    const username = k108Auth(req, res);
+    if (!username) return;
+    if (!db.pool) return res.json({ exists: false });
+    const { name } = req.body || {};
+    if (!name) return res.json({ exists: false });
+    const r = await db.query('SELECT id FROM k108_cases WHERE LOWER(name) = LOWER($1) LIMIT 1', [String(name).trim()]);
+    res.json({ exists: r.rows.length > 0 });
+  } catch (err) {
+    console.error('[K108] Check duplicate error:', err);
+    res.json({ exists: false });
+  }
 });
 
 // Search intel profiles for entity import
