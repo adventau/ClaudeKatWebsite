@@ -4732,7 +4732,28 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
         ],
       };
     }
-    return lines('Usage: guests list | guests archive | guests messages <id> [channel] | guests revoke <id>', 'warn');
+    if (sub === 'create') {
+      const name = parts.slice(2).join(' ');
+      if (!name) return lines('Usage: guests create <name>', 'warn');
+      const id = uuidv4();
+      const password = Math.random().toString(36).slice(2, 10);
+      guests[id] = {
+        id, name, passwordHash: await bcrypt.hash(password, 10),
+        createdBy: 'eval', createdAt: Date.now(),
+        expiresAt: null, active: true,
+        channels: ['kaliph', 'kathrine', 'group'],
+        messages: { kaliph: [], kathrine: [], group: [] },
+      };
+      wd(F.guests, guests);
+      io.emit('guest-created', { guestId: id, name });
+      return multi(
+        [`Guest "${name}" created`, 'success'],
+        [`  ID: ${id.substring(0, 8)}`, 'data'],
+        [`  Password: ${password}`, 'highlight'],
+        [`  Share: /guest → name: ${name}, pass: ${password}`, 'dim'],
+      );
+    }
+    return lines('Usage: guests list | guests archive | guests messages <id> [channel] | guests revoke <id> | guests create <name>', 'warn');
   }
 
   // ── SUGGESTIONS ──
@@ -5215,6 +5236,75 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     return lines(`Deleted reminder: "${removed.title}" (${removed.id})`, 'success');
   }
 
+  // ── TOTP ──
+  if (cmd === 'totp') {
+    const sub = parts[1]?.toLowerCase();
+    if (sub === 'list') {
+      const all = rd(F.totp) || {};
+      const rows = [];
+      for (const [user, accounts] of Object.entries(all)) {
+        if (!Array.isArray(accounts)) continue;
+        accounts.forEach(a => rows.push([user, a.id?.substring(0, 8) || '—', a.name || '—', a.issuer || '—']));
+      }
+      if (!rows.length) return lines('No TOTP accounts', 'dim');
+      return { lines: [{ text: `${rows.length} 2FA accounts`, cls: 'success' }], table: { headers: ['User', 'ID', 'Name', 'Issuer'], rows } };
+    }
+    if (sub === 'reset') {
+      const users = rd(F.users);
+      for (const user of ['kaliph', 'kathrine']) {
+        if (users[user]) delete users[user].totpPassword;
+      }
+      wd(F.users, users);
+      return lines('TOTP authenticator password reset for all users', 'success');
+    }
+    return lines('Usage: totp list | totp reset', 'warn');
+  }
+
+  // ── PUSH STATUS ──
+  if (cmd === 'push' && parts[1]?.toLowerCase() === 'status') {
+    const subs = getPushSubs();
+    const out = [{ text: '── Push Notification Subscriptions ──', cls: 'header' }];
+    let total = 0;
+    for (const [user, arr] of Object.entries(subs)) {
+      const count = Array.isArray(arr) ? arr.length : 0;
+      total += count;
+      out.push({ text: `  ${user}: ${count} device${count !== 1 ? 's' : ''}`, cls: 'data' });
+    }
+    if (!total) return lines('No push subscriptions registered', 'dim');
+    out.push({ text: `  Total: ${total} subscriptions`, cls: 'success' });
+    return { lines: out };
+  }
+
+  // ── ARCHIVIST QUEUE ──
+  if (cmd === 'archivist') {
+    if (!db.pool) return lines('Database required for archivist', 'error');
+    const r = await db.query('SELECT id, name, requested_by, status, created_at FROM surveillance_queue ORDER BY created_at DESC LIMIT 20');
+    if (!r.rows.length) return lines('Archivist queue is empty', 'dim');
+    return { lines: [{ text: `${r.rows.length} items in queue`, cls: 'success' }], table: { headers: ['ID', 'Name', 'Requested By', 'Status', 'Created'], rows: r.rows.map(q => [String(q.id), q.name, q.requested_by || '—', q.status || 'pending', new Date(q.created_at).toLocaleString()]) } };
+  }
+
+  // ── BUDGET ──
+  if (cmd === 'budget') {
+    const sub = parts[1]?.toLowerCase();
+    const budget = rd(F.budget) || {};
+    if (sub === 'status' || !sub) {
+      const cats = budget.categories || [];
+      const totalBudget = cats.reduce((s, c) => s + (c.budgetAmount || 0), 0);
+      return multi(
+        ['── Budget Overview ──', 'header'],
+        [`  Categories: ${cats.length}`, 'data'],
+        [`  Total budgeted: $${totalBudget.toFixed(2)}`, 'data'],
+        [`  Period: ${budget.period || 'monthly'}`, 'data'],
+      );
+    }
+    if (sub === 'categories') {
+      const cats = budget.categories || [];
+      if (!cats.length) return lines('No budget categories', 'dim');
+      return { lines: [{ text: `${cats.length} categories`, cls: 'success' }], table: { headers: ['ID', 'Name', 'Emoji', 'Budget', 'Color'], rows: cats.map(c => [c.id?.substring(0, 8) || '—', c.name, c.emoji || '—', '$' + (c.budgetAmount || 0).toFixed(2), c.color || '—']) } };
+    }
+    return lines('Usage: budget status | budget categories', 'warn');
+  }
+
   // ── MONEY ──
   if (cmd === 'money') {
     const sub = parts[1]?.toLowerCase();
@@ -5226,6 +5316,23 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
         { text: `Kaliph: $${k.toFixed(2)}  |  Kathrine: $${ka.toFixed(2)}  |  Combined: $${(k+ka).toFixed(2)}`, cls: 'success' },
         { text: `Transactions: ${(money.transactions||[]).length}  |  Goals: ${(money.goals||[]).length}  |  Snapshots: ${(money.dailySnapshots||[]).length}  |  Recurring: ${(money.recurring||[]).length}`, cls: 'dim' },
       ]};
+    }
+    if (sub === 'transactions') {
+      const txns = money.transactions || [];
+      const count = parseInt(parts[2]) || 20;
+      const slice = txns.slice(-count).reverse();
+      if (!slice.length) return lines('No transactions', 'dim');
+      return { lines: [{ text: `Last ${slice.length} of ${txns.length} transactions`, cls: 'success' }], table: { headers: ['Date', 'User', 'Description', 'Amount', 'Category'], rows: slice.map(t => [new Date(t.date || t.createdAt).toLocaleDateString(), t.user || '—', (t.description || t.note || '').substring(0, 30), (t.amount >= 0 ? '+' : '') + '$' + (t.amount || 0).toFixed(2), t.category || '—']) } };
+    }
+    if (sub === 'goals') {
+      const goals = money.goals || [];
+      if (!goals.length) return lines('No savings goals', 'dim');
+      return { lines: [{ text: `${goals.length} savings goals`, cls: 'success' }], table: { headers: ['Name', 'Target', 'Saved', 'Progress'], rows: goals.map(g => [g.name || '—', '$' + (g.target || 0).toFixed(2), '$' + (g.saved || g.current || 0).toFixed(2), Math.round(((g.saved || g.current || 0) / (g.target || 1)) * 100) + '%']) } };
+    }
+    if (sub === 'recurring') {
+      const rec = money.recurring || [];
+      if (!rec.length) return lines('No recurring payments', 'dim');
+      return { lines: [{ text: `${rec.length} recurring payments`, cls: 'success' }], table: { headers: ['Name', 'Amount', 'Frequency', 'User', 'Next'], rows: rec.map(r => [(r.description || r.name || '—').substring(0, 25), '$' + Math.abs(r.amount || 0).toFixed(2), r.frequency || r.interval || '—', r.user || '—', r.nextDate ? new Date(r.nextDate).toLocaleDateString() : '—']) } };
     }
     if (sub === 'set') {
       const who = parts[2]?.toLowerCase();
@@ -5402,6 +5509,36 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     }
   }
 
+  // ── WHOAMI ──
+  if (cmd === 'whoami') {
+    const activeUsers = Object.entries(onlineUsers).map(([name, info]) => `${name} (${info.state || 'connected'})`);
+    return multi(
+      ['── Active Sessions ──', 'header'],
+      [`  Online users: ${activeUsers.length ? activeUsers.join(', ') : 'none'}`, 'data'],
+      [`  Socket connections: ${io.engine?.clientsCount || Object.keys(onlineUsers).length}`, 'data'],
+      [`  Maintenance mode: ${maintenanceMode ? 'ON' : 'OFF'}`, 'data'],
+    );
+  }
+
+  // ── HEALTH ──
+  if (cmd === 'health') {
+    const mem = process.memoryUsage();
+    const secs = Math.floor(process.uptime());
+    const d = Math.floor(secs / 86400), h = Math.floor((secs % 86400) / 3600), m = Math.floor((secs % 3600) / 60);
+    return multi(
+      ['── Server Health ──', 'header'],
+      [`  Uptime:     ${d}d ${h}h ${m}m`, 'data'],
+      [`  Memory RSS: ${(mem.rss / 1024 / 1024).toFixed(1)} MB`, 'data'],
+      [`  Heap Used:  ${(mem.heapUsed / 1024 / 1024).toFixed(1)} / ${(mem.heapTotal / 1024 / 1024).toFixed(1)} MB`, 'data'],
+      [`  External:   ${(mem.external / 1024 / 1024).toFixed(1)} MB`, 'data'],
+      [`  Node:       ${process.version}`, 'data'],
+      [`  Platform:   ${process.platform} ${process.arch}`, 'data'],
+      [`  PID:        ${process.pid}`, 'dim'],
+      [`  Database:   ${db.pool ? 'Postgres connected' : 'JSON files (no DB)'}`, 'data'],
+      [`  Online:     ${Object.keys(onlineUsers).join(', ') || 'none'}`, 'data'],
+    );
+  }
+
   // ── K-108 Commands ──
   if (cmd === 'k108') {
     const sub = parts[1]?.toLowerCase();
@@ -5416,9 +5553,97 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
         ['Next login will prompt for new passcode setup', 'info']
       );
     }
+    if (sub === 'label') {
+      const action = parts[2]?.toLowerCase();
+      if (action === 'list') {
+        if (!db.pool) return lines('Database required for K-108 labels', 'error');
+        const r = await db.query('SELECT id, name, color, icon FROM k108_labels ORDER BY name');
+        if (!r.rows.length) return lines('No K-108 labels found', 'dim');
+        return { lines: [{ text: `${r.rows.length} K-108 labels`, cls: 'success' }], table: { headers: ['ID', 'Name', 'Color', 'Icon'], rows: r.rows.map(l => [String(l.id), l.name, l.color || '—', l.icon || '—']) } };
+      }
+      if (action === 'create') {
+        const name = parts.slice(3).join(' ');
+        if (!name) return lines('Usage: k108 label create <name>', 'warn');
+        if (!db.pool) return lines('Database required', 'error');
+        const r = await db.query('INSERT INTO k108_labels (name, color, icon) VALUES ($1, $2, $3) RETURNING id', [name, '#3b82f6', 'tag']);
+        return lines(`K-108 label created: "${name}" (ID: ${r.rows[0].id})`, 'success');
+      }
+      return lines('Usage: k108 label list | k108 label create <name>', 'warn');
+    }
+    if (sub === 'vault') {
+      if (parts[2]?.toLowerCase() === 'stats') {
+        if (!db.pool) return lines('Database required for K-108 vault', 'error');
+        const items = await db.query('SELECT COUNT(*) as count FROM k108_vault_items');
+        const folders = await db.query('SELECT COUNT(*) as count FROM k108_vault_folders');
+        const size = await db.query('SELECT COALESCE(SUM(file_size), 0) as total FROM k108_vault_items');
+        const sizeMB = (Number(size.rows[0].total) / (1024 * 1024)).toFixed(2);
+        return multi(
+          ['── K-108 Document Vault ──', 'header'],
+          [`  Files:   ${items.rows[0].count}`, 'data'],
+          [`  Folders: ${folders.rows[0].count}`, 'data'],
+          [`  Size:    ${sizeMB} MB`, 'data'],
+        );
+      }
+      return lines('Usage: k108 vault stats', 'warn');
+    }
+    if (sub === 'activity') {
+      if (!db.pool) return lines('Database required for K-108 activity', 'error');
+      const r = await db.query('SELECT * FROM k108_activity_log ORDER BY created_at DESC LIMIT 10');
+      if (!r.rows.length) return lines('No K-108 activity recorded', 'dim');
+      return { lines: [{ text: 'Last 10 K-108 Activity Log entries:', cls: 'header' }], table: { headers: ['Time', 'User', 'Action', 'Detail'], rows: r.rows.map(e => [new Date(e.created_at).toLocaleString(), e.username, e.action_type, JSON.stringify(e.detail || {}).substring(0, 50)]) } };
+    }
+    if (sub === 'sms') {
+      if (parts[2]?.toLowerCase() === 'quota') {
+        const q = getK108Quota('sms');
+        return lines(`K-108 SMS quota: ${q.used}/${q.total} used — ${q.total - q.used} remaining`, 'success');
+      }
+      return lines('Usage: k108 sms quota', 'warn');
+    }
+    if (sub === 'profile') {
+      const searchTerm = parts.slice(2).join(' ');
+      if (!searchTerm) return lines('Usage: k108 profile <name>', 'warn');
+      if (!db.pool) return lines('Database required for K-108 profiles', 'error');
+      const r = await db.query(`SELECT id, first_name, last_name, aliases FROM k108_profiles WHERE LOWER(first_name || ' ' || last_name) LIKE $1 OR EXISTS (SELECT 1 FROM unnest(aliases) a WHERE LOWER(a) LIKE $1) ORDER BY updated_at DESC LIMIT 10`, ['%' + searchTerm.toLowerCase() + '%']);
+      if (!r.rows.length) return lines('No matching K-108 profiles', 'warn');
+      return { lines: [{ text: `${r.rows.length} profiles found:`, cls: 'success' }], table: { headers: ['ID', 'Name', 'Aliases'], rows: r.rows.map(p => [String(p.id), `${p.first_name} ${p.last_name}`, (p.aliases || []).join(', ') || '—']) } };
+    }
+    if (sub === 'case') {
+      const searchTerm = parts.slice(2).join(' ');
+      if (!searchTerm) return lines('Usage: k108 case <name>', 'warn');
+      if (!db.pool) return lines('Database required for K-108 cases', 'error');
+      const r = await db.query('SELECT id, name, status, priority FROM k108_cases WHERE LOWER(name) LIKE $1 ORDER BY updated_at DESC LIMIT 10', ['%' + searchTerm.toLowerCase() + '%']);
+      if (!r.rows.length) return lines('No matching K-108 cases', 'warn');
+      return { lines: [{ text: `${r.rows.length} cases found:`, cls: 'success' }], table: { headers: ['ID', 'Name', 'Status', 'Priority'], rows: r.rows.map(c => [String(c.id), c.name, c.status || '—', c.priority || '—']) } };
+    }
+    if (sub === 'stats') {
+      if (!db.pool) return lines('Database required for K-108 stats', 'error');
+      const profiles = await db.query('SELECT COUNT(*) as count FROM k108_profiles');
+      const cases = await db.query('SELECT COUNT(*) as count FROM k108_cases');
+      const vault = await db.query('SELECT COUNT(*) as count FROM k108_vault_items');
+      const labels = await db.query('SELECT COUNT(*) as count FROM k108_labels');
+      const activity = await db.query('SELECT COUNT(*) as count FROM k108_activity_log');
+      let smsInfo = '—';
+      try { const q = getK108Quota('sms'); smsInfo = `${q.used}/${q.total} used`; } catch {}
+      return multi(
+        ['── K-108 Database Overview ──', 'header'],
+        [`  Profiles:  ${profiles.rows[0].count}`, 'data'],
+        [`  Cases:     ${cases.rows[0].count}`, 'data'],
+        [`  Vault:     ${vault.rows[0].count} files`, 'data'],
+        [`  Labels:    ${labels.rows[0].count}`, 'data'],
+        [`  Activity:  ${activity.rows[0].count} entries`, 'data'],
+        [`  SMS Quota: ${smsInfo}`, 'data'],
+      );
+    }
     return multi(
       ['K-108 Commands:', 'header'],
-      ['  k108 reset-passcode [kaliph|kathrine]  — Reset K-108 passcode', 'info']
+      ['  k108 reset-passcode <user>    — Reset K-108 passcode', 'info'],
+      ['  k108 label list/create        — Manage labels', 'info'],
+      ['  k108 vault stats              — Vault statistics', 'info'],
+      ['  k108 activity                 — Recent activity', 'info'],
+      ['  k108 sms quota                — SMS remaining', 'info'],
+      ['  k108 profile <name>           — Search profiles', 'info'],
+      ['  k108 case <name>              — Search cases', 'info'],
+      ['  k108 stats                    — Database overview', 'info'],
     );
   }
 
@@ -6532,9 +6757,16 @@ app.post('/api/k108/sms/thread', async (req, res) => {
 app.post('/api/k108/vault/items', async (req, res) => {
   const username = k108Auth(req, res);
   if (!username) return;
-  if (!db.pool) return res.json({ items: [] });
-  const r = await db.query('SELECT * FROM k108_vault ORDER BY transferred_at DESC');
-  res.json({ items: r.rows });
+  if (!db.pool) return res.json({ items: [], folders: [] });
+  // Ensure folder support columns exist
+  try { await db.query(`ALTER TABLE k108_vault ADD COLUMN IF NOT EXISTS folder_id INTEGER DEFAULT NULL`); } catch(e) {}
+  try { await db.query(`CREATE TABLE IF NOT EXISTS k108_vault_folders (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, parent_id INTEGER DEFAULT NULL, created_by VARCHAR(100), created_at TIMESTAMP DEFAULT NOW())`); } catch(e) {}
+  const { folderId } = req.body;
+  const folderFilter = folderId ? 'WHERE folder_id = $1' : 'WHERE folder_id IS NULL';
+  const params = folderId ? [folderId] : [];
+  const r = await db.query('SELECT * FROM k108_vault ' + folderFilter + ' ORDER BY transferred_at DESC', params);
+  const fr = await db.query('SELECT * FROM k108_vault_folders WHERE ' + (folderId ? 'parent_id = $1' : 'parent_id IS NULL') + ' ORDER BY name', params);
+  res.json({ items: r.rows, folders: fr.rows });
 });
 
 app.post('/api/k108/vault/upload', upload.array('files', 10), async (req, res) => {
@@ -6542,16 +6774,93 @@ app.post('/api/k108/vault/upload', upload.array('files', 10), async (req, res) =
   const username = k108Auth(req, res);
   if (!username) return;
   if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const folderId = req.body.folderId || null;
   const inserted = [];
   for (const file of (req.files || [])) {
     const r = await db.query(
-      'INSERT INTO k108_vault (filename, original_name, mime_type, size, transferred_by) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-      [`/uploads/${file.filename}`, file.originalname, file.mimetype, file.size, username]
+      'INSERT INTO k108_vault (filename, original_name, mime_type, size, transferred_by, folder_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [`/uploads/${file.filename}`, file.originalname, file.mimetype, file.size, username, folderId]
     );
     inserted.push(r.rows[0]);
     await k108Log(username, 'file_upload', { filename: file.originalname }, req.ip);
   }
   res.json({ ok: true, items: inserted });
+});
+
+// Rename vault item
+app.post('/api/k108/vault/rename', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id, name } = req.body;
+  if (!id || !name) return res.status(400).json({ error: 'ID and name required' });
+  await db.query('UPDATE k108_vault SET original_name = $1 WHERE id = $2', [name.trim(), id]);
+  res.json({ ok: true });
+});
+
+// Delete vault item
+app.post('/api/k108/vault/delete', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ error: 'ID required' });
+  await db.query('DELETE FROM k108_vault WHERE id = $1', [id]);
+  res.json({ ok: true });
+});
+
+// Create folder
+app.post('/api/k108/vault/folder/create', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { name, parentId } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  const r = await db.query('INSERT INTO k108_vault_folders (name, parent_id, created_by) VALUES ($1, $2, $3) RETURNING *', [name.trim(), parentId || null, username]);
+  res.json({ ok: true, folder: r.rows[0] });
+});
+
+// Rename folder
+app.post('/api/k108/vault/folder/rename', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id, name } = req.body;
+  if (!id || !name) return res.status(400).json({ error: 'ID and name required' });
+  await db.query('UPDATE k108_vault_folders SET name = $1 WHERE id = $2', [name.trim(), id]);
+  res.json({ ok: true });
+});
+
+// Delete folder (and move contents to parent)
+app.post('/api/k108/vault/folder/delete', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ error: 'ID required' });
+  // Get folder's parent
+  const fr = await db.query('SELECT parent_id FROM k108_vault_folders WHERE id = $1', [id]);
+  const parentId = fr.rows[0] ? fr.rows[0].parent_id : null;
+  // Move files and subfolders to parent
+  await db.query('UPDATE k108_vault SET folder_id = $1 WHERE folder_id = $2', [parentId, id]);
+  await db.query('UPDATE k108_vault_folders SET parent_id = $1 WHERE parent_id = $2', [parentId, id]);
+  await db.query('DELETE FROM k108_vault_folders WHERE id = $1', [id]);
+  res.json({ ok: true });
+});
+
+// Move item to folder
+app.post('/api/k108/vault/move', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  if (!db.pool) return res.status(503).json({ error: 'Database required' });
+  const { id, folderId, isFolder } = req.body;
+  if (!id) return res.status(400).json({ error: 'ID required' });
+  if (isFolder) {
+    await db.query('UPDATE k108_vault_folders SET parent_id = $1 WHERE id = $2', [folderId || null, id]);
+  } else {
+    await db.query('UPDATE k108_vault SET folder_id = $1 WHERE id = $2', [folderId || null, id]);
+  }
+  res.json({ ok: true });
 });
 
 app.post('/api/k108/vault/transfer', mainAuth, async (req, res) => {
@@ -7769,12 +8078,52 @@ app.post('/api/k108/command', async (req, res) => {
 
     if (cmd === 'goto') {
       const target = parts[1]?.toLowerCase();
-      const validModules = ['people', 'sms', 'vehicle', 'profiles', 'cases', 'vault', 'activity', 'briefing', 'mailbox', 'log'];
+      const validModules = ['dashboard', 'home', 'lookup', 'people', 'sms', 'vehicle', 'profiles', 'cases', 'vault', 'activity', 'briefing', 'log'];
       if (!target || !validModules.includes(target)) return res.json(lines(`Usage: goto <${validModules.join('|')}>`, 'warn'));
-      const hashMap = { people: '#/lookup', sms: '#/sms', vehicle: '#/vehicle', profiles: '#/profiles', cases: '#/cases', vault: '#/vault', activity: '#/log', log: '#/log', briefing: '#/briefing', mailbox: '#/mailbox' };
+      const hashMap = { dashboard: '#/', home: '#/', lookup: '#/lookup', people: '#/lookup', sms: '#/sms', vehicle: '#/vehicle', profiles: '#/profiles', cases: '#/cases', vault: '#/vault', activity: '#/log', log: '#/log', briefing: '#/briefing' };
       return res.json({ lines: [{ text: `Navigating to ${target}`, cls: 'success' }], navigate: hashMap[target] || '#/' });
     }
 
+
+    // ── Labels ──
+    if (cmd === 'label') {
+      const sub = parts[1]?.toLowerCase();
+      if (sub === 'list') {
+        if (!db.pool) return res.json(lines('Database required for labels', 'error'));
+        const r = await db.query('SELECT id, name, color, icon FROM k108_labels ORDER BY name');
+        if (!r.rows.length) return res.json(lines('No labels found', 'dim'));
+        return res.json({ lines: [{ text: `${r.rows.length} labels`, cls: 'success' }], table: { headers: ['ID', 'Name', 'Color', 'Icon'], rows: r.rows.map(l => [String(l.id), l.name, l.color || '—', l.icon || '—']) } });
+      }
+      if (sub === 'create') {
+        const name = parts.slice(2).join(' ');
+        if (!name) return res.json(lines('Usage: label create <name>', 'warn'));
+        if (!db.pool) return res.json(lines('Database required', 'error'));
+        await db.query('INSERT INTO k108_labels (name, color, icon) VALUES ($1, $2, $3)', [name, '#3b82f6', 'tag']);
+        await k108Log(username, 'command_bar', { command: raw }, req.ip);
+        return res.json(lines(`Label created: "${name}"`, 'success'));
+      }
+      return res.json(lines('Usage: label list | label create <name>', 'warn'));
+    }
+
+    // ── Vault stats ──
+    if (cmd === 'vault' && parts[1]?.toLowerCase() === 'stats') {
+      if (!db.pool) return res.json(lines('Database required for vault stats', 'error'));
+      const items = await db.query('SELECT COUNT(*) as count FROM k108_vault_items');
+      const folders = await db.query('SELECT COUNT(*) as count FROM k108_vault_folders');
+      const size = await db.query('SELECT COALESCE(SUM(file_size), 0) as total FROM k108_vault_items');
+      const sizeMB = (Number(size.rows[0].total) / (1024 * 1024)).toFixed(2);
+      return res.json(multi(
+        ['── Document Vault ──', 'header'],
+        [`  Files: ${items.rows[0].count}`, 'data'],
+        [`  Folders: ${folders.rows[0].count}`, 'data'],
+        [`  Total size: ${sizeMB} MB`, 'data'],
+      ));
+    }
+
+    // ── Whoami ──
+    if (cmd === 'whoami') {
+      return res.json(lines(`Logged in as: ${username}`, 'success'));
+    }
 
     if (cmd === 'k108' && parts[1]?.toLowerCase() === 'reset-passcode') {
       const target = parts[2]?.toLowerCase();
@@ -8394,125 +8743,6 @@ app.get('/guest',    (_, res) => res.sendFile(path.join(__dirname, 'public', 'gu
 app.get('/backdoor', (_, res) => res.sendFile(path.join(__dirname, 'public', 'backdoor.html')));
 app.get('/eval',     (_, res) => res.sendFile(path.join(__dirname, 'public', 'eval.html')));
 app.get('/kemari',   (_, res) => res.sendFile(path.join(__dirname, 'public', 'kemari.html')));
-app.get('/kaliph',   (_, res) => res.sendFile(path.join(__dirname, 'public', 'bingo-kaliph.html')));
-app.get('/naomi',    (_, res) => res.sendFile(path.join(__dirname, 'public', 'bingo-naomi.html')));
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// BINGO DAY (temporary — remove after Monday)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-const BINGO_SQUARES = [
-  "Andy pisses Kaliph off",
-  "Allison trickin' on everyone",
-  "Zari says she misses Kaliph so much",
-  "Security guards tell us to go back",
-  "Martin says shut up",
-  "Kaliph steals food from Culinary",
-  "Andy caresses one of us",
-  "We get Dunkin'",
-  "Noah flirts with Kaliph",
-  '"You got yo phone back" — Jzirah',
-  "Brian says the N word",
-  "Brian pisses off Naomi",
-  "Jzirah or Zari catches an attitude",
-  "Zari plays What I Say — Queen Key",
-  "Zari doesn't come to school",
-  "Security questions where we're going",
-  "Martini pulls Kaliph's hair",
-  "Noah says you look tea",
-  "Canon cries",
-  "One of David's friends comes to the table",
-  "Naomi's mom comes late",
-  "Someone gets an ice cream sandwich",
-  "Noah touches Naomi",
-  "Jzirah pisses Naomi off",
-  "Andy talks about Androfsky",
-];
-
-function shuffleBingoSquares() {
-  const pool = [...BINGO_SQUARES];
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  const picked = pool.slice(0, 24);
-  picked.splice(12, 0, 'FREE');
-  return picked;
-}
-
-const BINGO_LINES = [
-  [0,1,2,3,4],[5,6,7,8,9],[10,11,12,13,14],[15,16,17,18,19],[20,21,22,23,24],
-  [0,5,10,15,20],[1,6,11,16,21],[2,7,12,17,22],[3,8,13,18,23],[4,9,14,19,24],
-  [0,6,12,18,24],[4,8,12,16,20],
-];
-
-function countBingoLines(marked) {
-  return BINGO_LINES.filter(line => line.every(i => marked[i])).length;
-}
-
-async function getBingoCounts() {
-  const r = await db.query('SELECT user_id, bingo_count FROM bingo_state');
-  const counts = { kaliph: 0, naomi: 0 };
-  for (const row of r.rows) counts[row.user_id] = row.bingo_count;
-  return counts;
-}
-
-async function getOrCreateBingoState(user) {
-  let r = await db.query('SELECT squares, marked, bingo_count FROM bingo_state WHERE user_id = $1', [user]);
-  if (r.rows.length === 0) {
-    const squares = shuffleBingoSquares();
-    const marked = Array(25).fill(false);
-    marked[12] = true; // FREE
-    await db.query(
-      'INSERT INTO bingo_state (user_id, squares, marked, bingo_count) VALUES ($1, $2, $3, 0)',
-      [user, JSON.stringify(squares), JSON.stringify(marked)]
-    );
-    return { squares, marked, bingoCount: 0 };
-  }
-  const row = r.rows[0];
-  return { squares: row.squares, marked: row.marked, bingoCount: row.bingo_count };
-}
-
-app.get('/api/bingo/state/:user', async (req, res) => {
-  const user = req.params.user;
-  if (user !== 'kaliph' && user !== 'naomi') return res.status(400).json({ error: 'Invalid user' });
-  try {
-    const state = await getOrCreateBingoState(user);
-    const counts = await getBingoCounts();
-    res.json({ squares: state.squares, marked: state.marked, kaliphCount: counts.kaliph, naomiCount: counts.naomi });
-  } catch (err) {
-    console.error('[bingo] state error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/bingo/mark', async (req, res) => {
-  const { user, index, marked: isMarked } = req.body;
-  if (user !== 'kaliph' && user !== 'naomi') return res.status(400).json({ error: 'Invalid user' });
-  if (typeof index !== 'number' || index < 0 || index > 24 || index === 12) return res.status(400).json({ error: 'Invalid index' });
-  try {
-    const state = await getOrCreateBingoState(user);
-    state.marked[index] = !!isMarked;
-    const newLines = countBingoLines(state.marked);
-    let newBingo = false;
-    if (newLines > state.bingoCount) {
-      await db.query('UPDATE bingo_state SET marked = $1, bingo_count = $2 WHERE user_id = $3',
-        [JSON.stringify(state.marked), newLines, user]);
-      newBingo = true;
-    } else {
-      await db.query('UPDATE bingo_state SET marked = $1, bingo_count = $2 WHERE user_id = $3',
-        [JSON.stringify(state.marked), newLines, user]);
-    }
-    const counts = await getBingoCounts();
-    const payload = { user, marked: state.marked, kaliphCount: counts.kaliph, naomiCount: counts.naomi };
-    io.emit('bingo:state', payload);
-    if (newBingo) io.emit('bingo:hit', { user, kaliphCount: counts.kaliph, naomiCount: counts.naomi });
-    res.json(payload);
-  } catch (err) {
-    console.error('[bingo] mark error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // Kemari — request more slides (sends brrr notification to Kaliph)
 app.post('/api/kemari/request-slides', async (req, res) => {
@@ -8669,11 +8899,6 @@ const PORT = process.env.PORT || 3000;
 (async () => {
   if (db.pool) {
     try { await db.createSchema(); } catch (e) { console.error('[db] Early schema error:', e.message); }
-    try { await db.query(`CREATE TABLE IF NOT EXISTS bingo_state (
-      id SERIAL PRIMARY KEY, user_id VARCHAR(20) NOT NULL UNIQUE,
-      squares JSONB NOT NULL, marked JSONB NOT NULL,
-      bingo_count INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMP DEFAULT NOW()
-    )`); } catch (e) { console.error('[bingo] table error:', e.message); }
   }
   server.listen(PORT, async () => {
     // Load all app data from Postgres into the in-memory cache (if DATABASE_URL is set)

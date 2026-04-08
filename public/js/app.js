@@ -7859,6 +7859,42 @@ function startReminderChecker() {
 // ── Update / Changelog Log ────────────────────────────────────────────
 const CHANGELOG = [
   {
+    version: '4.0.0',
+    date: 'Apr 7 2026',
+    intro: 'Major K-108 intelligence platform overhaul — redesigned case workspace, document vault with folders, covert SMS upgrades, drag-and-drop evidence, and a massively expanded command bar and eval terminal.',
+    sections: [
+      { icon: '🔍', title: 'K-108 Case Workspace', items: [
+        { name: 'Redesigned Details Card', desc: 'Case details now show opened by, status, case age, created date, last activity, target, and case ID — priority editing moved to the header.' },
+        { name: 'Notes Redesign', desc: 'Cleaner inline notes with unified input container and borderless card styling.' },
+        { name: 'Entity Cards', desc: 'Entities blend seamlessly with transparent backgrounds and subtle dividers.' },
+        { name: 'Evidence Drag & Drop', desc: 'Drag files or paste images directly into the case workspace to upload evidence.' },
+      ]},
+      { icon: '📁', title: 'K-108 Document Vault', items: [
+        { name: 'Folders System', desc: 'Create folders, drag files into them, and navigate with breadcrumb trails.' },
+        { name: 'File Management', desc: 'Rename files and folders inline, delete with confirmation, and download directly.' },
+        { name: 'Professional Redesign', desc: 'Ghost-style toolbar, file type icons, image thumbnails, and a full preview modal.' },
+      ]},
+      { icon: '🔔', title: 'Notifications', items: [
+        { name: 'Pill Toast Notifications', desc: 'Redesigned from full-width banners to compact pill-style toasts in the bottom-right with slide-up animation.' },
+        { name: 'Notification Sound', desc: 'Subtle audio chime using Web Audio API when toasts appear.' },
+      ]},
+      { icon: '👤', title: 'K-108 Profiles', items: [
+        { name: 'Profile Pictures in Search', desc: 'Related profile search results now show avatar photos.' },
+        { name: 'Family Auto-Suggest', desc: 'When linking a profile with a different last name, a popup suggests adding other family members.' },
+        { name: 'Custom Modals', desc: 'All browser prompt() and confirm() dialogs replaced with styled custom modals.' },
+      ]},
+      { icon: '⌨️', title: 'Command Bar & Eval Terminal', items: [
+        { name: 'K-108 Commands Synced', desc: 'Command bar updated with vault stats, label management, goto navigation, and case search results are now clickable.' },
+        { name: 'Eval Terminal Expansion', desc: '30+ new commands added — TOTP management, budget overview, money transactions/goals/recurring, guest creation, push notification status, archivist queue, and full K-108 control from eval.' },
+        { name: 'Server Health & Sessions', desc: 'New whoami and health commands show memory usage, connections, Node version, and active sessions.' },
+      ]},
+      { icon: '🧹', title: 'Cleanup', items: [
+        { name: 'Bingo Removed', desc: 'The temporary bingo card feature has been removed.' },
+        { name: 'Activity Log Capitalized', desc: 'Dashboard activity log events now display with proper capitalization.' },
+      ]},
+    ],
+  },
+  {
     version: '3.9.0',
     date: 'Mar 26 2026',
     intro: 'A brand-new Money Dashboard for tracking balances, expenses, deposits, savings goals, and recurring bills — plus search improvements, theme fixes, and under-the-hood polish.',
