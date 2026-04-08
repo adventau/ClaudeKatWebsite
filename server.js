@@ -6995,9 +6995,10 @@ app.post('/api/k108/profiles/:id', async (req, res) => {
     await k108Log(username, 'profile_view', { profileId: req.params.id, name: `${p.first_name||''} ${p.last_name||''}`.trim() }, req.ip);
     const files = await db.query('SELECT * FROM k108_profile_files WHERE profile_id = $1 ORDER BY uploaded_at DESC', [req.params.id]);
     const relations = await db.query(
-      `SELECT r.*, p.first_name, p.last_name, p.photo_url, p.relation as p_relation
+      `SELECT DISTINCT ON (r.related_profile_id) r.*, p.first_name, p.last_name, p.photo_url, p.relation as p_relation
        FROM k108_profile_relations r JOIN k108_profiles p ON p.id = r.related_profile_id
-       WHERE r.profile_id = $1`,
+       WHERE r.profile_id = $1
+       ORDER BY r.related_profile_id, r.id DESC`,
       [req.params.id]
     );
     const activityLog = await db.query('SELECT * FROM k108_profile_activity_log WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 5', [req.params.id]);
@@ -7192,13 +7193,17 @@ app.post('/api/k108/profiles/:id/relations', async (req, res) => {
   const bidir = bidirectional !== false; // default true
 
   if (db.pool) {
+    // Ensure unique constraint exists (idempotent)
+    await db.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_k108_rel_unique ON k108_profile_relations (profile_id, related_profile_id)').catch(() => {});
+    // Clean up any existing duplicates first
+    await db.query(`DELETE FROM k108_profile_relations WHERE id NOT IN (SELECT MIN(id) FROM k108_profile_relations GROUP BY profile_id, related_profile_id)`).catch(() => {});
     const r = await db.query(
-      'INSERT INTO k108_profile_relations (profile_id, related_profile_id, label) VALUES ($1,$2,$3) RETURNING *',
+      'INSERT INTO k108_profile_relations (profile_id, related_profile_id, label) VALUES ($1,$2,$3) ON CONFLICT (profile_id, related_profile_id) DO UPDATE SET label = CASE WHEN EXCLUDED.label != \'\' THEN EXCLUDED.label ELSE k108_profile_relations.label END RETURNING *',
       [req.params.id, relatedProfileId, label || '']
     );
     if (bidir) {
       await db.query(
-        'INSERT INTO k108_profile_relations (profile_id, related_profile_id, label) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+        'INSERT INTO k108_profile_relations (profile_id, related_profile_id, label) VALUES ($1,$2,$3) ON CONFLICT (profile_id, related_profile_id) DO NOTHING',
         [relatedProfileId, req.params.id, label || '']
       );
     }
@@ -7382,7 +7387,7 @@ app.post('/api/k108/profiles/:id/export', async (req, res) => {
     profileData = r.rows[0];
     const files = await db.query('SELECT * FROM k108_profile_files WHERE profile_id = $1 ORDER BY uploaded_at DESC', [profileId]);
     const relations = await db.query(
-      `SELECT r.*, p.first_name, p.last_name FROM k108_profile_relations r JOIN k108_profiles p ON p.id = r.related_profile_id WHERE r.profile_id = $1`, [profileId]);
+      `SELECT DISTINCT ON (r.related_profile_id) r.*, p.first_name, p.last_name FROM k108_profile_relations r JOIN k108_profiles p ON p.id = r.related_profile_id WHERE r.profile_id = $1 ORDER BY r.related_profile_id, r.id DESC`, [profileId]);
     const activityLog = await db.query('SELECT * FROM k108_profile_activity_log WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 5', [profileId]);
     profileData._files = files.rows;
     profileData._relations = relations.rows;

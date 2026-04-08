@@ -3692,6 +3692,8 @@ async function viewProfileReadonly(id, skipLog) {
     const photoEl = document.getElementById('ro-profile-photo');
     if (photoEl) loadIgPhoto(photoEl, p.social_links);
   }
+  // Scenario 1: Suggest linking same last name family members
+  if (p.last_name) checkSameLastNameSuggestion(id, p.last_name);
 }
 
 
@@ -4813,40 +4815,81 @@ async function confirmLinkProfile() {
     setTimeout(() => { if (msg) msg.style.opacity = '0.5'; }, 4000);
   }
   await refreshRelationsSection(pendingLinkProfileId);
-  // Check if linked profile has a different last name — offer to add family members
-  suggestFamilyMembers(pendingLinkProfileId, pendingLinkTargetId, label);
+  // Offer to also link the added person's existing relatives
+  suggestLinkedRelatives(pendingLinkProfileId, pendingLinkTargetId, label);
 }
 
-async function suggestFamilyMembers(profileId, linkedId, label) {
-  // Get both profiles
-  const [currentD, linkedD] = await Promise.all([
-    kAuthFetch('/api/k108/profiles/' + profileId),
-    kAuthFetch('/api/k108/profiles/' + linkedId)
-  ]);
-  if (!currentD?.profile || !linkedD?.profile) return;
-  const currentLname = (currentD.profile.last_name || '').trim().toLowerCase();
-  const linkedLname = (linkedD.profile.last_name || '').trim().toLowerCase();
-  if (!linkedLname || linkedLname === currentLname) return;
-  // Search for others with the linked person's last name
-  const searchD = await kAuthFetch('/api/k108/profiles', { search: linkedD.profile.last_name });
+// ── Scenario 1: Same last name suggestion (shown when viewing a profile) ──
+async function checkSameLastNameSuggestion(profileId, lastName) {
+  if (!lastName || !lastName.trim()) return;
+  const banner = document.getElementById('family-suggest-banner');
+  if (banner) banner.remove();
+  const searchD = await kAuthFetch('/api/k108/profiles', { search: lastName.trim() });
   if (!searchD?.profiles) return;
-  // Get current relations to exclude already-linked profiles
+  // Get current relations to exclude
   const relD = await kAuthFetch('/api/k108/profiles/' + profileId);
-  const linkedIds = new Set([String(profileId), String(linkedId)]);
+  const linkedIds = new Set([String(profileId)]);
   if (relD?.relations) relD.relations.forEach(r => linkedIds.add(String(r.related_profile_id)));
   const candidates = searchD.profiles.filter(p =>
-    (p.last_name || '').trim().toLowerCase() === linkedLname && !linkedIds.has(String(p.id))
+    (p.last_name || '').trim().toLowerCase() === lastName.trim().toLowerCase() && !linkedIds.has(String(p.id))
   );
   if (!candidates.length) return;
-  // Show the suggestion popup
-  showFamilySuggestModal(profileId, linkedD.profile.last_name, candidates, label);
+  // Show inline banner in the relations section
+  const container = document.getElementById('pf-relations-cards') || document.querySelector('.profile-section:last-child');
+  if (!container) return;
+  const div = document.createElement('div');
+  div.id = 'family-suggest-banner';
+  div.style.cssText = 'margin-top:10px;padding:10px 14px;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.15);border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:10px';
+  div.innerHTML = '<div style="font-size:11px;color:var(--text-secondary)"><strong>'+candidates.length+'</strong> other '+esc(lastName.trim())+' profile'+(candidates.length>1?'s':'')+' found</div>' +
+    '<button class="vault-tb-btn" style="font-size:10px;padding:4px 10px" onclick="showFamilySuggestModal('+profileId+',\''+esc(lastName.trim())+'\',null)">Link Family</button>';
+  // Store candidates for the modal
+  window._familyCandidates = candidates;
+  container.parentElement.appendChild(div);
 }
 
-function showFamilySuggestModal(profileId, lastName, candidates, label) {
+// ── Scenario 2: After linking profile B, offer B's existing relatives ──
+async function suggestLinkedRelatives(profileId, linkedId, label) {
+  // Get the linked person's profile + their existing relations
+  const linkedD = await kAuthFetch('/api/k108/profiles/' + linkedId);
+  if (!linkedD?.profile) return;
+  const linkedRelations = linkedD.relations || [];
+  // Also find same-last-name profiles
+  const linkedLname = (linkedD.profile.last_name || '').trim();
+  let sameLname = [];
+  if (linkedLname) {
+    const searchD = await kAuthFetch('/api/k108/profiles', { search: linkedLname });
+    if (searchD?.profiles) {
+      sameLname = searchD.profiles.filter(p => (p.last_name || '').trim().toLowerCase() === linkedLname.toLowerCase());
+    }
+  }
+  // Get current profile's relations to exclude already-linked
+  const currentD = await kAuthFetch('/api/k108/profiles/' + profileId);
+  const linkedIds = new Set([String(profileId), String(linkedId)]);
+  if (currentD?.relations) currentD.relations.forEach(r => linkedIds.add(String(r.related_profile_id)));
+  // Merge: linked person's relations + same last name, deduplicated
+  const candidateMap = new Map();
+  linkedRelations.forEach(r => {
+    if (!linkedIds.has(String(r.related_profile_id))) {
+      candidateMap.set(String(r.related_profile_id), { id: r.related_profile_id, first_name: r.first_name, last_name: r.last_name, photo_url: r.photo_url, source: 'relation of ' + (linkedD.profile.first_name||'') });
+    }
+  });
+  sameLname.forEach(p => {
+    if (!linkedIds.has(String(p.id)) && !candidateMap.has(String(p.id))) {
+      candidateMap.set(String(p.id), { id: p.id, first_name: p.first_name, last_name: p.last_name, photo_url: p.photo_url, source: linkedLname + ' family' });
+    }
+  });
+  const candidates = Array.from(candidateMap.values());
+  if (!candidates.length) return;
+  showFamilySuggestModal(profileId, (linkedD.profile.first_name||'')+' '+(linkedD.profile.last_name||''), candidates);
+}
+
+function showFamilySuggestModal(profileId, contextName, candidatesArg) {
+  const candidates = candidatesArg || window._familyCandidates || [];
+  if (!candidates.length) return;
   const overlay = document.createElement('div');
   overlay.id = 'family-suggest-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:10001;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease';
-  let listHTML = candidates.map((p, i) => {
+  let listHTML = candidates.map(p => {
     const initials = esc(((p.first_name||'?')[0]+(p.last_name||'?')[0]).toUpperCase());
     const avatar = p.photo_url
       ? '<img src="'+esc(p.photo_url)+'" style="width:32px;height:32px;border-radius:50%;object-fit:cover">'
@@ -4855,12 +4898,12 @@ function showFamilySuggestModal(profileId, lastName, candidates, label) {
       '<input type="checkbox" checked data-fam-id="'+p.id+'" style="accent-color:#4cc9f0">' +
       avatar +
       '<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text-primary);font-weight:500">'+esc((p.first_name||'')+' '+(p.last_name||''))+'</div>' +
-      (p.relation ? '<div style="font-size:9px;color:var(--text-muted);font-family:JetBrains Mono;text-transform:uppercase;letter-spacing:0.05em">'+esc(p.relation)+'</div>' : '') +
+      (p.source ? '<div style="font-size:9px;color:var(--text-dim);font-family:JetBrains Mono;letter-spacing:0.03em">'+esc(p.source)+'</div>' : '') +
       '</div></label>';
   }).join('');
   overlay.innerHTML = '<div style="background:var(--bg-card);border:1px solid var(--border-main);border-radius:14px;padding:24px 28px;max-width:400px;width:90%;animation:profileSlideIn 0.3s ease">' +
-    '<div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Add other '+esc(lastName)+' family members?</div>' +
-    '<div style="font-size:11px;color:var(--text-muted);margin-bottom:16px">These profiles share the same last name. Select who to link.</div>' +
+    '<div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Also link relatives?</div>' +
+    '<div style="font-size:11px;color:var(--text-muted);margin-bottom:16px">'+esc(String(candidates.length))+' relative'+(candidates.length>1?'s':'')+' found. Select who to link to this profile.</div>' +
     '<div style="max-height:240px;overflow-y:auto;margin-bottom:16px">'+listHTML+'</div>' +
     '<div style="display:flex;gap:8px;justify-content:flex-end">' +
       '<button class="cnm-cancel-btn" style="padding:8px 16px;border-radius:8px;cursor:pointer;font-size:11px" onclick="document.getElementById(\'family-suggest-overlay\').remove()">Skip</button>' +
