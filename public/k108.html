@@ -4847,38 +4847,21 @@ async function checkSameLastNameSuggestion(profileId, lastName) {
   container.parentElement.appendChild(div);
 }
 
-// ── Scenario 2: After linking profile B, offer B's existing relatives ──
+// ── Scenario 2: After linking profile B, offer ONLY B's existing linked relatives ──
 async function suggestLinkedRelatives(profileId, linkedId, label) {
-  // Get the linked person's profile + their existing relations
+  // Get the linked person's existing relations (their actual family/connections)
   const linkedD = await kAuthFetch('/api/k108/profiles/' + linkedId);
   if (!linkedD?.profile) return;
   const linkedRelations = linkedD.relations || [];
-  // Also find same-last-name profiles
-  const linkedLname = (linkedD.profile.last_name || '').trim();
-  let sameLname = [];
-  if (linkedLname) {
-    const searchD = await kAuthFetch('/api/k108/profiles', { search: linkedLname });
-    if (searchD?.profiles) {
-      sameLname = searchD.profiles.filter(p => (p.last_name || '').trim().toLowerCase() === linkedLname.toLowerCase());
-    }
-  }
+  if (!linkedRelations.length) return;
   // Get current profile's relations to exclude already-linked
   const currentD = await kAuthFetch('/api/k108/profiles/' + profileId);
   const linkedIds = new Set([String(profileId), String(linkedId)]);
   if (currentD?.relations) currentD.relations.forEach(r => linkedIds.add(String(r.related_profile_id)));
-  // Merge: linked person's relations + same last name, deduplicated
-  const candidateMap = new Map();
-  linkedRelations.forEach(r => {
-    if (!linkedIds.has(String(r.related_profile_id))) {
-      candidateMap.set(String(r.related_profile_id), { id: r.related_profile_id, first_name: r.first_name, last_name: r.last_name, photo_url: r.photo_url, source: 'relation of ' + (linkedD.profile.first_name||'') });
-    }
-  });
-  sameLname.forEach(p => {
-    if (!linkedIds.has(String(p.id)) && !candidateMap.has(String(p.id))) {
-      candidateMap.set(String(p.id), { id: p.id, first_name: p.first_name, last_name: p.last_name, photo_url: p.photo_url, source: linkedLname + ' family' });
-    }
-  });
-  const candidates = Array.from(candidateMap.values());
+  // Only suggest the linked person's actual relations — not all same-last-name profiles
+  const candidates = linkedRelations
+    .filter(r => !linkedIds.has(String(r.related_profile_id)))
+    .map(r => ({ id: r.related_profile_id, first_name: r.first_name, last_name: r.last_name, photo_url: r.photo_url, source: (r.label || 'linked to') + ' ' + (linkedD.profile.first_name||'') }));
   if (!candidates.length) return;
   showFamilySuggestModal(profileId, (linkedD.profile.first_name||'')+' '+(linkedD.profile.last_name||''), candidates);
 }
