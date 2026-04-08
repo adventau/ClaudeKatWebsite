@@ -935,17 +935,26 @@ const COMMANDS = [
   { cmd: 'guests archive', desc: 'View all guest message threads', cat: 'Data' },
   { cmd: 'guests messages ', desc: 'View guest messages (guests messages <id> [channel])', cat: 'Data' },
   { cmd: 'guests revoke ', desc: 'Revoke a guest by ID', cat: 'Data' },
+  { cmd: 'guests create ', desc: 'Create a guest access link', cat: 'Data' },
   { cmd: 'suggestions list', desc: 'List all suggestions', cat: 'Data' },
   { cmd: 'delete suggestion ', desc: 'Delete a suggestion by ID', cat: 'Data' },
   { cmd: 'reminders list', desc: 'List all reminders', cat: 'Data' },
   { cmd: 'reminders list kaliph', desc: 'List Kaliph reminders', cat: 'Data' },
   { cmd: 'reminders list kathrine', desc: 'List Kathrine reminders', cat: 'Data' },
   { cmd: 'delete reminder ', desc: 'Delete a reminder by ID', cat: 'Data' },
+  { cmd: 'totp list', desc: 'List all 2FA authenticator accounts', cat: 'Data' },
+  { cmd: 'totp reset', desc: 'Reset TOTP authenticator password', cat: 'Data' },
+  { cmd: 'push status', desc: 'Show push notification subscriptions', cat: 'Data' },
+  { cmd: 'archivist queue', desc: 'Show archivist queue status', cat: 'Data' },
 
   // Money
   { cmd: 'money status', desc: 'Show balances, transaction/goal/snapshot counts', cat: 'Money' },
   { cmd: 'money set kaliph ', desc: 'Force-set Kaliph balance', cat: 'Money' },
   { cmd: 'money set kathrine ', desc: 'Force-set Kathrine balance', cat: 'Money' },
+  { cmd: 'money transactions', desc: 'List last 20 transactions', cat: 'Money' },
+  { cmd: 'money transactions 50', desc: 'List last 50 transactions', cat: 'Money' },
+  { cmd: 'money goals', desc: 'List all savings goals', cat: 'Money' },
+  { cmd: 'money recurring', desc: 'List all recurring payments', cat: 'Money' },
   { cmd: 'money clear transactions', desc: 'Wipe all transactions', cat: 'Money' },
   { cmd: 'money clear goals', desc: 'Wipe all goals', cat: 'Money' },
   { cmd: 'money snapshots', desc: 'Show last 10 daily snapshots', cat: 'Money' },
@@ -954,6 +963,10 @@ const COMMANDS = [
   { cmd: 'money portfolio add ', desc: 'Add holding (SYM shares cost)', cat: 'Money' },
   { cmd: 'money portfolio remove ', desc: 'Remove holding by symbol', cat: 'Money' },
   { cmd: 'money portfolio clear', desc: 'Wipe all holdings', cat: 'Money' },
+
+  // Budget
+  { cmd: 'budget status', desc: 'Show budget overview', cat: 'Money' },
+  { cmd: 'budget categories', desc: 'List all budget categories', cat: 'Money' },
 
   // Time
   { cmd: 'time set ', desc: 'Set time offset (ISO date, +2h, -30m, +1d)', cat: 'Time' },
@@ -1001,9 +1014,26 @@ const COMMANDS = [
   { cmd: 'clear', desc: 'Clear terminal output', cat: 'System' },
   { cmd: 'exit', desc: 'Exit current mode', cat: 'System' },
   { cmd: 'help', desc: 'Show all commands', cat: 'System' },
+  // Migrate
+  { cmd: 'migrate status', desc: 'Check Postgres migration status', cat: 'System' },
+  { cmd: 'migrate run', desc: 'Migrate JSON data to Postgres', cat: 'System' },
+
   // K-108
   { cmd: 'k108 reset-passcode kaliph', desc: 'Reset K-108 passcode for Kaliph', cat: 'K-108' },
   { cmd: 'k108 reset-passcode kathrine', desc: 'Reset K-108 passcode for Kathrine', cat: 'K-108' },
+  { cmd: 'k108 label list', desc: 'List all K-108 profile labels', cat: 'K-108' },
+  { cmd: 'k108 label create ', desc: 'Create a K-108 profile label', cat: 'K-108' },
+  { cmd: 'k108 vault stats', desc: 'Show K-108 Document Vault statistics', cat: 'K-108' },
+  { cmd: 'k108 activity', desc: 'Show last 10 K-108 activity log entries', cat: 'K-108' },
+  { cmd: 'k108 sms quota', desc: 'Show K-108 SMS quota remaining', cat: 'K-108' },
+  { cmd: 'k108 profile ', desc: 'Search K-108 Intel Profiles by name', cat: 'K-108' },
+  { cmd: 'k108 case ', desc: 'Search K-108 Case Files by name', cat: 'K-108' },
+  { cmd: 'k108 stats', desc: 'Show K-108 database overview', cat: 'K-108' },
+
+  // Admin
+  { cmd: 'whoami', desc: 'Show active sessions and connections', cat: 'System' },
+  { cmd: 'health', desc: 'Server health (memory, uptime, connections)', cat: 'System' },
+  { cmd: 'set backdoor-code ', desc: 'Change backdoor access code', cat: 'Settings' },
 ];
 
 // Preview mode commands
@@ -1343,6 +1373,7 @@ function showHelp() {
       ['reset user <user>', 'Reset profile to defaults'],
       ['toggle gif <user>', 'Toggle GIF feature'],
       ['toggle wallpaper <user>', 'Toggle wallpaper'],
+      ['toggle perf <user>', 'Toggle performance mode'],
     ],
     'SETTINGS': [
       ['settings', 'View all settings'],
@@ -1351,6 +1382,7 @@ function showHelp() {
       ['set eval-password <new>', 'Change eval password'],
       ['set vault-code <code>', 'Change locker passcode'],
       ['set email <user> <e1,e2>', 'Set notification emails'],
+      ['set backdoor-code <code>', 'Change backdoor access code'],
     ],
     'DATA': [
       ['stats', 'Site statistics'],
@@ -1367,13 +1399,23 @@ function showHelp() {
       ['guests archive', 'View all guest threads'],
       ['guests messages <id> [ch]', 'View guest messages'],
       ['guests revoke <id>', 'Revoke guest'],
-      ['guests archive', 'List archived/revoked guests'],
       ['suggestions list', 'List suggestions'],
       ['delete suggestion <id>', 'Delete suggestion'],
+      ['reminders list [user]', 'List reminders'],
+      ['delete reminder <id>', 'Delete a reminder'],
+      ['pinned list', 'List all pinned messages'],
+      ['totp list', 'List 2FA accounts'],
+      ['totp reset', 'Reset TOTP password'],
+      ['push status', 'Push notification subs'],
+      ['guests create <name>', 'Create guest access'],
+      ['archivist queue', 'Archivist queue status'],
     ],
-    'MONEY': [
+    'MONEY & BUDGET': [
       ['money status', 'Balances, counts, overview'],
       ['money set <user> <amount>', 'Force-set balance'],
+      ['money transactions [N]', 'List last N transactions'],
+      ['money goals', 'List all savings goals'],
+      ['money recurring', 'List recurring payments'],
       ['money clear <transactions|goals>', 'Wipe data'],
       ['money snapshots', 'Last 10 daily snapshots'],
       ['money reset', 'Factory reset (back to setup)'],
@@ -1381,6 +1423,8 @@ function showHelp() {
       ['money portfolio add <SYM> <shares> <cost>', 'Add holding'],
       ['money portfolio remove <SYM>', 'Remove holding'],
       ['money portfolio clear', 'Wipe all holdings'],
+      ['budget status', 'Budget overview'],
+      ['budget categories', 'List budget categories'],
     ],
     'THEME BUILDER': [
       ['theme builder', 'Show theme builder help'],
@@ -1405,10 +1449,24 @@ function showHelp() {
       ['force logout', 'Logout all users'],
       ['force reload', 'Reload all clients'],
       ['uptime', 'Server uptime'],
+      ['whoami', 'Active sessions & connections'],
+      ['health', 'Server health check'],
       ['emit <event> [data]', 'Emit socket event'],
       ['export', 'Export all data'],
+      ['migrate status/run', 'Postgres migration'],
       ['clear', 'Clear terminal'],
       ['exit', 'Exit mode'],
+    ],
+    'K-108': [
+      ['k108 reset-passcode <user>', 'Reset K-108 passcode'],
+      ['k108 label list', 'List all K-108 labels'],
+      ['k108 label create <name>', 'Create a K-108 label'],
+      ['k108 vault stats', 'K-108 vault file/folder stats'],
+      ['k108 activity', 'Last 10 K-108 activity entries'],
+      ['k108 sms quota', 'K-108 SMS quota remaining'],
+      ['k108 profile <name>', 'Search K-108 profiles'],
+      ['k108 case <name>', 'Search K-108 cases'],
+      ['k108 stats', 'K-108 database overview'],
     ],
   };
   print('╔══════════════════════════════════════════╗', 'header');
