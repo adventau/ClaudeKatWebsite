@@ -11177,12 +11177,14 @@ function checkPeriodEnd(budget) {
   const periodEndISO = utcDateStr(periodEnd);
   const lastAllocated = budget.lastAllocatedPeriod || null;
   const todayISO = todayLocal();
+  const chicago = getChicagoComponents();
   const unallocated = periodStartISO !== lastAllocated;
   // Show UI on the period END day at/after 7 AM Chicago time
   const isPeriodEndToday = todayISO === periodEndISO;
   const isPeriodEndReady = isPeriodEndToday && isChicagoTimePast(7, 0);
   // Modal auto-opens at 7:25 AM Chicago time on end day
   const isModalReady = isPeriodEndToday && isChicagoTimePast(7, 25);
+  console.log('[budget-debug] checkPeriodEnd:', { periodStartISO, periodEndISO, todayISO, lastAllocated, unallocated, isPeriodEndToday, isPeriodEndReady, isModalReady, chicagoHour: chicago.hour, chicagoMin: chicago.minute, timeOffsetMs: window._timeOffsetMs });
   if (unallocated && isPeriodEndReady) {
     return { shouldShow: true, periodStart: periodStartISO, isPeriodEndReady, isModalReady };
   }
@@ -11884,14 +11886,18 @@ function surplusClose() {
 }
 
 function checkAndShowSurplus(autoOpen = false) {
+  console.log('[budget-debug] checkAndShowSurplus called, autoOpen:', autoOpen, '_budgetData:', !!_budgetData, 'currentSection:', currentSection);
   if (!_budgetData) return;
   const check = checkPeriodEnd(_budgetData);
   const showUI = check.shouldShow && check.isPeriodEndReady;
+  console.log('[budget-debug] showUI:', showUI, 'check:', check);
   updateBudgetBadge(showUI);
   // Header pill visible from 7 AM Chicago time on end day; auto-open modal at 7:25 AM
   const pill = document.getElementById('money-surplus-pill');
+  console.log('[budget-debug] pill element:', !!pill, 'display will be:', showUI ? 'visible' : 'none');
   if (pill) pill.style.display = showUI ? '' : 'none';
   if (autoOpen && check.shouldShow && check.isModalReady) {
+    console.log('[budget-debug] AUTO-OPENING MODAL');
     setTimeout(() => openSurplusModal(), 600);
   }
 }
