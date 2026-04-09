@@ -2670,7 +2670,7 @@ async function checkAndFireBudgetBrrr(budget, money) {
   if (!isChicagoTimePast(7)) return;
 
   // Only fire if allocation is still pending
-  if (budget.lastAllocatedPeriod === periodStartISO) return;
+  if ((budget.lastAllocatedPeriodEnd || budget.lastAllocatedPeriod) === periodEndISO) return;
 
   const surplus = computeSurplusServer(budget, money);
   if (surplus <= 0) return; // no surplus to allocate
@@ -2937,6 +2937,7 @@ app.get('/api/budget', mainAuth, (req, res) => {
   if (!budget.surplusLog) budget.surplusLog = [];
   if (!budget.investments) budget.investments = [];
   if (budget.lastAllocatedPeriod === undefined) budget.lastAllocatedPeriod = null;
+  if (budget.lastAllocatedPeriodEnd === undefined) budget.lastAllocatedPeriodEnd = null;
   if (budget.lastBrrrPeriod === undefined) budget.lastBrrrPeriod = null;
   if (budget.lastStatementEmailedPeriod === undefined) budget.lastStatementEmailedPeriod = null;
 
@@ -3087,9 +3088,9 @@ app.post('/api/budget/allocate', mainAuth, (req, res) => {
     loggedAt: Date.now(),
   });
 
-  // Set lastAllocatedPeriod to current period start
-  const { periodStart: currentPS } = getBudgetPeriodServer(budget.anchorDate);
-  budget.lastAllocatedPeriod = utcDateStrServer(currentPS);
+  // Set lastAllocatedPeriodEnd to current period end (tracks which period was allocated)
+  const { periodEnd: currentPE } = getBudgetPeriodServer(budget.anchorDate);
+  budget.lastAllocatedPeriodEnd = utcDateStrServer(currentPE);
 
   // Update savings goal balances
   const money = rd(F.money);

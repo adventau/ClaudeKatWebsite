@@ -11175,10 +11175,10 @@ function checkPeriodEnd(budget) {
   const { periodStart, periodEnd } = getBudgetPeriod(budget.anchorDate);
   const periodStartISO = utcDateStr(periodStart);
   const periodEndISO = utcDateStr(periodEnd);
-  const lastAllocated = budget.lastAllocatedPeriod || null;
+  const lastAllocated = budget.lastAllocatedPeriodEnd || budget.lastAllocatedPeriod || null;
   const todayISO = todayLocal();
   const chicago = getChicagoComponents();
-  const unallocated = periodStartISO !== lastAllocated;
+  const unallocated = periodEndISO !== lastAllocated;
   // Show UI on the period END day at/after 7 AM Chicago time
   const isPeriodEndToday = todayISO === periodEndISO;
   const isPeriodEndReady = isPeriodEndToday && isChicagoTimePast(7, 0);
