@@ -11184,7 +11184,7 @@ function checkPeriodEnd(budget) {
   const isPeriodEndReady = isPeriodEndToday && isChicagoTimePast(7, 0);
   // Modal auto-opens at 7:25 AM Chicago time on end day
   const isModalReady = isPeriodEndToday && isChicagoTimePast(7, 25);
-  console.log('[budget-debug] checkPeriodEnd:', { periodStartISO, periodEndISO, todayISO, lastAllocated, unallocated, isPeriodEndToday, isPeriodEndReady, isModalReady, chicagoHour: chicago.hour, chicagoMin: chicago.minute, timeOffsetMs: window._timeOffsetMs });
+  console.log(`[budget-debug] checkPeriodEnd: periodEnd=${periodEndISO} today=${todayISO} lastAlloc=${lastAllocated} unalloc=${unallocated} endToday=${isPeriodEndToday} endReady=${isPeriodEndReady} modalReady=${isModalReady} hour=${chicago.hour} min=${chicago.minute} offset=${window._timeOffsetMs}`);
   if (unallocated && isPeriodEndReady) {
     return { shouldShow: true, periodStart: periodStartISO, isPeriodEndReady, isModalReady };
   }
