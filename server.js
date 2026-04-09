@@ -2607,13 +2607,14 @@ function utcDateStrServer(d) {
 }
 
 // ── Chicago timezone helpers ────────────────────────────────────────────────
-function getChicagoComponents(date = new Date()) {
+function getChicagoComponents(date) {
+  const d = date || getSiteNow();
   const fmt = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Chicago',
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', hour12: false,
   });
-  const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
+  const parts = Object.fromEntries(fmt.formatToParts(d).map(p => [p.type, p.value]));
   return {
     year: +parts.year,
     month: +parts.month,
