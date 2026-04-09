@@ -11224,8 +11224,8 @@ function computeEndingPeriodSurplus(budget, money) {
   // Unbudgeted = cash beyond what was categorised in the budget
   const unbudgeted = Math.max(0, cashBalance - totalBudgeted);
 
-  // Total surplus = unspent budget + unbudgeted cash = cashBalance - totalSpent
-  const surplus = Math.max(0, Math.round((cashBalance - totalSpent) * 100) / 100);
+  // Surplus = unbudgeted balance (sweepable amount)
+  const surplus = Math.round(unbudgeted * 100) / 100;
 
   return {
     surplus,

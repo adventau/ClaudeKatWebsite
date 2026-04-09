@@ -2653,8 +2653,9 @@ function computeSurplusServer(budget, money) {
   // Cash balance (excludes investments and savings goals)
   const cashBalance = (money?.balances?.kaliph?.amount || 0) + (money?.balances?.kathrine?.amount || 0);
 
-  // Total surplus = cashBalance - totalSpent (unspent budget + unbudgeted cash)
-  return Math.max(0, Math.round((cashBalance - totalSpent) * 100) / 100);
+  // Surplus = unbudgeted balance (sweepable amount)
+  const unbudgeted = Math.max(0, cashBalance - totalBudgeted);
+  return Math.round(unbudgeted * 100) / 100;
 }
 
 // Brrr budget notification — fires once per period on the period END day at 7 AM Chicago time
