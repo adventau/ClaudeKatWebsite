@@ -11245,14 +11245,8 @@ function openSurplusModal() {
   console.log('[budget-debug] openSurplusModal:', { surplus, budgeted, spent, unbudgeted, cashBalance, periodLabel });
 
   if (surplus <= 0) {
-    console.log('[budget-debug] surplus <= 0, silently allocating');
-    // No surplus — just mark as allocated silently
-    const { periodStart } = getBudgetPeriod(_budgetData.anchorDate);
-    fetch('/api/budget/allocate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ periodStart: utcDateStr(periodStart), allocations: [] }),
-    }).catch(() => {});
+    console.log('[budget-debug] surplus <= 0, skipping modal (not allocating)');
+    showToast('No surplus to allocate this period');
     return;
   }
 
