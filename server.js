@@ -4341,6 +4341,19 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     return lines('Usage: time set <offset> | time reset', 'info');
   }
 
+  // ── CENSOR / DEMO MODE ──
+  if (cmd === 'censor' || cmd === 'demo') {
+    if (parts[1] === 'on') {
+      io.emit('censor-mode', { active: true });
+      return lines('Demo/censor mode activated on all open pages', 'success');
+    }
+    if (parts[1] === 'off') {
+      io.emit('censor-mode', { active: false });
+      return lines('Demo/censor mode deactivated on all open pages', 'success');
+    }
+    return lines('Usage: censor on | censor off', 'info');
+  }
+
   // ── BUDGET RESET ALLOCATION (for testing) ──
   if (cmd === 'budget' && parts[1] === 'reset-alloc') {
     const budget = rd(F.budget);

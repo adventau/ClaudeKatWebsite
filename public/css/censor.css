@@ -1,0 +1,283 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CENSOR / DEMO MODE STYLES
+   Applied when body has class "censor-active"
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Utility Classes ──────────────────────────────────────────────── */
+.censor-blur-light {
+  filter: blur(5px) !important;
+  pointer-events: none;
+  user-select: none;
+  transition: filter 0.3s ease;
+}
+
+.censor-blur-heavy {
+  filter: blur(10px) !important;
+  pointer-events: none;
+  user-select: none;
+  transition: filter 0.3s ease;
+}
+
+/* ── K-108 Profile Detail blur overlay ────────────────────────────── */
+.censor-profile-blur {
+  position: relative;
+}
+
+.censor-profile-blur .profile-detail {
+  filter: blur(7px);
+  user-select: none;
+  pointer-events: none;
+  transition: filter 0.4s ease;
+}
+
+/* Keep the action bar (back button etc.) usable */
+.censor-profile-blur .pab {
+  filter: none !important;
+  pointer-events: auto !important;
+}
+
+.censor-profile-blur::after {
+  content: 'CLASSIFIED \2014 Use command bar: reveal';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 100;
+  font-family: 'JetBrains Mono', 'Orbitron', monospace;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  color: rgba(248, 113, 113, 0.9);
+  text-transform: uppercase;
+  padding: 14px 28px;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 12px;
+  background: rgba(10, 10, 20, 0.85);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 0 30px rgba(248, 113, 113, 0.15);
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   MAIN APP — .censor-active on body
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Chat: fully censor messages area ─────────────────────────────── */
+.censor-active #messages-area {
+  position: relative;
+}
+.censor-active #messages-area > *:not(.wallpaper-overlay):not(.empty-state) {
+  filter: blur(8px);
+  user-select: none;
+  pointer-events: none;
+}
+/* Overlay label */
+.censor-active #messages-area::after {
+  content: 'Chat content hidden in demo mode';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 50;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted, rgba(255,255,255,0.4));
+  padding: 10px 20px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 10px;
+  background: var(--bg-modal, rgba(10,10,20,0.7));
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ── Chat input: blur to prevent reading typed text ───────────────── */
+.censor-active .input-area {
+  filter: blur(6px);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── Pinned messages panel ────────────────────────────────────────── */
+.censor-active .pinned-list {
+  filter: blur(6px);
+  user-select: none;
+}
+
+/* ── Notes: blur note content ─────────────────────────────────────── */
+.censor-active #notes-editor .panel-content,
+.censor-active #notes-editor {
+  position: relative;
+}
+.censor-active #notes-editor textarea,
+.censor-active #notes-editor .note-body,
+.censor-active #notes-editor .profile-edit-card,
+.censor-active #notes-editor > *:not(.empty-state) {
+  filter: blur(6px);
+  user-select: none;
+}
+
+/* Note titles in sidebar can stay, but blur preview text */
+.censor-active #notes-list .note-item-preview,
+.censor-active #notes-list .note-item-body {
+  filter: blur(4px);
+  user-select: none;
+}
+
+/* ── Money Dashboard ──────────────────────────────────────────────── */
+
+/* Balance bar — hide actual dollar amounts */
+.censor-active #money-snapshot {
+  filter: blur(7px);
+  user-select: none;
+}
+
+/* Overview tickers — keep structure, blur values */
+.censor-active .money-overview-tickers .ticker-val,
+.censor-active .money-overview-tickers .money-ticker-value,
+.censor-active #money-overview-tickers [class*="val"] {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Activity feed — blur transaction amounts and descriptions */
+.censor-active #money-feed .money-feed-item .money-feed-amount,
+.censor-active #money-feed .feed-amount,
+.censor-active #money-feed [class*="amount"],
+.censor-active #money-feed [class*="desc"] {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Portfolio — hide total and holdings values */
+.censor-active #portfolio-total {
+  filter: blur(7px);
+  user-select: none;
+}
+.censor-active #portfolio-holdings [class*="val"],
+.censor-active #portfolio-holdings [class*="amount"],
+.censor-active #portfolio-holdings [class*="shares"],
+.censor-active #portfolio-holdings .holding-value,
+.censor-active #portfolio-holdings .holding-shares {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Goals — hide saved amounts */
+.censor-active #money-goals .goal-saved,
+.censor-active #money-goals .goal-amount,
+.censor-active #money-goals [class*="amount"],
+.censor-active #money-goals [class*="saved"] {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Budget content — blur amounts */
+.censor-active #budget-content [class*="amount"],
+.censor-active #budget-content [class*="spent"],
+.censor-active #budget-content [class*="total"],
+.censor-active #budget-content [class*="remaining"],
+.censor-active #budget-content [class*="balance"] {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Money setup — blur any pre-filled amounts */
+.censor-active .money-setup-field input {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* Recurring view — blur amounts */
+.censor-active #money-recurring-list [class*="amount"],
+.censor-active #money-recurring-view [class*="amount"] {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* ── Contacts ─────────────────────────────────────────────────────── */
+.censor-active #section-contacts .contact-name,
+.censor-active #section-contacts .contact-phone,
+.censor-active #section-contacts .contact-email {
+  filter: blur(4px);
+  user-select: none;
+}
+
+/* ── Guest Messages ───────────────────────────────────────────────── */
+.censor-active #section-guest-messages .guest-msg-body,
+.censor-active #section-guest-messages .guest-msg-sender {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* ── Announcements content ────────────────────────────────────────── */
+.censor-active #section-announcements .announcement-body {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   K-108 — .censor-active on body
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Profile autofill: hide photos, show only initials ────────────── */
+.censor-active .profile-af-avatar img {
+  filter: blur(8px) !important;
+}
+
+/* Relation stays visible — user wants initials + relation shown */
+
+/* ── Lookup results: censor names to initials ─────────────────────── */
+.censor-active .record-name {
+  filter: blur(4px);
+  user-select: none;
+}
+
+/* ── Lookup detail: blur personal data ────────────────────────────── */
+.censor-active .record-body {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* ── Dashboard saved lookups ──────────────────────────────────────── */
+.censor-active #saved-searches-list {
+  filter: blur(5px) !important;
+  user-select: none;
+}
+.censor-active #saved-searches-panel .saved-search-name {
+  filter: blur(5px);
+}
+
+/* ── Cases ────────────────────────────────────────────────────────── */
+.censor-active #cases-list-area {
+  filter: blur(5px) !important;
+  user-select: none;
+}
+.censor-active #case-ws-area {
+  filter: blur(5px) !important;
+  user-select: none;
+}
+
+/* ── SMS threads: blur phone numbers and messages ─────────────────── */
+.censor-active .sms-thread-phone,
+.censor-active .sms-messages .sms-bubble {
+  filter: blur(5px);
+  user-select: none;
+}
+
+/* ── Activity log: blur specific details ──────────────────────────── */
+.censor-active #view-log .log-detail,
+.censor-active .dc-preview-lines .dc-pline-text {
+  filter: blur(4px);
+  user-select: none;
+}
+
+/* ── Briefing content ─────────────────────────────────────────────── */
+.censor-active #view-briefing .briefing-body,
+.censor-active .dash-briefing-preview .dc-pline-text {
+  filter: blur(4px);
+  user-select: none;
+}

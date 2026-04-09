@@ -836,6 +836,8 @@
       .topbar-status { display: none; }
     }
   </style>
+  <link rel="stylesheet" href="/css/censor.css">
+  <script src="/js/censor.js" defer></script>
 </head>
 <body>
   <div class="ambient"><div class="grid"></div><div class="hex"></div><div class="scanline"></div><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div><div class="orb orb-4"></div></div>
@@ -5250,6 +5252,7 @@ const CMD_LIST = [
   { cmd:'vault stats', desc:'Show Document Vault statistics', cat:'K-108' },
   { cmd:'k108 reset-passcode ', desc:'Reset K-108 passcode', cat:'K-108' },
   { cmd:'reveal classified', desc:'Reveal classified data on current profile', cat:'K-108' },
+  { cmd:'reveal', desc:'Reveal censored profile in demo mode', cat:'K-108' },
   { cmd:'approve export', desc:'Approve a pending classified export', cat:'K-108' },
 ];
 let cmdBarIdx = 0;
@@ -5328,6 +5331,14 @@ document.getElementById('cmd-bar-input').addEventListener('keydown', function(e)
 
 async function execCmdBar(raw) {
   if (raw === 'clear') { document.getElementById('cmd-bar-output').innerHTML = ''; return; }
+  // Demo/censor mode: reveal current profile
+  if (raw === 'reveal' && typeof window._censorRevealProfile === 'function') {
+    const out = document.getElementById('cmd-bar-output');
+    const msg = window._censorRevealProfile();
+    out.innerHTML = '<div class="cmd-line '+(msg.includes('revealed')?'success':'warn')+'">'+esc(msg)+'</div>';
+    closeCmdBar();
+    return;
+  }
   const out = document.getElementById('cmd-bar-output');
   try {
     const d = await kAuthFetch('/api/k108/command', { command: raw });
