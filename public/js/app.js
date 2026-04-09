@@ -11240,10 +11240,12 @@ function computeEndingPeriodSurplus(budget, money) {
 }
 
 function openSurplusModal() {
-  if (!_budgetData || !_moneyData) return;
+  if (!_budgetData || !_moneyData) { console.log('[budget-debug] openSurplusModal: no data', !!_budgetData, !!_moneyData); return; }
   const { surplus, budgeted, spent, unbudgeted, cashBalance, periodLabel, periodStart: endingPeriodStart } = computeEndingPeriodSurplus(_budgetData, _moneyData);
+  console.log('[budget-debug] openSurplusModal:', { surplus, budgeted, spent, unbudgeted, cashBalance, periodLabel });
 
   if (surplus <= 0) {
+    console.log('[budget-debug] surplus <= 0, silently allocating');
     // No surplus — just mark as allocated silently
     const { periodStart } = getBudgetPeriod(_budgetData.anchorDate);
     fetch('/api/budget/allocate', {
