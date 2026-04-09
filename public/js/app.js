@@ -11242,7 +11242,7 @@ function computeEndingPeriodSurplus(budget, money) {
 function openSurplusModal() {
   if (!_budgetData || !_moneyData) { console.log('[budget-debug] openSurplusModal: no data', !!_budgetData, !!_moneyData); return; }
   const { surplus, budgeted, spent, unbudgeted, cashBalance, periodLabel, periodStart: endingPeriodStart } = computeEndingPeriodSurplus(_budgetData, _moneyData);
-  console.log('[budget-debug] openSurplusModal:', { surplus, budgeted, spent, unbudgeted, cashBalance, periodLabel });
+  console.log(`[budget-debug] openSurplusModal: surplus=$${surplus} cashBalance=$${cashBalance} spent=$${spent} budgeted=$${budgeted} kaliph=$${_moneyData?.balances?.kaliph?.amount || 0} kathrine=$${_moneyData?.balances?.kathrine?.amount || 0}`);
 
   if (surplus <= 0) {
     console.log('[budget-debug] surplus <= 0, skipping modal (not allocating)');
