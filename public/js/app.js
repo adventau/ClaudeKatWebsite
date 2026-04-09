@@ -9876,11 +9876,11 @@ let _budgetData = null;
 let _currentPeriodOffset = 0;
 let _moneyDashTab = 'dashboard';
 
-function getBudgetPeriod(anchorDate, ref = new Date()) {
+function getBudgetPeriod(anchorDate, ref) {
   // Use UTC noon to avoid DST issues; reference date uses Chicago timezone
   const parts = anchorDate.split('-');
   const anchorMs = Date.UTC(+parts[0], +parts[1] - 1, +parts[2], 12);
-  const c = getChicagoComponents(ref);
+  const c = getChicagoComponents(ref || getNow());
   const refMs = Date.UTC(c.year, c.month - 1, c.day, 12);
   const diffDays = Math.floor((refMs - anchorMs) / 86400000);
   const periodIndex = Math.floor(diffDays / 14);

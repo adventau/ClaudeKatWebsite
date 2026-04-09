@@ -2584,10 +2584,10 @@ function seedBudgetDefaults() {
 
 // Budget period calculation (server-side mirror of client getBudgetPeriod)
 // Uses Chicago time for the reference date to stay consistent with user timezone
-function getBudgetPeriodServer(anchorDate, ref = new Date()) {
+function getBudgetPeriodServer(anchorDate, ref) {
   const parts = anchorDate.split('-');
   const anchorMs = Date.UTC(+parts[0], +parts[1] - 1, +parts[2], 12);
-  const c = getChicagoComponents(ref);
+  const c = getChicagoComponents(ref || getSiteNow());
   const refMs = Date.UTC(c.year, c.month - 1, c.day, 12);
   const diffDays = Math.floor((refMs - anchorMs) / 86400000);
   const periodIndex = Math.floor(diffDays / 14);
