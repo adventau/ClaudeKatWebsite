@@ -2740,6 +2740,11 @@ function setupSocketEvents() {
     updateReminderBadge();
     if (currentSection === 'reminders') renderReminders();
     if (currentSection === 'calendar') renderCalendar();
+    // Re-check budget surplus timing (pill, badge, modal)
+    if (currentSection === 'money') {
+      checkAndShowSurplus(true);
+      if (_moneyDashTab === 'budget') renderBudget(_budgetData, _moneyData);
+    }
   });
 
   socket.on('show-update-log', ({ target }) => {
