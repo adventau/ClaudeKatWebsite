@@ -9872,10 +9872,11 @@ let _currentPeriodOffset = 0;
 let _moneyDashTab = 'dashboard';
 
 function getBudgetPeriod(anchorDate, ref = new Date()) {
-  // Use UTC noon to avoid DST issues
+  // Use UTC noon to avoid DST issues; reference date uses Chicago timezone
   const parts = anchorDate.split('-');
   const anchorMs = Date.UTC(+parts[0], +parts[1] - 1, +parts[2], 12);
-  const refMs = Date.UTC(ref.getFullYear(), ref.getMonth(), ref.getDate(), 12);
+  const c = getChicagoComponents(ref);
+  const refMs = Date.UTC(c.year, c.month - 1, c.day, 12);
   const diffDays = Math.floor((refMs - anchorMs) / 86400000);
   const periodIndex = Math.floor(diffDays / 14);
   const startMs = anchorMs + periodIndex * 14 * 86400000;
@@ -9913,6 +9914,28 @@ function utcDateStr(d) {
 
 function todayLocal() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+}
+
+// ── Chicago timezone helpers ────────────────────────────────────────────────
+function getChicagoComponents(date = new Date()) {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
+  return {
+    year: +parts.year,
+    month: +parts.month,
+    day: +parts.day,
+    hour: +parts.hour === 24 ? 0 : +parts.hour,
+    minute: +parts.minute,
+  };
+}
+
+function isChicagoTimePast(hour, minute = 0) {
+  const c = getChicagoComponents();
+  return c.hour > hour || (c.hour === hour && c.minute >= minute);
 }
 
 function localDateShift(days) {
@@ -10050,7 +10073,7 @@ function renderBudget(budget, money) {
       </div>
     </div>
     <div class="budget-nav-right">
-      <button class="budget-nav-btn budget-download-btn" onclick="downloadBudgetStatement()" ${_currentPeriodOffset >= 0 ? 'disabled' : ''} title="${_currentPeriodOffset >= 0 ? 'Available at period end' : 'Download PDF statement'}">
+      <button class="budget-nav-btn budget-download-btn" onclick="downloadBudgetStatement()" ${isDownloadReady(_currentPeriodOffset) ? '' : 'disabled'} title="${isDownloadReady(_currentPeriodOffset) ? 'Download PDF statement' : 'Available at period end'}">
         <i data-lucide="download" style="width:14px;height:14px"></i>
       </button>
       <button class="budget-nav-btn" onclick="budgetNextPeriod()" ${_currentPeriodOffset >= 0 ? 'disabled' : ''}>Next →</button>
@@ -10216,8 +10239,19 @@ function budgetNextPeriod() {
   renderBudget(_budgetData, _moneyData);
 }
 
+function isDownloadReady(offset) {
+  if (offset < 0) return true; // past period — always downloadable
+  if (offset > 0) return false; // future period
+  // offset === 0: current period — downloadable on end day at/after 7 AM Chicago
+  if (!_budgetData) return false;
+  const { periodEnd } = getBudgetPeriod(_budgetData.anchorDate);
+  const endStr = utcDateStr(periodEnd);
+  const todayISO = todayLocal();
+  return todayISO === endStr && isChicagoTimePast(7, 0);
+}
+
 async function downloadBudgetStatement() {
-  if (_currentPeriodOffset >= 0) return;
+  if (!isDownloadReady(_currentPeriodOffset)) return;
   const { periodStart } = getOffsetPeriod(_budgetData.anchorDate, _currentPeriodOffset);
   const psISO = utcDateStr(periodStart);
   showToast('Generating statement...');
@@ -11131,17 +11165,22 @@ let surplusState = {
 };
 
 function checkPeriodEnd(budget) {
-  if (!budget || !budget.anchorDate) return { shouldShow: false, isPeriodStartToday: false };
-  const { periodStart } = getBudgetPeriod(budget.anchorDate);
+  if (!budget || !budget.anchorDate) return { shouldShow: false, isPeriodEndReady: false, isModalReady: false };
+  const { periodStart, periodEnd } = getBudgetPeriod(budget.anchorDate);
   const periodStartISO = utcDateStr(periodStart);
+  const periodEndISO = utcDateStr(periodEnd);
   const lastAllocated = budget.lastAllocatedPeriod || null;
   const todayISO = todayLocal();
   const unallocated = periodStartISO !== lastAllocated;
-  const isPeriodStartToday = todayISO === periodStartISO;
-  if (unallocated) {
-    return { shouldShow: true, periodStart: periodStartISO, isPeriodStartToday };
+  // Show UI on the period END day at/after 7 AM Chicago time
+  const isPeriodEndToday = todayISO === periodEndISO;
+  const isPeriodEndReady = isPeriodEndToday && isChicagoTimePast(7, 0);
+  // Modal auto-opens at 7:25 AM Chicago time on end day
+  const isModalReady = isPeriodEndToday && isChicagoTimePast(7, 25);
+  if (unallocated && isPeriodEndReady) {
+    return { shouldShow: true, periodStart: periodStartISO, isPeriodEndReady, isModalReady };
   }
-  return { shouldShow: false, isPeriodStartToday: false };
+  return { shouldShow: false, isPeriodEndReady: false, isModalReady: false };
 }
 
 function updateBudgetBadge(shouldShow) {
@@ -11153,11 +11192,10 @@ function updateBudgetBadge(shouldShow) {
   });
 }
 
-function computePrevPeriodSurplus(budget, money) {
-  if (!budget || !budget.anchorDate) return { surplus: 0, budgeted: 0, spent: 0, unbudgeted: 0, cashBalance: 0, periodLabel: '', prevStart: null, prevEnd: null };
-  const { periodStart: currentPS } = getBudgetPeriod(budget.anchorDate);
-  const prevRef = new Date(currentPS.getTime() - 14 * 86400000);
-  const { periodStart, periodEnd } = getBudgetPeriod(budget.anchorDate, prevRef);
+function computeEndingPeriodSurplus(budget, money) {
+  if (!budget || !budget.anchorDate) return { surplus: 0, budgeted: 0, spent: 0, unbudgeted: 0, cashBalance: 0, periodLabel: '', periodStart: null, periodEnd: null };
+  // Compute surplus for the current (ending) period
+  const { periodStart, periodEnd } = getBudgetPeriod(budget.anchorDate);
 
   const startStr = utcDateStr(periodStart);
   const endStr = utcDateStr(periodEnd);
@@ -11167,7 +11205,7 @@ function computePrevPeriodSurplus(budget, money) {
   let totalBudgeted = 0;
   for (const cat of (budget.categories || [])) totalBudgeted += cat.budgetAmount || 0;
 
-  // Total spent = ALL expenses in the previous period (budgeted + unbudgeted spending)
+  // Total spent = ALL expenses in the current period
   const totalSpent = transactions
     .filter(t => t.type === 'expense' && t.date >= startStr && t.date <= endStr)
     .reduce((s, t) => s + (t.amount || 0), 0);
@@ -11188,14 +11226,14 @@ function computePrevPeriodSurplus(budget, money) {
     unbudgeted: Math.round(unbudgeted * 100) / 100,
     cashBalance: Math.round(cashBalance * 100) / 100,
     periodLabel: getPeriodLabel(periodStart, periodEnd),
-    prevStart: periodStart,
-    prevEnd: periodEnd,
+    periodStart,
+    periodEnd,
   };
 }
 
 function openSurplusModal() {
   if (!_budgetData || !_moneyData) return;
-  const { surplus, budgeted, spent, unbudgeted, cashBalance, periodLabel, prevStart } = computePrevPeriodSurplus(_budgetData, _moneyData);
+  const { surplus, budgeted, spent, unbudgeted, cashBalance, periodLabel, periodStart: endingPeriodStart } = computeEndingPeriodSurplus(_budgetData, _moneyData);
 
   if (surplus <= 0) {
     // No surplus — just mark as allocated silently
@@ -11210,7 +11248,7 @@ function openSurplusModal() {
 
   surplusState = {
     flow: null, surplus, budgeted, spent,
-    periodStart: utcDateStr(prevStart),
+    periodStart: utcDateStr(endingPeriodStart),
     periodLabel,
     selectedGoalId: null, selectedGoalName: null,
     selectedInvId: null, selectedInvName: null,
@@ -11230,7 +11268,7 @@ function openSurplusModal() {
 
       <!-- Step 1: Choose -->
       <div class="surplus-step active" id="surplus-step1">
-        <p style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px">Period ended &middot; ${escapeHtml(periodLabel)}</p>
+        <p style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px">Period ending &middot; ${escapeHtml(periodLabel)}</p>
         <p style="font-size:1.4rem;font-weight:700;color:var(--text-primary);margin:0 0 4px">$${surplus.toFixed(2)} left over</p>
         <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 20px">$${budgeted.toFixed(2)} budgeted &middot; $${spent.toFixed(2)} spent &middot; $${unbudgeted.toFixed(2)} unbudgeted. Where should the surplus go?</p>
         <button class="surplus-choice-btn" onclick="surplusChoose('savings')">
@@ -11842,12 +11880,12 @@ function surplusClose() {
 function checkAndShowSurplus(autoOpen = false) {
   if (!_budgetData) return;
   const check = checkPeriodEnd(_budgetData);
-  const showUI = check.shouldShow && check.isPeriodStartToday;
+  const showUI = check.shouldShow && check.isPeriodEndReady;
   updateBudgetBadge(showUI);
-  // Header pill + auto-open only on the actual period-start day
+  // Header pill visible from 7 AM Chicago time on end day; auto-open modal at 7:25 AM
   const pill = document.getElementById('money-surplus-pill');
   if (pill) pill.style.display = showUI ? '' : 'none';
-  if (autoOpen && check.shouldShow && check.isPeriodStartToday) {
+  if (autoOpen && check.shouldShow && check.isModalReady) {
     setTimeout(() => openSurplusModal(), 600);
   }
 }

@@ -2583,10 +2583,12 @@ function seedBudgetDefaults() {
 }
 
 // Budget period calculation (server-side mirror of client getBudgetPeriod)
+// Uses Chicago time for the reference date to stay consistent with user timezone
 function getBudgetPeriodServer(anchorDate, ref = new Date()) {
   const parts = anchorDate.split('-');
   const anchorMs = Date.UTC(+parts[0], +parts[1] - 1, +parts[2], 12);
-  const refMs = Date.UTC(ref.getFullYear(), ref.getMonth(), ref.getDate(), 12);
+  const c = getChicagoComponents(ref);
+  const refMs = Date.UTC(c.year, c.month - 1, c.day, 12);
   const diffDays = Math.floor((refMs - anchorMs) / 86400000);
   const periodIndex = Math.floor(diffDays / 14);
   const startMs = anchorMs + periodIndex * 14 * 86400000;
@@ -2604,8 +2606,36 @@ function utcDateStrServer(d) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
 }
 
+// ── Chicago timezone helpers ────────────────────────────────────────────────
+function getChicagoComponents(date = new Date()) {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(date).map(p => [p.type, p.value]));
+  return {
+    year: +parts.year,
+    month: +parts.month,
+    day: +parts.day,
+    hour: +parts.hour === 24 ? 0 : +parts.hour,
+    minute: +parts.minute,
+  };
+}
+
+function chicagoDateStr(date = new Date()) {
+  const c = getChicagoComponents(date);
+  return `${c.year}-${String(c.month).padStart(2,'0')}-${String(c.day).padStart(2,'0')}`;
+}
+
+function isChicagoTimePast(hour, minute = 0) {
+  const c = getChicagoComponents();
+  return c.hour > hour || (c.hour === hour && c.minute >= minute);
+}
+
 function computeSurplusServer(budget, money) {
-  const { periodStart, periodEnd } = getPrevPeriodServer(budget.anchorDate);
+  // Compute surplus for the current (ending) period
+  const { periodStart, periodEnd } = getBudgetPeriodServer(budget.anchorDate);
   const startStr = utcDateStrServer(periodStart);
   const endStr = utcDateStrServer(periodEnd);
   const transactions = money?.transactions || [];
@@ -2614,7 +2644,7 @@ function computeSurplusServer(budget, money) {
   let totalBudgeted = 0;
   for (const cat of (budget.categories || [])) totalBudgeted += cat.budgetAmount || 0;
 
-  // Total spent = ALL expenses in the previous period
+  // Total spent = ALL expenses in the current period
   const totalSpent = transactions
     .filter(t => t.type === 'expense' && t.date >= startStr && t.date <= endStr)
     .reduce((s, t) => s + (t.amount || 0), 0);
@@ -2626,15 +2656,17 @@ function computeSurplusServer(budget, money) {
   return Math.max(0, Math.round((cashBalance - totalSpent) * 100) / 100);
 }
 
-// Brrr budget notification — fires once per period
+// Brrr budget notification — fires once per period on the period END day at 7 AM Chicago time
 async function checkAndFireBudgetBrrr(budget, money) {
-  const { periodStart } = getBudgetPeriodServer(budget.anchorDate);
+  const { periodStart, periodEnd } = getBudgetPeriodServer(budget.anchorDate);
   const periodStartISO = utcDateStrServer(periodStart);
+  const periodEndISO = utcDateStrServer(periodEnd);
   if (budget.lastBrrrPeriod === periodStartISO) return;
 
-  // Only fire on the exact period-start day (always a Friday)
-  const todayISO = utcDateStrServer(new Date());
-  if (todayISO !== periodStartISO) return;
+  // Only fire on the period END day at/after 7 AM Chicago time
+  const todayISO = chicagoDateStr();
+  if (todayISO !== periodEndISO) return;
+  if (!isChicagoTimePast(7)) return;
 
   // Only fire if allocation is still pending
   if (budget.lastAllocatedPeriod === periodStartISO) return;
@@ -2642,7 +2674,7 @@ async function checkAndFireBudgetBrrr(budget, money) {
   const surplus = computeSurplusServer(budget, money);
   if (surplus <= 0) return; // no surplus to allocate
 
-  const msg = `New budget period just started \u2014 you have $${surplus.toFixed(0)} left over from last period. Time to allocate!`;
+  const msg = `Budget period ending today \u2014 you have $${surplus.toFixed(0)} left over. Time to allocate!`;
 
   const BRRR_WEBHOOKS = {
     kaliph: process.env.BRRR_WEBHOOK_KALIPH,
@@ -2859,22 +2891,23 @@ async function sendStatementNotification(periodLabel) {
   return sendMail('cyanbydesigner@gmail.com', `Kat & Kai Vault · Budget Statement · ${periodLabel}`, html);
 }
 
-// Auto-email + Brrr on period-start Friday
+// Auto-email statement on the period END day at 7 AM Chicago time
 async function checkAndSendBudgetStatement(budget, money) {
-  const { periodStart } = getBudgetPeriodServer(budget.anchorDate);
+  const { periodStart, periodEnd } = getBudgetPeriodServer(budget.anchorDate);
   const periodStartISO = utcDateStrServer(periodStart);
+  const periodEndISO = utcDateStrServer(periodEnd);
   if (budget.lastStatementEmailedPeriod === periodStartISO) return;
-  const todayISO = utcDateStrServer(new Date());
-  if (todayISO !== periodStartISO) return;
 
-  // Generate PDF for the PREVIOUS period
-  const prevPsDate = new Date(periodStart.getTime() - 14 * 86400000);
-  const prevPsISO = utcDateStrServer(prevPsDate);
-  const prevPeDate = new Date(prevPsDate.getTime() + 13 * 86400000);
-  const prevLabel = getPeriodLabelServer(prevPsDate, prevPeDate);
+  // Only fire on the period END day at/after 7 AM Chicago time
+  const todayISO = chicagoDateStr();
+  if (todayISO !== periodEndISO) return;
+  if (!isChicagoTimePast(7)) return;
+
+  // Generate statement for the CURRENT (ending) period
+  const periodLabel = getPeriodLabelServer(periodStart, periodEnd);
 
   try {
-    await sendStatementNotification(prevLabel);
+    await sendStatementNotification(periodLabel);
 
     // Brrr to Kaliph confirming statement was sent
     const kaliphWebhook = process.env.BRRR_WEBHOOK_KALIPH;
@@ -2882,7 +2915,7 @@ async function checkAndSendBudgetStatement(budget, money) {
       fetch(`https://api.brrr.now/v1/${kaliphWebhook}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Kat & Kai \u{1F4C4}', message: `Budget statement for ${prevLabel} has been emailed`, sound: 'bubble_ding', 'interruption-level': 'active' }),
+        body: JSON.stringify({ title: 'Kat & Kai \u{1F4C4}', message: `Budget statement for ${periodLabel} has been emailed`, sound: 'bubble_ding', 'interruption-level': 'active' }),
       }).catch(() => {});
     }
 
@@ -2906,14 +2939,14 @@ app.get('/api/budget', mainAuth, (req, res) => {
   if (budget.lastBrrrPeriod === undefined) budget.lastBrrrPeriod = null;
   if (budget.lastStatementEmailedPeriod === undefined) budget.lastStatementEmailedPeriod = null;
 
-  // Fire Brrr notification if new period (non-blocking)
+  // Fire Brrr notification on period end day at 7 AM Chicago time (non-blocking)
   const money = rd(F.money);
   checkAndFireBudgetBrrr(budget, money).catch(e => console.error('[brrr] budget check error:', e.message));
 
   // Capture balance snapshot for this period if not yet captured
   try { captureBudgetSnapshotIfNeeded(budget, money); } catch (e) { console.error('[snapshot] error:', e.message); }
 
-  // Auto-email statement for previous period (non-blocking)
+  // Auto-email statement on period end day at 7 AM Chicago time (non-blocking)
   checkAndSendBudgetStatement(budget, money).catch(e => console.error('[statement] email error:', e.message));
 
   res.json(budget);
