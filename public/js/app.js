@@ -11875,7 +11875,7 @@ async function surplusSetNewBudgets() {
 function surplusClose() {
   const overlay = document.getElementById('surplus-modal-overlay');
   if (overlay) {
-    overlay.style.display = 'none';
+    overlay.classList.remove('open');
     overlay.innerHTML = '';
   }
   SoundSystem.modalClose();
