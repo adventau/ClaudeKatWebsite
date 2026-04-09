@@ -4340,6 +4340,18 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     return lines('Usage: time set <offset> | time reset', 'info');
   }
 
+  // ── BUDGET RESET ALLOCATION (for testing) ──
+  if (cmd === 'budget' && parts[1] === 'reset-alloc') {
+    const budget = rd(F.budget);
+    if (!budget) return lines('No budget data found', 'warn');
+    delete budget.lastAllocatedPeriod;
+    delete budget.lastAllocatedPeriodEnd;
+    delete budget.lastBrrrPeriod;
+    delete budget.lastStatementEmailedPeriod;
+    wd(F.budget, budget);
+    return lines('Budget allocation/notification flags cleared', 'success');
+  }
+
   // ── STEALTH VISUAL MODE (opens app in stealth preview) ──
   if (cmd === 'stealth') {
     const user = parts[1]?.toLowerCase();
