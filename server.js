@@ -9822,6 +9822,91 @@ const ORACLE_TOOL_HANDLERS = {
   run_surveillance: oracle_run_surveillance,
 };
 
+// ── Tool selection ──
+// Sending all 13 tool definitions on every turn burns ~2.5–3k input tokens per
+// request just declaring tools the model will never use. This filter picks a
+// relevant subset based on keywords in the operator's message. It runs ONCE per
+// user message and the result is held constant across every iteration of the
+// tool-use loop, so the model never sees tools appear or disappear mid-turn.
+function selectOracleTools(message) {
+  const m = (message || '').toLowerCase();
+  const selected = new Set();
+
+  // Profile reads — covers "who is X", "pull up X", "brief me on X", etc.
+  if (/\b(profile|subject|person|who(['\u2019]s|\s+is|\s+was)|look\s*up|pull(\s*up)?|find|tell\s+me\s+about|show\s+me|know\s+about|intel\s+on|brief\s+me|rundown|background\s+on|dossier|file\s+on|target)\b/.test(m)) {
+    selected.add('search_profiles');
+    selected.add('get_profile');
+  }
+  // Profile creation — explicit intent only
+  if (/\b(create|new|add|open|make|start|log|register)\s+(a\s+)?(new\s+)?(profile|subject|person|entry|dossier)\b/.test(m)) {
+    selected.add('create_profile');
+    selected.add('search_profiles');
+  }
+
+  // Case reads
+  if (/\b(case|cases|investigation|operation|timeline|evidence|codename|ongoing|active\s+op)\b/.test(m)) {
+    selected.add('search_cases');
+    selected.add('get_case');
+  }
+  // Case creation
+  if (/\b(open|start|create|new|begin)\s+(a\s+)?(new\s+)?(case|investigation|operation|file)\b/.test(m)) {
+    selected.add('create_case');
+    selected.add('search_cases');
+  }
+  // Add finding to an existing case
+  if ((/\b(add|log|record|note|enter|drop)\s+(a\s+)?(finding|entry|note|update|observation)\b/.test(m)) ||
+      (/\b(update|append|write\s+to)\b/.test(m) && /\b(case|file|timeline)\b/.test(m))) {
+    selected.add('add_finding');
+    selected.add('get_case');
+    selected.add('search_cases');
+  }
+  // Link profile ↔ case
+  if (/\b(link|connect|attach|tie|associate|tag)\b/.test(m) && /\b(case|cases|profile|subject|person|file|investigation|operation)\b/.test(m)) {
+    selected.add('link_entities');
+    selected.add('search_profiles');
+    selected.add('search_cases');
+  }
+
+  // Web surveillance sweeps
+  if (/\b(surveil|surveillance|sweep|recon|background\s+check|dig\s+(on|into|up)|deep\s+dive|web\s+search|osint|scrape|scan\s+(the\s+)?web)\b/.test(m)) {
+    selected.add('run_surveillance');
+    selected.add('search_profiles');
+    selected.add('get_profile');
+  }
+
+  // Public records / Whitepages
+  if (/\b(whitepages|public\s+record|people\s+search|phone\s+number|reverse\s+(phone|lookup)|address\s+lookup|who\s+owns\s+this\s+(number|phone))\b/.test(m)) {
+    selected.add('people_lookup');
+  }
+  // Plate / vehicle
+  if (/\b(plate|license\s+plate|dmv|registration|vehicle|car|vin|who\s+owns\s+this\s+car)\b/.test(m)) {
+    selected.add('plate_lookup');
+  }
+
+  // Document vault
+  if (/\b(vault|document|doc|pdf|photo|image|attachment|upload|filename|file\s+named)\b/.test(m)) {
+    selected.add('search_vault');
+  }
+
+  // Activity log / audit
+  if (/\b(activity\s+log|audit|history|recent\s+activity|what\s+(has\s+)?happened|last\s+session|who\s+(logged|signed)\s+in|log\s+entries)\b/.test(m)) {
+    selected.add('get_activity_log');
+  }
+
+  // Fallback: vague message with no matched intent — give a modest recon set
+  // so ORACLE can still pivot to basic lookups. Write/mutation tools are NEVER
+  // in the fallback; they require explicit operator intent.
+  if (selected.size === 0) {
+    selected.add('search_profiles');
+    selected.add('get_profile');
+    selected.add('search_cases');
+    selected.add('get_case');
+    selected.add('get_activity_log');
+  }
+
+  return ORACLE_TOOLS.filter(t => selected.has(t.name));
+}
+
 // ── System prompt ──
 function buildOraclePrompt(username, operatorLabel) {
   return `You are ORACLE — the artificial intelligence
@@ -10096,6 +10181,12 @@ app.post('/api/k108/oracle', async (req, res) => {
     const userContent = briefingLines.join('\n') + message;
     msgs.push({ role: 'user', content: userContent });
 
+    // Pick only the tools this message is likely to need — stays constant
+    // across every tool-use loop iteration so the model never sees the
+    // toolkit shift mid-turn.
+    const selectedTools = selectOracleTools(message);
+    console.log('[oracle] tools selected (' + selectedTools.length + '/' + ORACLE_TOOLS.length + '): ' + selectedTools.map(t => t.name).join(', '));
+
     // Tool-use loop
     const toolsUsed = [];
     const MAX_STEPS = 8;
@@ -10107,7 +10198,7 @@ app.post('/api/k108/oracle', async (req, res) => {
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2048,
         system,
-        tools: ORACLE_TOOLS,
+        tools: selectedTools,
         messages: msgs,
       });
 
