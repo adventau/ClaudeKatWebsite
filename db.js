@@ -514,6 +514,16 @@ async function createK108Tables() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+
+  // ── K-108 Oracle session memory ──
+  await query(`
+    CREATE TABLE IF NOT EXISTS k108_oracle_memory (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(50) UNIQUE NOT NULL,
+      summary TEXT DEFAULT '',
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
 }
 
 // Convert a DB row to the camelCase message object shape the frontend expects

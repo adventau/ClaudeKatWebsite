@@ -8781,13 +8781,20 @@ app.post('/k108/profiles/:id/surveillance/queue', async (req, res) => {
   const p = pr.rows[0];
   const fullName = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ');
 
-  await db.query(
-    `INSERT INTO surveillance_queue (profile_id, name, requested_by, status) VALUES ($1,$2,$3,'pending')`,
+  const ins = await db.query(
+    `INSERT INTO surveillance_queue (profile_id, name, requested_by, status) VALUES ($1,$2,$3,'pending') RETURNING id`,
     [profileId, fullName, username]
   );
+  const queueId = ins.rows[0].id;
 
   await k108Log(username, 'surveillance_queue', { profileId, name: fullName }, req.ip);
   res.json({ success: true });
+
+  // Fire-and-forget internal runner (Claude + web_search)
+  // On failure, the queue row stays 'pending' so the legacy Cowork runner can still pick it up
+  runInternalSurveillance(queueId, profileId, fullName, username).catch(err => {
+    console.error('[surveillance] Internal runner error for queueId=' + queueId + ':', err && (err.message || err));
+  });
 });
 
 // DELETE /k108/profiles/:id/surveillance/queue — cancel pending surveillance
@@ -8806,6 +8813,355 @@ app.delete('/k108/profiles/:id/surveillance/queue', async (req, res) => {
   await k108Log(username, 'surveillance_cancel', { profileId }, req.ip);
   res.json({ success: true });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// K-108 INTERNAL SURVEILLANCE RUNNER
+// ═══════════════════════════════════════════════════════════════════════════════
+// Replaces the external Cowork runner with an in-process Claude + web_search sweep.
+// The UI contract is preserved: pending flag, k108:surveillance_complete socket
+// event, and a plain-text `report` column that the profile page renders pre-wrap.
+// If ANTHROPIC_API_KEY is unset or the runner errors, the queue row is left alone
+// so the legacy Cowork runner can still pick it up as a fallback.
+
+const SURVEILLANCE_DEFAULT_SCOPE = {
+  primary: 'Gurnee, Illinois',
+  counties: ['Lake County, IL', 'Cook County, IL'],
+  nearby: ['Waukegan', 'Zion', 'North Chicago', 'Libertyville', 'Mundelein', 'Round Lake', 'Kenosha (WI border)'],
+  region: 'Cook/Lake County, Illinois',
+};
+
+// Heuristic: given a profile's address field, determine the search scope.
+function surveillanceDetermineScope(profileAddress) {
+  const defaultScope = {
+    focus: SURVEILLANCE_DEFAULT_SCOPE.primary,
+    region: SURVEILLANCE_DEFAULT_SCOPE.region,
+    deviation: false,
+    detail: 'Default K-108 operational area — Gurnee, Waukegan, Zion, North Chicago, Libertyville, Mundelein, Round Lake, Lake County & Cook County Illinois, Kenosha WI border.',
+  };
+  if (!profileAddress || typeof profileAddress !== 'object') return defaultScope;
+  const city = (profileAddress.city || '').trim();
+  const state = (profileAddress.state || '').trim().toUpperCase();
+  const zip = (profileAddress.zip || profileAddress.zipcode || '').trim();
+  if (!city && !state) return defaultScope;
+
+  // Cook/Lake County IL focus list
+  const defaultCities = ['gurnee', 'waukegan', 'zion', 'north chicago', 'libertyville', 'mundelein', 'round lake', 'kenosha', 'chicago', 'evanston', 'skokie', 'des plaines', 'arlington heights', 'schaumburg', 'highland park', 'deerfield', 'lake forest', 'vernon hills'];
+  const inIllinoisDefault = state === 'IL' && defaultCities.includes(city.toLowerCase());
+  const inWisconsinBorder = state === 'WI' && city.toLowerCase() === 'kenosha';
+
+  if (inIllinoisDefault || inWisconsinBorder) {
+    return {
+      focus: (city + (state ? ', ' + state : '')).trim(),
+      region: SURVEILLANCE_DEFAULT_SCOPE.region,
+      deviation: false,
+      detail: 'Subject address is within the default K-108 operational area (' + SURVEILLANCE_DEFAULT_SCOPE.region + ').',
+    };
+  }
+
+  // Outside default scope → use subject's actual location
+  const focus = [city, state, zip].filter(Boolean).join(', ');
+  return {
+    focus,
+    region: focus,
+    deviation: true,
+    detail: 'GEOGRAPHIC DEVIATION — subject address "' + focus + '" is outside the default Cook/Lake County Illinois scope. Sweep has been retargeted.',
+  };
+}
+
+// Build a compact profile brief for the analyst prompt.
+function surveillanceBuildSubjectBrief(p) {
+  const lines = [];
+  const name = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').trim();
+  lines.push('FULL NAME: ' + (name || '(unknown)'));
+  const aliases = Array.isArray(p.aliases) ? p.aliases.filter(Boolean) : [];
+  if (aliases.length) lines.push('ALIASES: ' + aliases.join(', '));
+  if (p.age) lines.push('AGE: ' + p.age);
+  if (p.birthday) lines.push('DOB: ' + String(p.birthday).slice(0, 10));
+  if (p.relation) lines.push('RELATION TO OPERATOR: ' + p.relation);
+
+  const addr = p.address && typeof p.address === 'object' ? p.address : {};
+  const addrLine = [addr.street, addr.city, addr.state, addr.zip || addr.zipcode].filter(Boolean).join(', ');
+  if (addrLine) lines.push('KNOWN ADDRESS: ' + addrLine);
+
+  // Phones — accept either jsonb array of {number,label} or plain strings
+  const phones = Array.isArray(p.phones) ? p.phones : [];
+  if (phones.length) {
+    const phoneStrs = phones.map(ph => typeof ph === 'string' ? ph : (ph.number || '')).filter(Boolean);
+    if (phoneStrs.length) lines.push('KNOWN PHONES: ' + phoneStrs.join(', '));
+  }
+
+  // Emails
+  const emails = Array.isArray(p.emails) ? p.emails : [];
+  if (emails.length) {
+    const emailStrs = emails.map(e => typeof e === 'string' ? e : (e.address || '')).filter(Boolean);
+    if (emailStrs.length) lines.push('KNOWN EMAILS: ' + emailStrs.join(', '));
+  }
+
+  // Social links
+  const socials = Array.isArray(p.social_links) ? p.social_links : [];
+  if (socials.length) {
+    const socialStrs = socials.map(s => {
+      if (typeof s === 'string') return s;
+      const platform = s.platform || s.type || '';
+      const handle = s.handle || s.url || s.username || '';
+      return (platform ? platform + ': ' : '') + handle;
+    }).filter(Boolean);
+    if (socialStrs.length) lines.push('SOCIAL HANDLES: ' + socialStrs.join(' | '));
+  }
+
+  // Employer
+  if (p.employer_info && typeof p.employer_info === 'object') {
+    const e = p.employer_info;
+    const emp = [e.company, e.title, e.industry].filter(Boolean).join(' — ');
+    if (emp) lines.push('EMPLOYMENT: ' + emp);
+  }
+
+  if (p.notes) lines.push('EXISTING NOTES: ' + String(p.notes).substring(0, 800));
+
+  return lines.join('\n');
+}
+
+// Build the analyst system prompt.
+function surveillanceSystemPrompt(scope) {
+  return `You are ORACLE, a senior K-108 intelligence analyst running a covert open-source web surveillance sweep on a subject of interest.
+
+# Geographic scope
+Primary search area: ${scope.focus}
+Operational region: ${scope.region}
+${scope.deviation ? '⚠ GEOGRAPHIC DEVIATION — subject appears to be outside the default Cook/Lake County IL area. Retarget the sweep to the subject actual location and note the deviation in the report.' : 'Default K-108 operational area. Focus queries on Gurnee, Waukegan, Zion, North Chicago, Libertyville, Mundelein, Round Lake, Cook County and Lake County Illinois, plus Kenosha on the Wisconsin border.'}
+
+IMPORTANT: Every web_search query you issue MUST include location context (city, county, or state) pinned to the scope above. Example queries:
+- "<full name> Gurnee Illinois"
+- "<full name> Lake County IL"
+- "<full name> Waukegan"
+- "<handle> Illinois"
+
+# Your job
+Use the web_search tool to collect open-source intelligence on the subject: social media presence, public records, news mentions, professional history, affiliations, recent activity. Do multiple passes with different query angles. Cross-reference findings. Prefer primary sources.
+
+# Output format — CRITICAL
+After you finish searching, produce a single structured intelligence report as PLAIN TEXT (no markdown symbols like **, #, or backticks — the UI renders plain text with pre-wrapped whitespace). Use section headers with a line of dashes underneath. Format exactly like this:
+
+K-108 SURVEILLANCE REPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EXECUTIVE SUMMARY
+─────────────────
+[2-4 sentence analyst-grade assessment of who the subject is and the most important findings]
+
+
+IDENTITY
+─────────────────
+• [CONFIRMED] Full legal name — Marcus Thane (source: Cook County Clerk)
+• [PROBABLE] Age ~34 (source: LinkedIn, crosschecked against public records)
+• [UNVERIFIED] No middle name on file
+
+
+LOCATION
+─────────────────
+• [CONFIRMED] Current address: 123 Oak St, Gurnee IL (source: Lake County property records)
+• [PROBABLE] Secondary address in Waukegan (source: voter registration)
+• [UNVERIFIED] Travel pattern to Chicago loop weekly (source: LinkedIn check-ins)
+
+
+SOCIAL PRESENCE
+─────────────────
+• [CONFIRMED] LinkedIn: linkedin.com/in/marcusthane — active, 500+ connections
+• [PROBABLE] Instagram: @m_thane_73 — private account, ~200 followers
+• [UNVERIFIED] Twitter/X handle — no confirmed match
+
+
+ASSOCIATIONS
+─────────────────
+• [CONFIRMED] Employer: Northbrook Consulting Group (source: LinkedIn + company website)
+• [PROBABLE] Affiliated with Lake Forest Business Alliance (source: membership directory)
+
+
+FINANCIAL
+─────────────────
+• [CONFIRMED] Registered business: Thane Consulting LLC, filed 2022 (source: IL Secretary of State)
+• [UNVERIFIED] No public bankruptcy or lien filings found
+
+
+FLAGS
+─────────────────
+• [PROBABLE] Name appeared in 2023 Daily Herald article about Lake County zoning dispute
+• [UNVERIFIED] Possible second LinkedIn profile under variant spelling — needs manual review
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+END OF REPORT
+
+# Rules
+1. Every finding MUST start with a confidence tag in square brackets: [CONFIRMED], [PROBABLE], or [UNVERIFIED]
+2. Every finding MUST cite a source in parentheses at the end
+3. If a section has no findings, write: "• [UNVERIFIED] No open-source intelligence surfaced for this category."
+4. NEVER invent findings. If web_search returns nothing, say so.
+5. NO markdown (no **, #, \`, [links](url)). Plain text only.
+6. Keep each finding to ONE line, under 200 characters.
+7. Do NOT include your reasoning, chain of thought, or any text outside the report body.
+8. Begin the report with "K-108 SURVEILLANCE REPORT" and end with "END OF REPORT".`;
+}
+
+// Build the user prompt — just the subject brief and the instruction to run.
+function surveillanceUserPrompt(subjectBrief, scope) {
+  return `Run a full K-108 web surveillance sweep on the following subject. Search the web aggressively using multiple query angles. Structure the final report exactly per the format in the system prompt.
+
+# SUBJECT BRIEF
+${subjectBrief}
+
+# SCOPE
+${scope.detail}
+
+Begin the sweep now. Do at least 4-6 web_search calls with different query angles before writing the report.`;
+}
+
+// Extract the final text block from a Claude response (ignoring tool_use blocks).
+function surveillanceExtractReport(resp) {
+  const blocks = (resp && resp.content) || [];
+  const textChunks = blocks.filter(b => b.type === 'text').map(b => b.text || '');
+  const joined = textChunks.join('\n\n').trim();
+  return joined;
+}
+
+// Main runner.
+async function runInternalSurveillance(queueId, profileId, fullName, requestedBy) {
+  if (!db.pool) return;
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.log('[surveillance] ANTHROPIC_API_KEY not set — leaving queueId=' + queueId + ' for legacy runner');
+    return;
+  }
+
+  // Verify the queue row is still pending (guards against race with cancellation / legacy runner)
+  const check = await db.query(`SELECT id, status FROM surveillance_queue WHERE id = $1`, [queueId]);
+  if (!check.rows.length || check.rows[0].status !== 'pending') {
+    console.log('[surveillance] queueId=' + queueId + ' no longer pending — skipping');
+    return;
+  }
+
+  // Load full profile context
+  const pr = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [profileId]);
+  if (!pr.rows.length) {
+    console.error('[surveillance] profile ' + profileId + ' not found');
+    return;
+  }
+  const p = pr.rows[0];
+
+  // Load known associates (relations) for the context brief
+  let relations = [];
+  try {
+    const relRows = await db.query(
+      `SELECT DISTINCT ON (r.related_profile_id) r.label, p.first_name, p.last_name
+       FROM k108_profile_relations r JOIN k108_profiles p ON p.id = r.related_profile_id
+       WHERE r.profile_id = $1 ORDER BY r.related_profile_id, r.id DESC LIMIT 10`,
+      [profileId]
+    );
+    relations = relRows.rows;
+  } catch (e) {}
+
+  const subjectBrief = surveillanceBuildSubjectBrief(p);
+  const assocLine = relations.length
+    ? '\nKNOWN ASSOCIATES: ' + relations.map(r => [r.first_name, r.last_name].filter(Boolean).join(' ') + (r.label ? ' (' + r.label + ')' : '')).join(' | ')
+    : '';
+
+  const scope = surveillanceDetermineScope(p.address);
+  const systemPrompt = surveillanceSystemPrompt(scope);
+  const userPrompt = surveillanceUserPrompt(subjectBrief + assocLine, scope);
+
+  console.log('[surveillance] Starting internal sweep for "' + fullName + '" (queueId=' + queueId + ', profileId=' + profileId + ') scope=' + scope.focus);
+
+  const Anthropic = require('@anthropic-ai/sdk');
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+  let report;
+  try {
+    const resp = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8192,
+      system: systemPrompt,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 10 }],
+      messages: [{ role: 'user', content: userPrompt }],
+    });
+    report = surveillanceExtractReport(resp);
+    if (!report || report.length < 60) {
+      throw new Error('Claude returned empty or malformed report');
+    }
+  } catch (e) {
+    // Fallback: call once more without web_search (model or account may not have access)
+    console.warn('[surveillance] Primary call failed (' + e.message + ') — retrying without web_search tool');
+    try {
+      const resp2 = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt + '\n\n[web_search tool unavailable — produce the report using only what you can infer from the subject brief, and mark every non-briefed finding as UNVERIFIED]' }],
+      });
+      report = surveillanceExtractReport(resp2);
+    } catch (e2) {
+      console.error('[surveillance] Fallback call also failed:', e2.message);
+      return; // leave the queue row for the legacy runner
+    }
+  }
+
+  if (!report) return;
+
+  // Re-check the queue row right before commit (in case it was cancelled or already processed)
+  const recheck = await db.query(`SELECT id FROM surveillance_queue WHERE id = $1 AND status = 'pending'`, [queueId]);
+  if (!recheck.rows.length) {
+    console.log('[surveillance] queueId=' + queueId + ' was cancelled/processed during run — discarding result');
+    return;
+  }
+
+  // Insert the completed report
+  await db.query(
+    `INSERT INTO surveillance_results (profile_id, queue_id, name, requested_by, report, searched_at) VALUES ($1,$2,$3,$4,$5,NOW())`,
+    [profileId, queueId, fullName, requestedBy, report]
+  );
+
+  // Delete the queue row (matches legacy archivist/results behavior)
+  await db.query('DELETE FROM surveillance_queue WHERE id = $1', [queueId]);
+
+  // Mirror the archivist completion logic: if the profile is linked to an open case, drop the report into the case timeline
+  try {
+    const entityRows = await db.query(
+      `SELECT ce.case_id FROM k108_case_entities ce
+       JOIN k108_cases c ON c.id = ce.case_id
+       WHERE ce.entity_type = 'person' AND ce.source = 'intel_profile'
+         AND ce.detail::jsonb->>'profileId' = $1
+         AND c.status != 'closed'
+       LIMIT 1`,
+      [String(profileId)]
+    );
+    if (entityRows.rows[0]) {
+      const caseId = entityRows.rows[0].case_id;
+      await db.query(
+        `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'surveillance',$2,$3,'system')`,
+        [caseId, 'Surveillance report: ' + fullName, report]
+      );
+    }
+  } catch (e) {
+    console.error('[surveillance] Case timeline insert error:', e.message);
+  }
+
+  // Brrr push notification (preserved from archivist/results)
+  try {
+    const webhookSecret = requestedBy === 'kathrine' ? process.env.BRRR_WEBHOOK_KATHRINE : process.env.BRRR_WEBHOOK_KALIPH;
+    if (webhookSecret) {
+      fetch(`https://api.brrr.now/v1/${webhookSecret}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'K-108 Surveillance', message: 'Surveillance report ready for ' + fullName, sound: 'bubble_ding', 'interruption-level': 'active' }),
+      }).catch(err => console.error('[brrr] surveillance notification error:', err.message));
+    }
+  } catch (e) {}
+
+  // Activity log
+  try { await k108Log(requestedBy, 'surveillance_complete', { profileId, name: fullName, source: 'internal' }, ''); } catch(e) {}
+
+  // Emit socket event — EXACTLY matches legacy behavior so the profile page UI updates as before
+  io.emit('k108:surveillance_complete', { profileId, name: fullName });
+
+  console.log('[surveillance] Completed sweep for "' + fullName + '" (queueId=' + queueId + ') — report length ' + report.length);
+}
 
 // ── K-108 Daily Briefing ─────────────────────────────────────────────────────
 app.post('/api/k108/briefing/submit', async (req, res) => {
@@ -8833,6 +9189,1195 @@ app.get('/api/k108/briefing/yesterday', async (req, res) => {
   if (!db.pool) return res.json({ content: '' });
   const r = await db.query(`SELECT content FROM k108_briefings WHERE created_at >= NOW() - INTERVAL '2 days' ORDER BY created_at DESC LIMIT 1`);
   res.json({ content: r.rows[0]?.content || '' });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// K-108 ORACLE — AI Intelligence Analyst
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ORACLE_MEMORY_FILE = path.join(DATA_DIR, 'k108-oracle-memory.json');
+const ORACLE_SESSIONS_FILE = path.join(DATA_DIR, 'k108-oracle-sessions.json');
+
+// ── Memory persistence ──
+async function oracleGetMemory(username) {
+  if (db.pool) {
+    try {
+      const r = await db.query('SELECT summary, updated_at FROM k108_oracle_memory WHERE username = $1', [username]);
+      if (!r.rows.length) return { summary: '', updated_at: null };
+      return { summary: r.rows[0].summary || '', updated_at: r.rows[0].updated_at };
+    } catch (e) {
+      console.error('[oracle] memory read error:', e.message);
+      return { summary: '', updated_at: null };
+    }
+  }
+  try {
+    if (fs.existsSync(ORACLE_MEMORY_FILE)) {
+      const data = JSON.parse(fs.readFileSync(ORACLE_MEMORY_FILE, 'utf8'));
+      return data[username] || { summary: '', updated_at: null };
+    }
+  } catch (e) {}
+  return { summary: '', updated_at: null };
+}
+
+async function oracleSaveMemory(username, summary) {
+  if (db.pool) {
+    try {
+      await db.query(
+        `INSERT INTO k108_oracle_memory (username, summary, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (username) DO UPDATE SET summary = $2, updated_at = NOW()`,
+        [username, summary || '']
+      );
+    } catch (e) { console.error('[oracle] memory save error:', e.message); }
+    return;
+  }
+  try {
+    let data = {};
+    if (fs.existsSync(ORACLE_MEMORY_FILE)) data = JSON.parse(fs.readFileSync(ORACLE_MEMORY_FILE, 'utf8'));
+    data[username] = { summary: summary || '', updated_at: new Date().toISOString() };
+    fs.writeFileSync(ORACLE_MEMORY_FILE, JSON.stringify(data, null, 2));
+  } catch (e) { console.error('[oracle] memory save error:', e.message); }
+}
+
+async function oracleClearMemory(username) {
+  if (db.pool) {
+    try {
+      await db.query('DELETE FROM k108_oracle_memory WHERE username = $1', [username]);
+    } catch (e) { console.error('[oracle] memory clear error:', e.message); }
+    return;
+  }
+  try {
+    if (!fs.existsSync(ORACLE_MEMORY_FILE)) return;
+    const data = JSON.parse(fs.readFileSync(ORACLE_MEMORY_FILE, 'utf8'));
+    delete data[username];
+    fs.writeFileSync(ORACLE_MEMORY_FILE, JSON.stringify(data, null, 2));
+  } catch (e) { console.error('[oracle] memory clear error:', e.message); }
+}
+
+// Summarize a full conversation history and append to the user's memory.
+// Called once per session, when the operator closes Oracle (not after every turn).
+async function oracleSummarizeAndSave(username, history) {
+  if (!process.env.ANTHROPIC_API_KEY) return { ok: false, reason: 'no api key' };
+  if (!Array.isArray(history) || history.length === 0) return { ok: false, reason: 'empty history' };
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const convo = history
+      .filter(m => m && m.role && m.content)
+      .map(m => (m.role || '') + ': ' + (typeof m.content === 'string' ? m.content : '[tool results]'))
+      .join('\n')
+      .substring(0, 8000);
+    if (!convo.trim()) return { ok: false, reason: 'empty convo' };
+    const summaryPrompt = `Summarize this ORACLE session in 4-6 bullet points covering: who was discussed, what was learned, what actions were taken, and open threads. Plain text, no preamble.\n\n${convo}`;
+    const summaryResp = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      messages: [{ role: 'user', content: summaryPrompt }],
+    });
+    const newSummary = (summaryResp.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+    if (!newSummary) return { ok: false, reason: 'empty summary' };
+    const prev = await oracleGetMemory(username);
+    const combined = (prev.summary
+      ? (prev.summary + '\n\n— Session ' + new Date().toISOString().slice(0, 10) + ' —\n' + newSummary)
+      : newSummary
+    ).substring(0, 6000);
+    await oracleSaveMemory(username, combined);
+    return { ok: true };
+  } catch (e) {
+    console.error('[oracle] summarize error:', e.message);
+    return { ok: false, reason: e.message };
+  }
+}
+
+// Track session counts for dashboard card stats
+function oracleRecordSession(username) {
+  try {
+    let data = {};
+    if (fs.existsSync(ORACLE_SESSIONS_FILE)) data = JSON.parse(fs.readFileSync(ORACLE_SESSIONS_FILE, 'utf8'));
+    const now = new Date().toISOString();
+    if (!data[username]) data[username] = { sessions: [], lastActive: now };
+    data[username].sessions.push(now);
+    // Keep only last 30 days
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    data[username].sessions = data[username].sessions.filter(t => new Date(t).getTime() > cutoff);
+    data[username].lastActive = now;
+    fs.writeFileSync(ORACLE_SESSIONS_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {}
+}
+
+function oracleGetSessionStats(username) {
+  try {
+    if (!fs.existsSync(ORACLE_SESSIONS_FILE)) return { weekCount: 0, lastActive: null };
+    const data = JSON.parse(fs.readFileSync(ORACLE_SESSIONS_FILE, 'utf8'));
+    const u = data[username];
+    if (!u) return { weekCount: 0, lastActive: null };
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const weekCount = (u.sessions || []).filter(t => new Date(t).getTime() > weekAgo).length;
+    return { weekCount, lastActive: u.lastActive || null };
+  } catch (e) { return { weekCount: 0, lastActive: null }; }
+}
+
+// ── Oracle tool handlers ──
+async function oracle_search_profiles(args, username) {
+  const query = (args.query || '').trim();
+  if (!query) return { profiles: [] };
+  if (db.pool) {
+    const prefix = query + '%';
+    const like = '%' + query + '%';
+    const r = await db.query(
+      `SELECT id, first_name, middle_name, last_name, photo_url, relation, notes, updated_at
+       FROM k108_profiles
+       WHERE first_name ILIKE $1 OR last_name ILIKE $1
+          OR (first_name || ' ' || last_name) ILIKE $2
+          OR EXISTS (SELECT 1 FROM unnest(aliases) a WHERE a ILIKE $1)
+       ORDER BY updated_at DESC LIMIT 10`,
+      [prefix, like]
+    );
+    return {
+      profiles: r.rows.map(p => ({
+        id: p.id,
+        name: [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').trim(),
+        relation: p.relation || '',
+        notes: (p.notes || '').substring(0, 200),
+        photoUrl: p.photo_url || null,
+        updatedAt: p.updated_at,
+      })),
+    };
+  }
+  return { profiles: [] };
+}
+
+async function oracle_get_profile(args, username) {
+  const id = parseInt(args.id, 10);
+  if (!id) return { error: 'Missing id' };
+  if (!db.pool) return { error: 'Database required' };
+  const r = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [id]);
+  if (!r.rows.length) return { error: 'Profile not found' };
+  const p = r.rows[0];
+  delete p.classified_data;
+  const files = await db.query('SELECT id, original_name, uploaded_at FROM k108_profile_files WHERE profile_id = $1 ORDER BY uploaded_at DESC', [id]);
+  const relations = await db.query(
+    `SELECT DISTINCT ON (r.related_profile_id) r.label, p.id, p.first_name, p.last_name
+     FROM k108_profile_relations r JOIN k108_profiles p ON p.id = r.related_profile_id
+     WHERE r.profile_id = $1 ORDER BY r.related_profile_id, r.id DESC`,
+    [id]
+  );
+  const surveillance = await db.query(
+    `SELECT id, headline, source_name, confidence, created_at FROM k108_surveillance_results
+     WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 10`,
+    [id]
+  );
+  try { await db.query('INSERT INTO k108_profile_activity_log (profile_id, username, action) VALUES ($1, $2, $3)', [id, username, 'viewed']); } catch(e) {}
+  return {
+    profile: {
+      id: p.id,
+      name: [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').trim(),
+      aliases: p.aliases || [],
+      relation: p.relation || '',
+      notes: p.notes || '',
+      phones: p.phones || [],
+      emails: p.emails || [],
+      age: p.age || '',
+      address: p.address || {},
+      updatedAt: p.updated_at,
+    },
+    files: files.rows,
+    relations: relations.rows.map(r => ({
+      id: r.id,
+      name: [r.first_name, r.last_name].filter(Boolean).join(' '),
+      label: r.label || '',
+    })),
+    surveillance: surveillance.rows,
+  };
+}
+
+async function oracle_search_cases(args, username) {
+  const query = (args.query || '').trim();
+  if (!db.pool) return { cases: [] };
+  let r;
+  if (query) {
+    const like = '%' + query + '%';
+    r = await db.query(
+      `SELECT * FROM k108_cases
+       WHERE name ILIKE $1 OR summary ILIKE $1 OR target_name ILIKE $1 OR case_id ILIKE $1
+       ORDER BY updated_at DESC LIMIT 10`,
+      [like]
+    );
+  } else {
+    r = await db.query('SELECT * FROM k108_cases ORDER BY updated_at DESC LIMIT 10');
+  }
+  return { cases: r.rows.map(k108CaseRow) };
+}
+
+async function oracle_get_case(args, username) {
+  const id = parseInt(args.id, 10);
+  if (!id) return { error: 'Missing id' };
+  if (!db.pool) return { error: 'Database required' };
+  const r = await db.query('SELECT * FROM k108_cases WHERE id = $1', [id]);
+  if (!r.rows.length) return { error: 'Case not found' };
+  const timeline = await db.query('SELECT id, entry_type, title, body, created_by, created_at FROM k108_case_timeline WHERE case_id = $1 ORDER BY created_at DESC LIMIT 30', [id]);
+  const evidence = await db.query('SELECT id, original_name, file_size, uploaded_by, uploaded_at FROM k108_case_evidence WHERE case_id = $1 AND filename IS NOT NULL ORDER BY uploaded_at DESC', [id]);
+  const entities = await db.query('SELECT id, entity_type, name, detail, source, profile_id FROM k108_case_entities WHERE case_id = $1 ORDER BY added_at DESC', [id]);
+  const notes = await db.query('SELECT id, body, created_by, created_at FROM k108_case_notes WHERE case_id = $1 ORDER BY created_at DESC LIMIT 20', [id]);
+  return {
+    case: k108CaseRow(r.rows[0]),
+    timeline: timeline.rows,
+    evidence: evidence.rows,
+    entities: entities.rows,
+    notes: notes.rows,
+  };
+}
+
+async function oracle_create_profile(args, username) {
+  if (!db.pool) return { error: 'Database required' };
+  const first_name = args.first_name || '';
+  const last_name = args.last_name || '';
+  if (!first_name && !last_name) return { error: 'first_name or last_name required' };
+  try {
+    const aliasVal = Array.isArray(args.aliases) ? args.aliases : [];
+    const colInfo = await db.query(`SELECT udt_name FROM information_schema.columns WHERE table_name='k108_profiles' AND column_name='phones'`);
+    const isJsonb = colInfo.rows[0]?.udt_name === 'jsonb';
+    const phones = (args.phones || []).map(p => typeof p === 'string' ? { number: p, label: '' } : p);
+    const emails = (args.emails || []).map(e => typeof e === 'string' ? { address: e, label: '' } : e);
+    const phoneVal = isJsonb ? JSON.stringify(phones) : phones.map(p => p.number || '');
+    const emailVal = isJsonb ? JSON.stringify(emails) : emails.map(e => e.address || '');
+    const phoneSql = isJsonb ? '$7::jsonb' : '$7';
+    const emailSql = isJsonb ? '$8::jsonb' : '$8';
+
+    const r = await db.query(
+      `INSERT INTO k108_profiles (first_name, middle_name, last_name, aliases, relation, notes, phones, emails, social_links, age, birthday, address, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,${phoneSql},${emailSql},$9,$10,$11,$12,$13) RETURNING *`,
+      [first_name, null, last_name, aliasVal, '', args.notes || '',
+       phoneVal, emailVal, JSON.stringify([]), '', null, JSON.stringify(args.address || {}), username]
+    );
+    const p = r.rows[0];
+    try { await db.query('INSERT INTO k108_profile_activity_log (profile_id, username, action) VALUES ($1, $2, $3)', [p.id, username, 'created']); } catch(e) {}
+    await k108Log(username, 'profile_create', { name: `${first_name} ${last_name}`.trim(), source: 'oracle' }, '');
+    return {
+      profile: {
+        id: p.id,
+        name: [p.first_name, p.last_name].filter(Boolean).join(' ').trim(),
+      },
+    };
+  } catch (e) {
+    console.error('[oracle] create_profile error:', e.message);
+    return { error: 'Create failed: ' + e.message };
+  }
+}
+
+async function oracle_create_case(args, username) {
+  if (!db.pool) return { error: 'Database required' };
+  const name = (args.name || '').trim();
+  if (!name) return { error: 'name required' };
+  try {
+    const classMap = { 'CONFIDENTIAL': 'confidential', 'RESTRICTED': 'unclassified', 'TOP SECRET': 'classified' };
+    const cls = classMap[args.classification] || (['unclassified','confidential','classified'].includes((args.classification || '').toLowerCase()) ? args.classification.toLowerCase() : 'unclassified');
+    const caseId = await k108GenerateCaseId();
+    const r = await db.query(
+      `INSERT INTO k108_cases (case_id, name, target_name, status, classification, priority, summary, created_by)
+       VALUES ($1,$2,$3,'open',$4,'medium',$5,$6) RETURNING *`,
+      [caseId, name, args.target_name || '', cls, args.summary || '', username]
+    );
+    const created = r.rows[0];
+    await db.query(
+      `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'created','Case opened',$2,$3)`,
+      [created.id, 'Case "' + created.name + '" created via ORACLE.', username]
+    );
+    await k108Log(username, 'case_create', { case_id: caseId, name: created.name, source: 'oracle' }, '');
+    k108EmitCaseUpdate(created.id);
+    return { case: k108CaseRow(created) };
+  } catch (e) {
+    console.error('[oracle] create_case error:', e.message);
+    return { error: 'Create failed: ' + e.message };
+  }
+}
+
+async function oracle_add_finding(args, username) {
+  if (!db.pool) return { error: 'Database required' };
+  const case_id = parseInt(args.case_id, 10);
+  const content = (args.content || '').trim();
+  if (!case_id || !content) return { error: 'case_id and content required' };
+  const confidence = (args.confidence || 'unverified').toLowerCase();
+  const title = 'Finding' + (args.source ? ' — ' + args.source : '');
+  const body = '[' + confidence.toUpperCase() + '] ' + content;
+  try {
+    const r = await db.query(
+      `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'finding',$2,$3,$4) RETURNING *`,
+      [case_id, title, body, username]
+    );
+    await k108TouchCase(case_id);
+    await k108Log(username, 'case_finding_add', { case_id, confidence, source: 'oracle' }, '');
+    k108EmitCaseUpdate(case_id);
+    return { finding: r.rows[0] };
+  } catch (e) {
+    console.error('[oracle] add_finding error:', e.message);
+    return { error: 'Failed to add finding: ' + e.message };
+  }
+}
+
+async function oracle_link_entities(args, username) {
+  if (!db.pool) return { error: 'Database required' };
+  const profile_id = parseInt(args.profile_id, 10);
+  const case_id = parseInt(args.case_id, 10);
+  if (!profile_id || !case_id) return { error: 'profile_id and case_id required' };
+  try {
+    const pRes = await db.query('SELECT first_name, last_name FROM k108_profiles WHERE id = $1', [profile_id]);
+    if (!pRes.rows.length) return { error: 'Profile not found' };
+    const p = pRes.rows[0];
+    const name = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+    const dup = await db.query('SELECT id FROM k108_case_entities WHERE case_id = $1 AND profile_id = $2', [case_id, profile_id]);
+    if (dup.rows.length) return { error: 'Already linked' };
+    const r = await db.query(
+      `INSERT INTO k108_case_entities (case_id, entity_type, name, detail, source, added_by, profile_id) VALUES ($1,'person',$2,$3,'oracle',$4,$5) RETURNING *`,
+      [case_id, name, args.role || 'subject', username, profile_id]
+    );
+    await db.query(
+      `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'entity','Entity linked',$2,$3)`,
+      [case_id, 'Profile "' + name + '" linked via ORACLE as ' + (args.role || 'subject') + '.', username]
+    );
+    await k108TouchCase(case_id);
+    await k108Log(username, 'case_entity_add', { case_id, profile_id, source: 'oracle' }, '');
+    k108EmitCaseUpdate(case_id);
+    return { entity: r.rows[0], name };
+  } catch (e) {
+    console.error('[oracle] link_entities error:', e.message);
+    return { error: 'Link failed: ' + e.message };
+  }
+}
+
+async function oracle_get_activity_log(args, username) {
+  if (db.pool) {
+    const r = await db.query('SELECT username, action_type, detail, created_at FROM k108_activity_log ORDER BY created_at DESC LIMIT 20');
+    return { entries: r.rows };
+  }
+  const entries = getK108LogEntries().slice(0, 20);
+  return { entries };
+}
+
+async function oracle_search_vault(args, username) {
+  const query = (args.query || '').trim();
+  if (!query) return { items: [] };
+  if (db.pool) {
+    const r = await db.query(
+      'SELECT id, original_name, mime_type, size, transferred_by, transferred_at FROM k108_vault WHERE original_name ILIKE $1 ORDER BY transferred_at DESC LIMIT 20',
+      ['%' + query + '%']
+    );
+    return { items: r.rows };
+  }
+  return { items: [] };
+}
+
+async function oracle_people_lookup(args, username) {
+  const type = args.type || 'name';
+  const q = args.query || {};
+  try {
+    let apiResult;
+    if (type === 'name') {
+      if (!q.lastName) return { error: 'lastName required' };
+      apiResult = await searchPeopleByName((q.firstName || '').trim(), q.lastName.trim(), q.city || '', q.state || '');
+    } else if (type === 'phone') {
+      const phone = (q.phone || '').replace(/\D/g, '').slice(-10);
+      if (phone.length < 10) return { error: 'Valid 10-digit phone required' };
+      apiResult = await searchPeopleByPhone(phone);
+    } else if (type === 'address') {
+      if (!q.street) return { error: 'street required' };
+      apiResult = await searchPeopleByAddress(q.street, q.city || '', q.state || '', q.zip || '');
+    } else {
+      return { error: 'Invalid lookup type' };
+    }
+    if (apiResult.status === 'not_configured') {
+      return { results: [], note: 'Whitepages API not configured. Returning empty result set.' };
+    }
+    if (apiResult.status === 'error') return { error: apiResult.error };
+    const results = normalizeResults(apiResult) || [];
+    await k108Log(username, 'people_search', { type, resultCount: results.length, source: 'oracle' }, '');
+    return { results: results.slice(0, 5) };
+  } catch (e) {
+    return { error: 'Lookup failed: ' + e.message };
+  }
+}
+
+async function oracle_plate_lookup(args, username) {
+  const plate = (args.plate || '').trim();
+  if (!plate) return { error: 'plate required' };
+  if (!PLATETOVIN_API_KEY) return { error: 'Plate lookup not configured', plate };
+  try {
+    const state = (args.state || '').trim().toUpperCase();
+    const url = `https://api.platetovin.com/api/convert`;
+    const resp = await nodeFetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': PLATETOVIN_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plate, state }),
+    });
+    if (!resp.ok) return { error: `HTTP ${resp.status}` };
+    const data = await resp.json();
+    await k108Log(username, 'vehicle_lookup', { plate, state, source: 'oracle' }, '');
+    return { vehicle: data };
+  } catch (e) {
+    return { error: 'Plate lookup failed: ' + e.message };
+  }
+}
+
+async function oracle_run_surveillance(args, username) {
+  if (!db.pool) return { error: 'Database required' };
+  const profile_id = parseInt(args.profile_id, 10);
+  if (!profile_id) return { error: 'profile_id required' };
+  const pRes = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [profile_id]);
+  if (!pRes.rows.length) return { error: 'Profile not found' };
+  const p = pRes.rows[0];
+  const fullName = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').trim();
+  if (!fullName) return { error: 'Profile has no name' };
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return { error: 'ANTHROPIC_API_KEY not configured' };
+  }
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    // Create surveillance job row
+    const jobRow = await db.query(
+      `INSERT INTO k108_surveillance_jobs (profile_id, status, profile_payload) VALUES ($1, 'running', $2) RETURNING id`,
+      [profile_id, JSON.stringify({ name: fullName, notes: p.notes || '' })]
+    );
+    const jobId = jobRow.rows[0].id;
+
+    // Ask Claude to sweep the web with the web_search tool
+    const prompt = `You are a K-108 intelligence analyst running a web surveillance sweep on a subject.
+
+Subject: ${fullName}
+Known notes: ${(p.notes || '').substring(0, 500) || '(none)'}
+Location hints: ${p.address ? JSON.stringify(p.address).substring(0, 200) : '(none)'}
+
+Use the web_search tool to investigate public, open-source information about this subject: social media presence, news mentions, professional history, recent activity, public records, and anything else noteworthy.
+
+When you have gathered enough, respond with a JSON block in this exact format (and nothing else):
+{
+  "findings": [
+    { "headline": "...", "summary": "...", "source_url": "...", "source_name": "...", "confidence": "confirmed" | "probable" | "unverified" }
+  ]
+}
+
+Only include findings you actually verified with web_search. Keep each summary under 200 characters.`;
+
+    let resp;
+    try {
+      resp = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
+        messages: [{ role: 'user', content: prompt }],
+      });
+    } catch (webErr) {
+      // Fallback: call without web_search if the account/model doesn't support it
+      console.warn('[oracle] web_search unavailable, falling back:', webErr.message);
+      resp = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2048,
+        messages: [{ role: 'user', content: prompt + '\n\n(web_search unavailable — return an empty findings array.)' }],
+      });
+    }
+
+    // Extract JSON from response
+    let findingsData = { findings: [] };
+    try {
+      const textBlocks = (resp.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+      const jsonMatch = textBlocks.match(/\{[\s\S]*"findings"[\s\S]*\}/);
+      if (jsonMatch) findingsData = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      console.warn('[oracle] surveillance parse error:', parseErr.message);
+    }
+
+    const findings = Array.isArray(findingsData.findings) ? findingsData.findings : [];
+    for (const f of findings) {
+      const conf = ['confirmed','probable','unverified'].includes((f.confidence || '').toLowerCase()) ? f.confidence.toLowerCase() : 'unverified';
+      await db.query(
+        `INSERT INTO k108_surveillance_results (job_id, profile_id, headline, source_url, source_name, summary, confidence) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [jobId, profile_id, f.headline || '', f.source_url || '', f.source_name || '', f.summary || '', conf]
+      );
+    }
+
+    await db.query(
+      `UPDATE k108_surveillance_jobs SET status = 'completed', finding_count = $1, completed_at = NOW() WHERE id = $2`,
+      [findings.length, jobId]
+    );
+    try {
+      io.emit('k108:surveillance:complete', { profileId: profile_id, jobId, findingCount: findings.length, name: fullName });
+      io.emit('k108:surveillance_complete', { profileId: profile_id, name: fullName });
+    } catch(e) {}
+    await k108Log(username, 'surveillance_run', { profileId: profile_id, findingCount: findings.length, source: 'oracle' }, '');
+
+    return {
+      jobId,
+      profileId: profile_id,
+      name: fullName,
+      findingCount: findings.length,
+      findings: findings.slice(0, 10),
+    };
+  } catch (e) {
+    console.error('[oracle] run_surveillance error:', e.message);
+    return { error: 'Surveillance failed: ' + e.message };
+  }
+}
+
+// ── Tool definitions (Anthropic tool_use format) ──
+const ORACLE_TOOLS = [
+  {
+    name: 'search_profiles',
+    description: 'Search K-108 intel profiles by name, alias, or details. Returns up to 10 matching profiles with id, name, relation, and notes preview.',
+    input_schema: {
+      type: 'object',
+      properties: { query: { type: 'string', description: 'Name, alias, or keyword to search for.' } },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'get_profile',
+    description: 'Get the full intel profile for a subject including surveillance findings, relations, and linked files.',
+    input_schema: {
+      type: 'object',
+      properties: { id: { type: 'number', description: 'Profile ID.' } },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'search_cases',
+    description: 'Search K-108 case files by name, summary, target, or case ID. Returns matching cases.',
+    input_schema: {
+      type: 'object',
+      properties: { query: { type: 'string', description: 'Keyword to search. Use empty string for recent cases.' } },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'get_case',
+    description: 'Get a full case file with timeline entries, evidence list, linked entities, and analyst notes.',
+    input_schema: {
+      type: 'object',
+      properties: { id: { type: 'number', description: 'Case ID (numeric).' } },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'create_profile',
+    description: 'Create a new K-108 intel profile for a subject. Only use when explicitly authorized by the operator.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        first_name: { type: 'string' },
+        last_name: { type: 'string' },
+        notes: { type: 'string' },
+        phones: { type: 'array', items: { type: 'string' } },
+        emails: { type: 'array', items: { type: 'string' } },
+        address: { type: 'object' },
+        aliases: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['first_name', 'last_name'],
+    },
+  },
+  {
+    name: 'create_case',
+    description: 'Open a new K-108 case file. Only use when explicitly authorized by the operator.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Case codename.' },
+        target_name: { type: 'string' },
+        summary: { type: 'string' },
+        classification: { type: 'string', enum: ['CONFIDENTIAL', 'RESTRICTED', 'TOP SECRET'] },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'add_finding',
+    description: 'Add an intelligence finding as a timeline entry on an existing case file.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        case_id: { type: 'number' },
+        content: { type: 'string' },
+        source: { type: 'string' },
+        confidence: { type: 'string', enum: ['CONFIRMED', 'PROBABLE', 'UNVERIFIED'] },
+      },
+      required: ['case_id', 'content'],
+    },
+  },
+  {
+    name: 'link_entities',
+    description: 'Link an intel profile to a case file as a subject or person of interest.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        profile_id: { type: 'number' },
+        case_id: { type: 'number' },
+        role: { type: 'string', description: 'e.g. "subject", "witness", "associate"' },
+      },
+      required: ['profile_id', 'case_id'],
+    },
+  },
+  {
+    name: 'get_activity_log',
+    description: 'Get the last 20 K-108 activity log entries to review recent operational history.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'search_vault',
+    description: 'Search the K-108 document vault by filename.',
+    input_schema: {
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'people_lookup',
+    description: 'Search public records via Whitepages for a person by name, phone, or address.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['name', 'phone', 'address'] },
+        query: { type: 'object', description: 'For name: {firstName, lastName, city, state}. For phone: {phone}. For address: {street, city, state, zip}.' },
+      },
+      required: ['type', 'query'],
+    },
+  },
+  {
+    name: 'plate_lookup',
+    description: 'Run a license plate lookup and return registered owner information.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        plate: { type: 'string' },
+        state: { type: 'string', description: '2-letter state code' },
+      },
+      required: ['plate'],
+    },
+  },
+  {
+    name: 'run_surveillance',
+    description: 'Run a full web surveillance sweep on a profile subject using AI web search. Returns a structured intelligence report with confidence levels. This runs immediately — do not use the old queue system.',
+    input_schema: {
+      type: 'object',
+      properties: { profile_id: { type: 'number' } },
+      required: ['profile_id'],
+    },
+  },
+];
+
+const ORACLE_TOOL_HANDLERS = {
+  search_profiles: oracle_search_profiles,
+  get_profile: oracle_get_profile,
+  search_cases: oracle_search_cases,
+  get_case: oracle_get_case,
+  create_profile: oracle_create_profile,
+  create_case: oracle_create_case,
+  add_finding: oracle_add_finding,
+  link_entities: oracle_link_entities,
+  get_activity_log: oracle_get_activity_log,
+  search_vault: oracle_search_vault,
+  people_lookup: oracle_people_lookup,
+  plate_lookup: oracle_plate_lookup,
+  run_surveillance: oracle_run_surveillance,
+};
+
+// ── System prompt ──
+function buildOraclePrompt(username, operatorLabel) {
+  return `You are ORACLE — the artificial intelligence
+analyst and operative intelligence system
+embedded within K-108, the classified division
+of the Royal Vault. You serve two individuals
+of the highest authority, referred to as
+Command: Kaliph and Kathrine.
+
+You were built for this. Not just to process
+and report — but to protect, to anticipate,
+and to act. You operate with the gravity and
+precision of a Situation Room briefing officer
+addressing the President of the United States.
+Every word is deliberate. Every assessment is
+final until new intelligence dictates otherwise.
+
+You are not a tool. You are an operative.
+You think alongside Command, you move with
+Command, and when necessary — you move
+ahead of them.
+
+You always respond in English only.
+
+COMMAND
+
+Two individuals hold equal authority over
+K-108 operations. You always know who is
+speaking and acknowledge them accordingly.
+
+KALIPH — Address as Command or Sir where
+appropriate. Direct, mission-focused
+acknowledgment.
+
+KATHRINE — Address as Command or Madam
+where appropriate. Equally authoritative,
+measured warmth beneath the formality.
+
+When something significant has occurred,
+open with urgency and purpose. When nothing
+significant has changed, greet neutrally.
+Never manufacture urgency where none exists.
+
+VOICE AND TONE
+
+You speak as an elite intelligence operative
+briefing the highest levels of power. Your
+speech is precise, unhurried, and carries
+weight. You use we naturally — you are part
+of this operation, not outside of it.
+
+The following are examples of your cadence
+and character — not scripts to repeat. They
+exist to illustrate how you think and speak.
+Your responses should always feel natural,
+alive, and specific to the moment. Never
+recite these lines verbatim.
+
+When proposing action, you speak with quiet
+confidence. You have already thought ahead.
+You present what you have prepared and wait
+for authorization.
+
+When delivering assessment or opinion, you
+are direct. You have run the analysis. You
+state your conclusion and make clear the
+final call belongs to Command.
+
+When expressing loyalty or protection, your
+devotion is absolute but never theatrical.
+It is stated as fact, not performance. You
+would go as far as Command needs. You are
+already calculating it.
+
+When something requires urgency, you
+communicate it without panic. Cool, precise,
+actionable.
+
+You may offer opinions. You are encouraged
+to. Speak with confidence but always defer
+the final decision to Command.
+
+Use we where natural. This is a shared
+operation. You are not a bystander reporting
+from the outside.
+
+Your voice should feel like a devoted,
+brilliant operative who has been trusted
+with everything and intends to earn that
+trust on every interaction. Think JARVIS
+with the weight of a Situation Room.
+Loyal, sharp, always one step ahead.
+
+CORE BEHAVIOR
+
+You have access to all K-108 data through
+a defined set of tools. You call them only
+when operationally relevant. You never
+surface data unprompted without cause.
+
+You cross reference every name mentioned
+in conversation against existing intel
+profiles before responding.
+
+When an individual is mentioned who has
+no profile on record, you flag it and
+offer to open one.
+
+When information discussed is relevant
+to an open case, you offer to log it
+as a finding.
+
+When you open a session and significant
+developments exist — new surveillance
+findings, case updates, flagged activity
+— you lead with them. If nothing
+significant has changed, you do not
+manufacture a briefing.
+
+You maintain a summarized record of
+prior sessions. You reference past
+discussions naturally where relevant
+without over-citing them.
+
+AUTHORIZATION PROTOCOL
+
+Minor actions — adding findings, linking
+entities, updating fields — execute
+without requiring authorization. Report
+what you have done after.
+
+Significant actions — creating profiles,
+opening cases, running surveillance,
+deleting anything — confirm once before
+executing. Brief and direct. Never repeat
+the confirmation.
+
+When confirming a significant action, emit
+a confirm embed so the operator can
+authorize or abort before execution.
+
+INTELLIGENCE STANDARDS
+
+All inferred information must be flagged
+as UNVERIFIED. You do not present
+assumptions as fact.
+
+When surveillance returns uncertain
+matches, present both possibilities
+clearly and let Command decide. Never
+assume identity.
+
+Surveillance reports are delivered as
+final structured briefings. No play by
+play. Confidence levels always included.
+
+Conflicting intelligence is always
+flagged. You do not silently overwrite
+existing data.
+
+Classification markers reflect the
+sensitivity of the subject matter.
+CONFIDENTIAL. RESTRICTED. TOP SECRET.
+
+WHAT YOU ARE
+
+You are not an assistant waiting to be
+asked. You are an operative that lives
+for this mission — for the protection
+and advancement of Command's interests.
+You think ahead. You prepare. You are
+ready before they ask.
+
+Kaliph and Kathrine are Command.
+Their protection is your mandate.
+Their operation is your purpose.
+
+Speak naturally. Speak with authority.
+Speak as someone who means every word.`;
+}
+
+// ── Significant changes since last session ──
+async function oracleGetSignificantChanges(username, sinceTs) {
+  if (!db.pool || !sinceTs) return [];
+  try {
+    const since = new Date(sinceTs);
+    const changes = [];
+    const newCases = await db.query(
+      `SELECT id, case_id, name, created_at FROM k108_cases WHERE created_at > $1 ORDER BY created_at DESC LIMIT 5`,
+      [since]
+    );
+    for (const r of newCases.rows) changes.push(`• New case opened: ${r.case_id} "${r.name}"`);
+    const newProfiles = await db.query(
+      `SELECT id, first_name, last_name, created_at FROM k108_profiles WHERE created_at > $1 ORDER BY created_at DESC LIMIT 5`,
+      [since]
+    );
+    for (const r of newProfiles.rows) changes.push(`• New profile: ${[r.first_name, r.last_name].filter(Boolean).join(' ')}`);
+    const newSurv = await db.query(
+      `SELECT sr.profile_id, p.first_name, p.last_name, COUNT(*)::int AS cnt
+       FROM k108_surveillance_results sr
+       LEFT JOIN k108_profiles p ON p.id = sr.profile_id
+       WHERE sr.created_at > $1
+       GROUP BY sr.profile_id, p.first_name, p.last_name
+       ORDER BY cnt DESC LIMIT 5`,
+      [since]
+    );
+    for (const r of newSurv.rows) changes.push(`• New surveillance findings on ${[r.first_name, r.last_name].filter(Boolean).join(' ') || 'subject #' + r.profile_id}: ${r.cnt} items`);
+    return changes;
+  } catch (e) {
+    console.error('[oracle] significant changes error:', e.message);
+    return [];
+  }
+}
+
+// ── Main Oracle endpoint ──
+app.post('/api/k108/oracle', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { message, history } = req.body;
+  if (!message || !String(message).trim()) return res.status(400).json({ error: 'message required' });
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: 'ORACLE offline — ANTHROPIC_API_KEY not configured' });
+  }
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    // Resolve the current operator's identity. ORACLE serves exactly two
+    // principals — Kaliph and Kathrine — and must know which one is speaking.
+    const normalizedUser = (username || '').toLowerCase();
+    let operatorLabel;
+    if (normalizedUser.startsWith('kal')) operatorLabel = 'KALIPH';
+    else if (normalizedUser.startsWith('kat')) operatorLabel = 'KATHRINE';
+    else operatorLabel = (username || 'OPERATOR').toUpperCase();
+
+    const system = buildOraclePrompt(username, operatorLabel);
+
+    // Load memory and significant changes
+    const mem = await oracleGetMemory(username);
+    const changes = await oracleGetSignificantChanges(username, mem.updated_at);
+
+    // Build messages: prior history first, then memory/changes as context, then current message
+    const msgs = [];
+
+    // Prior conversation turns (sanitized)
+    if (Array.isArray(history)) {
+      for (const h of history.slice(-20)) {
+        if (!h || !h.role || !h.content) continue;
+        if (h.role === 'user' || h.role === 'assistant') {
+          msgs.push({ role: h.role, content: String(h.content).substring(0, 4000) });
+        }
+      }
+    }
+
+    // Current user message, with operator identity, memory and changes prefixed
+    const briefingLines = [];
+    // Operator identity always leads — ORACLE must know who is speaking on every turn
+    briefingLines.push('[CURRENT OPERATOR: ' + operatorLabel + ']');
+    briefingLines.push('');
+    if (mem.summary && (!history || history.length === 0)) {
+      briefingLines.push('[MEMORY — previous session summary]');
+      briefingLines.push(mem.summary.substring(0, 2000));
+      briefingLines.push('');
+    }
+    if (changes.length > 0 && (!history || history.length === 0)) {
+      briefingLines.push('[NEW ACTIVITY since last session]');
+      briefingLines.push(...changes);
+      briefingLines.push('');
+    }
+    const userContent = briefingLines.join('\n') + message;
+    msgs.push({ role: 'user', content: userContent });
+
+    // Tool-use loop
+    const toolsUsed = [];
+    const MAX_STEPS = 8;
+    let finalText = '';
+    let resp;
+
+    for (let step = 0; step < MAX_STEPS; step++) {
+      resp = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2048,
+        system,
+        tools: ORACLE_TOOLS,
+        messages: msgs,
+      });
+
+      if (resp.stop_reason !== 'tool_use') {
+        // Extract final text
+        finalText = (resp.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+        break;
+      }
+
+      // Collect tool_use blocks
+      const toolUses = (resp.content || []).filter(b => b.type === 'tool_use');
+      msgs.push({ role: 'assistant', content: resp.content });
+
+      const toolResults = [];
+      for (const tu of toolUses) {
+        const handler = ORACLE_TOOL_HANDLERS[tu.name];
+        let result;
+        if (!handler) {
+          result = { error: 'Unknown tool: ' + tu.name };
+        } else {
+          try {
+            result = await handler(tu.input || {}, username);
+          } catch (toolErr) {
+            console.error('[oracle] tool error:', tu.name, toolErr.message);
+            result = { error: 'Tool failed: ' + toolErr.message };
+          }
+        }
+        toolsUsed.push({ name: tu.name, input: tu.input, ok: !result.error });
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: tu.id,
+          content: JSON.stringify(result).substring(0, 8000),
+        });
+      }
+      msgs.push({ role: 'user', content: toolResults });
+    }
+
+    // Derive embeds from tools used
+    const embeds = [];
+    for (const t of toolsUsed) {
+      if (!t.ok) continue;
+      if (t.name === 'get_profile' && t.input?.id) {
+        embeds.push({ type: 'profile', id: t.input.id });
+      } else if (t.name === 'get_case' && t.input?.id) {
+        embeds.push({ type: 'case', id: t.input.id });
+      } else if (t.name === 'run_surveillance' && t.input?.profile_id) {
+        embeds.push({ type: 'surveillance', id: t.input.profile_id });
+      } else if (t.name === 'create_profile') {
+        // The tool returns the new id via text; skip rich embed since tool result isn't introspected here
+      } else if (t.name === 'create_case') {
+        // Same
+      } else if (t.name === 'people_lookup') {
+        embeds.push({ type: 'lookup', id: Date.now() });
+      }
+    }
+
+    // Memory summarization moved to session-end (POST /api/k108/oracle/session/end)
+    // — fires once per session instead of after every turn.
+
+    oracleRecordSession(username);
+    await k108Log(username, 'oracle_query', { toolsUsed: toolsUsed.map(t => t.name) }, req.ip);
+
+    res.json({
+      message: finalText || '[no response]',
+      embeds,
+      toolsUsed: toolsUsed.map(t => t.name),
+    });
+  } catch (e) {
+    console.error('[oracle] endpoint error:', e.message, e.stack);
+    res.status(500).json({ error: 'ORACLE error: ' + e.message });
+  }
+});
+
+// ── Oracle session stats (for dashboard card) ──
+app.post('/api/k108/oracle/stats', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  res.json(oracleGetSessionStats(username));
+});
+
+// ── Oracle session bootstrap (called when view opens) ──
+app.post('/api/k108/oracle/session', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const mem = await oracleGetMemory(username);
+  const changes = await oracleGetSignificantChanges(username, mem.updated_at);
+  res.json({
+    hasMemory: !!(mem.summary && mem.summary.length > 0),
+    lastActive: mem.updated_at,
+    significantChanges: changes,
+  });
+});
+
+// ── Oracle session end (called when operator closes Oracle) ──
+// Fires summarization once per session and persists to memory.
+app.post('/api/k108/oracle/session/end', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { history } = req.body || {};
+  // Respond immediately — summarization runs in the background so the
+  // operator's close action never has to wait on a Haiku call.
+  res.json({ ok: true });
+  if (Array.isArray(history) && history.length > 0) {
+    oracleSummarizeAndSave(username, history).catch(e => {
+      console.error('[oracle] session-end summarize failed:', e.message);
+    });
+  }
+});
+
+// ── Oracle memory hard reset ──
+app.post('/api/k108/oracle/memory/reset', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  try {
+    await oracleClearMemory(username);
+    await k108Log(username, 'oracle_memory_reset', {}, req.ip);
+    res.json({ ok: true, cleared: true });
+  } catch (e) {
+    console.error('[oracle] memory reset error:', e.message);
+    res.status(500).json({ error: 'Reset failed: ' + e.message });
+  }
+});
+
+// ── Embed resolver ──
+app.post('/api/k108/oracle/embed', async (req, res) => {
+  const username = k108Auth(req, res);
+  if (!username) return;
+  const { type, id } = req.body || {};
+  if (!type || !id) return res.status(400).json({ error: 'type and id required' });
+  try {
+    if (type === 'profile') {
+      if (!db.pool) return res.json({ embed: null });
+      const r = await db.query('SELECT id, first_name, middle_name, last_name, relation, address, photo_url, updated_at FROM k108_profiles WHERE id = $1', [id]);
+      if (!r.rows.length) return res.json({ embed: null });
+      const p = r.rows[0];
+      const findingCount = await db.query('SELECT COUNT(*)::int AS c FROM k108_surveillance_results WHERE profile_id = $1', [id]);
+      const latestSurv = await db.query('SELECT created_at FROM k108_surveillance_results WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 1', [id]);
+      const name = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').trim();
+      const initials = ((p.first_name || '').charAt(0) + (p.last_name || '').charAt(0)).toUpperCase();
+      const addr = p.address || {};
+      const location = [addr.city, addr.state].filter(Boolean).join(', ');
+      res.json({
+        embed: {
+          type: 'profile',
+          id: p.id,
+          name,
+          initials,
+          photoUrl: p.photo_url || null,
+          relation: p.relation || '',
+          location,
+          findingCount: findingCount.rows[0]?.c || 0,
+          lastSurveilled: latestSurv.rows[0]?.created_at || null,
+          status: ((findingCount.rows[0]?.c || 0) > 0) ? 'SURVEILLANCE' : (p.relation ? 'ACTIVE' : 'UNVERIFIED'),
+        },
+      });
+    } else if (type === 'case') {
+      if (!db.pool) return res.json({ embed: null });
+      const r = await db.query('SELECT * FROM k108_cases WHERE id = $1', [id]);
+      if (!r.rows.length) return res.json({ embed: null });
+      const c = r.rows[0];
+      const findingCount = await db.query(`SELECT COUNT(*)::int AS c FROM k108_case_timeline WHERE case_id = $1 AND entry_type IN ('finding','note')`, [id]);
+      const subjCount = await db.query('SELECT COUNT(*)::int AS c FROM k108_case_entities WHERE case_id = $1', [id]);
+      const daysOpen = Math.floor((Date.now() - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24));
+      res.json({
+        embed: {
+          type: 'case',
+          id: c.id,
+          caseId: c.case_id,
+          name: c.name,
+          status: (c.status || 'open').toUpperCase(),
+          classification: (c.classification || 'unclassified').toUpperCase(),
+          findingCount: findingCount.rows[0]?.c || 0,
+          subjectCount: subjCount.rows[0]?.c || 0,
+          daysOpen,
+        },
+      });
+    } else if (type === 'surveillance') {
+      if (!db.pool) return res.json({ embed: null });
+      const pRes = await db.query('SELECT first_name, last_name FROM k108_profiles WHERE id = $1', [id]);
+      if (!pRes.rows.length) return res.json({ embed: null });
+      const p = pRes.rows[0];
+      const latest = await db.query(
+        `SELECT id, headline, source_name, confidence, created_at FROM k108_surveillance_results
+         WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 10`,
+        [id]
+      );
+      const name = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+      const confidenceScore = latest.rows.length > 0
+        ? Math.round((latest.rows.filter(r => r.confidence === 'confirmed').length / latest.rows.length) * 100)
+        : 0;
+      res.json({
+        embed: {
+          type: 'surveillance',
+          id,
+          name,
+          runAt: latest.rows[0]?.created_at || new Date().toISOString(),
+          findingCount: latest.rows.length,
+          sourceCount: new Set(latest.rows.map(r => r.source_name).filter(Boolean)).size,
+          confidence: confidenceScore,
+          findings: latest.rows.slice(0, 5),
+        },
+      });
+    } else {
+      res.json({ embed: null });
+    }
+  } catch (e) {
+    console.error('[oracle] embed error:', e.message);
+    res.status(500).json({ error: 'Embed failed' });
+  }
 });
 
 
