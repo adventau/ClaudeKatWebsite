@@ -10206,6 +10206,11 @@ app.post('/api/k108/oracle', async (req, res) => {
     else operatorLabel = (username || 'OPERATOR').toUpperCase();
 
     const system = buildOraclePrompt(username, operatorLabel);
+    // Prompt caching on the system prompt. It's constant within a session and
+    // across sessions, so the cache hit rate is near 100%. It's also re-used
+    // on every iteration of the tool-use loop below, turning 8 redundant
+    // copies of a ~1300-token prompt into 1 cache write + 7 cache reads.
+    const cachedSystem = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
 
     // Load memory and significant changes
     const mem = await oracleGetMemory(username);
@@ -10214,15 +10219,18 @@ app.post('/api/k108/oracle', async (req, res) => {
     // Build messages: prior history first, then memory/changes as context, then current message
     const msgs = [];
 
-    // Prior conversation turns (sanitized)
+    // Trim history aggressively — last 10 turns, each capped at 2000 chars.
+    // Long-horizon context lives in the session-end memory summary instead,
+    // so per-request input cannot grow unbounded as a session drags on.
     if (Array.isArray(history)) {
-      for (const h of history.slice(-20)) {
+      for (const h of history.slice(-10)) {
         if (!h || !h.role || !h.content) continue;
         if (h.role === 'user' || h.role === 'assistant') {
-          msgs.push({ role: h.role, content: String(h.content).substring(0, 4000) });
+          msgs.push({ role: h.role, content: String(h.content).substring(0, 2000) });
         }
       }
     }
+    console.log('[oracle] request from ' + username + ': msg_chars=' + String(message).length + ' history_turns=' + msgs.length);
 
     // Current user message, with operator identity, memory and changes prefixed
     const briefingLines = [];
@@ -10246,6 +10254,16 @@ app.post('/api/k108/oracle', async (req, res) => {
     // across every tool-use loop iteration so the model never sees the
     // toolkit shift mid-turn.
     const selectedTools = selectOracleTools(message);
+    // Mark the last tool with cache_control so the full tools block is cached
+    // within the turn's tool-use loop (iterations 2+ hit the cache for free).
+    // Tool sets may be under the 1024-token minimum when the filter selects
+    // only 1–2 tools; in that case Anthropic silently skips the cache —
+    // harmless, so we always mark it.
+    const cachedSelectedTools = selectedTools.map((t, i) =>
+      i === selectedTools.length - 1
+        ? { ...t, cache_control: { type: 'ephemeral' } }
+        : t
+    );
     console.log('[oracle] tools selected (' + selectedTools.length + '/' + ORACLE_TOOLS.length + '): ' + selectedTools.map(t => t.name).join(', '));
 
     // Tool-use loop
@@ -10253,15 +10271,54 @@ app.post('/api/k108/oracle', async (req, res) => {
     const MAX_STEPS = 8;
     let finalText = '';
     let resp;
+    // Accumulate usage across the loop so we can log a per-request total and
+    // an estimated cost. This is the primary signal for "is Oracle expensive
+    // today?" — check the server log for [oracle] request total lines.
+    const totalUsage = { input: 0, output: 0, cacheCreate: 0, cacheRead: 0 };
 
     for (let step = 0; step < MAX_STEPS; step++) {
+      // Build a per-call view of msgs with cache_control on the LAST content
+      // block. Each loop iteration then cache-hits the prefix produced by the
+      // previous iteration (system + tools + prior tool_use/tool_result
+      // rounds), so only the new round's tokens are re-charged at full price.
+      const apiMsgs = msgs.map((m, i) => {
+        if (i !== msgs.length - 1) return m;
+        if (typeof m.content === 'string') {
+          return { role: m.role, content: [{ type: 'text', text: m.content, cache_control: { type: 'ephemeral' } }] };
+        }
+        if (Array.isArray(m.content) && m.content.length > 0) {
+          const copy = m.content.map((b, j) =>
+            j === m.content.length - 1 ? { ...b, cache_control: { type: 'ephemeral' } } : b
+          );
+          return { role: m.role, content: copy };
+        }
+        return m;
+      });
+
       resp = await client.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2048,
-        system,
-        tools: selectedTools,
-        messages: msgs,
+        system: cachedSystem,
+        tools: cachedSelectedTools,
+        messages: apiMsgs,
       });
+
+      // Per-iteration token usage, broken out so we can spot unexpected
+      // input growth, cache misses, or runaway output.
+      const u = resp.usage || {};
+      const inTok = u.input_tokens || 0;
+      const outTok = u.output_tokens || 0;
+      const cCreate = u.cache_creation_input_tokens || 0;
+      const cRead = u.cache_read_input_tokens || 0;
+      totalUsage.input += inTok;
+      totalUsage.output += outTok;
+      totalUsage.cacheCreate += cCreate;
+      totalUsage.cacheRead += cRead;
+      console.log('[oracle] usage step=' + step +
+        ' input=' + inTok +
+        ' output=' + outTok +
+        ' cache_create=' + cCreate +
+        ' cache_read=' + cRead);
 
       if (resp.stop_reason !== 'tool_use') {
         // Extract final text
@@ -10296,6 +10353,23 @@ app.post('/api/k108/oracle', async (req, res) => {
       }
       msgs.push({ role: 'user', content: toolResults });
     }
+
+    // Per-request token + cost summary. Sonnet 4 pricing: $3/MTok input,
+    // $3.75/MTok cache write (1.25x), $0.30/MTok cache read (0.1x),
+    // $15/MTok output. If est_cost is higher than ~$0.05 for a simple
+    // conversation turn, investigate the per-step breakdown above.
+    const costUsd = (
+      totalUsage.input * 3 +
+      totalUsage.cacheCreate * 3.75 +
+      totalUsage.cacheRead * 0.30 +
+      totalUsage.output * 15
+    ) / 1_000_000;
+    console.log('[oracle] request total:' +
+      ' input=' + totalUsage.input +
+      ' output=' + totalUsage.output +
+      ' cache_create=' + totalUsage.cacheCreate +
+      ' cache_read=' + totalUsage.cacheRead +
+      ' est_cost=$' + costUsd.toFixed(4));
 
     // Derive embeds from tools used
     const embeds = [];
