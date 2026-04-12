@@ -2565,7 +2565,7 @@ function seedBudgetDefaults() {
   const entertainmentId = uuidv4();
   const shoppingId = uuidv4();
   return {
-    anchorDate: '2025-01-02',
+    anchorDate: '2025-01-03',
     categories: [
       { id: uuidv4(), name: 'Dining Out', emoji: '🍽️', budgetAmount: 0, color: '#f59e0b', pairedWith: null },
       { id: uuidv4(), name: 'Transport', emoji: '🚗', budgetAmount: 0, color: '#3b82f6', pairedWith: null },
@@ -2653,11 +2653,8 @@ function computeSurplusServer(budget, money) {
   // Cash balance (excludes investments and savings goals)
   const cashBalance = (money?.balances?.kaliph?.amount || 0) + (money?.balances?.kathrine?.amount || 0);
 
-  // Subtract swept allocations not yet deducted from cash
-  const totalSwept = (budget.surplusLog || []).filter(e => !e.cashDeducted).reduce((s, e) => s + (e.surplusAmount || 0), 0);
-
   // Surplus = unbudgeted balance (sweepable amount)
-  const unbudgeted = Math.max(0, cashBalance - totalBudgeted - totalSwept);
+  const unbudgeted = Math.max(0, cashBalance - totalBudgeted);
   return Math.round(unbudgeted * 100) / 100;
 }
 
@@ -2764,8 +2761,7 @@ function assembleStatementData(periodStartISO) {
   for (const c of cats) totalBudgeted += c.budgetAmount || 0;
   const totalSpent = txns.reduce((s, t) => s + (t.amount || 0), 0);
   const cashBalance = kaliphEnd + kathrineEnd;
-  const stmtSwept = (budget?.surplusLog || []).filter(e => !e.cashDeducted).reduce((s, e) => s + (e.surplusAmount || 0), 0);
-  const totalUnbudgeted = Math.max(0, cashBalance - totalBudgeted - stmtSwept);
+  const totalUnbudgeted = Math.max(0, cashBalance - totalBudgeted);
   const surplus = Math.max(0, totalBudgeted - totalSpent);
   const overallPct = totalBudgeted > 0 ? Math.round(totalSpent / totalBudgeted * 100) : 0;
 
@@ -2944,11 +2940,6 @@ app.get('/api/budget', mainAuth, (req, res) => {
   if (budget.lastAllocatedPeriod === undefined) budget.lastAllocatedPeriod = null;
   if (budget.lastAllocatedPeriodEnd === undefined) budget.lastAllocatedPeriodEnd = null;
   if (budget.lastBrrrPeriod === undefined) budget.lastBrrrPeriod = null;
-  // Migrate anchor date from old to new value
-  if (budget.anchorDate === '2025-01-03') {
-    budget.anchorDate = '2025-01-02';
-    wd(F.budget, budget);
-  }
   if (budget.lastStatementEmailedPeriod === undefined) budget.lastStatementEmailedPeriod = null;
 
   // Fire Brrr notification on period end day at 7 AM Chicago time (non-blocking)
@@ -3095,7 +3086,6 @@ app.post('/api/budget/allocate', mainAuth, (req, res) => {
       investmentName: a.investmentName || null,
       amount: Math.round((parseFloat(a.amount) || 0) * 100) / 100,
     })),
-    cashDeducted: true,
     loggedAt: Date.now(),
   });
 
@@ -3145,27 +3135,6 @@ app.post('/api/budget/allocate', mainAuth, (req, res) => {
       wd(F.money, moneyForInv);
       io.emit('money:updated', moneyForInv);
     }
-  }
-
-  // Deduct total allocation from cash balances immediately
-  const moneyForCash = moneyForInv || money || rd(F.money);
-  if (moneyForCash && surplusAmount > 0) {
-    const kBal = moneyForCash.balances?.kaliph?.amount || 0;
-    const kaBal = moneyForCash.balances?.kathrine?.amount || 0;
-    const totalCash = kBal + kaBal;
-    if (totalCash > 0) {
-      const kDeduct = Math.round(surplusAmount * (kBal / totalCash) * 100) / 100;
-      const kaDeduct = Math.round((surplusAmount - kDeduct) * 100) / 100;
-      moneyForCash.balances.kaliph.amount = Math.round((kBal - kDeduct) * 100) / 100;
-      moneyForCash.balances.kathrine.amount = Math.round((kaBal - kaDeduct) * 100) / 100;
-    } else {
-      // Split evenly when total is zero or negative
-      const half = Math.round(surplusAmount / 2 * 100) / 100;
-      moneyForCash.balances.kaliph.amount = Math.round((kBal - half) * 100) / 100;
-      moneyForCash.balances.kathrine.amount = Math.round((kaBal - (surplusAmount - half)) * 100) / 100;
-    }
-    wd(F.money, moneyForCash);
-    io.emit('money:updated', moneyForCash);
   }
 
   wd(F.budget, budget);
