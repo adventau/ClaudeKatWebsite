@@ -8639,8 +8639,14 @@ function calcTicker(current, previous) {
 
 function renderSnapshot(data) {
   const container = document.getElementById('money-snapshot');
-  const kCash = data.balances?.kaliph?.amount ?? 0;
-  const kaCash = data.balances?.kathrine?.amount ?? 0;
+  // Subtract swept allocations (not yet deducted from stored balance) from displayed cash
+  const sweptNotDeducted = (_budgetData?.surplusLog || []).filter(e => !e.cashDeducted).reduce((s, e) => s + (e.surplusAmount || 0), 0);
+  const rawK = data.balances?.kaliph?.amount ?? 0;
+  const rawKa = data.balances?.kathrine?.amount ?? 0;
+  const rawTotal = rawK + rawKa;
+  const kRatio = rawTotal > 0 ? rawK / rawTotal : 0.5;
+  const kCash = Math.round((rawK - sweptNotDeducted * kRatio) * 100) / 100;
+  const kaCash = Math.round((rawKa - sweptNotDeducted * (1 - kRatio)) * 100) / 100;
 
   // Calculate invested value per user from portfolio prices
   const holdings = data.investments?.holdings || [];
@@ -10018,7 +10024,7 @@ function updateMoneyDashTabIndicator() {
 async function loadBudget() {
   try {
     _budgetData = await fetch('/api/budget').then(r => r.json());
-  } catch { _budgetData = { anchorDate: '2025-01-03', categories: [], overrides: [] }; }
+  } catch { _budgetData = { anchorDate: '2025-01-02', categories: [], overrides: [] }; }
   renderBudget(_budgetData, _moneyData);
 }
 
@@ -10063,7 +10069,8 @@ function renderBudget(budget, money) {
   const overallPct = totalBudgeted > 0 ? (totalSpent / totalBudgeted * 100) : 0;
   const overallColor = overallPct >= 100 ? '#ef4444' : overallPct >= 75 ? '#f59e0b' : 'var(--accent)';
   const totalCash = (money?.balances?.kaliph?.amount || 0) + (money?.balances?.kathrine?.amount || 0);
-  const unbudgetedCash = Math.max(0, totalCash - totalBudgeted);
+  const totalSwept = (budget.surplusLog || []).filter(e => !e.cashDeducted).reduce((s, e) => s + (e.surplusAmount || 0), 0);
+  const unbudgetedCash = Math.max(0, totalCash - totalBudgeted - totalSwept);
 
   let html = '';
   // Period Navigation Bar
@@ -10073,9 +10080,9 @@ function renderBudget(budget, money) {
       <div class="budget-period-label">${escapeHtml(label)}</div>
       <div class="budget-period-sub">Bi-weekly budget</div>
       <div class="budget-period-pills">
-        <span class="budget-pill">$${totalBudgeted.toFixed(2)} budgeted</span>
+        <span class="budget-pill">$${totalBudgeted.toFixed(2)} available</span>
         <span class="budget-pill">$${totalSpent.toFixed(2)} spent</span>
-        ${totalCash > 0 ? `<span class="budget-pill budget-pill-unbudgeted">$${unbudgetedCash.toFixed(2)} unbudgeted</span>` : ''}
+        ${(totalCash - totalSwept) > 0 ? `<span class="budget-pill budget-pill-unbudgeted">$${unbudgetedCash.toFixed(2)} unbudgeted</span>` : ''}
       </div>
     </div>
     <div class="budget-nav-right">
@@ -11221,8 +11228,11 @@ function computeEndingPeriodSurplus(budget, money) {
   // Cash balance (excludes investments and savings goals)
   const cashBalance = (money?.balances?.kaliph?.amount || 0) + (money?.balances?.kathrine?.amount || 0);
 
-  // Unbudgeted = cash beyond what was categorised in the budget
-  const unbudgeted = Math.max(0, cashBalance - totalBudgeted);
+  // Subtract swept allocations not yet deducted from cash
+  const totalSwept = (budget.surplusLog || []).filter(e => !e.cashDeducted).reduce((s, e) => s + (e.surplusAmount || 0), 0);
+
+  // Unbudgeted = cash beyond what was categorised in the budget and swept
+  const unbudgeted = Math.max(0, cashBalance - totalBudgeted - totalSwept);
 
   // Surplus = unbudgeted balance (sweepable amount)
   const surplus = Math.round(unbudgeted * 100) / 100;
@@ -11232,7 +11242,7 @@ function computeEndingPeriodSurplus(budget, money) {
     budgeted: Math.round(totalBudgeted * 100) / 100,
     spent: Math.round(totalSpent * 100) / 100,
     unbudgeted: Math.round(unbudgeted * 100) / 100,
-    cashBalance: Math.round(cashBalance * 100) / 100,
+    cashBalance: Math.round((cashBalance - totalSwept) * 100) / 100,
     periodLabel: getPeriodLabel(periodStart, periodEnd),
     periodStart,
     periodEnd,
@@ -11879,6 +11889,9 @@ function surplusClose() {
     overlay.innerHTML = '';
   }
   SoundSystem.modalClose();
+  // Reset to current period and re-render budget view
+  _currentPeriodOffset = 0;
+  if (_moneyDashTab === 'budget') renderBudget(_budgetData, _moneyData);
 }
 
 function checkAndShowSurplus(autoOpen = false) {
