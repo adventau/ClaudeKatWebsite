@@ -3103,61 +3103,69 @@ app.post('/api/budget/allocate', mainAuth, (req, res) => {
   const { periodEnd: currentPE } = getBudgetPeriodServer(budget.anchorDate);
   budget.lastAllocatedPeriodEnd = utcDateStrServer(currentPE);
 
-  // Apply all money mutations (goals, investments, cash deduction) then save once
+  // Update savings goal balances
   const money = rd(F.money);
-  if (money) {
-    // 1. Update savings goal balances
-    if (money.goals) {
-      for (const alloc of allocations) {
-        if (alloc.type === 'savings' && alloc.goalId) {
-          const goal = money.goals.find(g => g.id === alloc.goalId);
-          if (goal) {
-            const amt = parseFloat(alloc.amount) || 0;
-            goal.currentAmount = Math.round((goal.currentAmount + amt) * 100) / 100;
-            if (!goal.contributions) goal.contributions = [];
-            goal.contributions.push({
-              id: uuidv4(),
-              amount: amt,
-              note: 'Budget surplus allocation',
-              date: todayCentral(),
-              createdAt: Date.now(),
-            });
-          }
+  if (money && money.goals) {
+    for (const alloc of allocations) {
+      if (alloc.type === 'savings' && alloc.goalId) {
+        const goal = money.goals.find(g => g.id === alloc.goalId);
+        if (goal) {
+          const amt = parseFloat(alloc.amount) || 0;
+          goal.currentAmount = Math.round((goal.currentAmount + amt) * 100) / 100;
+          if (!goal.contributions) goal.contributions = [];
+          goal.contributions.push({
+            id: uuidv4(),
+            amount: amt,
+            note: 'Budget surplus allocation',
+            date: todayCentral(),
+            createdAt: Date.now(),
+          });
         }
       }
     }
+    wd(F.money, money);
+    io.emit('money:updated', money);
+  }
 
-    // 2. Update portfolio holding costBasis for investment allocations
+  // Update portfolio holding costBasis for investment allocations
+  const moneyForInv = money || rd(F.money);
+  if (moneyForInv) {
+    let moneyChanged = false;
     for (const alloc of allocations) {
       if (alloc.type === 'investment' && alloc.holdingId) {
-        const holdings = money.investments?.holdings || [];
+        const holdings = moneyForInv?.investments?.holdings || [];
         const holding = holdings.find(h => h.id === alloc.holdingId);
         if (holding) {
           holding.costBasis = Math.round(((holding.costBasis || 0) + (parseFloat(alloc.amount) || 0)) * 100) / 100;
+          moneyChanged = true;
         }
       }
     }
-
-    // 3. Deduct total allocation from cash balances immediately
-    if (surplusAmount > 0) {
-      const kBal = money.balances?.kaliph?.amount || 0;
-      const kaBal = money.balances?.kathrine?.amount || 0;
-      const totalCash = kBal + kaBal;
-      if (totalCash > 0) {
-        const kDeduct = Math.round(surplusAmount * (kBal / totalCash) * 100) / 100;
-        const kaDeduct = Math.round((surplusAmount - kDeduct) * 100) / 100;
-        money.balances.kaliph.amount = Math.round((kBal - kDeduct) * 100) / 100;
-        money.balances.kathrine.amount = Math.round((kaBal - kaDeduct) * 100) / 100;
-      } else {
-        const half = Math.round(surplusAmount / 2 * 100) / 100;
-        money.balances.kaliph.amount = Math.round((kBal - half) * 100) / 100;
-        money.balances.kathrine.amount = Math.round((kaBal - (surplusAmount - half)) * 100) / 100;
-      }
+    if (moneyChanged) {
+      wd(F.money, moneyForInv);
+      io.emit('money:updated', moneyForInv);
     }
+  }
 
-    // Single save + emit after all mutations
-    wd(F.money, money);
-    io.emit('money:updated', money);
+  // Deduct total allocation from cash balances immediately
+  const moneyForCash = moneyForInv || money || rd(F.money);
+  if (moneyForCash && surplusAmount > 0) {
+    const kBal = moneyForCash.balances?.kaliph?.amount || 0;
+    const kaBal = moneyForCash.balances?.kathrine?.amount || 0;
+    const totalCash = kBal + kaBal;
+    if (totalCash > 0) {
+      const kDeduct = Math.round(surplusAmount * (kBal / totalCash) * 100) / 100;
+      const kaDeduct = Math.round((surplusAmount - kDeduct) * 100) / 100;
+      moneyForCash.balances.kaliph.amount = Math.round((kBal - kDeduct) * 100) / 100;
+      moneyForCash.balances.kathrine.amount = Math.round((kaBal - kaDeduct) * 100) / 100;
+    } else {
+      // Split evenly when total is zero or negative
+      const half = Math.round(surplusAmount / 2 * 100) / 100;
+      moneyForCash.balances.kaliph.amount = Math.round((kBal - half) * 100) / 100;
+      moneyForCash.balances.kathrine.amount = Math.round((kaBal - (surplusAmount - half)) * 100) / 100;
+    }
+    wd(F.money, moneyForCash);
+    io.emit('money:updated', moneyForCash);
   }
 
   wd(F.budget, budget);
