@@ -8639,14 +8639,8 @@ function calcTicker(current, previous) {
 
 function renderSnapshot(data) {
   const container = document.getElementById('money-snapshot');
-  // Subtract swept allocations (not yet deducted from stored balance) from displayed cash
-  const sweptNotDeducted = (_budgetData?.surplusLog || []).filter(e => !e.cashDeducted).reduce((s, e) => s + (e.surplusAmount || 0), 0);
-  const rawK = data.balances?.kaliph?.amount ?? 0;
-  const rawKa = data.balances?.kathrine?.amount ?? 0;
-  const rawTotal = rawK + rawKa;
-  const kRatio = rawTotal > 0 ? rawK / rawTotal : 0.5;
-  const kCash = Math.round((rawK - sweptNotDeducted * kRatio) * 100) / 100;
-  const kaCash = Math.round((rawKa - sweptNotDeducted * (1 - kRatio)) * 100) / 100;
+  const kCash = data.balances?.kaliph?.amount ?? 0;
+  const kaCash = data.balances?.kathrine?.amount ?? 0;
 
   // Calculate invested value per user from portfolio prices
   const holdings = data.investments?.holdings || [];
