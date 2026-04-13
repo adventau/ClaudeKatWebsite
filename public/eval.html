@@ -837,13 +837,6 @@ const COMMANDS = [
   { cmd: 'brainstorm clear', desc: 'Clear all brainstorm messages', cat: 'Messages' },
   { cmd: 'pinned list', desc: 'List all pinned messages across channels', cat: 'Messages' },
 
-  // Announcements
-  { cmd: 'announce ', desc: 'Create announcement for both users', cat: 'Announcements' },
-  { cmd: 'announce kaliph ', desc: 'Announce to Kaliph only', cat: 'Announcements' },
-  { cmd: 'announce kathrine ', desc: 'Announce to Kathrine only', cat: 'Announcements' },
-  { cmd: 'announce list', desc: 'List all announcements', cat: 'Announcements' },
-  { cmd: 'announce delete ', desc: 'Delete announcement by ID', cat: 'Announcements' },
-
   // Users & Presence
   { cmd: 'who', desc: 'Who is online right now', cat: 'Users' },
   { cmd: 'user info kaliph', desc: 'Show Kaliph details', cat: 'Users' },
@@ -1352,12 +1345,6 @@ function showHelp() {
       ['clear edited <id>', 'Remove edited indicator'],
       ['brainstorm list', 'List brainstorm messages'],
       ['brainstorm clear', 'Clear brainstorm'],
-    ],
-    'ANNOUNCEMENTS': [
-      ['announce <text>', 'Create for both users'],
-      ['announce <user> <text>', 'Create for specific user'],
-      ['announce list', 'List all'],
-      ['announce delete <id>', 'Delete'],
     ],
     'USERS & PRESENCE': [
       ['who', 'Who is online right now'],

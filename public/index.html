@@ -100,11 +100,12 @@
       position: absolute; inset: 36px; border-radius: 50%;
       background: radial-gradient(circle, rgba(124,58,237,0.08), transparent 70%);
       display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
     }
     .ring-core svg {
-      width: 32px; height: 32px;
+      width: 48px; height: 48px;
       color: rgba(167,139,250,0.6);
-      filter: drop-shadow(0 0 8px rgba(124,58,237,0.3));
+      filter: drop-shadow(0 0 10px rgba(124,58,237,0.35));
     }
     .portal-glow {
       position: absolute; inset: -30px; border-radius: 50%;
@@ -419,7 +420,17 @@
         <div class="ring ring-mid"></div>
         <div class="ring ring-inner"></div>
         <div class="ring-core">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Crown body -->
+            <path d="M3 18 L3 9 L7.5 12.5 L12 6 L16.5 12.5 L21 9 L21 18 Z"/>
+            <!-- Crown base band -->
+            <path d="M3 18 L21 18" stroke-width="1.8"/>
+            <path d="M3.5 20 L20.5 20" stroke-width="1.2" opacity="0.5"/>
+            <!-- Crown tip jewels -->
+            <circle cx="12" cy="7.2" r="1" fill="currentColor" stroke="none"/>
+            <circle cx="7.2" cy="11.5" r="0.7" fill="currentColor" stroke="none"/>
+            <circle cx="16.8" cy="11.5" r="0.7" fill="currentColor" stroke="none"/>
+          </svg>
         </div>
       </div>
 

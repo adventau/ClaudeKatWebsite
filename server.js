@@ -145,7 +145,6 @@ const F = {
   calendar:      path.join(DATA_DIR, 'calendar.json'),
   brainstorm:    path.join(DATA_DIR, 'brainstorm.json'),
   guests:        path.join(DATA_DIR, 'guests.json'),
-  announcements: path.join(DATA_DIR, 'announcements.json'),
   settings:      path.join(DATA_DIR, 'settings.json'),
   suggestions:   path.join(DATA_DIR, 'suggestions.json'),
   pushSubs:      path.join(DATA_DIR, 'push-subscriptions.json'),
@@ -312,7 +311,6 @@ function initData() {
     calendar:      { kaliph: [], kathrine: [], shared: [] },
     brainstorm:    [],
     guests:        {},
-    announcements: [],
     suggestions:   [],
     totp:          { kaliph: [], kathrine: [] },
     money: { setup: false, balances: { kaliph: { amount: 0, updatedAt: null }, kathrine: { amount: 0, updatedAt: null } }, dailySnapshots: [], transactions: [], goals: [], recurring: [], investments: { holdings: [], snapshots: [] } },
@@ -1810,32 +1808,6 @@ app.delete('/api/calendar/:id', mainAuth, (req, res) => {
   }
   wd(F.calendar, cal);
   io.emit('calendar-updated');
-  res.json({ success: true });
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ANNOUNCEMENTS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-app.get('/api/announcements', auth, (_, res) => res.json(rd(F.announcements) || []));
-
-app.post('/api/announcements', mainAuth, (req, res) => {
-  let ann = rd(F.announcements) || [];
-  const item = {
-    id: uuidv4(), title: req.body.title, content: req.body.content,
-    createdBy: req.session.user, createdAt: Date.now(), active: true,
-    targetUser: req.body.targetUser || 'both',
-  };
-  ann.push(item);
-  wd(F.announcements, ann);
-  io.emit('announcement', item);
-  res.json({ success: true, announcement: item });
-});
-
-app.delete('/api/announcements/:id', mainAuth, (req, res) => {
-  let ann = rd(F.announcements) || [];
-  wd(F.announcements, ann.filter(a => a.id !== req.params.id));
-  io.emit('announcement-removed', req.params.id);
   res.json({ success: true });
 });
 
@@ -3734,7 +3706,6 @@ app.post('/api/backdoor/import', express.json({ limit: '50mb' }), async (req, re
     ['vault',         F.vault],
     ['calendar',      F.calendar],
     ['guests',        F.guests],
-    ['announcements', F.announcements],
     ['suggestions',   F.suggestions],
     ['reminders',     F.reminders],
     ['money',       F.money],
@@ -4000,52 +3971,6 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     }
     io.emit('new-message', msg);
     return lines(`Broadcast sent: "${text}"`, 'success');
-  }
-
-  // ── ANNOUNCEMENTS ──
-  if (cmd === 'announce') {
-    const sub = parts[1]?.toLowerCase();
-    if (sub === 'list') {
-      const anns = rd(F.announcements) || [];
-      if (!anns.length) return lines('No announcements', 'dim');
-      return {
-        lines: [{ text: `${anns.length} announcements`, cls: 'success' }],
-        table: {
-          headers: ['ID', 'Title', 'Target', 'Created'],
-          rows: anns.map(a => [a.id.substring(0, 8), (a.title || '').substring(0, 30), a.targetUser || 'both', new Date(a.createdAt).toLocaleDateString()]),
-        },
-      };
-    }
-    if (sub === 'delete') {
-      const id = parts[2];
-      if (!id) return lines('Usage: announce delete <id>', 'warn');
-      let anns = rd(F.announcements) || [];
-      const idx = anns.findIndex(a => a.id.startsWith(id));
-      if (idx === -1) return lines('Announcement not found', 'error');
-      const removed = anns.splice(idx, 1)[0];
-      wd(F.announcements, anns);
-      io.emit('announcement-removed', removed.id);
-      return lines(`Deleted announcement: "${removed.title}"`, 'success');
-    }
-    // announce [user] <text>
-    let target = 'both';
-    let title;
-    if (sub === 'kaliph' || sub === 'kathrine') {
-      target = sub;
-      title = parts.slice(2).join(' ');
-    } else {
-      title = parts.slice(1).join(' ');
-    }
-    if (!title) return lines('Usage: announce [user] <text>', 'warn');
-    const ann = {
-      id: uuidv4(), title, content: '', createdBy: 'admin',
-      createdAt: Date.now(), active: true, targetUser: target,
-    };
-    const anns = rd(F.announcements) || [];
-    anns.push(ann);
-    wd(F.announcements, anns);
-    io.emit('announcement', ann);
-    return lines(`Announcement created for ${target}: "${title}"`, 'success');
   }
 
   // ── USER INFO ──
@@ -4635,7 +4560,6 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     const calendar = rd(F.calendar);
     const vault = rd(F.vault);
     const guests = rd(F.guests);
-    const anns = rd(F.announcements);
     const sugs = rd(F.suggestions);
     let msgCount = 0;
     if (db.pool) {
@@ -4654,7 +4578,6 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
       [`  Calendar:      K: ${(calendar?.kaliph || []).length}  Ke: ${(calendar?.kathrine || []).length}  Shared: ${(calendar?.shared || []).length}`, 'data'],
       [`  Vault:         K: ${(vault?.kaliph || []).length}  Ke: ${(vault?.kathrine || []).length}`, 'data'],
       [`  Guests:        ${Object.keys(guests || {}).length}`, 'data'],
-      [`  Announcements: ${(anns || []).length}`, 'data'],
       [`  Suggestions:   ${(sugs || []).length}`, 'data'],
       [`  Online:        ${Object.keys(onlineUsers).join(', ') || 'none'}`, 'data'],
     );
@@ -7939,40 +7862,6 @@ app.post('/api/k108/command', async (req, res) => {
       io.emit('new-message', msg);
       await k108Log(username, 'command_bar', { command: raw }, req.ip);
       return res.json(lines(`Broadcast sent: "${text}"`, 'success'));
-    }
-
-    // ── Announcements ──
-    if (cmd === 'announcement') {
-      const sub = parts[1]?.toLowerCase();
-      if (sub === 'list') {
-        const anns = rd(F.announcements) || [];
-        if (!anns.length) return res.json(lines('No announcements', 'dim'));
-        return res.json({ lines: [{ text: `${anns.length} announcements`, cls: 'success' }], table: { headers: ['ID', 'Title', 'Target', 'Created'], rows: anns.map(a => [a.id.substring(0, 8), (a.title || '').substring(0, 30), a.targetUser || 'both', new Date(a.createdAt).toLocaleDateString()]) } });
-      }
-      if (sub === 'delete') {
-        const id = parts[2];
-        if (!id) return res.json(lines('Usage: announcement delete <id>', 'warn'));
-        let anns = rd(F.announcements) || [];
-        const idx = anns.findIndex(a => a.id.startsWith(id));
-        if (idx === -1) return res.json(lines('Announcement not found', 'error'));
-        const removed = anns.splice(idx, 1)[0];
-        wd(F.announcements, anns);
-        io.emit('announcement-removed', removed.id);
-        await k108Log(username, 'command_bar', { command: raw }, req.ip);
-        return res.json(lines(`Deleted announcement: "${removed.title}"`, 'success'));
-      }
-      if (sub === 'new') {
-        const title = parts.slice(2).join(' ');
-        if (!title) return res.json(lines('Usage: announcement new <message>', 'warn'));
-        const ann = { id: uuidv4(), title, content: '', createdBy: username, createdAt: Date.now(), active: true, targetUser: 'both' };
-        const anns = rd(F.announcements) || [];
-        anns.push(ann);
-        wd(F.announcements, anns);
-        io.emit('announcement', ann);
-        await k108Log(username, 'command_bar', { command: raw }, req.ip);
-        return res.json(lines(`Announcement created: "${title}"`, 'success'));
-      }
-      return res.json(lines('Usage: announcement list | announcement delete <id> | announcement new <message>', 'warn'));
     }
 
     // ── Settings ──
