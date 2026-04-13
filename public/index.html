@@ -10,7 +10,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0a0612;
+      --bg: #080818;
       --card: rgba(255,255,255,0.05);
       --border: rgba(255,255,255,0.1);
       --text: #e2d9f3;
@@ -26,1016 +26,352 @@
       display: flex; align-items: center; justify-content: center;
     }
 
-    /* ── Particle Canvas ────────────────────────────────────────────── */
-    #canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    /* ── Background ────────────────────────────────────────────────── */
+    .gate-bg {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+    }
+    .gate-bg::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% 40%, rgba(124,58,237,0.12) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 40% at 30% 70%, rgba(59,130,246,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 60% at 75% 20%, rgba(192,132,252,0.06) 0%, transparent 60%);
+      animation: bg-shift 15s ease-in-out infinite;
+    }
+    .gate-bg .grid-overlay {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(124,58,237,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,58,237,0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 20%, transparent 70%);
+      -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 20%, transparent 70%);
+    }
+    @keyframes bg-shift {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
 
     /* ── Screens ────────────────────────────────────────────────────── */
     .screen {
       position: absolute; inset: 0;
       display: flex; align-items: center; justify-content: center;
-      z-index: 10; transition: opacity 0.6s, transform 0.6s;
+      z-index: 10; transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .screen.hidden { opacity: 0; pointer-events: none; transform: scale(0.96); }
+    .screen.hidden { opacity: 0; pointer-events: none; transform: scale(0.94); }
 
-    /* ── Crown / Title ──────────────────────────────────────────────── */
+    /* ── Gate Layout ───────────────────────────────────────────────── */
+    .gate-container {
+      display: flex; flex-direction: column; align-items: center;
+      max-width: 420px; width: 100%; padding: 0 1.5rem;
+    }
+
+    /* ── Portal Rings ──────────────────────────────────────────────── */
+    .portal-wrap {
+      position: relative; width: 160px; height: 160px; margin-bottom: 2.4rem;
+      opacity: 0; animation: entrance-portal 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
+    }
+    .ring {
+      position: absolute; inset: 0; border-radius: 50%;
+      border: 1px solid transparent;
+    }
+    .ring-outer {
+      inset: -8px;
+      border-color: rgba(124,58,237,0.15);
+      border-style: dashed;
+      animation: ring-spin 30s linear infinite;
+    }
+    .ring-mid {
+      inset: 4px;
+      border-width: 1.5px;
+      border-color: rgba(124,58,237,0.3);
+      border-top-color: rgba(167,139,250,0.6);
+      border-right-color: transparent;
+      animation: ring-spin-rev 12s linear infinite;
+    }
+    .ring-inner {
+      inset: 20px;
+      border-color: rgba(59,130,246,0.2);
+      border-left-color: rgba(96,165,250,0.5);
+      border-bottom-color: transparent;
+      animation: ring-spin 8s linear infinite;
+    }
+    .ring-core {
+      position: absolute; inset: 36px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(124,58,237,0.08), transparent 70%);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ring-core svg {
+      width: 32px; height: 32px;
+      color: rgba(167,139,250,0.6);
+      filter: drop-shadow(0 0 8px rgba(124,58,237,0.3));
+    }
+    .portal-glow {
+      position: absolute; inset: -30px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(124,58,237,0.1), transparent 70%);
+      animation: portal-breathe 4s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes ring-spin { to { transform: rotate(360deg); } }
+    @keyframes ring-spin-rev { to { transform: rotate(-360deg); } }
+    @keyframes portal-breathe {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.06); }
+    }
+
+    /* ── Title ─────────────────────────────────────────────────────── */
     .vault-title {
-      text-align: center; margin-bottom: 2rem;
+      text-align: center; margin-bottom: 2.8rem;
+      opacity: 0; animation: entrance-up 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards;
     }
-    .crown { font-size: 2.6rem; animation: float 3.5s ease-in-out infinite; display: block; margin-bottom: 0.6rem; }
     .vault-title h1 {
-      font-family: 'Cinzel', serif; font-size: 1.6rem; font-weight: 700;
-      background: linear-gradient(135deg, #a78bfa, #60a5fa, #c084fc);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
-      letter-spacing: 0.12em; line-height: 1.35;
-      filter: drop-shadow(0 2px 8px rgba(124,58,237,0.3));
-    }
-    .vault-title p {
-      font-family: 'Inter', sans-serif;
-      color: var(--muted); font-size: 0.8rem; margin-top: 0.5rem;
-      letter-spacing: 0.12em; text-transform: uppercase; font-weight: 400;
-    }
-
-    /* ── Glass Card ─────────────────────────────────────────────────── */
-    .glass {
-      background: rgba(255,255,255,0.04);
-      backdrop-filter: blur(24px) saturate(1.6);
-      -webkit-backdrop-filter: blur(24px) saturate(1.6);
-      border: 1px solid rgba(255,255,255,0.09);
-      border-radius: 22px; padding: 2.2rem 2rem;
-      width: 380px; max-width: 92vw;
-      box-shadow: 0 0 80px var(--glow), 0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
-      animation: fadeUp 0.7s cubic-bezier(0.34,1.2,0.64,1) both;
+      font-family: 'Orbitron', monospace; font-size: 1.1rem; font-weight: 700;
+      letter-spacing: 0.35em; text-transform: uppercase;
+      color: rgba(226,217,243,0.85);
       position: relative;
     }
-    .glass::before {
-      content: ''; position: absolute; inset: -1px; border-radius: 23px;
-      background: linear-gradient(135deg, rgba(124,58,237,0.3), rgba(59,130,246,0.2), rgba(192,132,252,0.3));
-      z-index: -1; opacity: 0; transition: opacity 0.4s;
+    .vault-title h1::after {
+      content: ''; display: block;
+      width: 60px; height: 1px; margin: 1rem auto 0;
+      background: linear-gradient(90deg, transparent, rgba(124,58,237,0.5), transparent);
     }
-    .glass:focus-within::before { opacity: 1; }
+    .vault-subtitle {
+      font-family: 'Space Grotesk', sans-serif;
+      color: var(--muted); font-size: 0.65rem; margin-top: 1rem;
+      letter-spacing: 0.22em; text-transform: uppercase; font-weight: 400;
+    }
 
-    /* ── Input ──────────────────────────────────────────────────────── */
-    .input-wrap {
-      position: relative; margin-bottom: 1.2rem;
+    /* ── Password Input ────────────────────────────────────────────── */
+    .gate-input {
+      width: 100%; position: relative;
+      opacity: 0; animation: entrance-up 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.6s forwards;
     }
-    .input-wrap input {
-      width: 100%; background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(124,58,237,0.4);
-      border-radius: 12px; padding: 0.9rem 3rem 0.9rem 1rem;
-      color: var(--text); font-size: 1rem; font-family: 'Inter', sans-serif;
-      outline: none; transition: border-color 0.3s, box-shadow 0.3s;
-      letter-spacing: 0.1em;
+    .input-field-wrap {
+      position: relative;
+      background: rgba(124,58,237,0.04);
+      border: 1px solid rgba(124,58,237,0.15);
+      border-radius: 14px;
+      padding: 0 1rem;
+      display: flex; align-items: center; gap: 8px;
+      transition: border-color 0.3s, box-shadow 0.3s;
     }
-    .input-wrap input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 20px rgba(124,58,237,0.3);
+    .input-field-wrap:focus-within {
+      border-color: rgba(124,58,237,0.4);
+      box-shadow: 0 0 30px rgba(124,58,237,0.08), inset 0 0 20px rgba(124,58,237,0.03);
     }
-    .input-wrap input::placeholder { color: var(--muted); letter-spacing: 0.05em; }
+    .input-field-wrap input {
+      flex: 1; background: transparent;
+      border: none;
+      padding: 0.95rem 0;
+      color: var(--text); font-size: 0.95rem; font-family: 'Space Grotesk', sans-serif;
+      outline: none; letter-spacing: 0.08em;
+    }
+    .input-field-wrap input::placeholder {
+      color: rgba(226,217,243,0.2); letter-spacing: 0.04em; font-weight: 400;
+    }
+
     .eye-btn {
-      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-      background: none; border: none; color: var(--muted); cursor: pointer;
-      font-size: 1.1rem; padding: 4px; transition: color 0.2s;
+      background: none; border: none; color: rgba(226,217,243,0.25); cursor: pointer;
+      padding: 4px; transition: color 0.3s; flex-shrink: 0;
     }
     .eye-btn:hover { color: var(--text); }
 
-    /* ── Submit button ──────────────────────────────────────────────── */
-    .btn-submit {
-      width: 100%; padding: 12px;
-      background: linear-gradient(135deg, #7c3aed, #3b82f6);
-      background-size: 200% 200%;
-      border: none; border-radius: 12px; color: #fff;
-      font-size: 0.95rem; font-family: 'Inter', sans-serif; font-weight: 600;
-      cursor: pointer; transition: transform 0.18s, box-shadow 0.18s, background-position 0.4s;
-      letter-spacing: 0.04em;
-      box-shadow: 0 4px 24px rgba(124,58,237,0.4);
-      animation: fadeUp 0.7s cubic-bezier(0.34,1.2,0.64,1) 0.15s both;
+    .unlock-btn {
+      width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(59,130,246,0.15));
+      border: 1px solid rgba(124,58,237,0.25);
+      color: rgba(167,139,250,0.7);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.3s;
     }
-    .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 36px rgba(124,58,237,0.55); background-position: 100% 0; }
-    .btn-submit:active { transform: translateY(0); }
-    .btn-submit.loading { opacity: 0.65; pointer-events: none; }
+    .unlock-btn:hover {
+      background: linear-gradient(135deg, rgba(124,58,237,0.35), rgba(59,130,246,0.25));
+      border-color: rgba(124,58,237,0.5);
+      color: #a78bfa;
+      box-shadow: 0 0 20px rgba(124,58,237,0.15);
+      transform: scale(1.06);
+    }
+    .unlock-btn:active { transform: scale(0.95); }
+    .unlock-btn.loading { opacity: 0.5; pointer-events: none; }
+    .unlock-btn.loading svg { animation: spin 0.8s linear infinite; }
 
     /* ── Error ──────────────────────────────────────────────────────── */
     .error-msg {
-      color: #f87171; font-size: 0.85rem; text-align: center;
-      margin-top: 0.8rem; min-height: 1.2em; transition: opacity 0.3s;
+      color: #f87171; font-size: 0.78rem; text-align: center;
+      margin-top: 1rem; min-height: 1.2em; transition: opacity 0.4s;
+      letter-spacing: 0.04em;
     }
     .error-msg.hidden { opacity: 0; }
 
+    /* ── Entrance Animations ───────────────────────────────────────── */
+    @keyframes entrance-portal {
+      from { opacity: 0; transform: scale(0.6); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes entrance-up {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Unlock Transition ─────────────────────────────────────────── */
+    .gate-container.unlocking .portal-wrap {
+      animation: portal-open 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    .gate-container.unlocking .vault-title {
+      animation: dissolve-out 0.5s 0.15s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    .gate-container.unlocking .gate-input {
+      animation: dissolve-out 0.5s 0.05s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    @keyframes portal-open {
+      0% { transform: scale(1); opacity: 1; filter: brightness(1); }
+      50% { transform: scale(1.6); opacity: 0.8; filter: brightness(2.5); }
+      100% { transform: scale(3); opacity: 0; filter: brightness(4); }
+    }
+    @keyframes dissolve-out {
+      to { opacity: 0; transform: translateY(-14px) scale(0.96); }
+    }
+
     /* ── Profile Select ─────────────────────────────────────────────── */
     .profile-grid {
-      display: flex; gap: 1.8rem; flex-wrap: wrap; justify-content: center;
-      padding: 1.5rem 1rem;
+      display: flex; gap: 2.5rem; flex-wrap: wrap; justify-content: center;
+      padding: 1rem;
     }
 
     .profile-card {
-      position: relative; width: 240px; height: 320px;
-      border-radius: 22px; cursor: pointer; overflow: hidden;
+      position: relative; width: 260px;
+      border-radius: 20px; cursor: pointer;
+      padding: 2.8rem 1.6rem 2.4rem;
+      background: rgba(124,58,237,0.04);
+      border: 1px solid rgba(124,58,237,0.12);
       transition: transform 0.4s cubic-bezier(0.34,1.4,0.64,1), box-shadow 0.4s, border-color 0.4s;
       animation: fadeUp 0.85s cubic-bezier(0.34,1.2,0.64,1) both;
-      background: linear-gradient(160deg, #0a0a1a, #141428, #0a0a1a);
-      border: 1px solid rgba(255,255,255,0.08);
+      display: flex; flex-direction: column; align-items: center;
+      --card-accent: #7c3aed;
+      --card-accent2: #a78bfa;
     }
     .profile-card:nth-child(2) { animation-delay: 0.12s; }
 
-    /* Shared pseudo-element defaults */
-    .profile-card::before, .profile-card::after {
-      content: ''; position: absolute; inset: 0; pointer-events: none;
-      opacity: 0; transition: opacity 0.4s;
+    .profile-card:hover {
+      transform: translateY(-8px) scale(1.03);
+      border-color: color-mix(in srgb, var(--card-accent) 40%, transparent);
+      box-shadow: 0 16px 50px color-mix(in srgb, var(--card-accent) 20%, transparent),
+                  0 0 60px color-mix(in srgb, var(--card-accent) 8%, transparent);
     }
-    .profile-card::before { z-index: 3; }
-    .profile-card::after  { z-index: 1; }
 
-    .card-bg-particles { position: absolute; inset: 0; overflow: hidden; border-radius: 24px; }
-    .card-glow {
-      position: absolute; inset: -50%; opacity: 0; transition: opacity 0.4s;
-      border-radius: 50%; filter: blur(40px);
+    /* ── Card Ring Avatar ──────────────────────────────────────────── */
+    .card-ring-wrap {
+      position: relative; width: 130px; height: 130px; margin-bottom: 1.6rem;
     }
-    .profile-card:hover .card-glow { opacity: 1; }
+    .card-ring {
+      position: absolute; inset: 0; border-radius: 50%;
+      border: 1px solid transparent;
+    }
+    .card-ring-outer {
+      inset: -8px;
+      border-color: color-mix(in srgb, var(--card-accent) 18%, transparent);
+      border-style: dashed;
+      animation: ring-spin 25s linear infinite;
+    }
+    .card-ring-inner {
+      inset: 4px;
+      border-width: 1.5px;
+      border-color: color-mix(in srgb, var(--card-accent) 30%, transparent);
+      border-top-color: var(--card-accent2);
+      border-right-color: transparent;
+      animation: ring-spin-rev 10s linear infinite;
+    }
+    .profile-card:hover .card-ring-outer {
+      border-color: color-mix(in srgb, var(--card-accent) 35%, transparent);
+    }
+    .profile-card:hover .card-ring-inner {
+      border-color: color-mix(in srgb, var(--card-accent) 50%, transparent);
+      border-top-color: var(--card-accent2);
+      border-right-color: transparent;
+    }
 
-    .card-content {
-      position: relative; z-index: 2; height: 100%;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 2rem 1rem;
-    }
     .card-avatar {
-      width: 90px; height: 90px; border-radius: 50%;
+      position: absolute; inset: 18px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 2rem; margin-bottom: 1.2rem;
-      transition: transform 0.4s cubic-bezier(0.34,1.4,0.64,1), box-shadow 0.4s;
-      position: relative; overflow: hidden;
-      background: linear-gradient(135deg, #7c3aed, #6366f1);
-      border: 2px solid rgba(255,255,255,0.2);
-      box-shadow: 0 0 20px rgba(124,58,237,0.4);
+      font-size: 2rem; font-weight: 700; font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--card-accent) 25%, #0c0c1e), #0c0c1e);
+      border: 1.5px solid color-mix(in srgb, var(--card-accent) 30%, transparent);
+      color: var(--card-accent2);
+      overflow: hidden;
+      transition: box-shadow 0.4s, border-color 0.4s;
     }
     .card-avatar img {
       width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
     }
+    .profile-card:hover .card-avatar {
+      box-shadow: 0 0 24px color-mix(in srgb, var(--card-accent) 30%, transparent);
+      border-color: color-mix(in srgb, var(--card-accent) 50%, transparent);
+    }
+
+    /* ── Card Text ─────────────────────────────────────────────────── */
     .card-name {
-      font-size: 2rem; font-weight: 700; letter-spacing: 0.05em;
-      margin-bottom: 0.4rem; transition: transform 0.3s, letter-spacing 0.3s;
-      background: linear-gradient(135deg, #a78bfa, #c4b5fd);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.45rem; font-weight: 600; letter-spacing: 0.08em;
+      color: var(--card-accent2);
+      margin-bottom: 0.3rem; transition: color 0.3s;
     }
     .card-theme-label {
-      font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase;
-      color: rgba(255,255,255,0.4); margin-bottom: 1rem;
+      font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: rgba(255,255,255,0.3); margin-bottom: 0.8rem;
     }
     .card-status {
       display: flex; align-items: center; gap: 6px;
-      font-size: 0.8rem; color: rgba(255,255,255,0.5);
+      font-size: 0.75rem; color: rgba(255,255,255,0.4);
     }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
     .card-enter-hint {
-      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%) translateY(4px);
-      font-size: 0.68rem; color: rgba(255,255,255,0.45);
-      letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap;
+      position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%) translateY(4px);
+      font-size: 0.6rem; color: rgba(255,255,255,0.3);
+      letter-spacing: 0.15em; text-transform: uppercase; white-space: nowrap;
+      font-family: 'Space Grotesk', sans-serif;
       opacity: 0; transition: opacity 0.25s, transform 0.25s;
     }
     .profile-card:hover .card-enter-hint { opacity: 1; transform: translateX(-50%) translateY(0); }
-    .card-badge {
-      position: absolute; top: 12px; right: 12px; z-index: 4;
-      font-size: 0.55rem; letter-spacing: 0.18em; text-transform: uppercase;
-      padding: 2px 6px; border-radius: 4px;
-      transition: color 0.3s, border-color 0.3s, box-shadow 0.3s, opacity 0.3s;
-      opacity: 0.7;
-    }
-    .profile-card:hover .card-badge { opacity: 1; }
-    .card-circuit {
-      position: absolute; bottom: 0; left: 0; right: 0; height: 60px; z-index: 1;
-      pointer-events: none; opacity: 0; transition: opacity 0.5s;
-    }
-    .profile-card:hover .card-circuit { opacity: 1; }
 
-    /* ═══════════════════════════════════════════════════════════════════
-       THEME-SPECIFIC CARD STYLES — each theme gets unique personality
-       ═══════════════════════════════════════════════════════════════════ */
+    /* ── Theme Accent Overrides (CSS custom properties) ─────────── */
+    .profile-card[data-accent="kaliph"]   { --card-accent: #3b82f6; --card-accent2: #60a5fa; }
+    .profile-card[data-accent="kathrine"] { --card-accent: #ec4899; --card-accent2: #f9a8d4; }
+    .profile-card[data-accent="royal"]    { --card-accent: #d97706; --card-accent2: #fbbf24; }
+    .profile-card[data-accent="light"]    { --card-accent: #6366f1; --card-accent2: #a5b4fc; }
+    .profile-card[data-accent="dark"]     { --card-accent: #9ca3af; --card-accent2: #d1d5db; }
+    .profile-card[data-accent="heaven"]   { --card-accent: #c8a96e; --card-accent2: #e8d5a3; }
+    .profile-card[data-accent="rosewood"] { --card-accent: #c8967a; --card-accent2: #e8c9a0; }
+    .profile-card[data-accent="ocean"]    { --card-accent: #14b8a6; --card-accent2: #5eead4; }
+    .profile-card[data-accent="forest"]   { --card-accent: #52b788; --card-accent2: #95d5b2; }
+    .profile-card[data-accent="neon"]     { --card-accent: #ff2d7b; --card-accent2: #00f0ff; }
+    .profile-card[data-accent="noir"]     { --card-accent: #d4af37; --card-accent2: #f0d060; }
+    .profile-card[data-accent="arctic"]   { --card-accent: #43e8b1; --card-accent2: #a48efa; }
+    .profile-card[data-accent="aurora"]   { --card-accent: #06b6d4; --card-accent2: #818cf8; }
+    .profile-card[data-accent="sandstone"]{ --card-accent: #c2713a; --card-accent2: #d4a870; }
 
-    /* ── T1: AVNT Purple (kaliph) — Cyber / Tech / Electric Blue ──── */
-    .theme-kaliph {
-      background: linear-gradient(160deg, #020818 0%, #0a1635 40%, #06102a 70%, #030b1c 100%);
-      border-color: rgba(59,130,246,0.2);
-    }
-    .theme-kaliph:hover {
-      transform: translateY(-12px) scale(1.03) rotateY(-2deg);
-      box-shadow: 0 24px 60px rgba(59,130,246,0.5), 0 0 100px rgba(56,189,248,0.2), inset 0 1px 0 rgba(59,130,246,0.3);
-      border-color: rgba(59,130,246,0.5);
-    }
-    .theme-kaliph::after {
-      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(59,130,246,0.03) 2px, rgba(59,130,246,0.03) 4px);
-    }
-    .theme-kaliph:hover::after { opacity: 1; }
-    .theme-kaliph::before {
-      background: linear-gradient(45deg, transparent 20%, rgba(59,130,246,0.12) 45%, rgba(56,189,248,0.08) 55%, transparent 80%);
-      transform: translateX(-100%) rotate(45deg); transition: none;
-    }
-    .theme-kaliph:hover::before { animation: shimmer-sweep 0.7s ease; }
-    .theme-kaliph .card-glow { background: radial-gradient(circle, rgba(59,130,246,0.6) 0%, rgba(56,189,248,0.3) 30%, transparent 70%); }
-    .theme-kaliph .card-avatar { background: linear-gradient(135deg, #2563eb, #3b82f6); border-color: rgba(59,130,246,0.5); box-shadow: 0 0 20px rgba(59,130,246,0.5); }
-    .theme-kaliph:hover .card-avatar { transform: scale(1.12); box-shadow: 0 0 30px rgba(59,130,246,0.7), 0 0 60px rgba(56,189,248,0.3); }
-    .theme-kaliph .card-name { font-family: 'Orbitron', monospace; font-size: 1.5rem; letter-spacing: 0.12em; background: linear-gradient(135deg, #60a5fa, #38bdf8); -webkit-background-clip: text; background-clip: text; }
-    .theme-kaliph:hover .card-name { letter-spacing: 0.2em; transform: scale(1.05); }
-    .theme-kaliph .card-theme-label { color: rgba(56,189,248,0.6); font-family: 'Space Grotesk', sans-serif; }
-    .theme-kaliph .card-enter-hint { font-family: 'Space Grotesk', sans-serif; }
-    .theme-kaliph .card-badge { font-family: 'Orbitron', monospace; color: rgba(56,189,248,0.7); border: 1px solid rgba(56,189,248,0.3); }
-    .theme-kaliph:hover .card-badge { box-shadow: 0 0 12px rgba(56,189,248,0.3); }
-    .theme-kaliph .card-circuit {
-      background: linear-gradient(90deg, transparent 10%, rgba(59,130,246,0.12) 10%, rgba(59,130,246,0.12) 10.5%, transparent 10.5%,
-        transparent 30%, rgba(59,130,246,0.08) 30%, rgba(59,130,246,0.08) 30.5%, transparent 30.5%,
-        transparent 60%, rgba(59,130,246,0.1) 60%, rgba(59,130,246,0.1) 60.5%, transparent 60.5%,
-        transparent 85%, rgba(59,130,246,0.06) 85%, rgba(59,130,246,0.06) 85.5%, transparent 85.5%);
-    }
-    .theme-kaliph .ripple { background: rgba(59,130,246,0.25); }
+    /* ── (Theme accents handled via data-accent + CSS vars above) ──── */
 
-    /* ── T2: Royal Violet (kathrine) — Elegant / Rose / Bloom ──────── */
-    .theme-kathrine {
-      background: linear-gradient(160deg, #1a0616 0%, #2d1028 35%, #1f0a2a 65%, #150520 100%);
-      border-color: rgba(236,72,153,0.15);
-    }
-    .theme-kathrine:hover {
-      transform: translateY(-10px) scale(1.04);
-      box-shadow: 0 20px 60px rgba(236,72,153,0.4), 0 0 120px rgba(244,114,182,0.15), 0 0 200px rgba(192,132,252,0.08);
-      border-color: rgba(236,72,153,0.45);
-    }
-    .theme-kathrine::before {
-      background: radial-gradient(ellipse at 30% 50%, rgba(244,114,182,0.12) 0%, transparent 60%);
-    }
-    .theme-kathrine:hover::before { opacity: 1; animation: bloom-pulse 1.8s ease-in-out infinite; }
-    .theme-kathrine::after {
-      background-image:
-        radial-gradient(1px 1px at 20% 30%, rgba(244,114,182,0.7), transparent),
-        radial-gradient(1px 1px at 70% 60%, rgba(192,132,252,0.5), transparent),
-        radial-gradient(1px 1px at 50% 80%, rgba(244,114,182,0.6), transparent),
-        radial-gradient(1.5px 1.5px at 35% 55%, rgba(251,191,36,0.4), transparent),
-        radial-gradient(1px 1px at 80% 25%, rgba(192,132,252,0.5), transparent),
-        radial-gradient(1px 1px at 15% 75%, rgba(244,114,182,0.4), transparent);
-      background-size: 100% 100%;
-    }
-    .theme-kathrine:hover::after { opacity: 1; animation: sparkle-drift 3s ease-in-out infinite; }
-    .theme-kathrine .card-glow { background: radial-gradient(circle, rgba(244,114,182,0.5) 0%, rgba(236,72,153,0.3) 30%, transparent 70%); filter: blur(50px); }
-    .theme-kathrine .card-avatar { background: linear-gradient(135deg, #db2777, #ec4899); border-color: rgba(236,72,153,0.4); box-shadow: 0 0 20px rgba(236,72,153,0.5); }
-    .theme-kathrine:hover .card-avatar { transform: scale(1.1) rotate(3deg); box-shadow: 0 0 30px rgba(236,72,153,0.7), 0 0 60px rgba(244,114,182,0.25); }
-    .theme-kathrine .card-name { font-family: 'Cormorant Garamond', serif; font-size: 2.2rem; font-weight: 600; font-style: italic; background: linear-gradient(135deg, #f9a8d4, #f472b6, #e879f9); -webkit-background-clip: text; background-clip: text; }
-    .theme-kathrine:hover .card-name { transform: scale(1.08); }
-    .theme-kathrine .card-theme-label { color: rgba(244,114,182,0.6); font-family: 'Cormorant Garamond', serif; font-style: italic; }
-    .theme-kathrine .card-enter-hint { font-family: 'Cormorant Garamond', serif; letter-spacing: 0.18em; }
-    .theme-kathrine .card-badge { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 0.65rem; color: rgba(244,114,182,0.7); border: none; }
-    .theme-kathrine .ripple { background: rgba(244,114,182,0.2); }
-
-    /* Kathrine — Enchanted Forest Floating Flowers */
-    .theme-kathrine .card-bg-particles {
-      overflow: hidden;
-    }
-    .theme-kathrine .card-bg-particles::before {
-      content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
-      background:
-        radial-gradient(3px 3px at 15% 25%, rgba(236,72,153,0.6), transparent),
-        radial-gradient(4px 4px at 75% 15%, rgba(244,114,182,0.5), transparent),
-        radial-gradient(3px 3px at 85% 65%, rgba(232,121,249,0.4), transparent),
-        radial-gradient(4px 4px at 25% 75%, rgba(251,113,133,0.5), transparent),
-        radial-gradient(3px 3px at 55% 85%, rgba(196,181,253,0.4), transparent),
-        radial-gradient(5px 5px at 40% 40%, rgba(244,114,182,0.3), transparent);
-      animation: petal-glow 6s ease-in-out infinite;
-    }
-    /* Individual floating flower elements — injected by JS */
-    .kathrine-flower {
-      position: absolute; pointer-events: none; z-index: 2;
-      font-size: 1rem; opacity: 0;
-      animation: flower-drift var(--dur, 8s) var(--delay, 0s) ease-in-out infinite;
-    }
-    @keyframes flower-drift {
-      0%   { opacity: 0; transform: translate(0, 0) rotate(0deg) scale(0.6); }
-      15%  { opacity: 0.7; }
-      50%  { opacity: 0.8; transform: translate(var(--dx, 15px), var(--dy, -30px)) rotate(var(--rot, 45deg)) scale(1); }
-      85%  { opacity: 0.5; }
-      100% { opacity: 0; transform: translate(var(--dx2, -10px), var(--dy2, -60px)) rotate(var(--rot2, 90deg)) scale(0.5); }
-    }
-    @keyframes petal-glow {
-      0%, 100% { transform: translateY(0) scale(1); opacity: 0.6; }
-      33% { transform: translateY(-3px) scale(1.02); opacity: 0.8; }
-      66% { transform: translateY(2px) scale(0.98); opacity: 0.7; }
-    }
-
-    /* Enchanted vine border effect */
-    .theme-kathrine::before {
-      background:
-        radial-gradient(ellipse at 30% 50%, rgba(236,72,153,0.25), transparent 60%),
-        radial-gradient(ellipse at 70% 30%, rgba(232,121,249,0.15), transparent 50%),
-        radial-gradient(ellipse at 50% 80%, rgba(251,113,133,0.1), transparent 40%);
-      animation: bloom-pulse 1.8s ease-in-out infinite;
-    }
-
-    /* ── T3: Crimson Royal — Deep Red / Gold / Regal ───────────────── */
-    .theme-royal {
-      background: linear-gradient(160deg, #1a0a04 0%, #2d1308 35%, #1f0c04 65%, #120602 100%);
-      border-color: rgba(220,120,20,0.2);
-    }
-    .theme-royal:hover {
-      transform: translateY(-10px) scale(1.03);
-      box-shadow: 0 20px 60px rgba(217,119,6,0.4), 0 0 100px rgba(245,158,11,0.15), inset 0 1px 0 rgba(245,158,11,0.2);
-      border-color: rgba(245,158,11,0.4);
-    }
-    .theme-royal::before {
-      background: linear-gradient(180deg, transparent 0%, rgba(245,158,11,0.06) 50%, transparent 100%);
-    }
-    .theme-royal:hover::before { opacity: 1; animation: royal-flame 2s ease-in-out infinite; }
-    .theme-royal::after {
-      background: linear-gradient(0deg, rgba(217,119,6,0.08) 0%, transparent 40%);
-    }
-    .theme-royal:hover::after { opacity: 1; }
-    .theme-royal .card-glow { background: radial-gradient(circle, rgba(245,158,11,0.5) 0%, rgba(217,119,6,0.25) 35%, transparent 70%); }
-    .theme-royal .card-avatar { background: linear-gradient(135deg, #b45309, #d97706); border-color: rgba(245,158,11,0.5); box-shadow: 0 0 20px rgba(217,119,6,0.5); }
-    .theme-royal:hover .card-avatar { transform: scale(1.1); box-shadow: 0 0 30px rgba(245,158,11,0.7), 0 0 50px rgba(217,119,6,0.3); }
-    .theme-royal .card-name { font-family: 'Cinzel', serif; font-size: 1.7rem; background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706); -webkit-background-clip: text; background-clip: text; }
-    .theme-royal:hover .card-name { transform: scale(1.06); }
-    .theme-royal .card-theme-label { color: rgba(245,158,11,0.6); font-family: 'Cinzel', serif; }
-    .theme-royal .card-enter-hint { font-family: 'Cinzel', serif; }
-    .theme-royal .card-badge { font-family: 'Cinzel', serif; color: rgba(245,158,11,0.7); border: 1px solid rgba(245,158,11,0.25); }
-    .theme-royal:hover .card-badge { box-shadow: 0 0 10px rgba(245,158,11,0.2); }
-    .theme-royal .ripple { background: rgba(245,158,11,0.2); }
-
-    /* ── T4: Pristine Light — Modern / Warm-Neutral / Clean ─────────── */
-    .theme-light {
-      background: linear-gradient(160deg, #f5f5f5 0%, #fafafa 40%, #f0f0f0 70%, #e8e8e8 100%);
-      border-color: rgba(0,0,0,0.1);
-    }
-    .theme-light .card-content, .theme-light .card-status { color: #6b6b6b; }
-    .theme-aurora .card-content, .theme-aurora .card-status { color: rgba(15,23,42,0.65); }
-    .theme-sandstone .card-content, .theme-sandstone .card-status { color: rgba(45,31,15,0.65); }
-    .theme-light:hover {
-      transform: translateY(-10px) scale(1.04);
-      box-shadow: 0 20px 50px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.08);
-      border-color: rgba(0,0,0,0.2);
-    }
-    .theme-light::before {
-      background: linear-gradient(45deg, transparent 30%, rgba(0,0,0,0.03) 50%, transparent 70%);
-      transform: translateX(-100%) rotate(45deg); transition: none;
-    }
-    .theme-light:hover::before { animation: shimmer-sweep 0.8s ease; }
-    .theme-light::after { background: none; }
-    .theme-light .card-glow { background: radial-gradient(circle, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.03) 40%, transparent 70%); }
-    .theme-light .card-avatar { background: #1a1a1a; border-color: rgba(0,0,0,0.15); box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
-    .theme-light:hover .card-avatar { transform: scale(1.1); box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
-    .theme-light .card-name { font-family: 'Inter', sans-serif; font-size: 1.8rem; font-weight: 600; background: linear-gradient(135deg, #0d0d0d, #4a4a4a); -webkit-background-clip: text; background-clip: text; }
-    .theme-light:hover .card-name { transform: scale(1.06); }
-    .theme-light .card-theme-label { color: #9b9b9b; font-family: 'Inter', sans-serif; }
-    .theme-light .card-enter-hint { color: #b0b0b0; font-family: 'Inter', sans-serif; }
-    .theme-light .card-badge { font-family: 'Inter', sans-serif; color: #6b6b6b; border: 1px solid rgba(0,0,0,0.12); }
-    .theme-light .ripple { background: rgba(0,0,0,0.08); }
-
-    /* ── T5: Midnight Dark — Modern / Warm-Dark / Refined ───────────── */
-    .theme-dark {
-      background: linear-gradient(160deg, #1a1a1a 0%, #212121 40%, #1e1e1e 70%, #151515 100%);
-      border-color: rgba(255,255,255,0.08);
-    }
-    .theme-dark:hover {
-      transform: translateY(-10px) scale(1.03);
-      box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.12);
-      border-color: rgba(255,255,255,0.18);
-    }
-    .theme-dark::before {
-      background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.02) 50%, transparent 70%);
-      transform: translateX(-100%) rotate(45deg); transition: none;
-    }
-    .theme-dark:hover::before { animation: shimmer-sweep 0.8s ease; }
-    .theme-dark::after { background: none; }
-    .theme-dark .card-glow { background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 40%, transparent 70%); }
-    .theme-dark .card-avatar { background: #e8e8e8; border-color: rgba(255,255,255,0.15); box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
-    .theme-dark:hover .card-avatar { transform: scale(1.1); box-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 0 40px rgba(255,255,255,0.05); }
-    .theme-dark .card-name { font-family: 'Inter', sans-serif; font-size: 1.8rem; font-weight: 600; background: linear-gradient(135deg, #ffffff, #b0b0b0); -webkit-background-clip: text; background-clip: text; }
-    .theme-dark:hover .card-name { transform: scale(1.05); }
-    .theme-dark .card-theme-label { color: rgba(255,255,255,0.35); font-family: 'Inter', sans-serif; }
-    .theme-dark .card-enter-hint { font-family: 'Inter', sans-serif; }
-    .theme-dark .card-badge { font-family: 'Inter', sans-serif; color: rgba(255,255,255,0.45); border: 1px solid rgba(255,255,255,0.1); }
-    .theme-dark .ripple { background: rgba(255,255,255,0.1); }
-
-    /* ── T6: Celestial Heaven — Gold / Warm / Divine ────────────────── */
-    .theme-heaven {
-      background: linear-gradient(160deg, #12100a 0%, #1a1608 35%, #15120a 65%, #0e0c06 100%);
-      border-color: rgba(200,169,110,0.2);
-    }
-    .theme-heaven:hover {
-      transform: translateY(-8px) scale(1.03);
-      box-shadow: 0 20px 60px rgba(200,169,110,0.35), 0 0 120px rgba(232,213,163,0.1);
-      border-color: rgba(200,169,110,0.45);
-    }
-    .theme-heaven::before {
-      background: radial-gradient(ellipse at 50% 0%, rgba(232,213,163,0.1) 0%, transparent 60%);
-    }
-    .theme-heaven:hover::before { opacity: 1; animation: halo-glow 2.5s ease-in-out infinite; }
-    .theme-heaven::after {
-      background-image:
-        radial-gradient(1px 1px at 25% 20%, rgba(232,213,163,0.5), transparent),
-        radial-gradient(1.5px 1.5px at 75% 35%, rgba(200,169,110,0.4), transparent),
-        radial-gradient(1px 1px at 50% 70%, rgba(232,213,163,0.3), transparent),
-        radial-gradient(1px 1px at 15% 60%, rgba(251,191,36,0.3), transparent),
-        radial-gradient(1px 1px at 85% 80%, rgba(200,169,110,0.35), transparent);
-      background-size: 100% 100%;
-    }
-    .theme-heaven:hover::after { opacity: 1; animation: sparkle-drift 4s ease-in-out infinite; }
-    .theme-heaven .card-glow { background: radial-gradient(circle, rgba(232,213,163,0.4) 0%, rgba(200,169,110,0.2) 35%, transparent 70%); filter: blur(45px); }
-    .theme-heaven .card-avatar { background: linear-gradient(135deg, #b8952e, #c8a96e); border-color: rgba(200,169,110,0.5); box-shadow: 0 0 20px rgba(200,169,110,0.45); }
-    .theme-heaven:hover .card-avatar { transform: scale(1.08); box-shadow: 0 0 28px rgba(232,213,163,0.6), 0 0 50px rgba(200,169,110,0.25); }
-    .theme-heaven .card-name { font-family: 'Cinzel', serif; font-size: 1.8rem; background: linear-gradient(135deg, #e8d5a3, #c8a96e, #dcc47e); -webkit-background-clip: text; background-clip: text; }
-    .theme-heaven:hover .card-name { transform: scale(1.06); }
-    .theme-heaven .card-theme-label { color: rgba(200,169,110,0.6); font-family: 'Cinzel', serif; }
-    .theme-heaven .card-enter-hint { font-family: 'Cinzel', serif; }
-    .theme-heaven .card-badge { font-family: 'Cinzel', serif; color: rgba(200,169,110,0.65); border: 1px solid rgba(200,169,110,0.25); }
-    .theme-heaven .ripple { background: rgba(200,169,110,0.2); }
-
-    /* ── T7: Rosewood — "Rose & Ember" — Warm rose-gold on charcoal ── */
-    .theme-rosewood {
-      background: linear-gradient(145deg, #0c0912 0%, #1a0f14 50%, #0c0912 100%);
-      border-color: rgba(200,150,120,0.2);
-    }
-    .theme-rosewood:hover {
-      border-color: rgba(200,150,122,0.45);
-      box-shadow: 0 12px 50px rgba(200,150,122,0.25), 0 0 30px rgba(200,150,122,0.1);
-    }
-    .theme-rosewood::before {
-      content: ''; position: absolute; inset: 0; z-index: 3; border-radius: inherit; overflow: hidden;
-      background: linear-gradient(135deg, transparent, rgba(200,150,122,0.2), transparent); opacity: 0;
-    }
-    .theme-rosewood:hover::before { opacity: 1; animation: bloom-pulse 1.8s ease-in-out infinite; }
-    .theme-rosewood::after {
-      content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit;
-      background: radial-gradient(circle at 30% 70%, rgba(200,150,122,0.15) 0%, transparent 60%); opacity: 0;
-    }
-    .theme-rosewood:hover::after { opacity: 1; }
-    .theme-rosewood .card-glow { background: radial-gradient(circle, rgba(200,150,122,0.45) 0%, rgba(232,201,160,0.2) 35%, transparent 70%); }
-    .theme-rosewood .card-avatar { background: linear-gradient(135deg, #a07058, #c8967a); border-color: rgba(200,150,122,0.5); box-shadow: 0 0 20px rgba(200,150,122,0.45); }
-    .theme-rosewood:hover .card-avatar { transform: scale(1.1) rotate(-2deg); box-shadow: 0 0 30px rgba(200,150,122,0.6), 0 0 55px rgba(232,201,160,0.2); }
-    .theme-rosewood .card-name { font-family: 'Cinzel', serif; font-size: 1.8rem; background: linear-gradient(135deg, #e8c9a0, #c8967a, #dbb99a); -webkit-background-clip: text; background-clip: text; }
-    .theme-rosewood:hover .card-name { transform: scale(1.06); }
-    .theme-rosewood .card-theme-label { color: rgba(200,150,122,0.6); font-family: 'Cinzel', serif; }
-    .theme-rosewood .card-enter-hint { font-family: 'Cinzel', serif; }
-    .theme-rosewood .card-badge { font-family: 'Cinzel', serif; color: rgba(200,150,122,0.65); border: 1px solid rgba(200,150,122,0.25); }
-    .theme-rosewood .ripple { background: rgba(200,150,122,0.2); }
-
-    /* ── T8: Ocean — "Deep Tide" — Teal-emerald on near-black ──────── */
-    .theme-ocean {
-      background: linear-gradient(145deg, #060d10 0%, #0a1a1e 50%, #060d10 100%);
-      border-color: rgba(20,184,166,0.2);
-    }
-    .theme-ocean:hover {
-      border-color: rgba(20,184,166,0.45);
-      box-shadow: 0 12px 50px rgba(20,184,166,0.2), 0 0 30px rgba(20,184,166,0.08);
-    }
-    .theme-ocean::before {
-      content: ''; position: absolute; inset: 0; z-index: 3; border-radius: inherit; overflow: hidden;
-      background: linear-gradient(135deg, transparent, rgba(20,184,166,0.15), transparent); opacity: 0;
-    }
-    .theme-ocean:hover::before { opacity: 1; animation: shimmer-sweep 0.8s ease; }
-    .theme-ocean::after {
-      content: ''; position: absolute; inset: 0; z-index: 1; border-radius: inherit;
-      background: radial-gradient(circle at 60% 80%, rgba(45,212,191,0.12) 0%, transparent 60%); opacity: 0;
-    }
-    .theme-ocean:hover::after { opacity: 1; }
-    .theme-ocean .card-glow { background: radial-gradient(circle, rgba(20,184,166,0.45) 0%, rgba(45,212,191,0.2) 35%, transparent 70%); }
-    .theme-ocean .card-avatar { background: linear-gradient(135deg, #0d9488, #14b8a6); border-color: rgba(20,184,166,0.5); box-shadow: 0 0 20px rgba(20,184,166,0.45); }
-    .theme-ocean:hover .card-avatar { transform: scale(1.1); box-shadow: 0 0 30px rgba(20,184,166,0.6), 0 0 55px rgba(45,212,191,0.2); }
-    .theme-ocean .card-name { font-family: 'Space Grotesk', sans-serif; font-size: 1.8rem; font-weight: 600; background: linear-gradient(135deg, #5eead4, #2dd4bf, #14b8a6); -webkit-background-clip: text; background-clip: text; }
-    .theme-ocean:hover .card-name { transform: scale(1.05); }
-    .theme-ocean .card-theme-label { color: rgba(20,184,166,0.6); font-family: 'Space Grotesk', sans-serif; }
-    .theme-ocean .card-enter-hint { font-family: 'Space Grotesk', sans-serif; }
-    .theme-ocean .card-badge { font-family: 'Space Grotesk', sans-serif; color: rgba(20,184,166,0.6); border: 1px solid rgba(20,184,166,0.2); }
-    .theme-ocean .ripple { background: rgba(20,184,166,0.2); }
-
-    /* ── T9: Forest — "Enchanted Forest" — Deep emerald & gold, mystical woodland ── */
-    .theme-forest {
-      background: linear-gradient(160deg, #0a1510 0%, #132a1e 30%, #0f1a14 60%, #0d1810 100%);
-      border-color: rgba(92,184,138,0.2);
-      overflow: visible;
-    }
-    .theme-forest:hover {
-      transform: translateY(-12px) scale(1.04);
-      box-shadow:
-        0 20px 60px rgba(92,184,138,0.3),
-        0 0 80px rgba(92,184,138,0.1),
-        0 0 120px rgba(200,168,78,0.06),
-        inset 0 1px 0 rgba(200,168,78,0.15);
-      border-color: rgba(92,184,138,0.45);
-    }
-    /* Mossy vine glow overlay */
-    .theme-forest::before {
-      background: radial-gradient(ellipse at 50% 100%, rgba(92,184,138,0.15) 0%, transparent 60%);
-    }
-    .theme-forest:hover::before { opacity: 1; animation: forest-card-breathe 2.5s ease-in-out infinite; }
-    /* Firefly dots on card */
-    .theme-forest::after {
-      background-image:
-        radial-gradient(2px 2px at 18% 22%, rgba(200,168,78,0.8), transparent),
-        radial-gradient(1.5px 1.5px at 75% 35%, rgba(200,168,78,0.7), transparent),
-        radial-gradient(2px 2px at 40% 70%, rgba(200,168,78,0.6), transparent),
-        radial-gradient(1.5px 1.5px at 85% 65%, rgba(92,184,138,0.5), transparent),
-        radial-gradient(2px 2px at 25% 85%, rgba(200,168,78,0.7), transparent),
-        radial-gradient(1px 1px at 60% 15%, rgba(92,184,138,0.6), transparent),
-        radial-gradient(1.5px 1.5px at 50% 50%, rgba(200,168,78,0.5), transparent);
-      background-size: 100% 100%;
-    }
-    .theme-forest:hover::after { opacity: 1; animation: forest-firefly-dance 4s ease-in-out infinite; }
-    .theme-forest .card-glow { background: radial-gradient(circle, rgba(92,184,138,0.4) 0%, rgba(200,168,78,0.15) 40%, transparent 70%); filter: blur(45px); }
-    .theme-forest .card-avatar {
-      background: linear-gradient(135deg, #2d6a4f, #52b788);
-      border-color: rgba(92,184,138,0.5);
-      box-shadow: 0 0 20px rgba(92,184,138,0.45), 0 0 40px rgba(200,168,78,0.1);
-    }
-    .theme-forest:hover .card-avatar {
-      transform: scale(1.12);
-      box-shadow: 0 0 30px rgba(92,184,138,0.7), 0 0 60px rgba(200,168,78,0.2), 0 0 80px rgba(92,184,138,0.15);
-    }
-    .theme-forest .card-name {
-      font-family: 'Crimson Pro', serif;
-      font-size: 2rem; font-weight: 700;
-      background: linear-gradient(135deg, #95d5b2, #c8a84e, #52b788);
-      -webkit-background-clip: text; background-clip: text;
-    }
-    .theme-forest:hover .card-name { transform: scale(1.06); }
-    .theme-forest .card-theme-label { color: rgba(200,168,78,0.6); font-family: 'Crimson Pro', serif; font-style: italic; }
-    .theme-forest .card-enter-hint { font-family: 'Crimson Pro', serif; letter-spacing: 0.15em; }
-    .theme-forest .card-badge { font-family: 'Crimson Pro', serif; font-size: 0.6rem; color: rgba(200,168,78,0.7); border: 1px solid rgba(200,168,78,0.25); }
-    .theme-forest:hover .card-badge { box-shadow: 0 0 12px rgba(200,168,78,0.2); }
-    .theme-forest .card-circuit {
-      background:
-        linear-gradient(90deg, transparent 10%, rgba(92,184,138,0.08) 10%, rgba(92,184,138,0.08) 11%, transparent 11%,
-          transparent 35%, rgba(200,168,78,0.06) 35%, rgba(200,168,78,0.06) 36%, transparent 36%,
-          transparent 60%, rgba(92,184,138,0.06) 60%, rgba(92,184,138,0.06) 61%, transparent 61%,
-          transparent 85%, rgba(200,168,78,0.05) 85%, rgba(200,168,78,0.05) 86%, transparent 86%);
-    }
-    .theme-forest .ripple { background: rgba(92,184,138,0.2); }
-
-    /* Floating CSS-drawn particles that drift off the card on hover */
-    .theme-forest .card-bg-particles {
-      overflow: visible;
-    }
-    /* CSS leaf shape — green teardrop that floats up-left */
-    .theme-forest .card-bg-particles::before {
-      content: '';
-      position: absolute;
-      width: 14px; height: 14px;
-      top: 50%; left: 20%;
-      background: rgba(92,184,138,0.7);
-      border-radius: 0 50% 50% 50%;
-      transform: rotate(45deg);
-      opacity: 0;
-      pointer-events: none;
-      z-index: 5;
-      box-shadow: 0 0 6px rgba(92,184,138,0.4);
-      transition: opacity 0.3s;
-    }
-    .theme-forest:hover .card-bg-particles::before {
-      opacity: 1;
-      animation: forest-leaf-rise-1 3s ease-out infinite;
-    }
-    /* CSS flower shape — golden dot with petal glow that floats up-right */
-    .theme-forest .card-bg-particles::after {
-      content: '';
-      position: absolute;
-      width: 10px; height: 10px;
-      top: 40%; right: 15%;
-      background: radial-gradient(circle, rgba(200,168,78,0.9) 30%, rgba(200,168,78,0.3) 60%, transparent 70%);
-      border-radius: 50%;
-      opacity: 0;
-      pointer-events: none;
-      z-index: 5;
-      box-shadow:
-        -5px -3px 0 2px rgba(200,168,78,0.25),
-        5px -3px 0 2px rgba(200,168,78,0.25),
-        0px 5px 0 2px rgba(200,168,78,0.25),
-        -4px 4px 0 2px rgba(200,168,78,0.2),
-        4px 4px 0 2px rgba(200,168,78,0.2);
-      transition: opacity 0.3s;
-    }
-    .theme-forest:hover .card-bg-particles::after {
-      opacity: 1;
-      animation: forest-leaf-rise-2 3.5s ease-out infinite 0.4s;
-    }
-
-    /* CSS butterfly — two wing shapes via box-shadows, flutters upward */
-    .theme-forest:hover .card-circuit::before {
-      content: '';
-      position: absolute;
-      width: 6px; height: 3px;
-      bottom: 100%; left: 40%;
-      background: rgba(92,184,138,0.8);
-      border-radius: 50%;
-      opacity: 0;
-      pointer-events: none;
-      z-index: 6;
-      box-shadow:
-        -5px -2px 0 3px rgba(92,184,138,0.5),
-        5px -2px 0 3px rgba(92,184,138,0.5),
-        -4px 2px 0 2px rgba(200,168,78,0.4),
-        4px 2px 0 2px rgba(200,168,78,0.4);
-      animation: forest-butterfly-rise 4s ease-in-out infinite 0.8s;
-    }
-    /* CSS sparkle — 4-pointed star shape that rises */
-    .theme-forest:hover .card-circuit::after {
-      content: '';
-      position: absolute;
-      width: 4px; height: 4px;
-      bottom: 100%; right: 25%;
-      background: rgba(200,168,78,0.9);
-      border-radius: 50%;
-      opacity: 0;
-      pointer-events: none;
-      z-index: 6;
-      box-shadow:
-        0 0 4px 2px rgba(200,168,78,0.6),
-        0 -6px 0 -1px rgba(200,168,78,0.5),
-        0 6px 0 -1px rgba(200,168,78,0.5),
-        -6px 0 0 -1px rgba(200,168,78,0.5),
-        6px 0 0 -1px rgba(200,168,78,0.5);
-      animation: forest-sparkle-up 2.5s ease-out infinite 0.2s;
-    }
-
-    /* Forest card hover animations — CSS-drawn shapes */
-    @keyframes forest-card-breathe {
-      0%, 100% { opacity: 0.6; transform: scale(1); }
-      50% { opacity: 1; transform: scale(1.01); }
-    }
-    @keyframes forest-firefly-dance {
-      0%, 100% { background-position: 0% 0%; opacity: 0.8; }
-      25% { background-position: 2% -2%; opacity: 1; }
-      50% { background-position: -1% 1%; opacity: 0.6; }
-      75% { background-position: 1% -1%; opacity: 0.9; }
-    }
-    @keyframes forest-leaf-rise-1 {
-      0% { transform: translate(0, 0) rotate(45deg) scale(1); opacity: 0.8; }
-      30% { transform: translate(-25px, -40px) rotate(20deg) scale(1.1); opacity: 1; }
-      60% { transform: translate(-40px, -80px) rotate(-5deg) scale(0.9); opacity: 0.6; }
-      100% { transform: translate(-20px, -130px) rotate(-30deg) scale(0.7); opacity: 0; }
-    }
-    @keyframes forest-leaf-rise-2 {
-      0% { transform: translate(0, 0) scale(1); opacity: 0.7; }
-      25% { transform: translate(20px, -35px) scale(1.2); opacity: 1; }
-      55% { transform: translate(35px, -75px) scale(0.9); opacity: 0.5; }
-      100% { transform: translate(15px, -120px) scale(0.6); opacity: 0; }
-    }
-    @keyframes forest-butterfly-rise {
-      0% { transform: translate(0, 0) scaleX(1); opacity: 0; }
-      10% { opacity: 0.9; }
-      25% { transform: translate(15px, -30px) scaleX(0.4); opacity: 1; }
-      40% { transform: translate(-10px, -55px) scaleX(1); }
-      55% { transform: translate(20px, -80px) scaleX(0.5); }
-      70% { transform: translate(5px, -100px) scaleX(1); opacity: 0.6; }
-      85% { transform: translate(-15px, -115px) scaleX(0.6); opacity: 0.3; }
-      100% { transform: translate(10px, -135px) scaleX(1); opacity: 0; }
-    }
-    @keyframes forest-sparkle-up {
-      0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
-      20% { transform: translate(5px, -20px) scale(1.3); opacity: 1; }
-      50% { transform: translate(-5px, -50px) scale(0.8); opacity: 0.7; }
-      80% { transform: translate(8px, -80px) scale(1.1); opacity: 0.3; }
-      100% { transform: translate(0, -100px) scale(0.5); opacity: 0; }
-    }
-
-    /* ── T10: Neon Tokyo — Cyberpunk / Electric / Arcade ──────────── */
-    .theme-neon {
-      background: linear-gradient(160deg, #06060e 0%, #0a0a18 40%, #080814 70%, #040408 100%);
-      border-color: rgba(255,45,123,0.25);
-    }
-    .theme-neon:hover {
-      transform: translateY(-12px) scale(1.03);
-      box-shadow: 0 20px 60px rgba(255,45,123,0.45), 0 0 80px rgba(0,240,255,0.2), inset 0 1px 0 rgba(0,240,255,0.25);
-      border-color: rgba(0,240,255,0.5);
-    }
-    /* Scanline overlay */
-    .theme-neon::before {
-      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,240,255,0.025) 2px, rgba(0,240,255,0.025) 4px);
-    }
-    .theme-neon:hover::before { opacity: 1; }
-    /* Pixel grid bg */
-    .theme-neon::after {
-      background-image:
-        linear-gradient(rgba(255,45,123,0.06) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,240,255,0.06) 1px, transparent 1px);
-      background-size: 22px 22px;
-    }
-    .theme-neon:hover::after { opacity: 1; }
-    .theme-neon .card-glow { background: radial-gradient(circle, rgba(255,45,123,0.55) 0%, rgba(0,240,255,0.2) 35%, transparent 70%); }
-    .theme-neon .card-avatar {
-      background: linear-gradient(135deg, #ff2d7b, #00f0ff);
-      border-color: rgba(0,240,255,0.5); box-shadow: 0 0 20px rgba(255,45,123,0.55);
-    }
-    .theme-neon:hover .card-avatar { transform: scale(1.1); box-shadow: 0 0 32px rgba(255,45,123,0.75), 0 0 60px rgba(0,240,255,0.3); }
-    .theme-neon .card-name {
-      font-family: 'Orbitron', monospace; font-size: 1.28rem; font-weight: 700;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      background: linear-gradient(135deg, #ff2d7b, #ff80ab, #00f0ff);
-      -webkit-background-clip: text; background-clip: text;
-    }
-    .theme-neon:hover .card-name { letter-spacing: 0.18em; transform: scale(1.04); }
-    .theme-neon .card-theme-label { color: rgba(0,240,255,0.6); font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.12em; }
-    .theme-neon .card-enter-hint { font-family: 'Space Grotesk', sans-serif; color: rgba(0,240,255,0.5); }
-    .theme-neon .card-badge { font-family: 'Orbitron', monospace; font-size: 0.5rem; letter-spacing: 0.14em; color: rgba(0,240,255,0.8); border: 1px solid rgba(0,240,255,0.3); }
-    .theme-neon:hover .card-badge { box-shadow: 0 0 10px rgba(0,240,255,0.35); }
-    .theme-neon .ripple { background: rgba(0,240,255,0.2); }
-    .theme-neon .card-circuit {
-      background: linear-gradient(90deg,
-        transparent 5%, rgba(255,45,123,0.18) 5%, rgba(255,45,123,0.18) 5.5%, transparent 5.5%,
-        transparent 25%, rgba(0,240,255,0.14) 25%, rgba(0,240,255,0.14) 25.5%, transparent 25.5%,
-        transparent 45%, rgba(255,45,123,0.12) 45%, rgba(255,45,123,0.12) 45.5%, transparent 45.5%,
-        transparent 65%, rgba(0,240,255,0.14) 65%, rgba(0,240,255,0.14) 65.5%, transparent 65.5%,
-        transparent 85%, rgba(255,45,123,0.1) 85%, rgba(255,45,123,0.1) 85.5%, transparent 85.5%);
-    }
-
-    /* ── T11: Velvet Noir — Art Deco / Film Noir / Smoky Jazz ──────── */
-    .theme-noir {
-      background: linear-gradient(160deg, #0e0e1a 0%, #1a1825 40%, #141320 70%, #0a0a14 100%);
-      border-color: rgba(212,175,55,0.18);
-    }
-    .theme-noir:hover {
-      transform: translateY(-10px) scale(1.03);
-      box-shadow: 0 20px 60px rgba(212,175,55,0.3), 0 0 80px rgba(92,42,62,0.2), inset 0 1px 0 rgba(212,175,55,0.2);
-      border-color: rgba(212,175,55,0.5);
-    }
-    /* Art deco shimmer sweep */
-    .theme-noir::before {
-      background: linear-gradient(45deg, transparent 30%, rgba(212,175,55,0.12) 50%, transparent 70%);
-      transform: translateX(-100%) rotate(45deg); transition: none;
-    }
-    .theme-noir:hover::before { animation: shimmer-sweep 0.75s ease; }
-    /* Gold dust particles */
-    .theme-noir::after {
-      background-image:
-        radial-gradient(1px 1px at 20% 30%, rgba(212,175,55,0.45), transparent),
-        radial-gradient(1px 1px at 62% 14%, rgba(184,150,46,0.35), transparent),
-        radial-gradient(1.5px 1.5px at 80% 55%, rgba(212,175,55,0.4), transparent),
-        radial-gradient(1px 1px at 35% 70%, rgba(255,220,100,0.28), transparent),
-        radial-gradient(1px 1px at 70% 80%, rgba(212,175,55,0.32), transparent),
-        radial-gradient(1px 1px at 14% 85%, rgba(184,150,46,0.22), transparent);
-      background-size: 100% 100%;
-    }
-    .theme-noir:hover::after { opacity: 1; animation: sparkle-drift 4s ease-in-out infinite; }
-    .theme-noir .card-glow { background: radial-gradient(circle, rgba(212,175,55,0.45) 0%, rgba(92,42,62,0.35) 40%, transparent 70%); filter: blur(45px); }
-    .theme-noir .card-avatar {
-      background: linear-gradient(135deg, #5c2a3e, #d4af37);
-      border-color: rgba(212,175,55,0.5); box-shadow: 0 0 20px rgba(212,175,55,0.4);
-    }
-    .theme-noir:hover .card-avatar { transform: scale(1.08); box-shadow: 0 0 30px rgba(212,175,55,0.65), 0 0 50px rgba(92,42,62,0.35); }
-    .theme-noir .card-name {
-      font-family: 'Cormorant Garamond', serif; font-size: 2.1rem; font-weight: 600;
-      background: linear-gradient(135deg, #f0d060, #d4af37, #b8962e);
-      -webkit-background-clip: text; background-clip: text;
-    }
-    .theme-noir:hover .card-name { transform: scale(1.06); letter-spacing: 0.06em; }
-    .theme-noir .card-theme-label { color: rgba(212,175,55,0.6); font-family: 'Crimson Pro', serif; font-style: italic; letter-spacing: 0.1em; }
-    .theme-noir .card-enter-hint { font-family: 'Crimson Pro', serif; font-style: italic; color: rgba(212,175,55,0.5); }
-    .theme-noir .card-badge { font-family: 'Crimson Pro', serif; font-style: italic; font-size: 0.65rem; color: rgba(212,175,55,0.7); border: 1px solid rgba(212,175,55,0.28); }
-    .theme-noir:hover .card-badge { box-shadow: 0 0 10px rgba(212,175,55,0.2); }
-    .theme-noir .ripple { background: rgba(212,175,55,0.15); }
-    .theme-noir .card-circuit {
-      background: linear-gradient(90deg,
-        transparent 8%, rgba(212,175,55,0.18) 8%, rgba(212,175,55,0.18) 8.5%, transparent 8.5%,
-        transparent 28%, rgba(92,42,62,0.2) 28%, rgba(92,42,62,0.2) 28.5%, transparent 28.5%,
-        transparent 50%, rgba(212,175,55,0.14) 50%, rgba(212,175,55,0.14) 50.5%, transparent 50.5%,
-        transparent 72%, rgba(92,42,62,0.16) 72%, rgba(92,42,62,0.16) 72.5%, transparent 72.5%,
-        transparent 90%, rgba(212,175,55,0.1) 90%, rgba(212,175,55,0.1) 90.5%, transparent 90.5%);
-    }
-
-    /* ── T12: Arctic Aurora — Glacial navy, aurora borealis green/violet, frosted glass ── */
-    .theme-arctic {
-      background: linear-gradient(160deg, #0a1628 0%, #0d1f3a 35%, #0b1830 65%, #071020 100%);
-      border-color: rgba(67,232,177,0.2);
-    }
-    .theme-arctic:hover {
-      transform: translateY(-12px) scale(1.04);
-      box-shadow:
-        0 20px 60px rgba(67,232,177,0.3),
-        0 0 80px rgba(164,142,250,0.15),
-        0 0 120px rgba(67,232,177,0.08),
-        inset 0 1px 0 rgba(67,232,177,0.2);
-      border-color: rgba(67,232,177,0.5);
-    }
-    /* Aurora gradient sweep */
-    .theme-arctic::before {
-      background: linear-gradient(
-        135deg,
-        transparent 20%,
-        rgba(67,232,177,0.15) 35%,
-        rgba(164,142,250,0.12) 50%,
-        rgba(67,232,177,0.1) 65%,
-        transparent 80%
-      );
-      background-size: 300% 300%;
-    }
-    .theme-arctic:hover::before { opacity: 1; animation: arctic-card-aurora 3s ease-in-out infinite; }
-    /* Frosted ice particle dots */
-    .theme-arctic::after {
-      background-image:
-        radial-gradient(1.5px 1.5px at 20% 25%, rgba(67,232,177,0.6), transparent),
-        radial-gradient(1px 1px at 70% 18%, rgba(164,142,250,0.5), transparent),
-        radial-gradient(2px 2px at 45% 65%, rgba(109,213,192,0.5), transparent),
-        radial-gradient(1px 1px at 80% 50%, rgba(67,232,177,0.4), transparent),
-        radial-gradient(1.5px 1.5px at 30% 80%, rgba(164,142,250,0.45), transparent),
-        radial-gradient(1px 1px at 60% 85%, rgba(67,232,177,0.35), transparent);
-      background-size: 100% 100%;
-    }
-    .theme-arctic:hover::after { opacity: 1; animation: sparkle-drift 4s ease-in-out infinite; }
-    .theme-arctic .card-glow { background: radial-gradient(circle, rgba(67,232,177,0.5) 0%, rgba(164,142,250,0.2) 40%, transparent 70%); filter: blur(50px); }
-    .theme-arctic .card-avatar {
-      background: linear-gradient(135deg, #43e8b1, #a48efa);
-      border-color: rgba(67,232,177,0.5);
-      box-shadow: 0 0 20px rgba(67,232,177,0.5), 0 0 40px rgba(164,142,250,0.15);
-    }
-    .theme-arctic:hover .card-avatar {
-      transform: scale(1.12);
-      box-shadow: 0 0 30px rgba(67,232,177,0.7), 0 0 60px rgba(164,142,250,0.3), 0 0 80px rgba(67,232,177,0.15);
-    }
-    .theme-arctic .card-name {
-      font-family: 'Rajdhani', sans-serif; font-size: 1.7rem; font-weight: 700;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      background: linear-gradient(135deg, #43e8b1, #6dd5c0, #a48efa);
-      -webkit-background-clip: text; background-clip: text;
-    }
-    .theme-arctic:hover .card-name { letter-spacing: 0.14em; transform: scale(1.05); }
-    .theme-arctic .card-theme-label { color: rgba(67,232,177,0.6); font-family: 'Rajdhani', sans-serif; letter-spacing: 0.1em; }
-    .theme-arctic .card-enter-hint { font-family: 'Rajdhani', sans-serif; color: rgba(67,232,177,0.5); letter-spacing: 0.15em; }
-    .theme-arctic .card-badge { font-family: 'Rajdhani', sans-serif; font-size: 0.6rem; letter-spacing: 0.12em; color: rgba(67,232,177,0.7); border: 1px solid rgba(67,232,177,0.25); }
-    .theme-arctic:hover .card-badge { box-shadow: 0 0 12px rgba(67,232,177,0.3); }
-    .theme-arctic .card-circuit {
-      background: linear-gradient(90deg,
-        transparent 10%, rgba(67,232,177,0.1) 10%, rgba(67,232,177,0.1) 10.5%, transparent 10.5%,
-        transparent 35%, rgba(164,142,250,0.08) 35%, rgba(164,142,250,0.08) 35.5%, transparent 35.5%,
-        transparent 60%, rgba(67,232,177,0.08) 60%, rgba(67,232,177,0.08) 60.5%, transparent 60.5%,
-        transparent 85%, rgba(164,142,250,0.06) 85%, rgba(164,142,250,0.06) 85.5%, transparent 85.5%);
-    }
-    .theme-arctic .ripple { background: rgba(67,232,177,0.2); }
-    /* Arctic card hover: ice crystal + aurora wisp particles */
-    .theme-arctic .card-bg-particles { overflow: visible; }
-    .theme-arctic .card-bg-particles::before {
-      content: '';
-      position: absolute;
-      width: 8px; height: 8px;
-      top: 45%; left: 25%;
-      background: rgba(67,232,177,0.8);
-      clip-path: polygon(50% 0%, 61% 35%, 100% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 0% 35%, 39% 35%);
-      opacity: 0; pointer-events: none; z-index: 5;
-      filter: drop-shadow(0 0 4px rgba(67,232,177,0.6));
-      transition: opacity 0.3s;
-    }
-    .theme-arctic:hover .card-bg-particles::before {
-      opacity: 1;
-      animation: forest-sparkle-up 3s ease-out infinite;
-    }
-    .theme-arctic .card-bg-particles::after {
-      content: '';
-      position: absolute;
-      width: 10px; height: 10px;
-      top: 35%; right: 20%;
-      background: rgba(164,142,250,0.8);
-      clip-path: polygon(50% 0%, 61% 35%, 100% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 0% 35%, 39% 35%);
-      opacity: 0; pointer-events: none; z-index: 5;
-      filter: drop-shadow(0 0 4px rgba(164,142,250,0.5));
-      transition: opacity 0.3s;
-    }
-    .theme-arctic:hover .card-bg-particles::after {
-      opacity: 1;
-      animation: forest-leaf-rise-2 3.5s ease-out infinite 0.5s;
-    }
-    @keyframes arctic-card-aurora {
-      0%   { background-position: 0% 0%; opacity: 0.7; }
-      33%  { background-position: 50% 100%; opacity: 1; }
-      66%  { background-position: 100% 50%; opacity: 0.8; }
-      100% { background-position: 0% 0%; opacity: 0.7; }
-    }
-
-    /* ── T13a: Aurora — Light frosted glass, cyan + violet aurora ── */
-    @keyframes aurora-card-sweep {
-      0%   { background-position: 0% 0%; }
-      50%  { background-position: 100% 100%; }
-      100% { background-position: 0% 0%; }
-    }
-    .theme-aurora {
-      background: linear-gradient(160deg, #f0f4f8 0%, #e8edf5 35%, #eff6ff 65%, #f0f4f8 100%);
-      border-color: rgba(6,182,212,0.25);
-      color: #1e293b;
-    }
-    .theme-aurora:hover {
-      transform: translateY(-12px) scale(1.04);
-      box-shadow:
-        0 28px 60px rgba(6,182,212,0.15),
-        0 8px 24px rgba(129,140,248,0.12),
-        0 0 0 1px rgba(6,182,212,0.2);
-    }
-    .theme-aurora::before {
-      background: linear-gradient(135deg,
-        rgba(6,182,212,0.2) 0%, rgba(129,140,248,0.25) 35%,
-        rgba(6,182,212,0.15) 65%, rgba(129,140,248,0.2) 100%);
-      background-size: 300% 300%;
-    }
-    .theme-aurora:hover::before { opacity: 1; animation: aurora-card-sweep 4s ease-in-out infinite; }
-    .theme-aurora::after {
-      background-image:
-        radial-gradient(2px 2px at 20% 25%, rgba(6,182,212,0.5), transparent),
-        radial-gradient(1.5px 1.5px at 55% 15%, rgba(129,140,248,0.5), transparent),
-        radial-gradient(2px 2px at 75% 50%, rgba(6,182,212,0.4), transparent),
-        radial-gradient(1px 1px at 35% 70%, rgba(129,140,248,0.4), transparent),
-        radial-gradient(2px 2px at 82% 80%, rgba(6,182,212,0.45), transparent);
-      background-size: 100% 100%;
-    }
-    .theme-aurora:hover::after { opacity: 1; animation: sparkle-drift 4s ease-in-out infinite; }
-    .theme-aurora .card-glow { background: radial-gradient(circle, rgba(6,182,212,0.35) 0%, rgba(129,140,248,0.2) 40%, transparent 70%); filter: blur(50px); }
-    .theme-aurora .card-avatar {
-      background: linear-gradient(135deg, #06b6d4, #818cf8);
-      border-color: rgba(6,182,212,0.4);
-      box-shadow: 0 0 20px rgba(6,182,212,0.4), 0 0 40px rgba(129,140,248,0.15);
-    }
-    .theme-aurora:hover .card-avatar {
-      transform: scale(1.12);
-      box-shadow: 0 0 30px rgba(6,182,212,0.6), 0 0 60px rgba(129,140,248,0.25);
-    }
-    .theme-aurora .card-name {
-      font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.75rem; font-weight: 700;
-      background: linear-gradient(135deg, #0891b2, #818cf8, #06b6d4);
-      -webkit-background-clip: text; background-clip: text;
-    }
-    .theme-aurora:hover .card-name { letter-spacing: 0.04em; transform: scale(1.04); }
-    .theme-aurora .card-theme-label { color: rgba(6,182,212,0.7); font-family: 'Plus Jakarta Sans', sans-serif; }
-    .theme-aurora .card-enter-hint { font-family: 'Plus Jakarta Sans', sans-serif; color: rgba(6,182,212,0.55); }
-    .theme-aurora .card-badge { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.6rem; color: rgba(6,182,212,0.8); border: 1px solid rgba(6,182,212,0.25); }
-    .theme-aurora:hover .card-badge { box-shadow: 0 0 10px rgba(6,182,212,0.25); }
-    .theme-aurora .card-status-dot { border-color: #e8edf5; }
-    .theme-aurora .card-circuit {
-      background: linear-gradient(90deg,
-        transparent 10%, rgba(6,182,212,0.1) 10%, rgba(6,182,212,0.1) 10.5%, transparent 10.5%,
-        transparent 40%, rgba(129,140,248,0.08) 40%, rgba(129,140,248,0.08) 40.5%, transparent 40.5%,
-        transparent 70%, rgba(6,182,212,0.08) 70%, rgba(6,182,212,0.08) 70.5%, transparent 70.5%);
-    }
-    .theme-aurora .ripple { background: rgba(6,182,212,0.18); }
-
-    /* ── T13: Sandstone Dusk — warm sand, terracotta, Lora/Playfair (LIGHT) ── */
-    .theme-sandstone {
-      background: linear-gradient(160deg, #f5ede0 0%, #ede4d4 30%, #f0e8d8 60%, #faf5ee 100%);
-      border-color: rgba(194,113,58,0.25);
-      color: #2d1f0f;
-    }
-    .theme-sandstone:hover {
-      transform: translateY(-10px) scale(1.03);
-      box-shadow:        0 20px 60px rgba(196,99,42,0.3),
-        0 0 80px rgba(212,168,67,0.12),
-        inset 0 1px 0 rgba(212,168,67,0.15);
-      border-color: rgba(196,99,42,0.5);
-    }
-    /* Warm golden shimmer sweep */
-    .theme-sandstone::before {
-      background: linear-gradient(45deg, transparent 30%, rgba(194,113,58,0.15) 50%, transparent 70%);
-      transform: translateX(-100%) rotate(45deg); transition: none;
-    }
-    .theme-sandstone:hover::before { animation: shimmer-sweep 0.8s ease; }
-    /* Warm ember particles */
-    .theme-sandstone::after {
-      background-image:
-        radial-gradient(1.5px 1.5px at 22% 28%, rgba(194,113,58,0.5), transparent),
-        radial-gradient(1px 1px at 65% 20%, rgba(212,168,67,0.45), transparent),
-        radial-gradient(1.5px 1.5px at 78% 55%, rgba(196,99,42,0.4), transparent),
-        radial-gradient(1px 1px at 40% 72%, rgba(212,168,67,0.35), transparent),
-        radial-gradient(1px 1px at 85% 78%, rgba(196,99,42,0.3), transparent),
-        radial-gradient(1px 1px at 18% 82%, rgba(212,168,67,0.28), transparent);
-      background-size: 100% 100%;
-    }
-    .theme-sandstone:hover::after { opacity: 1; animation: sparkle-drift 4s ease-in-out infinite; }
-    .theme-sandstone .card-glow { background: radial-gradient(circle, rgba(194,113,58,0.3) 0%, rgba(212,168,80,0.15) 35%, transparent 70%); filter: blur(45px); }
-    .theme-sandstone .card-avatar {
-      background: linear-gradient(135deg, #c2713a, #d4874e);
-      border-color: rgba(194,113,58,0.4);
-      box-shadow: 0 0 20px rgba(194,113,58,0.3), 0 0 40px rgba(212,168,80,0.1);
-    }
-    .theme-sandstone:hover .card-avatar {
-      transform: scale(1.1);
-      box-shadow: 0 0 30px rgba(194,113,58,0.5), 0 0 55px rgba(212,168,80,0.2);
-    }
-    .theme-sandstone .card-name {
-      font-family: 'Playfair Display', Georgia, serif; font-size: 2rem; font-weight: 700; font-style: italic;
-      background: linear-gradient(135deg, #8a4a20, #c2713a, #d4874e);
-      -webkit-background-clip: text; background-clip: text;
-    }
-    .theme-sandstone:hover .card-name { transform: scale(1.06); }
-    .theme-sandstone .card-theme-label { color: rgba(194,113,58,0.7); font-family: 'Lora', Georgia, serif; font-style: italic; letter-spacing: 0.08em; }
-    .theme-sandstone .card-enter-hint { font-family: 'Lora', Georgia, serif; font-style: italic; color: rgba(194,113,58,0.6); }
-    .theme-sandstone .card-badge { font-family: 'Lora', Georgia, serif; font-style: italic; font-size: 0.65rem; color: rgba(194,113,58,0.8); border: 1px solid rgba(194,113,58,0.3); }
-    .theme-sandstone:hover .card-badge { box-shadow: 0 0 10px rgba(194,113,58,0.2); }
-    .theme-sandstone .card-status-dot { border-color: #f5ede0; }
-    .theme-sandstone .card-circuit {
-      background: linear-gradient(90deg,
-        transparent 12%, rgba(194,113,58,0.1) 12%, rgba(194,113,58,0.1) 12.5%, transparent 12.5%,
-        transparent 38%, rgba(212,168,67,0.08) 38%, rgba(212,168,67,0.08) 38.5%, transparent 38.5%,
-        transparent 62%, rgba(196,99,42,0.07) 62%, rgba(196,99,42,0.07) 62.5%, transparent 62.5%,
-        transparent 88%, rgba(212,168,67,0.06) 88%, rgba(212,168,67,0.06) 88.5%, transparent 88.5%);
-    }
-    .theme-sandstone .ripple { background: rgba(194,113,58,0.15); }
-
+    
     /* ── Select header ───────────────────────────────────────────────── */
     .select-header {
-      text-align: center; margin-bottom: 1.5rem;
+      text-align: center; margin-bottom: 2rem;
       animation: fadeUp 0.5s cubic-bezier(0.34,1.2,0.64,1) both;
     }
     .select-header h2 {
-      font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 600;
-      color: rgba(226,217,243,0.55); letter-spacing: 0.08em; text-transform: uppercase;
+      font-family: 'Orbitron', monospace; font-size: 0.85rem; font-weight: 700;
+      color: rgba(226,217,243,0.65); letter-spacing: 0.3em; text-transform: uppercase;
     }
-    .select-header p { color: var(--muted); font-size: 0.8rem; margin-top: 0.3rem; }
+    .select-header h2::after {
+      content: ''; display: block;
+      width: 40px; height: 1px; margin: 0.8rem auto 0;
+      background: linear-gradient(90deg, transparent, rgba(124,58,237,0.4), transparent);
+    }
+    .select-header p {
+      font-family: 'Space Grotesk', sans-serif;
+      color: var(--muted); font-size: 0.7rem; margin-top: 0.7rem;
+      letter-spacing: 0.1em;
+    }
 
     /* ── Animations ─────────────────────────────────────────────────── */
     @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
@@ -1068,22 +404,40 @@
   <script src="/js/censor.js" defer></script>
 </head>
 <body>
-  <canvas id="canvas"></canvas>
+  <!-- ── Background ─────────────────────────────────────────────────── -->
+  <div class="gate-bg">
+    <div class="grid-overlay"></div>
+  </div>
 
   <!-- ── PASSWORD SCREEN ─────────────────────────────────────────────── -->
   <div id="pw-screen" class="screen">
-    <div class="glass">
+    <div class="gate-container">
+      <!-- Portal Rings -->
+      <div class="portal-wrap">
+        <div class="portal-glow"></div>
+        <div class="ring ring-outer"></div>
+        <div class="ring ring-mid"></div>
+        <div class="ring ring-inner"></div>
+        <div class="ring-core">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+      </div>
+
+      <!-- Title -->
       <div class="vault-title">
-        <span class="crown">👑</span>
-        <h1>The Royal Kat<br>&amp; Kai Vault</h1>
-        <p>Private &amp; Encrypted</p>
+        <h1>Royal Vault</h1>
+        <div class="vault-subtitle">Private &middot; Encrypted &middot; Sovereign</div>
       </div>
-      <div class="input-wrap">
-        <input type="password" id="pw-input" placeholder="Enter vault password…" autocomplete="off" autofocus>
-        <button class="eye-btn" id="eye-btn" title="Toggle visibility"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
+
+      <!-- Password Input -->
+      <div class="gate-input">
+        <div class="input-field-wrap">
+          <input type="password" id="pw-input" placeholder="Enter password..." autocomplete="off" autofocus>
+          <button class="eye-btn" id="eye-btn" title="Toggle visibility"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
+          <button class="unlock-btn" id="pw-btn" title="Unlock"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        </div>
+        <div class="error-msg hidden" id="pw-error">Incorrect password</div>
       </div>
-      <button class="btn-submit" id="pw-btn">Unlock Vault</button>
-      <div class="error-msg hidden" id="pw-error">Incorrect password. Try again.</div>
     </div>
   </div>
 
@@ -1091,44 +445,40 @@
   <div id="profile-screen" class="screen hidden">
     <div>
       <div class="select-header">
-        <h2>Who are you?</h2>
-        <p>Select your profile to enter the vault</p>
+        <h2>Select Profile</h2>
+        <p>Choose your identity to enter the vault</p>
       </div>
       <div class="profile-grid">
         <!-- Kaliph -->
-        <div class="profile-card" id="card-kaliph" data-profile="kaliph">
-          <div class="card-bg-particles"></div>
-          <div class="card-glow"></div>
-          <div class="card-badge" id="kaliph-badge"></div>
-          <div class="card-circuit"></div>
-          <div class="card-content">
+        <div class="profile-card" id="card-kaliph" data-profile="kaliph" data-accent="kaliph">
+          <div class="card-ring-wrap">
+            <div class="card-ring card-ring-outer"></div>
+            <div class="card-ring card-ring-inner"></div>
             <div class="card-avatar" id="kaliph-avatar">K</div>
-            <div class="card-name">Kaliph</div>
-            <div class="card-theme-label" id="kaliph-theme-label" style="display:none"></div>
-            <div class="card-status">
-              <span class="status-dot" id="kaliph-status-dot"></span>
-              <span id="kaliph-status-text">Online</span>
-            </div>
           </div>
-          <div class="card-enter-hint">Click to enter →</div>
+          <div class="card-name">Kaliph</div>
+          <div class="card-theme-label" id="kaliph-theme-label" style="display:none"></div>
+          <div class="card-status">
+            <span class="status-dot" id="kaliph-status-dot"></span>
+            <span id="kaliph-status-text">Online</span>
+          </div>
+          <div class="card-enter-hint">Enter</div>
         </div>
 
         <!-- Kathrine -->
-        <div class="profile-card" id="card-kathrine" data-profile="kathrine">
-          <div class="card-bg-particles"></div>
-          <div class="card-glow"></div>
-          <div class="card-badge" id="kathrine-badge"></div>
-          <div class="card-circuit"></div>
-          <div class="card-content">
+        <div class="profile-card" id="card-kathrine" data-profile="kathrine" data-accent="kathrine">
+          <div class="card-ring-wrap">
+            <div class="card-ring card-ring-outer"></div>
+            <div class="card-ring card-ring-inner"></div>
             <div class="card-avatar" id="kathrine-avatar">K</div>
-            <div class="card-name">Kathrine</div>
-            <div class="card-theme-label" id="kathrine-theme-label" style="display:none"></div>
-            <div class="card-status">
-              <span class="status-dot" id="kathrine-status-dot"></span>
-              <span id="kathrine-status-text">Online</span>
-            </div>
           </div>
-          <div class="card-enter-hint">Click to enter →</div>
+          <div class="card-name">Kathrine</div>
+          <div class="card-theme-label" id="kathrine-theme-label" style="display:none"></div>
+          <div class="card-status">
+            <span class="status-dot" id="kathrine-status-dot"></span>
+            <span id="kathrine-status-text">Online</span>
+          </div>
+          <div class="card-enter-hint">Enter</div>
         </div>
       </div>
     </div>
@@ -1231,67 +581,6 @@
   "></div>
 
   <script>
-    // ── Particle background ──────────────────────────────────────────
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    let W, H, particles = [];
-
-    function resize() {
-      W = canvas.width  = window.innerWidth;
-      H = canvas.height = window.innerHeight;
-    }
-    resize();
-    window.addEventListener('resize', resize);
-
-    class Particle {
-      constructor() { this.reset(); }
-      reset() {
-        this.x = Math.random() * W; this.y = Math.random() * H;
-        this.r = Math.random() * 1.5 + 0.5;
-        this.vx = (Math.random() - 0.5) * 0.3; this.vy = (Math.random() - 0.5) * 0.3;
-        this.a = Math.random(); this.da = (Math.random() - 0.5) * 0.005;
-        const c = [[124,58,237],[59,130,246],[192,132,252]];
-        this.color = c[Math.floor(Math.random() * c.length)];
-      }
-      update() {
-        this.x += this.vx; this.y += this.vy;
-        this.a += this.da;
-        if (this.a <= 0 || this.a >= 1) this.da *= -1;
-        if (this.x < 0 || this.x > W || this.y < 0 || this.y > H) this.reset();
-      }
-      draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${this.color[0]},${this.color[1]},${this.color[2]},${this.a})`;
-        ctx.fill();
-      }
-    }
-
-    for (let i = 0; i < 120; i++) particles.push(new Particle());
-
-    function animate() {
-      ctx.clearRect(0, 0, W, H);
-      particles.forEach(p => { p.update(); p.draw(); });
-      // Draw lines between close particles
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx*dx + dy*dy);
-          if (dist < 100) {
-            ctx.strokeStyle = `rgba(124,58,237,${0.1 * (1 - dist/100)})`;
-            ctx.lineWidth = 0.5;
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.stroke();
-          }
-        }
-      }
-      requestAnimationFrame(animate);
-    }
-    animate();
-
     // ── Eye toggle ──────────────────────────────────────────────────
     const pwInput = document.getElementById('pw-input');
     const eyeBtn  = document.getElementById('eye-btn');
@@ -1299,8 +588,8 @@
       const show = pwInput.type === 'password';
       pwInput.type = show ? 'text' : 'password';
       eyeBtn.innerHTML = show
-        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
-        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+        ? '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+        : '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
     });
 
     // ── Password submit ─────────────────────────────────────────────
@@ -1308,11 +597,12 @@
     const pwError = document.getElementById('pw-error');
     const pwScreen      = document.getElementById('pw-screen');
     const profileScreen = document.getElementById('profile-screen');
+    const chevronSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
 
     async function tryPassword() {
       const pw = pwInput.value.trim();
-      if (!pw) return shake(document.querySelector('.glass'));
-      pwBtn.innerHTML = '<span class="spinner"></span>Unlocking…';
+      if (!pw) return shake(document.querySelector('.gate-input'));
+      pwBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.49-8.49l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93"/></svg>';
       pwBtn.classList.add('loading');
       pwError.classList.add('hidden');
 
@@ -1322,26 +612,39 @@
         body: JSON.stringify({ password: pw })
       });
       const data = await r.json();
-      pwBtn.innerHTML = 'Unlock Vault';
+      pwBtn.innerHTML = chevronSvg;
       pwBtn.classList.remove('loading');
 
       if (data.success) {
         if (data.isGuest) {
-          // Store guest name and redirect
           sessionStorage.setItem('guestName', data.guestName);
           doTransition(() => window.location.href = '/guest');
         } else {
-          // Show profile select
-          pwScreen.classList.add('hidden');
-          profileScreen.classList.remove('hidden');
-          loadUserPreviews();
-          loadProfileLocks();
-          spawnKathrineFlowers();
+          // Portal open animation → profile select
+          const gate = document.querySelector('.gate-container');
+          gate.classList.add('unlocking');
+          // Brighten background
+          const bg = document.querySelector('.gate-bg');
+          bg.style.transition = 'opacity 0.8s';
+          bg.style.opacity = '1.5';
+          setTimeout(() => {
+            pwScreen.classList.add('hidden');
+            profileScreen.classList.remove('hidden');
+            bg.style.opacity = '';
+            loadUserPreviews();
+            loadProfileLocks();
+            spawnKathrineFlowers();
+          }, 750);
         }
       } else {
-        pwError.textContent = data.error || 'Incorrect password.';
+        pwError.textContent = data.error || 'Incorrect password';
         pwError.classList.remove('hidden');
-        shake(document.querySelector('.glass'));
+        shake(document.querySelector('.gate-input'));
+        // Flash rings red briefly
+        document.querySelectorAll('.ring').forEach(r => {
+          r.style.borderColor = 'rgba(248,113,113,0.4)';
+          setTimeout(() => r.style.borderColor = '', 600);
+        });
         pwInput.value = '';
         pwInput.focus();
       }
@@ -1350,51 +653,11 @@
     pwBtn.addEventListener('click', tryPassword);
     pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryPassword(); });
 
-    // ── Kathrine enchanted forest — floating flowers ───────────────
-    function spawnKathrineFlowers() {
-      const container = document.querySelector('#card-kathrine .card-bg-particles');
-      if (!container || container.querySelector('.kathrine-flower')) return;
-      const flowers = ['🌸', '🌺', '🌷', '🪻', '🌹', '💮', '🌼'];
-      const count = 10;
-      for (let i = 0; i < count; i++) {
-        const el = document.createElement('span');
-        el.className = 'kathrine-flower';
-        el.textContent = flowers[Math.floor(Math.random() * flowers.length)];
-        const x = 10 + Math.random() * 80;   // 10-90% left
-        const y = 10 + Math.random() * 80;   // 10-90% top
-        const dur = 5 + Math.random() * 6;   // 5-11s cycle
-        const delay = Math.random() * -10;    // stagger start
-        const dx = -20 + Math.random() * 40;
-        const dy = -25 + Math.random() * -15;
-        const dx2 = -15 + Math.random() * 30;
-        const dy2 = -50 + Math.random() * -20;
-        const rot = 20 + Math.random() * 120;
-        const rot2 = 60 + Math.random() * 180;
-        const size = 0.7 + Math.random() * 0.6;
-        el.style.cssText = `left:${x}%;top:${y}%;font-size:${size}rem;--dur:${dur}s;--delay:${delay}s;--dx:${dx}px;--dy:${dy}px;--dx2:${dx2}px;--dy2:${dy2}px;--rot:${rot}deg;--rot2:${rot2}deg;`;
-        container.appendChild(el);
-      }
-    }
+    // ── Kathrine flowers (disabled in new card design) ──────────────
+    function spawnKathrineFlowers() { /* no-op — ring cards don't use flower particles */ }
 
     // ── Load user data for profile cards ───────────────────────────
-    // Theme badge labels
-    const themeBadges = {
-      kaliph:   'AVNT',
-      kathrine: '♛ Royal',
-      royal:    '⚔ Crimson',
-      light:    '◇ Pristine',
-      dark:     '◆ Midnight',
-      heaven:   '✦ Celestial',
-      rosewood: '✿ Rose & Ember',
-      ocean:    '≋ Deep Tide',
-      forest:   '🍄 Enchanted',
-      neon:     '⚡ NEON',
-      noir:     '◈ Noir',
-      arctic:   '❄ Arctic',
-      aurora:   '❄ Arctic Aurora',
-      sandstone:'🏜 Sandstone Dusk',
-    };
-    // Theme colors — used for passcode overlay styling
+    // Theme colors — used for passcode overlay styling + card accents
     const themeColors = {
       kaliph:   { bg: '#080c1e', accent: '#4f46e5', accent2: '#818cf8', glow: 'rgba(79,70,229,0.3)', border: 'rgba(79,70,229,0.25)' },
       kathrine: { bg: '#0d0716', accent: '#8b5cf6', accent2: '#c084fc', glow: 'rgba(139,92,246,0.3)', border: 'rgba(139,92,246,0.25)' },
@@ -1423,45 +686,41 @@
           const u = users[name];
           if (!u) return;
           const card = document.getElementById('card-' + name);
-          const theme = u.theme || 'dark';
+          const theme = u.theme || name;
 
-          // Apply the theme class — this controls ALL visual styling
-          // Remove any existing theme class first
-          card.className = card.className.replace(/\btheme-\w+/g, '').trim();
-          card.classList.add('profile-card', 'theme-' + theme);
-
-          // Set the badge text based on theme
-          const badge = document.getElementById(name + '-badge');
-          if (badge) badge.textContent = themeBadges[theme] || theme;
+          // Set accent via data attribute (drives CSS custom properties)
+          card.setAttribute('data-accent', theme);
 
           // Avatar
           if (u.avatar) {
             document.getElementById(name + '-avatar').innerHTML = `<img src="${u.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
           }
 
-          // Status text: show custom status if set, otherwise just presence
+          // Custom status label
           const label = document.getElementById(name + '-theme-label');
           label.textContent = u.customStatus || '';
           label.style.display = u.customStatus ? '' : 'none';
 
-          // Presence — use _presence from server: 'online' | 'idle' | 'offline'
+          // Presence
           var presence = u._presence || 'offline';
+          var dot = document.getElementById(name + '-status-dot');
+          var txt = document.getElementById(name + '-status-text');
           if (presence === 'online') {
-            document.getElementById(name + '-status-dot').style.background = getStatusColor('online');
-            document.getElementById(name + '-status-dot').style.boxShadow = '0 0 8px ' + getStatusColor('online');
-            document.getElementById(name + '-status-text').textContent = 'Online';
+            dot.style.background = getStatusColor('online');
+            dot.style.boxShadow = '0 0 8px ' + getStatusColor('online');
+            txt.textContent = 'Online';
           } else if (presence === 'idle') {
-            document.getElementById(name + '-status-dot').style.background = getStatusColor('idle');
-            document.getElementById(name + '-status-dot').style.boxShadow = '0 0 8px ' + getStatusColor('idle');
-            document.getElementById(name + '-status-text').textContent = 'Idle';
+            dot.style.background = getStatusColor('idle');
+            dot.style.boxShadow = '0 0 8px ' + getStatusColor('idle');
+            txt.textContent = 'Idle';
           } else if (u.lastSeen) {
-            document.getElementById(name + '-status-dot').style.background = getStatusColor('invisible');
-            document.getElementById(name + '-status-dot').style.boxShadow = '0 0 8px ' + getStatusColor('invisible');
-            document.getElementById(name + '-status-text').textContent = formatLastSeen(u.lastSeen);
+            dot.style.background = getStatusColor('invisible');
+            dot.style.boxShadow = '0 0 8px ' + getStatusColor('invisible');
+            txt.textContent = formatLastSeen(u.lastSeen);
           } else {
-            document.getElementById(name + '-status-dot').style.background = getStatusColor('invisible');
-            document.getElementById(name + '-status-dot').style.boxShadow = '0 0 8px ' + getStatusColor('invisible');
-            document.getElementById(name + '-status-text').textContent = 'Offline';
+            dot.style.background = getStatusColor('invisible');
+            dot.style.boxShadow = '0 0 8px ' + getStatusColor('invisible');
+            txt.textContent = 'Offline';
           }
         });
       } catch {}
@@ -1502,8 +761,8 @@
         ['kaliph', 'kathrine'].forEach(p => {
           const hint = document.getElementById('card-' + p)?.querySelector('.card-enter-hint');
           if (!hint) return;
-          if (profileNeedsReset[p]) hint.textContent = '🔑 Reset Required';
-          else if (profileLocks[p]) hint.textContent = '🔒 Locked';
+          if (profileNeedsReset[p]) hint.textContent = 'Reset Required';
+          else if (profileLocks[p]) hint.textContent = 'Locked';
         });
       } catch {}
     }
