@@ -213,12 +213,6 @@
   user-select: none;
 }
 
-/* ── Announcements content ────────────────────────────────────────── */
-.censor-active #section-announcements .announcement-body {
-  filter: blur(5px);
-  user-select: none;
-}
-
 /* ══════════════════════════════════════════════════════════════════
    K-108 — .censor-active on body
    ══════════════════════════════════════════════════════════════════ */

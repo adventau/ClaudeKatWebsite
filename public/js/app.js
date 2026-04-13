@@ -225,9 +225,8 @@ async function init() {
   // Reveal chat immediately — don't wait for secondary data
   document.body.classList.add('app-loaded');
 
-  // Load everything else in background — notes, contacts, guests, announcements
-  Promise.all([loadAnnouncements(), loadNotes(), loadContacts(), loadGuestMessages()])
-    .then(() => checkAndShowAnnouncements())
+  // Load everything else in background — notes, contacts, guests
+  Promise.all([loadNotes(), loadContacts(), loadGuestMessages()])
     .catch(console.error);
   if (!stealthMode) requestNotificationPermission();
 
@@ -593,7 +592,6 @@ function showSection(name, el) {
   if (name === 'calendar')  renderCalendar();
   if (name === 'contacts')  loadContacts();
   if (name === 'vault')     { if (!vaultPasscode) resetVault(); else refreshVault(); }
-  if (name === 'announcements') loadAnnouncements();
   if (name === 'briefing') loadBriefing();
   if (name === 'reminders') loadReminders();
   if (name === 'authenticator') initTotpSection();
@@ -2657,12 +2655,6 @@ function setupSocketEvents() {
     }
   });
 
-  socket.on('announcement', ann => {
-    if (ann.targetUser === 'both' || ann.targetUser === currentUser) {
-      showBanner(ann);
-    }
-  });
-
   socket.on('brainstorm-msg', msg => {
     brainstormMessages.push(msg);
     const area = document.getElementById('brainstorm-messages');
@@ -4355,78 +4347,6 @@ async function editContact(id) {
     if (window.lucide) lucide.createIcons();
     openModal('new-contact-modal');
   }, 200);
-}
-
-// ── Announcements ─────────────────────────────────────────────────────
-async function loadAnnouncements() {
-  const anns = await fetch('/api/announcements').then(r => r.json());
-  const list = document.getElementById('announcements-list');
-  if (!list) return;
-  if (!anns.length) {
-    list.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="megaphone" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">No announcements</div></div>';if(window.lucide)lucide.createIcons();
-    return;
-  }
-  list.innerHTML = anns.filter(a => a.active).map(a => `
-    <div class="announcement-card">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem">
-        <div style="flex:1">
-          <div class="announcement-card-title">${a.title}</div>
-          <div class="announcement-card-content">${a.content}</div>
-          <div class="announcement-card-meta">Posted by ${capitalize(a.createdBy)} · ${formatDate(a.createdAt)}</div>
-        </div>
-        <button class="btn-icon" onclick="deleteAnnouncement('${a.id}')" title="Dismiss" style="color:#ef4444;flex-shrink:0"><i data-lucide="trash-2"></i></button>
-      </div>
-    </div>`).join('');
-  if (window.lucide) lucide.createIcons();
-}
-
-function checkAndShowAnnouncements() {
-  fetch('/api/announcements').then(r => r.json()).then(anns => {
-    const dismissed = JSON.parse(localStorage.getItem('dismissedAnnouncements') || '[]');
-    const relevant = anns.filter(a => a.active && (a.targetUser === 'both' || a.targetUser === currentUser) && !dismissed.includes(a.id));
-    if (relevant.length > 0) {
-      showBanner(relevant[0]);
-      SoundSystem.notify();
-    }
-  });
-}
-
-function showBanner(ann) {
-  const banner = document.getElementById('announcement-banner');
-  document.getElementById('banner-title').textContent = ann.title;
-  document.getElementById('banner-content').textContent = ann.content;
-  banner.dataset.annId = ann.id;
-  banner.classList.add('show');
-  setTimeout(() => banner.classList.remove('show'), 8000);
-}
-
-function closeBanner() {
-  const banner = document.getElementById('announcement-banner');
-  const annId = banner.dataset.annId;
-  if (annId) {
-    const dismissed = JSON.parse(localStorage.getItem('dismissedAnnouncements') || '[]');
-    if (!dismissed.includes(annId)) dismissed.push(annId);
-    localStorage.setItem('dismissedAnnouncements', JSON.stringify(dismissed));
-  }
-  banner.classList.remove('show');
-}
-
-async function postAnnouncement() {
-  const title = document.getElementById('ann-title').value.trim();
-  const content = document.getElementById('ann-content').value.trim();
-  if (!title || !content) return showToast('⚠️ Title and content required');
-  await fetch('/api/announcements', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, content, targetUser: getCustomSelectValue('ann-target') || 'both' })
-  });
-  closeModal('new-announcement-modal');
-  await loadAnnouncements();
-  showToast('📢 Announcement posted!');
-}
-
-async function deleteAnnouncement(id) {
-  await fetch(`/api/announcements/${id}`, { method: 'DELETE' });
-  await loadAnnouncements();
 }
 
 // ── Guest Messages ────────────────────────────────────────────────────
@@ -8195,7 +8115,6 @@ const CHANGELOG = [
       { icon: '🛠️', title: 'Admin & Eval', items: [
         { name: 'Stealth Browse', desc: 'Inspect user data without touching lastSeen or read receipts.' },
         { name: 'Eval Unsend', desc: 'Flag messages as unsendable — bypasses the 3-minute limit.' },
-        { name: 'Announcement Dismiss', desc: 'Both users can now dismiss any announcement.' },
       ]},
     ],
     fixes: [
