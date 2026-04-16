@@ -523,6 +523,32 @@ app.post('/api/auth/profile', async (req, res) => {
   });
 });
 
+// Mobile login — combines site auth + profile selection in one step (iOS app)
+app.post('/api/auth/mobile-login', async (req, res) => {
+  const { user, pin } = req.body;
+  if (!['kaliph', 'kathrine'].includes(user)) return res.json({ success: false, error: 'Invalid user' });
+  const users = rd(F.users);
+  const profile = users[user];
+  if (profile && profile.profilePasscode) {
+    if (!pin) return res.json({ success: false, needsPasscode: true });
+    const match = await checkPasscode(pin, profile.profilePasscode);
+    if (!match) return res.json({ success: false, error: 'Incorrect passcode' });
+    if (!profile.profilePasscode.startsWith('$2b$') && !profile.profilePasscode.startsWith('$2a$')) {
+      users[user].profilePasscode = await bcrypt.hash(pin, 10);
+      wd(F.users, users);
+    }
+  }
+  delete req.session.isGuest;
+  delete req.session.guestId;
+  req.session.authenticated = true;
+  req.session.user = user;
+  req.session.loginTime = Date.now();
+  req.session.save(err => {
+    if (err) return res.status(500).json({ error: 'Session error' });
+    res.json({ success: true });
+  });
+});
+
 // Check which profiles have passcodes enabled (for login page)
 app.get('/api/auth/profile-locks', (req, res) => {
   if (!req.session.authenticated) return res.status(401).json({ error: 'Not authenticated' });
