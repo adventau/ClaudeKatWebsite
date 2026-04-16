@@ -558,6 +558,49 @@ app.post('/api/auth/profile-reset', async (req, res) => {
   res.json({ success: true });
 });
 
+// Mobile app login — trusted iOS clients skip site password
+const mobileLoginAttempts = {};
+app.post('/api/auth/mobile-login', async (req, res) => {
+  const { user, pin } = req.body;
+  if (!['kaliph', 'kathrine'].includes(user)) return res.status(401).json({ error: 'Invalid PIN' });
+
+  // Rate limiting: 5 attempts per user, 10 minute lockout
+  const now = Date.now();
+  const record = mobileLoginAttempts[user] || { count: 0, lockedUntil: 0 };
+  if (record.lockedUntil > now) {
+    return res.status(429).json({ error: 'Too many attempts. Try again later.' });
+  }
+  if (record.count >= 5) {
+    record.lockedUntil = now + 10 * 60 * 1000;
+    record.count = 0;
+    mobileLoginAttempts[user] = record;
+    return res.status(429).json({ error: 'Too many attempts. Try again later.' });
+  }
+
+  const users = rd(F.users);
+  const u = users[user];
+  if (!u || !u.profilePasscode) return res.status(401).json({ error: 'Invalid PIN' });
+
+  const match = await checkPasscode(pin, u.profilePasscode);
+  if (!match) {
+    record.count = (record.count || 0) + 1;
+    mobileLoginAttempts[user] = record;
+    return res.status(401).json({ error: 'Invalid PIN' });
+  }
+
+  // Success — reset attempts and create session
+  delete mobileLoginAttempts[user];
+  delete req.session.isGuest;
+  delete req.session.guestId;
+  req.session.authenticated = true;
+  req.session.user = user;
+  req.session.loginTime = Date.now();
+  req.session.save(err => {
+    if (err) return res.status(500).json({ error: 'Session error' });
+    res.json({ success: true, user });
+  });
+});
+
 // Set or remove profile passcode
 app.post('/api/auth/profile-passcode', mainAuth, async (req, res) => {
   const { passcode } = req.body;
