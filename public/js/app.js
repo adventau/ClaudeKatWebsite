@@ -1099,17 +1099,20 @@ function renderMessages(filter = null) {
     area.appendChild(buildMsgElement(msg, grouped));
   });
 
-  // Scroll to bottom — always open at the latest message
+  // Scroll to bottom — always open at the latest message, unless we jumped to
+  // an old message (in which case scrollToMessage will position us).
   requestAnimationFrame(() => {
-    area.scrollTop = area.scrollHeight;
+    if (!_jumpMode) {
+      area.scrollTop = area.scrollHeight;
 
-    // Re-scroll after any images load so they don't push content below the view
-    area.querySelectorAll('img').forEach(img => {
-      if (!img.complete) {
-        img.addEventListener('load',  () => { area.scrollTop = area.scrollHeight; }, { once: true });
-        img.addEventListener('error', () => { area.scrollTop = area.scrollHeight; }, { once: true });
-      }
-    });
+      // Re-scroll after any images load so they don't push content below the view
+      area.querySelectorAll('img').forEach(img => {
+        if (!img.complete) {
+          img.addEventListener('load',  () => { if (!_jumpMode) area.scrollTop = area.scrollHeight; }, { once: true });
+          img.addEventListener('error', () => { if (!_jumpMode) area.scrollTop = area.scrollHeight; }, { once: true });
+        }
+      });
+    }
 
     updateJumpBtnState();
     setupLoadMoreObserver();
@@ -7033,6 +7036,8 @@ async function scrollToMessage(id, timestamp) {
         // Replace current messages with the "around" batch
         allMessages = data.filter(m => !(m.type === 'call-event' && m.callPeer && guestData.some(g => g.name === m.callPeer)));
         hasMoreMessages = true; // assume there are older msgs beyond this batch
+        // Enter jump mode BEFORE rendering so renderMessages' rAF doesn't auto-scroll to bottom
+        _enterJumpMode();
         renderMessages();
         setupLoadMoreObserver();
         el = document.getElementById('msg-' + id);
@@ -7044,11 +7049,15 @@ async function scrollToMessage(id, timestamp) {
   }
 
   if (el) {
-    el.scrollIntoView({ behavior: 'instant', block: 'center' });
-    el.classList.add('msg-highlight');
-    setTimeout(() => el.classList.remove('msg-highlight'), 2500);
-    // Only enter jump mode if we loaded a fresh batch of old messages
-    if (loadedNewBatch) _enterJumpMode();
+    // Defer to next frame so we run after renderMessages' post-render rAF
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'instant', block: 'center' });
+      el.classList.add('msg-highlight');
+      setTimeout(() => el.classList.remove('msg-highlight'), 2500);
+    });
+  } else if (loadedNewBatch) {
+    // Target not in the fetched batch — bail out of jump mode so we don't leave a sticky banner
+    exitJumpMode();
   }
 }
 
