@@ -3881,6 +3881,27 @@ function evalAuth(req, res) {
   return true;
 }
 
+// ── Eval UI theme persistence (shared across all devices/browsers) ──
+// GET is intentionally unauthenticated so the saved theme can be applied
+// on the auth screen before login. The value is a harmless UI preference.
+app.get('/api/eval/ui-theme', (_req, res) => {
+  const s = rd(F.settings);
+  const theme = (s && s.evalUiTheme) || 'hacker';
+  res.json({ theme });
+});
+
+app.post('/api/eval/ui-theme', (req, res) => {
+  if (!evalAuth(req, res)) return;
+  const theme = String(req.body.theme || '').toLowerCase();
+  if (!['hacker', 'cyber', 'amber'].includes(theme)) {
+    return res.status(400).json({ error: 'Invalid theme' });
+  }
+  const s = rd(F.settings) || {};
+  s.evalUiTheme = theme;
+  wd(F.settings, s);
+  res.json({ ok: true, theme });
+});
+
 app.post('/api/eval/exec', async (req, res) => {
   if (!evalAuth(req, res)) return;
   const { command, mode, previewUser } = req.body;
