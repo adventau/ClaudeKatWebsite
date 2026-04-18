@@ -355,34 +355,35 @@
   --panel-header:  rgba(4, 10, 18, 0.8);
 }
 
-/* ── Sandstone — Sandstone Dusk ─────────────────────────────────────────── */
-[data-theme="sandstone"] {
-  --bg-primary:    #120e08;
-  --bg-secondary:  #1c1710;
-  --bg-surface:    rgba(214, 162, 84, 0.07);
-  --bg-overlay:    rgba(18, 14, 8, 0.97);
-  --accent:        #d6a254;
-  --accent-light:  #f0c984;
-  --accent-dark:   #a87a30;
-  --accent-rgb:    214, 162, 84;
-  --text-primary:  #fdf6e8;
-  --text-secondary:#e8ca8e;
-  --text-muted:    #7a6238;
-  --border:        rgba(214, 162, 84, 0.2);
-  --border-strong: rgba(214, 162, 84, 0.4);
-  --shadow:        0 4px 20px rgba(214, 162, 84, 0.2);
-  --bubble-self:   linear-gradient(135deg, #a87a30, #7a5820);
-  --bubble-other:  rgba(255, 255, 255, 0.06);
-  --bubble-self-text: #fff;
+/* ── Obsidian — Onyx Signature ─────────────────────────────────────────── */
+[data-theme="obsidian"] {
+  --bg-primary:    #08080a;
+  --bg-secondary:  #0b0b0e;
+  --bg-surface:    rgba(201, 184, 138, 0.05);
+  --bg-overlay:    rgba(8, 8, 10, 0.97);
+  --accent:        #c9b88a;
+  --accent-light:  #e8e4dc;
+  --accent-dark:   #8a7c5c;
+  --accent-rgb:    201, 184, 138;
+  --text-primary:  #e8e4dc;
+  --text-secondary:#8a867d;
+  --text-muted:    #54524c;
+  --border:        rgba(201, 184, 138, 0.12);
+  --border-strong: rgba(201, 184, 138, 0.28);
+  --shadow:        0 8px 32px rgba(0, 0, 0, 0.5);
+  --bubble-self:   #141418;
+  --bubble-other:  #0d0d11;
+  --bubble-self-text: var(--text-primary);
   --bubble-other-text: var(--text-primary);
-  --font-heading:  'Cormorant Garamond', Georgia, serif;
-  --font-body:     'Inter', -apple-system, sans-serif;
-  --nav-bg:        rgba(10, 8, 4, 0.9);
-  --nav-border:    rgba(214, 162, 84, 0.15);
-  --nav-active:    rgba(214, 162, 84, 0.12);
-  --nav-icon-active: #f0c984;
-  --title-bg:      rgba(10, 8, 4, 0.92);
-  --input-bg:      rgba(214, 162, 84, 0.05);
-  --priority-color:#ef4444;
-  --panel-header:  rgba(14, 10, 6, 0.8);
+  --font-heading:  'Fraunces', Georgia, serif;
+  --font-body:     'Inter Tight', -apple-system, sans-serif;
+  --nav-bg:        rgba(8, 8, 10, 0.9);
+  --nav-border:    rgba(201, 184, 138, 0.10);
+  --nav-active:    rgba(201, 184, 138, 0.08);
+  --nav-icon-active: #c9b88a;
+  --title-bg:      rgba(8, 8, 10, 0.92);
+  --input-bg:      #0c0c10;
+  --priority-color:#b06a5a;
+  --panel-header:  rgba(11, 11, 14, 0.8);
 }
+

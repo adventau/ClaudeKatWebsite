@@ -258,27 +258,54 @@ const SoundSystem = (() => {
       share_off:  { type: 'sine', freqs: [1319, 1047], dur: 0.08, gain: 0.05 },
     },
 
-    // ── SANDSTONE: Sandstone Dusk — Warm, resonant, deep triangle/sine, singing bowls ──
-    sandstone: {
-      keystroke:  { type: 'triangle', freq: [280, 310, 260], dur: 0.06, gain: 0.06, detune: 12 },
-      send:       { type: 'triangle', freqs: [220, 277, 349, 440], dur: 0.4, gain: 0.1 },
-      recv:       { type: 'sine', freqs: [196, 262], dur: 0.45, gain: 0.09 },
-      error:      { type: 'triangle', freqs: [130, 98], dur: 0.3, gain: 0.09 },
-      notif:      { type: 'triangle', freqs: [349, 440, 523, 587], dur: 0.55, gain: 0.1 },
-      navigate:   { type: 'triangle', freqs: [262, 349], dur: 0.1, gain: 0.05 },
-      modal_open: { type: 'sine', freqs: [220, 330, 440], dur: 0.18, gain: 0.06 },
-      modal_close:{ type: 'sine', freqs: [349, 220], dur: 0.12, gain: 0.05 },
-      toggle:     { type: 'triangle', freqs: [277, 370], dur: 0.08, gain: 0.05 },
-      success:    { type: 'triangle', freqs: [277, 349, 440, 523], dur: 0.2, gain: 0.07 },
-      delete_snd: { type: 'triangle', freqs: [294, 196], dur: 0.15, gain: 0.06 },
-      ring_out:   { type: 'triangle', freqs: [220, 294], dur: 0.55, gain: 0.08, gap: 0.25 },
-      ring_in:    { type: 'triangle', freqs: [294, 370, 440, 523], dur: 0.3, gain: 0.09, gap: 0.2 },
-      hangup:     { type: 'triangle', freqs: [349, 220, 165], dur: 0.25, gain: 0.08 },
-      mute:       { type: 'triangle', freqs: [220, 165], dur: 0.12, gain: 0.06 },
-      unmute:     { type: 'triangle', freqs: [220, 349], dur: 0.12, gain: 0.07 },
-      share_on:   { type: 'triangle', freqs: [277, 349, 440], dur: 0.15, gain: 0.07 },
-      share_off:  { type: 'triangle', freqs: [349, 277], dur: 0.12, gain: 0.06 },
+    // ── OBSIDIAN: Onyx Signature — Restrained, architectural, pure sine hairlines ──
+    obsidian: {
+      keystroke:  { type: 'sine', freq: [520, 540, 500], dur: 0.028, gain: 0.035, detune: 6 },
+      send:       { type: 'sine', freqs: [440, 660, 880], dur: 0.22, gain: 0.07 },
+      recv:       { type: 'sine', freqs: [587, 784], dur: 0.28, gain: 0.07 },
+      error:      { type: 'sine', freqs: [220, 165], dur: 0.22, gain: 0.07 },
+      notif:      { type: 'sine', freqs: [659, 880, 1047], dur: 0.42, gain: 0.08 },
+      navigate:   { type: 'sine', freqs: [523, 698], dur: 0.08, gain: 0.04 },
+      modal_open: { type: 'sine', freqs: [392, 587], dur: 0.14, gain: 0.05 },
+      modal_close:{ type: 'sine', freqs: [587, 392], dur: 0.1, gain: 0.04 },
+      toggle:     { type: 'sine', freqs: [523, 698], dur: 0.06, gain: 0.04 },
+      success:    { type: 'sine', freqs: [523, 698, 880], dur: 0.16, gain: 0.06 },
+      delete_snd: { type: 'sine', freqs: [440, 294], dur: 0.12, gain: 0.05 },
+      ring_out:   { type: 'sine', freqs: [440, 587], dur: 0.45, gain: 0.07, gap: 0.22 },
+      ring_in:    { type: 'sine', freqs: [587, 784, 1047], dur: 0.25, gain: 0.08, gap: 0.16 },
+      hangup:     { type: 'sine', freqs: [587, 392, 294], dur: 0.2, gain: 0.07 },
+      mute:       { type: 'sine', freqs: [392, 294], dur: 0.1, gain: 0.06 },
+      unmute:     { type: 'sine', freqs: [392, 523], dur: 0.1, gain: 0.07 },
+      share_on:   { type: 'sine', freqs: [523, 698, 880], dur: 0.12, gain: 0.06 },
+      share_off:  { type: 'sine', freqs: [698, 523], dur: 0.1, gain: 0.05 },
     },
+
+
+    // ── APPLEMUSIC: Crisp, bright iOS-style — short sine pops ──
+    applemusic: {
+      keystroke:  { type: 'sine', freq: [900, 950, 880], dur: 0.025, gain: 0.035, detune: 10 },
+      send:       { type: 'sine', freqs: [784, 1047, 1319], dur: 0.22, gain: 0.075 },
+      recv:       { type: 'sine', freqs: [659, 880], dur: 0.26, gain: 0.07 },
+      error:      { type: 'sine', freqs: [220, 165], dur: 0.22, gain: 0.075 },
+      notif:      { type: 'sine', freqs: [880, 1175, 1568], dur: 0.38, gain: 0.085 },
+      navigate:   { type: 'sine', freqs: [784, 1047], dur: 0.07, gain: 0.04 },
+      modal_open: { type: 'sine', freqs: [659, 988], dur: 0.12, gain: 0.05 },
+      modal_close:{ type: 'sine', freqs: [988, 659], dur: 0.09, gain: 0.045 },
+      toggle:     { type: 'sine', freqs: [784, 1047], dur: 0.05, gain: 0.04 },
+      success:    { type: 'sine', freqs: [784, 1047, 1319], dur: 0.16, gain: 0.06 },
+      delete_snd: { type: 'sine', freqs: [659, 440], dur: 0.1, gain: 0.05 },
+      ring_out:   { type: 'sine', freqs: [659, 880], dur: 0.4, gain: 0.07, gap: 0.2 },
+      ring_in:    { type: 'sine', freqs: [880, 1175, 1568], dur: 0.22, gain: 0.08, gap: 0.15 },
+      hangup:     { type: 'sine', freqs: [880, 588, 440], dur: 0.2, gain: 0.07 },
+      mute:       { type: 'sine', freqs: [588, 440], dur: 0.1, gain: 0.06 },
+      unmute:     { type: 'sine', freqs: [588, 784], dur: 0.1, gain: 0.07 },
+      share_on:   { type: 'sine', freqs: [784, 988, 1175], dur: 0.12, gain: 0.06 },
+      share_off:  { type: 'sine', freqs: [988, 784], dur: 0.09, gain: 0.05 },
+    },
+
+
+
+
   };
 
   // ═════════════════════════════════════════════════════════════════
