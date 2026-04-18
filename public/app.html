@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
-  <link rel="stylesheet" href="/css/app.css?v=budget6">
+  <link rel="stylesheet" href="/css/app.css?v=sr2">
   <link rel="stylesheet" href="/css/censor.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
   <script src="/js/lucide.min.js" defer></script>
@@ -503,24 +503,61 @@
       </div>
     </section>
 
-    <!-- ── BRIEFING ───────────────────────────────────────────── -->
-    <section id="section-briefing" class="section">
-      <div class="section-header">
-        <span class="section-title">Daily Briefing</span>
-        <div class="briefing-nav">
-          <button class="briefing-nav-btn" id="briefing-prev" onclick="briefingNav(-1)" title="Previous day"><i data-lucide="chevron-left"></i></button>
-          <span class="briefing-date-label" id="briefing-date-label">Today</span>
-          <button class="briefing-nav-btn" id="briefing-next" onclick="briefingNav(1)" title="Next day"><i data-lucide="chevron-right"></i></button>
+    <!-- ── BRIEFING (Situation Room) ──────────────────────────── -->
+    <section id="section-briefing" class="section sr-briefing">
+      <div class="sr-progress"><div class="sr-progress-fill" id="sr-progress-fill"></div></div>
+
+      <div class="sr-scroll" id="briefing-body">
+        <!-- Masthead -->
+        <header class="sr-masthead">
+          <div class="sr-eyebrow">
+            <span class="sr-eyebrow-chip"><span class="sr-live-dot"></span>DAILY BRIEFING</span>
+            <span class="sr-rule"></span>
+            <span class="sr-meta" id="sr-time">—</span>
+            <span class="sr-sep">·</span>
+            <span class="sr-meta" id="sr-date-full">—</span>
+            <span class="sr-spacer"></span>
+          </div>
+          <h1 class="sr-greeting" id="sr-greeting">Good morning.</h1>
+          <p class="sr-standfirst" id="sr-standfirst">Your briefing for the day.</p>
+
+          <!-- Day spine -->
+          <div class="sr-daystrip-wrap">
+            <button class="sr-daystrip-arrow" id="briefing-prev" onclick="briefingNav(-1)" title="Older"><i data-lucide="chevron-left"></i></button>
+            <div class="sr-daystrip" id="sr-daystrip"></div>
+            <button class="sr-daystrip-arrow" id="briefing-next" onclick="briefingNav(1)" title="Newer"><i data-lucide="chevron-right"></i></button>
+          </div>
+        </header>
+
+        <!-- Empty state -->
+        <div class="sr-empty" id="briefing-placeholder">
+          <div class="sr-seal">
+            <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="60" cy="60" r="58" fill="none" stroke="currentColor" stroke-width="0.8" opacity="0.25"/>
+              <circle cx="60" cy="60" r="48" fill="none" stroke="currentColor" stroke-width="0.6" opacity="0.35"/>
+              <circle cx="60" cy="60" r="38" fill="none" stroke="currentColor" stroke-width="0.5" opacity="0.5"/>
+              <circle cx="60" cy="60" r="3" fill="currentColor"/>
+            </svg>
+          </div>
+          <p class="sr-empty-title">No briefing yet</p>
+          <p class="sr-empty-sub">Next one in <span class="sr-countdown" id="sr-countdown">—</span></p>
+          <p class="sr-empty-hint">Your daily briefing is prepared each morning and delivered here automatically.</p>
         </div>
-        <span id="briefing-timestamp" class="briefing-timestamp"></span>
-      </div>
-      <div class="briefing-body" id="briefing-body">
-        <div class="briefing-placeholder" id="briefing-placeholder">
-          <div class="briefing-placeholder-icon"><i data-lucide="newspaper" style="width:48px;height:48px;opacity:0.4"></i></div>
-          <p class="briefing-placeholder-title">No briefing for this day</p>
-          <p class="briefing-placeholder-sub">Your daily briefing is generated each morning and delivered here automatically.</p>
+
+        <!-- Rendered chapters -->
+        <article class="sr-content" id="briefing-content" style="display:none"></article>
+
+        <!-- Footer card -->
+        <div class="sr-footer" id="sr-footer" style="display:none">
+          <div class="sr-footer-stamp">
+            <span class="sr-footer-label">FILED</span>
+            <span class="sr-footer-val" id="sr-footer-stamp">—</span>
+          </div>
+          <button class="sr-footer-btn" onclick="openModal('briefing-feedback-modal')">
+            <i data-lucide="message-square"></i>
+            <span>Notes for tomorrow</span>
+          </button>
         </div>
-        <div class="briefing-content markdown-body" id="briefing-content" style="display:none"></div>
       </div>
     </section>
 
@@ -2402,6 +2439,6 @@
 <!-- Scripts -->
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/sounds.js?v=4"></script>
-<script src="/js/app.js?v=budget5"></script>
+<script src="/js/app.js?v=sr3"></script>
 </body>
 </html>

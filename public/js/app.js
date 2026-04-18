@@ -670,9 +670,12 @@ function closeMobileSidebar() {
   if (backdrop) backdrop.classList.remove('show');
 }
 
-// ── Briefing ──────────────────────────────────────────────────────────
+// ── Briefing (Situation Room) ─────────────────────────────────────────
 let briefingDates = [];
 let briefingDateIndex = 0; // 0 = most recent (today or latest available)
+let briefingMastheadTimer = null;
+let briefingCountdownTimer = null;
+let briefingScrollBound = false;
 
 function showBriefingBadge() {
   const badge = document.getElementById('briefing-badge');
@@ -697,19 +700,126 @@ function formatBriefingDate(dateStr) {
   return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+// ── Masthead: greeting / live time ────────────────────────────────────
+function firstName() {
+  if (typeof currentUser !== 'string' || !currentUser) return '';
+  return currentUser.charAt(0).toUpperCase() + currentUser.slice(1);
+}
+function greetingForHour(h) {
+  const n = firstName();
+  const suffix = n ? `, ${n}.` : '.';
+  if (h < 5)  return `Still up${suffix}`;
+  if (h < 12) return `Good morning${suffix}`;
+  if (h < 17) return `Good afternoon${suffix}`;
+  if (h < 21) return `Good evening${suffix}`;
+  return `Good night${suffix}`;
+}
+function standfirstForHour(h, hasBriefing) {
+  if (!hasBriefing) return "Today's briefing hasn't arrived yet.";
+  if (h < 10) return 'Here\u2019s what\u2019s worth knowing today.';
+  if (h < 17) return 'Midday update \u2014 highlights, schedule, and open items below.';
+  return 'End-of-day recap. Tomorrow\u2019s is already being prepared.';
+}
+
+function updateBriefingMasthead(generatedAt) {
+  const now = new Date();
+  const tEl = document.getElementById('sr-time');
+  const dEl = document.getElementById('sr-date-full');
+  const gEl = document.getElementById('sr-greeting');
+  const sEl = document.getElementById('sr-standfirst');
+  const opEl = document.getElementById('sr-op');
+
+  if (tEl) {
+    tEl.textContent = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' });
+  }
+  if (dEl) {
+    const opts = { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' };
+    dEl.textContent = now.toLocaleDateString(undefined, opts).toUpperCase();
+  }
+  if (opEl) opEl.textContent = '';
+  const hasBriefing = !!generatedAt;
+  const ctHour = parseInt(now.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: 'America/Chicago' }), 10);
+  if (gEl) gEl.textContent = greetingForHour(ctHour);
+  if (sEl) sEl.textContent = standfirstForHour(ctHour, hasBriefing);
+
+  // Transmission stamp (footer)
+  const stampEl = document.getElementById('sr-footer-stamp');
+  if (stampEl && generatedAt) {
+    const t = new Date(generatedAt);
+    stampEl.textContent = t.toLocaleString(undefined, {
+      weekday: 'short', month: 'short', day: '2-digit',
+      hour: '2-digit', minute: '2-digit'
+    }).toUpperCase();
+  }
+}
+
+function startBriefingMastheadClock() {
+  if (briefingMastheadTimer) clearInterval(briefingMastheadTimer);
+  briefingMastheadTimer = setInterval(() => {
+    if (currentSection !== 'briefing') return;
+    const tEl = document.getElementById('sr-time');
+    if (tEl) {
+      const now = new Date();
+      tEl.textContent = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago' });
+    }
+  }, 30000);
+}
+
+// ── Day spine ─────────────────────────────────────────────────────────
+function renderDayStrip() {
+  const strip = document.getElementById('sr-daystrip');
+  if (!strip) return;
+  const today = todayStr();
+  const have = new Set(briefingDates);
+  const activeDate = briefingDates[briefingDateIndex] || today;
+
+  const days = [];
+  const base = new Date(today + 'T12:00:00');
+  // Render last 14 days, oldest left → newest right
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(base);
+    d.setDate(d.getDate() - i);
+    days.push(d.toLocaleDateString('en-CA'));
+  }
+  strip.innerHTML = days.map(dateStr => {
+    const d = new Date(dateStr + 'T12:00:00');
+    const isToday = dateStr === today;
+    const hasB = have.has(dateStr);
+    const isActive = dateStr === activeDate;
+    const weekday = d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 3);
+    const dayNum = d.getDate();
+    const cls = ['sr-day'];
+    if (isToday) cls.push('today');
+    if (hasB) cls.push('has-briefing');
+    if (isActive) cls.push('active');
+    return `<button class="${cls.join(' ')}" data-date="${dateStr}" ${hasB ? '' : 'disabled'} onclick="briefingJumpToDate('${dateStr}')" title="${d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}${hasB ? '' : ' — no briefing'}">
+      <span class="sr-day-weekday">${weekday}</span>
+      <span class="sr-day-num">${dayNum}</span>
+      <span class="sr-day-dot"></span>
+    </button>`;
+  }).join('');
+
+  // Scroll the active tile into view (right-aligned)
+  requestAnimationFrame(() => {
+    const activeEl = strip.querySelector('.sr-day.active') || strip.querySelector('.sr-day.today');
+    if (activeEl) activeEl.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  });
+}
+
+function briefingJumpToDate(dateStr) {
+  const idx = briefingDates.indexOf(dateStr);
+  if (idx === -1) return;
+  briefingDateIndex = idx;
+  updateBriefingNav();
+  loadBriefingForDate(dateStr);
+}
+
 function updateBriefingNav() {
   const prevBtn = document.getElementById('briefing-prev');
   const nextBtn = document.getElementById('briefing-next');
-  const label = document.getElementById('briefing-date-label');
-  if (!briefingDates.length) {
-    label.textContent = 'Today';
-    prevBtn.disabled = true;
-    nextBtn.disabled = true;
-    return;
-  }
-  label.textContent = formatBriefingDate(briefingDates[briefingDateIndex]);
-  prevBtn.disabled = briefingDateIndex >= briefingDates.length - 1;
-  nextBtn.disabled = briefingDateIndex <= 0;
+  if (prevBtn) prevBtn.disabled = briefingDateIndex >= briefingDates.length - 1;
+  if (nextBtn) nextBtn.disabled = briefingDateIndex <= 0;
+  renderDayStrip();
 }
 
 function briefingNav(dir) {
@@ -720,7 +830,60 @@ function briefingNav(dir) {
   loadBriefingForDate(briefingDates[briefingDateIndex]);
 }
 
+// ── Countdown for empty state ─────────────────────────────────────────
+function nextBriefingTarget() {
+  // Briefings typically arrive ~06:30 local; if past, show tomorrow's 06:30
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(6, 30, 0, 0);
+  if (now >= target) target.setDate(target.getDate() + 1);
+  return target;
+}
+function startBriefingCountdown() {
+  stopBriefingCountdown();
+  const tick = () => {
+    const el = document.getElementById('sr-countdown');
+    if (!el) return;
+    const now = new Date();
+    const target = nextBriefingTarget();
+    const ms = target - now;
+    if (ms <= 0) { el.textContent = 'arriving now'; return; }
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    el.textContent = `${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+  };
+  tick();
+  briefingCountdownTimer = setInterval(tick, 1000);
+}
+function stopBriefingCountdown() {
+  if (briefingCountdownTimer) { clearInterval(briefingCountdownTimer); briefingCountdownTimer = null; }
+}
+
+// ── Scroll progress ───────────────────────────────────────────────────
+function setupBriefingScroll() {
+  if (briefingScrollBound) return;
+  const scroller = document.getElementById('briefing-body');
+  const fill = document.getElementById('sr-progress-fill');
+  if (!scroller || !fill) return;
+  scroller.addEventListener('scroll', () => {
+    const max = scroller.scrollHeight - scroller.clientHeight;
+    const pct = max > 0 ? (scroller.scrollTop / max) * 100 : 0;
+    fill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+  }, { passive: true });
+  briefingScrollBound = true;
+}
+
+// ── Entry point ───────────────────────────────────────────────────────
 async function loadBriefing() {
+  setupBriefingScroll();
+  updateBriefingMasthead(null);
+  startBriefingMastheadClock();
+
+  const placeholder = document.getElementById('briefing-placeholder');
+  const content = document.getElementById('briefing-content');
+  const footer = document.getElementById('sr-footer');
+
   try {
     const datesRes = await fetch('/api/briefings/dates');
     const datesData = await datesRes.json();
@@ -729,9 +892,10 @@ async function loadBriefing() {
     updateBriefingNav();
 
     if (!briefingDates.length) {
-      document.getElementById('briefing-placeholder').style.display = '';
-      document.getElementById('briefing-content').style.display = 'none';
-      document.getElementById('briefing-timestamp').textContent = '';
+      if (placeholder) placeholder.style.display = '';
+      if (content) content.style.display = 'none';
+      if (footer) footer.style.display = 'none';
+      startBriefingCountdown();
       return;
     }
     await loadBriefingForDate(briefingDates[0]);
@@ -741,27 +905,43 @@ async function loadBriefing() {
 }
 
 async function loadBriefingForDate(date) {
+  const placeholder = document.getElementById('briefing-placeholder');
+  const content = document.getElementById('briefing-content');
+  const footer = document.getElementById('sr-footer');
+  const fill = document.getElementById('sr-progress-fill');
+  const scroller = document.getElementById('briefing-body');
+
   try {
     const res = await fetch(`/api/briefings/today?date=${date}`);
     const data = await res.json();
 
     if (!data.found) {
-      document.getElementById('briefing-placeholder').style.display = '';
-      document.getElementById('briefing-content').style.display = 'none';
-      document.getElementById('briefing-timestamp').textContent = '';
+      if (placeholder) placeholder.style.display = '';
+      if (content) content.style.display = 'none';
+      if (footer) footer.style.display = 'none';
+      updateBriefingMasthead(null);
+      startBriefingCountdown();
+      updateBriefingNav();
       return;
     }
 
-    document.getElementById('briefing-placeholder').style.display = 'none';
-    document.getElementById('briefing-content').style.display = '';
-    document.getElementById('briefing-content').innerHTML = marked.parse(data.content);
+    stopBriefingCountdown();
+    if (placeholder) placeholder.style.display = 'none';
+    if (content) content.style.display = '';
+    if (footer) footer.style.display = '';
 
-    // Inject section reaction toolbars and feedback button
-    injectBriefingFeedbackUI();
+    // Parse markdown → HTML, then wrap into typed chapters
+    const rawHtml = marked.parse(data.content || '');
+    renderBriefingChapters(content, rawHtml);
 
-    const t = new Date(data.generatedAt);
-    document.getElementById('briefing-timestamp').textContent =
-      'Generated at ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    updateBriefingMasthead(data.generatedAt);
+    updateBriefingNav();
+
+    // Reset scroll and progress
+    if (scroller) scroller.scrollTop = 0;
+    if (fill) fill.style.width = '0%';
+
+    if (window.lucide) lucide.createIcons();
 
     // Mark as read only if it's today's briefing
     if (date === todayStr() && !data.isRead) {
@@ -773,40 +953,119 @@ async function loadBriefingForDate(date) {
   }
 }
 
-// ── Briefing Feedback ─────────────────────────────────────────────────
+// ── Chapter renderer ──────────────────────────────────────────────────
+const SR_ICONS = {
+  intel:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20"/></svg>',
+  schedule: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  money:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8"/><path d="M12 6v2m0 8v2"/></svg>',
+  watch:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+  action:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  memo:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/></svg>'
+};
+const SR_KICKERS = {
+  intel: 'HIGHLIGHTS',
+  schedule: 'SCHEDULE',
+  money: 'FINANCE',
+  watch: 'WATCHLIST',
+  action: 'ACTION',
+  memo: 'NOTE'
+};
+
+function classifyChapter(title) {
+  const t = (title || '').toLowerCase();
+  if (/(intel|overview|summary|world|news|pulse|situation)/.test(t)) return 'intel';
+  if (/(schedule|agenda|calendar|today|plan|day ahead|itiner)/.test(t)) return 'schedule';
+  if (/(money|finance|spend|budget|cash|account|transaction)/.test(t)) return 'money';
+  if (/(watch|flag|note|signal|trend)/.test(t)) return 'watch';
+  if (/(action|todo|to-do|to do|do today|priority|task)/.test(t)) return 'action';
+  return 'memo';
+}
 
 // Track which sections already have feedback today
 let briefingSectionFeedback = {};
 
-function injectBriefingFeedbackUI() {
-  const container = document.getElementById('briefing-content');
-  if (!container) return;
+function renderBriefingChapters(container, rawHtml) {
   briefingSectionFeedback = {};
+  if (!container) return;
+  container.innerHTML = '';
 
-  // Add reaction toolbars to all h1 and h2 headers
-  container.querySelectorAll('h1, h2').forEach(header => {
-    const sectionName = header.textContent.trim();
-    const toolbar = document.createElement('span');
-    toolbar.className = 'briefing-reaction-toolbar';
-    toolbar.innerHTML = `
-      <button class="briefing-reaction-btn" data-section="${escapeHtml(sectionName)}" data-type="thumbs_up" onclick="submitSectionReaction(this, 'thumbs_up')" title="Thumbs up">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
-      </button>
-      <button class="briefing-reaction-btn" data-section="${escapeHtml(sectionName)}" data-type="thumbs_down" onclick="submitSectionReaction(this, 'thumbs_down')" title="Thumbs down">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path></svg>
-      </button>
+  // Parse the markdown-rendered HTML
+  const tmp = document.createElement('div');
+  tmp.innerHTML = rawHtml;
+
+  // Group by H2 boundaries (treat H1 as H2 if present). Content before first heading = "preamble".
+  const children = Array.from(tmp.childNodes);
+  const chapters = [];
+  let current = null;
+  let preamble = [];
+
+  for (const node of children) {
+    const isHeading = node.nodeType === 1 && (node.tagName === 'H1' || node.tagName === 'H2');
+    if (isHeading) {
+      if (current) chapters.push(current);
+      current = { title: node.textContent.trim(), nodes: [] };
+    } else {
+      if (current) current.nodes.push(node);
+      else preamble.push(node);
+    }
+  }
+  if (current) chapters.push(current);
+
+  // If no H2/H1 headings at all, render a single "Briefing" chapter
+  if (chapters.length === 0 && preamble.length) {
+    chapters.push({ title: 'Briefing', nodes: preamble });
+    preamble = [];
+  }
+
+  // Render any preamble as a standalone intro block
+  if (preamble.length) {
+    const intro = document.createElement('div');
+    intro.className = 'sr-chapter';
+    intro.dataset.kind = 'memo';
+    const body = document.createElement('div');
+    body.className = 'sr-chapter-body';
+    preamble.forEach(n => body.appendChild(n));
+    intro.appendChild(body);
+    container.appendChild(intro);
+  }
+
+  chapters.forEach((ch, idx) => {
+    const kind = classifyChapter(ch.title);
+    const article = document.createElement('article');
+    article.className = 'sr-chapter';
+    article.dataset.kind = kind;
+
+    const head = document.createElement('header');
+    head.className = 'sr-chapter-head';
+    head.innerHTML = `
+      <span class="sr-chapter-icon">${SR_ICONS[kind] || SR_ICONS.memo}</span>
+      <div style="min-width:0;flex:1">
+        <div class="sr-chapter-kicker">${SR_KICKERS[kind] || 'MEMO'}</div>
+        <div class="sr-chapter-title">${escapeHtml(ch.title)}</div>
+      </div>
+      <span class="sr-chapter-rail">
+        <button class="sr-rail-btn" data-section="${escapeHtml(ch.title)}" data-type="thumbs_up" onclick="submitSectionReaction(this, 'thumbs_up')" title="More like this" aria-label="Thumbs up">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+        </button>
+        <button class="sr-rail-btn" data-section="${escapeHtml(ch.title)}" data-type="thumbs_down" onclick="submitSectionReaction(this, 'thumbs_down')" title="Less like this" aria-label="Thumbs down">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+        </button>
+      </span>
+      <span class="sr-chapter-folio">№ ${String(idx + 1).padStart(2, '0')}</span>
     `;
-    header.appendChild(toolbar);
-  });
+    article.appendChild(head);
 
-  // Add "Leave feedback" button at the bottom
-  const existing = container.querySelector('.briefing-feedback-footer');
-  if (existing) existing.remove();
-  const footer = document.createElement('div');
-  footer.className = 'briefing-feedback-footer';
-  footer.innerHTML = '<button class="briefing-feedback-btn" onclick="openModal(\'briefing-feedback-modal\')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> Leave feedback</button>';
-  container.appendChild(footer);
+    const body = document.createElement('div');
+    body.className = 'sr-chapter-body';
+    ch.nodes.forEach(n => body.appendChild(n));
+    article.appendChild(body);
+
+    container.appendChild(article);
+  });
 }
+
+// Legacy — unused now, but kept so any stale caller is a no-op
+function injectBriefingFeedbackUI() { /* handled inline by renderBriefingChapters */ }
 
 async function submitSectionReaction(btn, type) {
   const section = btn.dataset.section;
