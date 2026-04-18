@@ -3143,20 +3143,6 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 .theme-dark .custom-priority-btn.active { border-color: #818cf8; background: rgba(129,140,248,0.1); }
 
 /* Heaven — soft gold/warm tones */
-.theme-heaven .priority-row { border-left-color: rgba(200,169,110,0.5); background: rgba(200,169,110,0.05); }
-.theme-heaven .priority-row input[type="checkbox"] { accent-color: #c8a96e; }
-.theme-heaven .reminder-card { background: rgba(255,255,255,0.85); }
-.theme-heaven .reminder-card:hover { border-color: rgba(200,169,110,0.4); box-shadow: 0 2px 8px rgba(200,169,110,0.1); }
-.theme-heaven .reminder-card.priority-high { border-left-color: rgba(194,65,65,0.45); }
-.theme-heaven .reminder-meta-item.overdue { color: #c94040; }
-.theme-heaven .reminder-check:hover { border-color: #c8a96e; background: rgba(200,169,110,0.12); }
-.theme-heaven .reminder-check.checked { background: #b5956b; border-color: #b5956b; }
-.theme-heaven .reminder-action-btn:hover { background: rgba(200,169,110,0.12); color: #c8a96e; }
-.theme-heaven .priority-high { background: #c94040; }
-.theme-heaven .priority-normal { background: #c8a96e; }
-.theme-heaven .priority-low { background: #65a765; }
-.theme-heaven .custom-priority-btn.active { border-color: #c8a96e; background: rgba(200,169,110,0.1); }
-.theme-heaven .reminder-toast { background: #fafaf8; border-color: rgba(200,169,110,0.3); box-shadow: 0 8px 24px rgba(200,169,110,0.15); }
 
 /* Rosewood — warm rose/ember tones */
 .theme-rosewood .priority-row { border-left-color: rgba(200,150,122,0.5); }
@@ -3344,8 +3330,6 @@ body.dragging-file .dropzone { border-color: var(--accent) !important; backgroun
 /* Light/Heaven themes: keep card white, use slightly stronger tint */
 .theme-light .reminder-card.priority-high { background: rgba(220,38,38,0.06) !important; }
 .theme-light .reminder-card.priority-low  { background: rgba(22,163,74,0.06) !important; }
-.theme-heaven .reminder-card.priority-high { background: rgba(194,65,65,0.07) !important; }
-.theme-heaven .reminder-card.priority-low  { background: rgba(101,167,101,0.07) !important; }
 .reminder-card.completed {
   opacity: 0.5;
 }

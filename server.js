@@ -4147,7 +4147,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
       const user = parts[2]?.toLowerCase();
       const theme = parts[3]?.toLowerCase();
       if (!user || !theme) return lines('Usage: set theme <user> <theme>', 'warn');
-      const valid = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'heaven', 'neon', 'noir', 'rosewood', 'ocean', 'forest', 'arctic', 'aurora', 'sandstone'];
+      const valid = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'neon', 'noir', 'rosewood', 'ocean', 'forest', 'arctic', 'obsidian', 'applemusic'];
       if (!valid.includes(theme)) return lines(`Invalid theme. Options: ${valid.join(', ')}`, 'error');
       const users = rd(F.users);
       if (!users[user]) return lines(`User "${user}" not found`, 'error');

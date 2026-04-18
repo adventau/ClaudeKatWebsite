@@ -1715,286 +1715,6 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   THEME: HEAVEN  —  "Celestial"
-   Warm cream/ivory light theme — sacred, illuminated manuscript feel
-   Cinzel headings, Lora body, slow 380ms transitions, warm gold accents
-═══════════════════════════════════════════════════════════════════ */
-.theme-heaven {
-  --bg-main:      #faf8f2;
-  --bg-sidebar:   #f2ede0;
-  --bg-card:      #fffdf6;
-  --bg-input:     #f5f0e4;
-  --bg-message-self:  linear-gradient(135deg, #c8a96e 0%, #d4b882 100%);
-  --bg-message-other: #fffdf6;
-  --bg-hover:     rgba(200,169,110,0.08);
-  --bg-active:    rgba(200,169,110,0.15);
-  --bg-modal:     #fffdf6;
-  --bg-btn:       #c8a96e;
-  --bg-btn-hover: #b8975e;
-  --bg-input-msg: #f5f0e4;
-  --bg-status-bar: #f2ede0;
-
-  --text-primary:   #2c2016;
-  --text-secondary: #6b5a42;
-  --text-muted:     #a08c6e;
-  --text-btn:       #fffdf6;
-  --text-name-self: #fffdf6;
-  --text-name-other:#8a7255;
-
-  --border:       #e0d5be;
-  --border-focus: #c8a96e;
-  --border-card:  #e8dfca;
-
-  --accent:       #c8a96e;
-  --accent2:      #8a6f3e;
-  --accent3:      #d4b882;
-  --glow:         rgba(200,169,110,0.18);
-  --glow2:        rgba(200,169,110,0.10);
-
-  --status-online:   #6aaa64;
-  --status-idle:     #d4a843;
-  --status-dnd:      #c0614a;
-  --status-invisible:#b8a88a;
-
-  --shadow:       0 4px 24px rgba(180,140,80,0.14);
-  --shadow-card:  0 8px 32px rgba(180,140,80,0.12);
-  --shadow-msg:   0 4px 20px rgba(180,140,80,0.2);
-
-  --radius-card:  22px;
-  --radius-msg:   24px;
-  --radius-btn:   12px;
-  --radius-input: 14px;
-
-  --font-main:    'Lora', Georgia, serif;
-  --font-heading: 'Cinzel', serif;
-  --font-name:    'Lora', Georgia, serif;
-
-  --transition-speed: 380ms;
-
-  --scrollbar-bg:    #f2ede0;
-  --scrollbar-thumb: #d4c09a;
-  --sidebar-glow:    none;
-  --nav-active-bg:   rgba(200,169,110,0.15);
-  --nav-active-border: #c8a96e;
-}
-
-/* Heaven: structural — light ivory everywhere */
-.theme-heaven #app-header {
-  background: #f2ede0;
-  border-bottom: 1px solid #e0d5be;
-  box-shadow: 0 1px 8px rgba(180,140,80,0.08);
-}
-.theme-heaven #sidebar {
-  background: #f2ede0;
-  border-right: 1px solid #e0d5be;
-}
-/* Messages area — warm parchment */
-.theme-heaven .messages-area {
-  background: #faf8f2;
-}
-/* Self messages — warm gold gradient */
-.theme-heaven .msg-bubble-self {
-  background: linear-gradient(135deg, #c8a96e 0%, #d4b882 100%) !important;
-  color: #fffdf6 !important;
-  border: none !important;
-  box-shadow: 0 4px 20px rgba(180,140,80,0.28);
-  border-radius: 24px !important;
-  border-bottom-right-radius: 8px !important;
-}
-.theme-heaven .msg-bubble-self .msg-text { color: #fffdf6; }
-.theme-heaven .msg-name-self { color: #c8a96e; }
-/* Other messages — soft ivory card */
-.theme-heaven .msg-bubble-other {
-  background: #fffdf6 !important;
-  border: 1px solid #e0d5be !important;
-  box-shadow: 0 2px 12px rgba(180,140,80,0.08);
-  border-radius: 24px !important;
-  border-bottom-left-radius: 8px !important;
-}
-.theme-heaven .msg-bubble-other .msg-text { color: #2c2016; }
-.theme-heaven .msg-name-other { color: #8a7255; }
-.theme-heaven .msg-time { color: #b8a080 !important; }
-/* Input area */
-.theme-heaven .input-area {
-  background: #f2ede0;
-  border-top: 1px solid #e0d5be;
-}
-.theme-heaven .msg-input-wrap {
-  background: #fffdf6;
-  border: 1.5px solid #e0d5be;
-  border-radius: 28px;
-  box-shadow: 0 2px 12px rgba(180,140,80,0.10);
-}
-.theme-heaven .msg-input-wrap:focus-within {
-  border-color: #c8a96e;
-  box-shadow: 0 4px 24px rgba(200,169,110,0.2);
-}
-/* Buttons */
-.theme-heaven .btn-primary {
-  background: #c8a96e;
-  color: #fffdf6;
-  box-shadow: 0 4px 16px rgba(200,169,110,0.3);
-}
-.theme-heaven .btn-primary:hover {
-  background: #b8975e;
-  box-shadow: 0 6px 24px rgba(200,169,110,0.4);
-}
-.theme-heaven .send-btn {
-  background: #c8a96e;
-}
-.theme-heaven .send-btn:hover { background: #b8975e; }
-.theme-heaven .send-btn svg { color: #fffdf6; stroke: #fffdf6; }
-/* Inputs */
-.theme-heaven input, .theme-heaven textarea, .theme-heaven select {
-  background: #f5f0e4;
-  border-color: #e0d5be;
-  color: #2c2016;
-  font-family: 'Lora', Georgia, serif;
-}
-.theme-heaven input:focus, .theme-heaven textarea:focus, .theme-heaven select:focus {
-  border-color: #c8a96e;
-  box-shadow: 0 0 0 3px rgba(200,169,110,0.14);
-}
-/* Nav active — warm gold accent bar */
-.theme-heaven .nav-item {
-  color: #6b5a42;
-  font-family: 'Lora', Georgia, serif;
-}
-.theme-heaven .nav-item:hover {
-  background: rgba(200,169,110,0.1);
-  color: #2c2016;
-}
-.theme-heaven .nav-item.active {
-  background: rgba(200,169,110,0.18);
-  color: #c8a96e;
-  font-weight: 600;
-  border-left: 3px solid #c8a96e;
-  padding-left: 13px;
-}
-.theme-heaven .nav-badge {
-  background: #c8a96e;
-  color: #fffdf6;
-}
-/* Cards and modals */
-.theme-heaven .card, .theme-heaven .glass-card {
-  background: #fffdf6;
-  border: 1px solid #e8dfca;
-  box-shadow: 0 6px 28px rgba(180,140,80,0.10);
-}
-.theme-heaven .modal-content {
-  background: #fffdf6;
-  border: 1px solid #e0d5be;
-  box-shadow: 0 24px 72px rgba(140,100,40,0.18);
-}
-/* Section header */
-.theme-heaven .section-header {
-  background: #f5f0e4;
-  border-bottom: 1px solid #e0d5be;
-}
-.theme-heaven .section-title {
-  font-family: 'Cinzel', serif;
-  font-weight: 700;
-  color: #2c2016;
-  letter-spacing: 0.05em;
-  font-size: 1.05rem;
-}
-/* Chat header */
-.theme-heaven .chat-header {
-  background: #f5f0e4;
-  border-bottom: 1px solid #e0d5be;
-}
-/* Scrollbar */
-.theme-heaven ::-webkit-scrollbar { width: 6px; }
-.theme-heaven ::-webkit-scrollbar-thumb { background: #d4c09a; border-radius: 3px; }
-.theme-heaven ::-webkit-scrollbar-thumb:hover { background: #c8a96e; }
-.theme-heaven ::-webkit-scrollbar-track { background: transparent; }
-/* Avatar */
-.theme-heaven .msg-avatar-sm {
-  background: linear-gradient(135deg, #e8dfca 0%, #d4c09a 100%);
-  color: #8a7255;
-  border: 1.5px solid #e0d5be;
-}
-/* Section tabs */
-.theme-heaven .section-tab {
-  color: #8a7255;
-  font-family: 'Lora', Georgia, serif;
-}
-.theme-heaven .section-tab.active {
-  background: rgba(200,169,110,0.15);
-  color: #c8a96e;
-  font-weight: 600;
-  border-color: #c8a96e;
-}
-/* Settings */
-.theme-heaven .settings-modal {
-  background: #fffdf6;
-  border: 1px solid #e0d5be;
-  box-shadow: 0 32px 80px rgba(140,100,40,0.2);
-}
-.theme-heaven .settings-modal .settings-tabs {
-  background: #f5f0e4;
-  border-right: 1px solid #e0d5be;
-}
-.theme-heaven .settings-modal .settings-tab.active {
-  background: rgba(200,169,110,0.15);
-  color: #c8a96e;
-  font-weight: 600;
-}
-.theme-heaven .settings-section h3 {
-  color: #b8a080;
-  font-family: 'Cinzel', serif;
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-}
-.theme-heaven .settings-row { border-bottom-color: #ede5d0; }
-.theme-heaven .theme-card { border: 2px solid #e0d5be; border-radius: 14px; }
-.theme-heaven .theme-card.active {
-  border-color: #c8a96e !important;
-  box-shadow: 0 0 0 3px rgba(200,169,110,0.16);
-}
-/* Toggle */
-.theme-heaven .toggle-slider { background: #d4c09a; }
-.theme-heaven .toggle input:checked + .toggle-slider { background: #c8a96e; }
-/* Icons */
-.theme-heaven .btn-icon { color: #8a7255; }
-.theme-heaven .btn-icon:hover { color: #c8a96e; background: rgba(200,169,110,0.1); }
-/* Date separators */
-.theme-heaven .date-sep { color: #b8a080; }
-.theme-heaven .date-sep::before,
-.theme-heaven .date-sep::after { background: #e0d5be; }
-/* Panels */
-.theme-heaven .settings-panel,
-.theme-heaven .notes-area,
-.theme-heaven .vault-area,
-.theme-heaven .contacts-area,
-.theme-heaven .calendar-area {
-  background: #faf8f2;
-}
-/* Note items */
-.theme-heaven .note-item:hover { background: rgba(200,169,110,0.08); }
-.theme-heaven .note-item.active {
-  background: rgba(200,169,110,0.12);
-  border-left: 3px solid #c8a96e;
-}
-/* Calendar today */
-.theme-heaven .cal-day.today {
-  background: rgba(200,169,110,0.2);
-  border-color: #c8a96e;
-}
-.theme-heaven .cal-day.today .cal-day-num { color: #8a6f3e; font-weight: 800; }
-/* Contacts */
-.theme-heaven .contact-card:hover { background: rgba(200,169,110,0.06); }
-.theme-heaven .contact-avatar { background: linear-gradient(135deg, #e8dfca, #d4c09a); color: #8a7255; }
-/* Status indicator border */
-.theme-heaven .status-indicator { border-color: #f2ede0; }
-/* Format toolbar */
-.theme-heaven .format-toolbar {
-  background: #fffdf6;
-  border: 1px solid #e0d5be;
-  border-radius: 14px;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
    THEME: NEON  —  "Neon Tokyo"
    Cyberpunk — near-black, hot pink, electric cyan, sharp edges
 ═══════════════════════════════════════════════════════════════════ */
@@ -3182,555 +2902,584 @@ select option { background: var(--bg-modal, #1e293b); color: var(--text-primary)
 .theme-arctic .totp-card-code { background: rgba(67,232,177,0.06); color: #43e8b1; }
 
 
-/* ═══════════════════════════════════════════════════════════════════
-   THEME: AURORA  —  "Arctic Aurora"
-   Light, airy, frosted glass — soft blue/cyan with violet aurora
-   Plus Jakarta Sans, generous radius, soft blue-tinted shadows
-   textDark: true (light background theme)
-═══════════════════════════════════════════════════════════════════ */
-.theme-aurora {
-  --bg-main:      #f0f4f8;
-  --bg-sidebar:   #e8edf5;
-  --bg-card:      rgba(255,255,255,0.75);
-  --bg-input:     rgba(255,255,255,0.8);
-  --bg-message-self:  linear-gradient(135deg, #06b6d4 0%, #818cf8 100%);
-  --bg-message-other: rgba(255,255,255,0.85);
-  --bg-hover:     rgba(6,182,212,0.07);
-  --bg-active:    rgba(6,182,212,0.12);
-  --bg-modal:     rgba(255,255,255,0.85);
-  --bg-btn:       linear-gradient(135deg, #06b6d4, #818cf8);
-  --bg-btn-hover: linear-gradient(135deg, #0891b2, #6366f1);
-  --bg-input-msg: rgba(255,255,255,0.8);
-  --bg-status-bar: #e8edf5;
 
-  --text-primary:   #1e293b;
-  --text-secondary: #475569;
-  --text-muted:     #94a3b8;
-  --text-btn:       #ffffff;
-  --text-name-self: #ffffff;
-  --text-name-other:#475569;
-
-  --border:       rgba(6,182,212,0.15);
-  --border-focus: #06b6d4;
-  --border-card:  rgba(6,182,212,0.12);
-
-  --accent:       #06b6d4;
-  --accent2:      #818cf8;
-  --accent3:      #e0f2fe;
-  --glow:         rgba(6,182,212,0.15);
-  --glow2:        rgba(129,140,248,0.12);
-
-  --status-online:   #4ade80;
-  --status-idle:     #fbbf24;
-  --status-dnd:      #f87171;
-  --status-invisible:#94a3b8;
-
-  --shadow:       0 2px 12px rgba(6,182,212,0.10);
-  --shadow-card:  0 8px 32px rgba(6,182,212,0.10), 0 2px 8px rgba(129,140,248,0.08);
-  --shadow-msg:   0 4px 16px rgba(6,182,212,0.18);
-
-  --radius-card:  20px;
-  --radius-msg:   22px;
-  --radius-btn:   12px;
-  --radius-input: 12px;
-
-  --font-main:    'Plus Jakarta Sans', sans-serif;
-  --font-heading: 'Plus Jakarta Sans', sans-serif;
-  --font-name:    'Plus Jakarta Sans', sans-serif;
-
-  --transition-speed: 200ms;
-
-  --scrollbar-bg:    #e8edf5;
-  --scrollbar-thumb: rgba(6,182,212,0.3);
-  --sidebar-glow:    none;
-  --nav-active-bg:   rgba(6,182,212,0.12);
-  --nav-active-border: #06b6d4;
-}
-
-/* Aurora: frosted glass structural panels */
-.theme-aurora #app-header {
-  background: rgba(232,237,245,0.85);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
-  border-bottom: 1px solid rgba(6,182,212,0.12);
-  box-shadow: 0 1px 12px rgba(6,182,212,0.08);
-}
-.theme-aurora #sidebar {
-  background: rgba(232,237,245,0.9);
-  backdrop-filter: blur(20px) saturate(1.3);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  border-right: 1px solid rgba(6,182,212,0.14);
-}
-/* Aurora gradient animated top border on sidebar */
-@keyframes aurora-shimmer-light {
-  0%, 100% { background-position: 0% 0; opacity: 0.6; }
-  50%       { background-position: 100% 0; opacity: 1; }
-}
-.theme-aurora #sidebar::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent 0%, #06b6d4 30%, #818cf8 70%, transparent 100%);
-  background-size: 200% 100%;
-  pointer-events: none;
-  animation: aurora-shimmer-light 6s ease-in-out infinite;
-  z-index: 2;
-}
-/* Messages: subtle blue tint */
-.theme-aurora .messages-area {
-  background: linear-gradient(180deg, #f0f4f8 0%, #eff6ff 100%);
-}
-/* Self messages: aurora gradient */
-.theme-aurora .msg-bubble-self {
-  background: linear-gradient(135deg, #06b6d4 0%, #818cf8 100%) !important;
-  color: #ffffff !important;
-  border: none !important;
-  box-shadow: 0 4px 20px rgba(6,182,212,0.25), 0 2px 8px rgba(129,140,248,0.15) !important;
-  border-radius: 22px !important;
-  border-bottom-right-radius: 6px !important;
-}
-.theme-aurora .msg-bubble-self .msg-text { color: #ffffff; }
-.theme-aurora .msg-name-self { color: #06b6d4; }
-/* Other messages: frosted white */
-.theme-aurora .msg-bubble-other {
-  background: rgba(255,255,255,0.85) !important;
-  border: 1px solid rgba(6,182,212,0.12) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 2px 12px rgba(6,182,212,0.08) !important;
-  border-radius: 22px !important;
-  border-bottom-left-radius: 6px !important;
-}
-.theme-aurora .msg-bubble-other .msg-text { color: #1e293b; }
-.theme-aurora .msg-name-other { color: #64748b; }
-.theme-aurora .msg-time { color: #94a3b8 !important; }
-/* Input area */
-.theme-aurora .input-area {
-  background: rgba(232,237,245,0.85);
-  border-top: 1px solid rgba(6,182,212,0.1);
-}
-.theme-aurora .msg-input-wrap {
-  background: rgba(255,255,255,0.85);
-  border: 1.5px solid rgba(6,182,212,0.15);
-  border-radius: 28px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 12px rgba(6,182,212,0.08);
-}
-.theme-aurora .msg-input-wrap:focus-within {
-  border-color: #06b6d4;
-  box-shadow: 0 4px 24px rgba(6,182,212,0.15);
-}
-/* Buttons */
-.theme-aurora .btn-primary {
-  background: linear-gradient(135deg, #06b6d4, #818cf8);
-  color: #ffffff;
-  box-shadow: 0 4px 16px rgba(6,182,212,0.25);
-}
-.theme-aurora .btn-primary:hover {
-  box-shadow: 0 6px 24px rgba(6,182,212,0.35);
-  transform: translateY(-2px);
-}
-.theme-aurora .send-btn { background: linear-gradient(135deg, #06b6d4, #818cf8); }
-.theme-aurora .send-btn svg { color: #ffffff; stroke: #ffffff; }
-/* Inputs */
-.theme-aurora input, .theme-aurora textarea, .theme-aurora select {
-  background: rgba(255,255,255,0.8);
-  border-color: rgba(6,182,212,0.15);
-  color: #1e293b;
-  backdrop-filter: blur(4px);
-}
-.theme-aurora input:focus, .theme-aurora textarea:focus, .theme-aurora select:focus {
-  border-color: #06b6d4;
-  box-shadow: 0 0 0 3px rgba(6,182,212,0.1);
-}
-/* Nav active */
-.theme-aurora .nav-item { color: #475569; }
-.theme-aurora .nav-item:hover { background: rgba(6,182,212,0.07); color: #1e293b; }
-.theme-aurora .nav-item.active {
-  background: rgba(6,182,212,0.12);
-  color: #06b6d4;
-  font-weight: 600;
-  border-left: 3px solid #06b6d4;
-  padding-left: 13px;
-}
-.theme-aurora .nav-badge { background: #06b6d4; color: #ffffff; }
-/* Cards and modals — frosted glass */
-.theme-aurora .card, .theme-aurora .glass-card {
-  background: rgba(255,255,255,0.75);
-  border: 1px solid rgba(6,182,212,0.12);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 8px 32px rgba(6,182,212,0.10), 0 2px 8px rgba(129,140,248,0.08);
-}
-.theme-aurora .modal-content {
-  background: rgba(255,255,255,0.9);
-  border: 1px solid rgba(6,182,212,0.15);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 24px 72px rgba(6,182,212,0.15), 0 8px 24px rgba(129,140,248,0.1);
-}
-/* Section header */
-.theme-aurora .section-header {
-  background: rgba(240,244,248,0.85);
-  border-bottom: 1px solid rgba(6,182,212,0.1);
-  backdrop-filter: blur(8px);
-}
-.theme-aurora .section-title {
-  color: #1e293b;
-  font-weight: 700;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-}
-.theme-aurora .chat-header {
-  background: rgba(240,244,248,0.85);
-  border-bottom: 1px solid rgba(6,182,212,0.1);
-  backdrop-filter: blur(8px);
-}
-/* Scrollbar */
-.theme-aurora ::-webkit-scrollbar { width: 6px; }
-.theme-aurora ::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.3); border-radius: 3px; }
-.theme-aurora ::-webkit-scrollbar-thumb:hover { background: #06b6d4; }
-.theme-aurora ::-webkit-scrollbar-track { background: transparent; }
-/* Avatar */
-.theme-aurora .msg-avatar-sm {
-  background: linear-gradient(135deg, #e0f2fe, #ede9fe);
-  color: #06b6d4;
-  border: 1.5px solid rgba(6,182,212,0.15);
-}
-/* Section tabs */
-.theme-aurora .section-tab { color: #64748b; }
-.theme-aurora .section-tab.active { background: rgba(6,182,212,0.1); color: #06b6d4; font-weight: 600; }
-/* Settings */
-.theme-aurora .settings-modal {
-  background: rgba(255,255,255,0.9);
-  border: 1px solid rgba(6,182,212,0.15);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 32px 80px rgba(6,182,212,0.15);
-}
-.theme-aurora .settings-modal .settings-tabs {
-  background: rgba(240,244,248,0.9);
-  border-right: 1px solid rgba(6,182,212,0.1);
-}
-.theme-aurora .settings-modal .settings-tab.active {
-  background: rgba(6,182,212,0.1);
-  color: #06b6d4;
-  font-weight: 600;
-}
-.theme-aurora .settings-section h3 { color: #94a3b8; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
-.theme-aurora .settings-row { border-bottom-color: rgba(6,182,212,0.08); }
-.theme-aurora .theme-card { border: 2px solid rgba(6,182,212,0.12); border-radius: 14px; }
-.theme-aurora .theme-card.active { border-color: #06b6d4 !important; box-shadow: 0 0 0 3px rgba(6,182,212,0.1); }
-/* Toggle */
-.theme-aurora .toggle-slider { background: #cbd5e1; }
-.theme-aurora .toggle input:checked + .toggle-slider { background: #06b6d4; }
-/* Icons */
-.theme-aurora .btn-icon { color: #64748b; }
-.theme-aurora .btn-icon:hover { color: #06b6d4; background: rgba(6,182,212,0.08); }
-/* Date separators */
-.theme-aurora .date-sep { color: #94a3b8; }
-.theme-aurora .date-sep::before,
-.theme-aurora .date-sep::after { background: rgba(6,182,212,0.15); }
-/* Panels */
-.theme-aurora .settings-panel,
-.theme-aurora .notes-area,
-.theme-aurora .vault-area,
-.theme-aurora .contacts-area,
-.theme-aurora .calendar-area {
-  background: #f0f4f8;
-}
-/* Notes */
-.theme-aurora .note-item:hover { background: rgba(6,182,212,0.06); }
-.theme-aurora .note-item.active { background: rgba(6,182,212,0.1); border-left: 3px solid #06b6d4; }
-/* Calendar today */
-.theme-aurora .cal-day.today { background: rgba(6,182,212,0.15); border-color: #06b6d4; }
-.theme-aurora .cal-day.today .cal-day-num { color: #0891b2; font-weight: 800; }
-/* Contacts */
-.theme-aurora .contact-card:hover { background: rgba(6,182,212,0.05); }
-.theme-aurora .contact-avatar { background: linear-gradient(135deg, #e0f2fe, #ede9fe); color: #06b6d4; }
-/* Status indicator border */
-.theme-aurora .status-indicator { border-color: #e8edf5; }
-/* Format toolbar */
-.theme-aurora .format-toolbar {
-  background: rgba(255,255,255,0.85);
-  border: 1px solid rgba(6,182,212,0.12);
-  backdrop-filter: blur(8px);
-}
 
 /* ═══════════════════════════════════════════════════════════════════
-   THEME: SANDSTONE  —  "Sandstone Dusk"
-   Luxury Moroccan riad at golden hour — rich terracotta, warm amber,
-   deep charcoal, double-frame ornamental borders, subtle heat shimmer,
-   carved stone surfaces, Crimson Pro serif headings
+   THEME: OBSIDIAN  —  "Onyx Signature"
+   Architectural luxury minimalism. Pearl/platinum on obsidian.
+   Hairline borders, no gradient candy, one statement accent.
+   Fraunces display · Inter Tight body · 4px radius · quiet confidence.
 ═══════════════════════════════════════════════════════════════════ */
-.theme-sandstone {
-  --bg-main:      #f5ede0;
-  --bg-sidebar:   #ede4d4;
-  --bg-card:      #fdf7ef;
-  --bg-input:     #f8f0e4;
-  --bg-message-self:  linear-gradient(135deg, #c2713a, #d4874e);
-  --bg-message-other: #fdf7ef;
-  --bg-hover:     rgba(194,113,58,0.08);
-  --bg-active:    rgba(194,113,58,0.14);
-  --bg-modal:     #fdf7ef;
-  --bg-btn:       #c2713a;
-  --bg-btn-hover: #a85d2a;
-  --bg-input-msg: #f8f0e4;
-  --bg-status-bar: #ede4d4;
+.theme-obsidian {
+  --bg-main:      #08080a;
+  --bg-sidebar:   #0b0b0e;
+  --bg-card:      #101014;
+  --bg-input:     #0c0c10;
+  --bg-message-self:  #141418;
+  --bg-message-other: #0d0d11;
+  --bg-hover:     rgba(201,184,138,0.05);
+  --bg-active:    rgba(201,184,138,0.10);
+  --bg-modal:     #0f0f13;
+  --bg-btn:       #c9b88a;
+  --bg-btn-hover: #d7c89a;
+  --bg-input-msg: #0c0c10;
+  --bg-status-bar:#08080a;
 
-  --text-primary:   #2d1f0f;
-  --text-secondary: #6b4c30;
-  --text-muted:     #a8845e;
-  --text-btn:       #fdf7ef;
-  --text-name-self: #fdf7ef;
-  --text-name-other:#7a5230;
+  --text-primary:   #e8e4dc;
+  --text-secondary: #8a867d;
+  --text-muted:     #54524c;
+  --text-btn:       #0a0a0c;
+  --text-name-self: #c9b88a;
+  --text-name-other:#b8b3a8;
 
-  --border:       #dfd0b8;
-  --border-focus: #c2713a;
-  --border-card:  #e8d8c0;
+  --border:       rgba(201,184,138,0.10);
+  --border-focus: #c9b88a;
+  --border-card:  rgba(232,228,220,0.06);
 
-  --accent:       #c2713a;
-  --accent2:      #8a4a20;
-  --accent3:      #d4a870;
-  --glow:         rgba(194,113,58,0.16);
-  --glow2:        rgba(194,113,58,0.10);
+  --accent:       #c9b88a;
+  --accent2:      #8a7c5c;
+  --accent3:      #2a2823;
+  --glow:         rgba(201,184,138,0.12);
+  --glow2:        rgba(232,228,220,0.04);
 
-  --status-online:   #6aaa64;
-  --status-idle:     #d4a843;
-  --status-dnd:      #c0614a;
-  --status-invisible:#a8845e;
+  --status-online:   #a6b89a;
+  --status-idle:     #c9b88a;
+  --status-dnd:      #b06a5a;
+  --status-invisible:#54524c;
 
-  --shadow:       0 2px 12px rgba(150,80,30,0.12);
-  --shadow-card:  0 6px 24px rgba(150,80,30,0.10);
-  --shadow-msg:   0 4px 16px rgba(194,113,58,0.18);
+  --shadow:       0 1px 0 rgba(232,228,220,0.04), 0 8px 32px rgba(0,0,0,0.5);
+  --shadow-card:  0 1px 0 rgba(232,228,220,0.05), 0 16px 48px rgba(0,0,0,0.6);
+  --shadow-msg:   0 1px 0 rgba(232,228,220,0.03);
 
-  --radius-card:  18px;
-  --radius-msg:   20px;
-  --radius-btn:   10px;
-  --radius-input: 10px;
+  --radius-card:  4px;
+  --radius-msg:   4px;
+  --radius-btn:   4px;
+  --radius-input: 4px;
 
-  --font-main:    'Lora', Georgia, serif;
-  --font-heading: 'Playfair Display', Georgia, serif;
-  --font-name:    'Lora', Georgia, serif;
+  --font-main:    'Inter Tight', -apple-system, sans-serif;
+  --font-heading: 'Fraunces', Georgia, serif;
+  --font-name:    'Fraunces', Georgia, serif;
 
   --transition-speed: 280ms;
 
-  --scrollbar-bg:    #ede4d4;
-  --scrollbar-thumb: #d4b898;
+  --scrollbar-bg:    transparent;
+  --scrollbar-thumb: rgba(201,184,138,0.18);
   --sidebar-glow:    none;
-  --nav-active-bg:   rgba(194,113,58,0.12);
-  --nav-active-border: #c2713a;
-
-  --msg-gradient: linear-gradient(135deg, #c2713a, #d4874e);
+  --nav-active-bg:   rgba(201,184,138,0.08);
+  --nav-active-border: #c9b88a;
 }
 
-/* ── Sandstone: Light warm structure ─────────────────────────── */
-.theme-sandstone #app-header {
-  background: #ede4d4;
-  border-bottom: 1px solid #dfd0b8;
-  box-shadow: 0 1px 8px rgba(150,80,30,0.08);
+.theme-obsidian { letter-spacing: 0.005em; }
+.theme-obsidian body, .theme-obsidian { background: #08080a; }
+
+/* Obsidian: app header — single hairline divider, no shadow */
+.theme-obsidian #app-header {
+  background: #08080a;
+  border-bottom: 1px solid rgba(201,184,138,0.10);
+  box-shadow: none;
+  backdrop-filter: none;
 }
-.theme-sandstone #sidebar {
-  background: #ede4d4;
-  border-right: 1px solid #dfd0b8;
+
+/* Obsidian: sidebar — brass vertical hairline on right edge */
+.theme-obsidian #sidebar {
+  background: #0b0b0e;
+  border-right: 1px solid rgba(201,184,138,0.10);
+  box-shadow: inset -1px 0 0 rgba(201,184,138,0.03);
 }
-.theme-sandstone .chat-header {
-  background: #f0e8da;
-  border-bottom: 1px solid #dfd0b8;
+.theme-obsidian .nav-item {
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-family: 'Inter Tight', sans-serif;
+  font-weight: 500;
+  color: #8a867d;
+  transition: color 200ms ease, background 200ms ease;
 }
-/* Messages: warm parchment */
-.theme-sandstone .messages-area {
-  background: #f5ede0;
+.theme-obsidian .nav-item:hover {
+  background: rgba(201,184,138,0.04);
+  color: #e8e4dc;
 }
-/* Self messages: terracotta warm gradient */
-.theme-sandstone .msg-bubble-self {
-  background: linear-gradient(135deg, #c2713a, #d4874e) !important;
-  color: #fdf7ef !important;
+.theme-obsidian .nav-item.active {
+  background: rgba(201,184,138,0.07);
+  color: #e8e4dc;
+  box-shadow: inset 2px 0 0 #c9b88a;
+}
+.theme-obsidian .section-header {
+  background: transparent;
+  border-bottom: 1px solid rgba(201,184,138,0.08);
+}
+.theme-obsidian .section-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: #c9b88a;
+}
+
+/* Obsidian: chat column — architectural proportions */
+.theme-obsidian .chat-header {
+  background: #08080a;
+  border-bottom: 1px solid rgba(201,184,138,0.08);
+}
+.theme-obsidian .messages-area {
+  background: #08080a;
+  position: relative;
+}
+/* Subtle grain overlay — like gesso on canvas */
+.theme-obsidian .messages-area::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.018;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  z-index: 0;
+}
+.theme-obsidian .msg-row { position: relative; z-index: 1; }
+
+/* Obsidian: message bubbles — tonal, not coloured */
+.theme-obsidian .msg-bubble-self {
+  background: #141418 !important;
+  color: #e8e4dc !important;
+  border: 1px solid rgba(201,184,138,0.14) !important;
+  box-shadow: inset 0 1px 0 rgba(232,228,220,0.03) !important;
+  border-radius: 4px !important;
+  padding: 10px 14px !important;
+  font-family: 'Inter Tight', sans-serif;
+  letter-spacing: 0.005em;
+}
+.theme-obsidian .msg-bubble-other {
+  background: #0d0d11 !important;
+  color: #e8e4dc !important;
+  border: 1px solid rgba(232,228,220,0.05) !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+  padding: 10px 14px !important;
+  font-family: 'Inter Tight', sans-serif;
+}
+.theme-obsidian .msg-name-self,
+.theme-obsidian .msg-name-other {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  font-size: 0.78rem;
+}
+.theme-obsidian .msg-name-self  { color: #c9b88a; }
+.theme-obsidian .msg-name-other { color: #b8b3a8; }
+.theme-obsidian .msg-time { color: #54524c !important; font-size: 0.68rem; letter-spacing: 0.05em; }
+
+/* Obsidian: input — hairline that widens on focus */
+.theme-obsidian .input-area {
+  background: #08080a;
+  border-top: 1px solid rgba(201,184,138,0.08);
+}
+.theme-obsidian .msg-input-wrap {
+  background: #0c0c10;
+  border: 1px solid rgba(201,184,138,0.12);
+  border-radius: 4px;
+  transition: border-color 220ms ease, box-shadow 220ms ease;
+}
+.theme-obsidian .msg-input-wrap:focus-within {
+  border-color: rgba(201,184,138,0.45);
+  box-shadow: 0 0 0 1px rgba(201,184,138,0.12);
+}
+
+/* Obsidian: buttons — platinum slab with dark text */
+.theme-obsidian .btn-primary {
+  background: #c9b88a;
+  color: #0a0a0c;
+  border: 1px solid #c9b88a;
+  border-radius: 4px;
+  font-family: 'Inter Tight', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  padding: 9px 18px;
+  box-shadow: none;
+}
+.theme-obsidian .btn-primary:hover {
+  background: #d7c89a;
+  border-color: #d7c89a;
+  transform: none;
+  box-shadow: 0 0 0 3px rgba(201,184,138,0.10);
+}
+.theme-obsidian .send-btn {
+  background: #c9b88a;
+  color: #0a0a0c;
+  border-radius: 4px;
+  box-shadow: none;
+}
+.theme-obsidian .send-btn svg { color: #0a0a0c; stroke: #0a0a0c; }
+.theme-obsidian .btn-icon { color: #8a867d; }
+.theme-obsidian .btn-icon:hover { color: #c9b88a; background: rgba(201,184,138,0.06); }
+
+/* Obsidian: focus — warm hairline glow */
+.theme-obsidian input:focus, .theme-obsidian textarea:focus, .theme-obsidian select:focus {
+  border-color: rgba(201,184,138,0.5) !important;
+  box-shadow: 0 0 0 1px rgba(201,184,138,0.15) !important;
+  outline: none !important;
+}
+
+/* Obsidian: cards — architectural restraint */
+.theme-obsidian .card,
+.theme-obsidian .glass-card,
+.theme-obsidian .settings-modal,
+.theme-obsidian .modal-content {
+  background: #101014;
+  border: 1px solid rgba(201,184,138,0.10);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(232,228,220,0.04), 0 24px 64px rgba(0,0,0,0.6);
+}
+
+/* Obsidian: profile card — platinum hairline, Fraunces name */
+.theme-obsidian .profile-card {
+  background: #101014;
+  border: 1px solid rgba(201,184,138,0.14);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(232,228,220,0.05), 0 30px 80px rgba(0,0,0,0.7);
+}
+.theme-obsidian .pc-banner::after {
+  background: linear-gradient(transparent 40%, #101014);
+}
+.theme-obsidian .pc-avatar-ring {
+  box-shadow: 0 0 0 1px rgba(201,184,138,0.35), 0 0 18px rgba(201,184,138,0.08);
+}
+.theme-obsidian .pc-display-name {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: #e8e4dc;
+}
+.theme-obsidian .pc-section { border-color: rgba(201,184,138,0.08); }
+.theme-obsidian .pc-section-title {
+  font-family: 'Inter Tight', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.68rem;
+  color: #c9b88a;
+}
+
+/* Obsidian: scrollbars — hairline */
+.theme-obsidian ::-webkit-scrollbar { width: 3px; height: 3px; }
+.theme-obsidian ::-webkit-scrollbar-thumb { background: rgba(201,184,138,0.18); border-radius: 2px; }
+.theme-obsidian ::-webkit-scrollbar-thumb:hover { background: rgba(201,184,138,0.35); }
+.theme-obsidian ::-webkit-scrollbar-track { background: transparent; }
+
+/* Obsidian: passcode — architectural slabs */
+.theme-obsidian .passcode-digit {
+  background: #101014;
+  border: 1px solid rgba(201,184,138,0.2);
+  border-radius: 4px;
+  color: #e8e4dc;
+  font-family: 'Fraunces', serif;
+  box-shadow: none;
+}
+.theme-obsidian .passcode-digit:focus {
+  border-color: #c9b88a;
+  box-shadow: 0 0 0 1px rgba(201,184,138,0.25) !important;
+}
+.theme-obsidian .vault-passcode-screen h2 {
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+/* Obsidian: settings */
+.theme-obsidian .settings-modal .settings-tab.active {
+  border-left: 2px solid #c9b88a;
+  background: rgba(201,184,138,0.06);
+}
+.theme-obsidian .settings-modal .settings-tab {
+  font-family: 'Inter Tight', sans-serif;
+  letter-spacing: 0.02em;
+}
+.theme-obsidian .settings-section h3 {
+  font-family: 'Inter Tight', sans-serif;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #c9b88a;
+  font-weight: 600;
+}
+.theme-obsidian .theme-card { border: 1px solid rgba(201,184,138,0.10); border-radius: 4px; }
+.theme-obsidian .theme-card.active { border-color: #c9b88a !important; box-shadow: 0 0 0 2px rgba(201,184,138,0.12); }
+
+/* Obsidian: TOTP */
+.theme-obsidian .totp-card { background: #101014; border-color: rgba(201,184,138,0.10); }
+.theme-obsidian .totp-card:hover { border-color: rgba(201,184,138,0.3); }
+.theme-obsidian .totp-card-code { background: rgba(201,184,138,0.05); color: #c9b88a; font-family: 'Fraunces', serif; }
+
+/* Obsidian: format toolbar */
+.theme-obsidian .format-toolbar {
+  background: #101014;
+  border: 1px solid rgba(201,184,138,0.10);
+  border-radius: 4px;
+}
+
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   THEME: APPLEMUSIC  —  "Apple Music"
+   Pure black drenched, hot pink gradient (#fa233b → #ff6482),
+   frosted glass chrome, MASSIVE SF Pro Display section titles.
+   Gradient aurora strip at top of messages-area (hero accent),
+   glossy nav pills, album-card vibe on profile.
+═══════════════════════════════════════════════════════════════════ */
+.theme-applemusic {
+  --bg-main:      #000000;
+  --bg-sidebar:   rgba(22,22,24,0.72);
+  --bg-card:      #1c1c1e;
+  --bg-input:     rgba(44,44,46,0.45);
+  --bg-message-self:  linear-gradient(135deg, #fa233b 0%, #ff6482 100%);
+  --bg-message-other: #1c1c1e;
+  --bg-hover:     rgba(255,255,255,0.06);
+  --bg-active:    rgba(250,35,59,0.18);
+  --bg-modal:     rgba(28,28,30,0.95);
+  --bg-btn:       linear-gradient(135deg, #fa233b, #ff6482);
+  --bg-btn-hover: linear-gradient(135deg, #ff3a52, #ff7a96);
+  --bg-input-msg: rgba(44,44,46,0.6);
+  --bg-status-bar:#000000;
+
+  --text-primary:   #ffffff;
+  --text-secondary: rgba(235,235,245,0.6);
+  --text-muted:     rgba(235,235,245,0.35);
+  --text-btn:       #ffffff;
+  --text-name-self: #fa233b;
+  --text-name-other:rgba(235,235,245,0.7);
+
+  --border:       rgba(255,255,255,0.08);
+  --border-focus: #fa233b;
+  --border-card:  rgba(255,255,255,0.1);
+
+  --accent:       #fa233b;
+  --accent2:      #ff6482;
+  --accent3:      #ff375f;
+  --glow:         rgba(250,35,59,0.3);
+  --glow2:        rgba(255,100,130,0.22);
+
+  --status-online:   #32d74b;
+  --status-idle:     #ff9f0a;
+  --status-dnd:      #ff453a;
+  --status-invisible:#8e8e93;
+
+  --shadow:       0 4px 20px rgba(0,0,0,0.5);
+  --shadow-card:  0 20px 60px rgba(0,0,0,0.7);
+  --shadow-msg:   0 2px 8px rgba(250,35,59,0.18);
+
+  --radius-card:  14px;
+  --radius-msg:   18px;
+  --radius-btn:   500px;
+  --radius-input: 10px;
+
+  --font-main:    -apple-system, 'SF Pro Text', sans-serif;
+  --font-heading: -apple-system, 'SF Pro Display', sans-serif;
+  --font-name:    -apple-system, 'SF Pro Display', sans-serif;
+
+  --transition-speed: 240ms;
+
+  --scrollbar-bg:    transparent;
+  --scrollbar-thumb: rgba(255,255,255,0.2);
+  --sidebar-glow:    none;
+  --nav-active-bg:   rgba(250,35,59,0.15);
+  --nav-active-border: transparent;
+}
+
+.theme-applemusic { background: #000; color: #fff; }
+.theme-applemusic body { background: #000; color: #fff; }
+
+/* Apple Music: frosted glass everywhere */
+.theme-applemusic #app-header {
+  background: rgba(0,0,0,0.55);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  box-shadow: none;
+}
+.theme-applemusic #sidebar {
+  background: rgba(22,22,24,0.68);
+  border-right: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: saturate(180%) blur(30px);
+  -webkit-backdrop-filter: saturate(180%) blur(30px);
+}
+.theme-applemusic .nav-item {
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-family: -apple-system, sans-serif;
+  font-weight: 500;
+  font-size: 0.94rem;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  transition: all 180ms ease;
+}
+.theme-applemusic .nav-item:hover { background: rgba(255,255,255,0.07); }
+.theme-applemusic .nav-item.active {
+  background: rgba(250,35,59,0.16);
+  color: #fa233b;
+}
+.theme-applemusic .nav-item.active svg, .theme-applemusic .nav-item.active .nav-icon { color: #fa233b; }
+
+.theme-applemusic .section-header {
+  background: transparent;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+/* Apple Music signature: HUGE display title */
+.theme-applemusic .section-title {
+  font-family: -apple-system, 'SF Pro Display', sans-serif;
+  font-weight: 800;
+  font-size: 1.75rem;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  text-transform: none;
+}
+
+.theme-applemusic .chat-header {
+  background: rgba(0,0,0,0.55);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Apple Music signature: gradient hero aurora at top of messages */
+.theme-applemusic .messages-area { background: #000; position: relative; }
+.theme-applemusic .messages-area::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 280px;
+  background: radial-gradient(ellipse 80% 100% at 50% -20%, rgba(250,35,59,0.22), rgba(255,100,130,0.08) 40%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.theme-applemusic .msg-row { position: relative; z-index: 1; }
+
+.theme-applemusic .msg-bubble-self {
+  background: linear-gradient(135deg, #fa233b, #ff6482) !important;
+  color: #ffffff !important;
   border: none !important;
-  box-shadow: 0 4px 16px rgba(194,113,58,0.25) !important;
-  border-radius: 20px !important;
-  border-bottom-right-radius: 6px !important;
+  box-shadow: 0 2px 14px rgba(250,35,59,0.35) !important;
+  border-radius: 18px !important;
+  padding: 8px 14px !important;
+  font-family: -apple-system, sans-serif;
+  font-weight: 500;
 }
-.theme-sandstone .msg-bubble-self .msg-text { color: #fdf7ef; }
-.theme-sandstone .msg-name-self { color: #c2713a; }
-/* Other messages */
-.theme-sandstone .msg-bubble-other {
-  background: #fdf7ef !important;
-  border: 1px solid #e8d8c0 !important;
-  box-shadow: 0 2px 10px rgba(150,80,30,0.08) !important;
-  border-radius: 20px !important;
-  border-bottom-left-radius: 6px !important;
+.theme-applemusic .msg-bubble-self .msg-text { color: #ffffff !important; }
+.theme-applemusic .msg-bubble-self .msg-time { color: rgba(255,255,255,0.75) !important; }
+.theme-applemusic .msg-bubble-other {
+  background: #1c1c1e !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 18px !important;
+  padding: 8px 14px !important;
+  font-family: -apple-system, sans-serif;
 }
-.theme-sandstone .msg-bubble-other .msg-text { color: #2d1f0f; }
-.theme-sandstone .msg-name-other { color: #7a5230; }
-.theme-sandstone .msg-time { color: #b8906a !important; }
-/* Input area */
-.theme-sandstone .input-area {
-  background: #ede4d4;
-  border-top: 1px solid #dfd0b8;
+.theme-applemusic .msg-name-self { color: #fa233b; font-weight: 700; font-size: 0.84rem; letter-spacing: -0.01em; }
+.theme-applemusic .msg-name-other { color: rgba(235,235,245,0.7); font-weight: 700; font-size: 0.84rem; letter-spacing: -0.01em; }
+.theme-applemusic .msg-time { color: rgba(235,235,245,0.35) !important; font-size: 0.7rem; }
+
+.theme-applemusic .input-area {
+  background: rgba(0,0,0,0.65);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
 }
-.theme-sandstone .msg-input-wrap {
-  background: #fdf7ef;
-  border: 1.5px solid #dfd0b8;
-  border-radius: 28px;
-  box-shadow: 0 2px 10px rgba(150,80,30,0.08);
+.theme-applemusic .msg-input-wrap {
+  background: rgba(44,44,46,0.6);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
 }
-.theme-sandstone .msg-input-wrap:focus-within {
-  border-color: #c2713a;
-  box-shadow: 0 4px 20px rgba(194,113,58,0.14);
+.theme-applemusic .msg-input-wrap:focus-within {
+  border-color: rgba(250,35,59,0.5);
+  background: rgba(44,44,46,0.82);
 }
-/* Buttons */
-.theme-sandstone .btn-primary {
-  background: #c2713a;
-  color: #fdf7ef;
-  box-shadow: 0 4px 16px rgba(194,113,58,0.25);
-  font-family: 'Lora', Georgia, serif;
-  font-weight: 700;
-}
-.theme-sandstone .btn-primary:hover {
-  background: #a85d2a;
-  box-shadow: 0 6px 24px rgba(194,113,58,0.35);
-  transform: translateY(-2px);
-}
-.theme-sandstone .send-btn { background: #c2713a; }
-.theme-sandstone .send-btn svg { color: #fdf7ef; stroke: #fdf7ef; }
-.theme-sandstone .btn-icon { color: #8a6640; }
-.theme-sandstone .btn-icon:hover { color: #c2713a; background: rgba(194,113,58,0.1); }
-/* Inputs */
-.theme-sandstone input, .theme-sandstone textarea, .theme-sandstone select {
-  background: #f8f0e4;
-  border-color: #dfd0b8;
-  color: #2d1f0f;
-  font-family: 'Lora', Georgia, serif;
-}
-.theme-sandstone input:focus, .theme-sandstone textarea:focus, .theme-sandstone select:focus {
-  border-color: #c2713a;
-  box-shadow: 0 0 0 3px rgba(194,113,58,0.12);
-}
-/* Nav items */
-.theme-sandstone .nav-item { color: #6b4c30; font-family: 'Lora', Georgia, serif; }
-.theme-sandstone .nav-item:hover { background: rgba(194,113,58,0.08); color: #2d1f0f; }
-.theme-sandstone .nav-item.active {
-  background: rgba(194,113,58,0.12);
-  color: #c2713a;
+
+/* Apple Music: pill-shaped buttons, glossy */
+.theme-applemusic .btn-primary {
+  background: linear-gradient(135deg, #fa233b, #ff6482);
+  color: #ffffff;
+  border: none;
+  border-radius: 500px;
+  font-family: -apple-system, sans-serif;
   font-weight: 600;
-  border-left: 3px solid #c2713a;
-  padding-left: 13px;
+  font-size: 0.9rem;
+  padding: 10px 22px;
+  letter-spacing: -0.005em;
+  box-shadow: 0 2px 14px rgba(250,35,59,0.3);
 }
-.theme-sandstone .nav-badge { background: #c2713a; color: #fdf7ef; }
-/* Cards and modals */
-.theme-sandstone .card, .theme-sandstone .glass-card {
-  background: #fdf7ef;
-  border: 1px solid #e8d8c0;
-  box-shadow: 0 6px 24px rgba(150,80,30,0.10);
+.theme-applemusic .btn-primary:hover {
+  background: linear-gradient(135deg, #ff3a52, #ff7a96);
+  transform: scale(1.02);
+  box-shadow: 0 4px 22px rgba(250,35,59,0.45);
 }
-.theme-sandstone .modal-content {
-  background: #fdf7ef;
-  border: 1px solid #dfd0b8;
-  box-shadow: 0 24px 64px rgba(100,50,10,0.16);
+.theme-applemusic .send-btn { background: linear-gradient(135deg, #fa233b, #ff6482); border-radius: 50%; box-shadow: 0 2px 12px rgba(250,35,59,0.3); }
+.theme-applemusic .send-btn:hover { transform: scale(1.06); box-shadow: 0 4px 18px rgba(250,35,59,0.45); }
+.theme-applemusic .send-btn svg { color: #ffffff; stroke: #ffffff; }
+.theme-applemusic .btn-icon { color: rgba(235,235,245,0.6); }
+.theme-applemusic .btn-icon:hover { color: #ffffff; background: rgba(255,255,255,0.08); }
+.theme-applemusic input:focus, .theme-applemusic textarea:focus {
+  border-color: rgba(250,35,59,0.5) !important;
+  box-shadow: 0 0 0 3px rgba(250,35,59,0.15) !important;
+  outline: none !important;
 }
-/* Section header */
-.theme-sandstone .section-header {
-  background: #f0e8da;
-  border-bottom: 1px solid #dfd0b8;
-}
-.theme-sandstone .section-title {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-weight: 700;
-  color: #2d1f0f;
-  font-style: italic;
-  font-size: 1.05rem;
-}
-/* Scrollbar */
-.theme-sandstone ::-webkit-scrollbar { width: 6px; }
-.theme-sandstone ::-webkit-scrollbar-thumb { background: #d4b898; border-radius: 3px; }
-.theme-sandstone ::-webkit-scrollbar-thumb:hover { background: #c2713a; }
-.theme-sandstone ::-webkit-scrollbar-track { background: transparent; }
-/* Avatar */
-.theme-sandstone .msg-avatar-sm {
-  background: linear-gradient(135deg, #ede4d4, #d4c0a0);
-  color: #8a6640;
-  border: 1.5px solid #dfd0b8;
-}
-/* Section tabs */
-.theme-sandstone .section-tab { color: #8a6640; font-family: 'Lora', Georgia, serif; }
-.theme-sandstone .section-tab.active { background: rgba(194,113,58,0.1); color: #c2713a; font-weight: 600; }
-/* Settings */
-.theme-sandstone .settings-modal {
-  background: #fdf7ef;
-  border: 1px solid #dfd0b8;
-  box-shadow: 0 32px 80px rgba(100,50,10,0.16);
-}
-.theme-sandstone .settings-modal .settings-tabs {
-  background: #f0e8da;
-  border-right: 1px solid #dfd0b8;
-}
-.theme-sandstone .settings-modal .settings-tab.active {
-  background: rgba(194,113,58,0.12);
-  color: #c2713a;
-  font-weight: 600;
-  border-left: 2px solid #c2713a;
-}
-.theme-sandstone .settings-modal .settings-tab { font-family: 'Lora', Georgia, serif; }
-.theme-sandstone .settings-section h3 { color: #b8906a; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; }
-.theme-sandstone .settings-row { border-bottom-color: #e8d8c0; }
-.theme-sandstone .theme-card { border: 2px solid #e8d8c0; border-radius: 14px; }
-.theme-sandstone .theme-card.active { border-color: #c2713a !important; box-shadow: 0 0 0 3px rgba(194,113,58,0.1); }
-/* Toggle */
-.theme-sandstone .toggle-slider { background: #d4b898; }
-.theme-sandstone .toggle input:checked + .toggle-slider { background: #c2713a; }
-/* Date separators */
-.theme-sandstone .date-sep { color: #b8906a; }
-.theme-sandstone .date-sep::before,
-.theme-sandstone .date-sep::after { background: #dfd0b8; }
-/* Panels */
-.theme-sandstone .settings-panel,
-.theme-sandstone .notes-area,
-.theme-sandstone .vault-area,
-.theme-sandstone .contacts-area,
-.theme-sandstone .calendar-area {
-  background: #f5ede0;
-}
-/* Notes */
-.theme-sandstone .note-item:hover { background: rgba(194,113,58,0.06); }
-.theme-sandstone .note-item.active { background: rgba(194,113,58,0.1); border-left: 3px solid #c2713a; }
-/* Calendar today */
-.theme-sandstone .cal-day.today { background: rgba(194,113,58,0.15); border-color: #c2713a; }
-.theme-sandstone .cal-day.today .cal-day-num { color: #a85d2a; font-weight: 800; }
-/* Contacts */
-.theme-sandstone .contact-card:hover { background: rgba(194,113,58,0.05); }
-.theme-sandstone .contact-avatar { background: linear-gradient(135deg, #ede4d4, #d4c0a0); color: #8a6640; }
-/* Status indicator border */
-.theme-sandstone .status-indicator { border-color: #ede4d4; }
-/* Passcode entry */
-.theme-sandstone .passcode-digit {
-  border-color: #dfd0b8;
-  background: #f8f0e4;
-  color: #c2713a;
-  box-shadow: 0 2px 8px rgba(150,80,30,0.1);
-}
-.theme-sandstone .passcode-digit:focus {
-  border-color: #c2713a;
-  box-shadow: 0 0 12px rgba(194,113,58,0.2) !important;
-}
-.theme-sandstone .vault-passcode-screen h2 {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-weight: 700;
-  font-style: italic;
-  color: #2d1f0f;
-  letter-spacing: 0.5px;
-}
-/* Format toolbar */
-.theme-sandstone .format-toolbar {
-  background: #fdf7ef;
-  border: 1px solid #dfd0b8;
+
+/* Apple Music: album-card style profile + modals */
+.theme-applemusic .card, .theme-applemusic .glass-card, .theme-applemusic .modal-content, .theme-applemusic .settings-modal {
+  background: rgba(28,28,30,0.92);
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 14px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.7);
+  backdrop-filter: saturate(180%) blur(40px);
+  -webkit-backdrop-filter: saturate(180%) blur(40px);
 }
-/* Text styles */
-.theme-sandstone .msg-text { font-family: 'Lora', Georgia, serif; font-size: 0.9rem; line-height: 1.65; }
-/* TOTP */
-.theme-sandstone .totp-card { background: #fdf7ef; border-color: #e8d8c0; }
-.theme-sandstone .totp-card:hover { border-color: #c2713a; box-shadow: 0 4px 16px rgba(194,113,58,0.12); }
-.theme-sandstone .totp-card-code { background: rgba(194,113,58,0.06); color: #c2713a; }
+.theme-applemusic .profile-card {
+  background: linear-gradient(160deg, #1c1c1e 0%, #000 100%);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  box-shadow: 0 40px 100px rgba(0,0,0,0.8), 0 0 80px rgba(250,35,59,0.1);
+  position: relative;
+  overflow: hidden;
+}
+.theme-applemusic .profile-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 180px;
+  background: radial-gradient(ellipse at 30% 0%, rgba(250,35,59,0.35), transparent 60%);
+  pointer-events: none;
+}
+.theme-applemusic .pc-banner::after { background: linear-gradient(transparent 40%, #1c1c1e); }
+.theme-applemusic .pc-avatar-ring { box-shadow: 0 0 0 3px rgba(250,35,59,0.5), 0 0 30px rgba(250,35,59,0.3); }
+.theme-applemusic .pc-display-name {
+  font-family: -apple-system, 'SF Pro Display', sans-serif;
+  font-weight: 800;
+  font-size: 1.9rem;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+}
+.theme-applemusic .pc-section { border-color: rgba(255,255,255,0.08); }
+.theme-applemusic .pc-section-title {
+  font-family: -apple-system, sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #fa233b;
+}
+.theme-applemusic ::-webkit-scrollbar { width: 6px; height: 6px; }
+.theme-applemusic ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+.theme-applemusic ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+.theme-applemusic ::-webkit-scrollbar-track { background: transparent; }
+.theme-applemusic .passcode-digit { background: rgba(44,44,46,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: #fff; backdrop-filter: blur(10px); }
+.theme-applemusic .passcode-digit:focus { border-color: #fa233b; box-shadow: 0 0 0 3px rgba(250,35,59,0.25) !important; }
+.theme-applemusic .settings-modal .settings-tab.active { border-left: 2px solid #fa233b; background: rgba(250,35,59,0.1); }
+.theme-applemusic .settings-section h3 { font-family: -apple-system, sans-serif; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: #fa233b; }
+.theme-applemusic .theme-card { border-radius: 12px; }
+.theme-applemusic .theme-card.active { border-color: #fa233b !important; box-shadow: 0 0 0 2px rgba(250,35,59,0.3); }
+.theme-applemusic .totp-card { background: rgba(28,28,30,0.92); border-color: rgba(255,255,255,0.08); backdrop-filter: blur(20px); }
+.theme-applemusic .totp-card-code { background: rgba(250,35,59,0.12); color: #fa233b; font-weight: 600; }
+.theme-applemusic .format-toolbar { background: rgba(28,28,30,0.95); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; backdrop-filter: blur(20px); }
 
 
 /* ── Theme transition ───────────────────────────────────────────────── */

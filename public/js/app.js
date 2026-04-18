@@ -123,14 +123,13 @@ const THEMES = [
   { id: 'royal',    name: 'Crimson Throne',     preview: 'linear-gradient(135deg,#0c0606,#c41e3a,#d4a017)' },
   { id: 'light',    name: 'Pristine Light',     preview: 'linear-gradient(135deg,#f9f9f9,#d4d4d4,#e8e8e8)' },
   { id: 'dark',     name: 'Midnight Dark',      preview: 'linear-gradient(135deg,#141414,#404040,#242424)' },
-  { id: 'heaven',   name: 'Celestial',          preview: 'linear-gradient(135deg,#faf8f2,#c8a96e,#d4b882)' },
   { id: 'neon',     name: 'Neon Tokyo',         preview: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)' },
   { id: 'noir',     name: 'Velvet Noir',        preview: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)' },
   { id: 'rosewood', name: 'Rose & Ember',       preview: 'linear-gradient(135deg,#0c0912,#c8967a,#7c3aed)' },
   { id: 'ocean',    name: 'Deep Tide',          preview: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)' },
   { id: 'arctic',   name: 'Arctic',             preview: 'linear-gradient(135deg,#070e1a,#43e8b1,#a48efa)' },
-  { id: 'aurora',   name: 'Arctic Aurora',      preview: 'linear-gradient(135deg,#f0f4f8,#06b6d4,#818cf8)' },
-  { id: 'sandstone',name: 'Sandstone Dusk',     preview: 'linear-gradient(135deg,#f5ede0,#c2713a,#d4a870)' },
+  { id: 'obsidian', name: 'Onyx Signature',     preview: 'linear-gradient(135deg,#08080a,#3a362c,#c9b88a)' },
+  { id: 'applemusic',name:'Apple Music',        preview: 'linear-gradient(135deg,#000000,#fa2d48,#ff6482)' },
 ];
 
 // ── Socket ────────────────────────────────────────────────────────────

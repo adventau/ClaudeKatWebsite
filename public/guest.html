@@ -579,14 +579,24 @@
       --glow: rgba(196,30,58,0.22); --msg-self: linear-gradient(135deg,#c41e3a,#d4a017);
       --font-body: 'Barlow', sans-serif;
     }
-    body.host-theme-heaven {
-      --bg: #fafaf8; --surface: #ffffff; --border: rgba(200,169,110,0.2);
-      --accent: #c8a96e; --accent2: #8b7a5e; --text: #2a2520; --muted: rgba(42,37,32,0.45);
-      --glow: rgba(200,169,110,0.22); --msg-self: linear-gradient(135deg,#c8a96e,#8b7a5e); --msg-other: rgba(0,0,0,0.04);
+    body.host-theme-obsidian {
+      --bg: #08080a; --surface: #101014; --border: rgba(201,184,138,0.12);
+      --accent: #c9b88a; --accent2: #e8e4dc; --text: #e8e4dc; --muted: rgba(232,228,220,0.45);
+      --glow: rgba(201,184,138,0.18); --msg-self: #141418; --msg-other: #0d0d11;
+      --font-body: 'Inter Tight', sans-serif;
     }
-    body.host-theme-heaven header { background: rgba(255,255,255,0.97); }
-    body.host-theme-heaven .channel-bar { background: #fafaf8; }
-    body.host-theme-heaven .input-area { background: #fafaf8; }
+    body.host-theme-obsidian header { background: #08080a; }
+    body.host-theme-obsidian .channel-bar { background: #0b0b0e; }
+    body.host-theme-obsidian .input-area { background: #08080a; }
+    body.host-theme-applemusic {
+      --bg: #000000; --surface: rgba(28,28,30,0.9); --border: rgba(255,255,255,0.08);
+      --accent: #fa233b; --accent2: #ff6482; --text: #ffffff; --muted: rgba(235,235,245,0.6);
+      --glow: rgba(250,35,59,0.25); --msg-self: linear-gradient(135deg,#fa233b,#ff6482);
+      --font-body: -apple-system, sans-serif;
+    }
+    body.host-theme-applemusic header { background: rgba(0,0,0,0.7); }
+    body.host-theme-applemusic .channel-bar { background: rgba(28,28,30,0.72); }
+    body.host-theme-applemusic .input-area { background: rgba(0,0,0,0.85); }
     body.host-theme-rosewood {
       --bg: #0c0912; --surface: #120e1c; --border: rgba(200,150,120,0.18);
       --accent: #c8967a; --accent2: #e8c9a0; --text: #f0e8e0; --muted: rgba(240,232,224,0.45);
@@ -634,24 +644,6 @@
       --accent: #43e8b1; --accent2: #7bc8f6; --text: #d8e8f4; --muted: rgba(216,232,244,0.45);
       --glow: rgba(67,232,177,0.2); --msg-self: linear-gradient(135deg,#1a6b5a,#145848);
     }
-    body.host-theme-sandstone {
-      --bg: #f5ede0; --surface: #fdf7ef; --border: #dfd0b8;
-      --accent: #c2713a; --accent2: #d4a870; --text: #2d1f0f; --muted: rgba(45,31,15,0.5);
-      --glow: rgba(194,113,58,0.15); --msg-self: linear-gradient(135deg,#c2713a,#d4874e);
-      --font-body: 'Lora', Georgia, serif;
-    }
-    body.host-theme-sandstone header { background: rgba(237,228,212,0.97); }
-    body.host-theme-sandstone .channel-bar { background: #ede4d4; }
-    body.host-theme-sandstone .input-area { background: #ede4d4; }
-    body.host-theme-aurora {
-      --bg: #f0f4f8; --surface: rgba(255,255,255,0.85); --border: rgba(6,182,212,0.15);
-      --accent: #06b6d4; --accent2: #818cf8; --text: #1e293b; --muted: rgba(30,41,59,0.5);
-      --glow: rgba(6,182,212,0.15); --msg-self: linear-gradient(135deg,#06b6d4,#818cf8);
-      --font-body: 'Plus Jakarta Sans', sans-serif;
-    }
-    body.host-theme-aurora header { background: rgba(232,237,245,0.97); }
-    body.host-theme-aurora .channel-bar { background: #e8edf5; }
-    body.host-theme-aurora .input-area { background: #e8edf5; }
 
     /* ADD NEW THEMES HERE — see checklist in themes.css */
 
@@ -1124,7 +1116,6 @@
             kaliph: 'linear-gradient(135deg,#08051a,#7c3aed,#3b82f6)',
             kathrine: 'linear-gradient(135deg,#0d0716,#8b5cf6,#e9d5ff)',
             royal: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)',
-            heaven: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)',
             neon: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)',
             noir: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)',
             dark: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)',
@@ -1132,6 +1123,9 @@
             rosewood: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)',
             ocean: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)',
             forest: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)',
+            arctic: 'linear-gradient(135deg,#070e1a,#43e8b1,#a48efa)',
+            obsidian: 'linear-gradient(135deg,#08080a,#3a362c,#c9b88a)',
+            applemusic: 'linear-gradient(135deg,#000000,#fa233b,#ff6482)',
           };
           if (hostPreview) hostPreview.style.background = themePreviewColors[data.theme] || 'var(--accent)';
           setGuestTheme('host');
@@ -1189,7 +1183,6 @@
             kaliph: 'linear-gradient(135deg,#08051a,#7c3aed,#3b82f6)',
             kathrine: 'linear-gradient(135deg,#0d0716,#8b5cf6,#e9d5ff)',
             royal: 'linear-gradient(135deg,#0a0703,#b91c1c,#d97706)',
-            heaven: 'linear-gradient(135deg,#fafaf8,#c8a96e,#fef9f0)',
             neon: 'linear-gradient(135deg,#0a0a12,#ff2d7b,#00f0ff)',
             noir: 'linear-gradient(135deg,#1a1a2e,#d4af37,#5c2a3e)',
             dark: 'linear-gradient(135deg,#1a1a1a,#404040,#242424)',
@@ -1197,6 +1190,9 @@
             rosewood: 'linear-gradient(135deg,#0c0912,#c8967a,#e8c9a0)',
             ocean: 'linear-gradient(135deg,#060d10,#14b8a6,#2dd4bf)',
             forest: 'linear-gradient(135deg,#0f1a14,#52b788,#c8a84e)',
+            arctic: 'linear-gradient(135deg,#070e1a,#43e8b1,#a48efa)',
+            obsidian: 'linear-gradient(135deg,#08080a,#3a362c,#c9b88a)',
+            applemusic: 'linear-gradient(135deg,#000000,#fa233b,#ff6482)',
           };
           if (hostPreview) hostPreview.style.background = themePreviewColors[creator.theme] || 'var(--accent)';
           if (hostName) hostName.textContent = capitalize(creatorTheme) + "'s Theme";
