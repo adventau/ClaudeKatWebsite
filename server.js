@@ -765,55 +765,89 @@ app.post('/api/briefings/submit', async (req, res) => {
 });
 
 // Fetch briefing for a specific date (defaults to today)
+// JSON-backed briefings fallback — used when Postgres isn't configured.
+// Shape: { [user]: { [YYYY-MM-DD]: { content, generatedAt, readAt } } }
+const briefingsJsonPath = path.join(__dirname, 'data', 'briefings.json');
+function readBriefingsJson() {
+  try { return JSON.parse(fs.readFileSync(briefingsJsonPath, 'utf8')); } catch { return {}; }
+}
+function writeBriefingsJson(obj) {
+  try { fs.writeFileSync(briefingsJsonPath, JSON.stringify(obj, null, 2)); } catch (e) { console.error('[briefings] json write:', e.message); }
+}
+
 app.get('/api/briefings/today', mainAuth, async (req, res) => {
   const date = req.query.date || todayCentral();
-  try {
-    const result = await db.query(
-      'SELECT content, generated_at, read_at, date FROM briefings WHERE user_id = $1 AND date = $2',
-      [req.session.user, date]
-    );
-    if (!result.rows.length) return res.json({ found: false, date });
-    const row = result.rows[0];
-    res.json({
-      found: true,
-      date: row.date,
-      content: row.content,
-      generatedAt: row.generated_at,
-      isRead: !!row.read_at,
-    });
-  } catch (e) {
-    console.error('[briefings] Fetch error:', e.message);
-    res.status(500).json({ error: 'Server error' });
+  if (db.pool) {
+    try {
+      const result = await db.query(
+        'SELECT content, generated_at, read_at, date FROM briefings WHERE user_id = $1 AND date = $2',
+        [req.session.user, date]
+      );
+      if (!result.rows.length) return res.json({ found: false, date });
+      const row = result.rows[0];
+      return res.json({
+        found: true,
+        date: row.date,
+        content: row.content,
+        generatedAt: row.generated_at,
+        isRead: !!row.read_at,
+      });
+    } catch (e) {
+      console.error('[briefings] Fetch error:', e.message);
+      // fall through to JSON fallback
+    }
   }
+  // JSON fallback
+  const all = readBriefingsJson();
+  const row = (all[req.session.user] || {})[date];
+  if (!row) return res.json({ found: false, date });
+  res.json({
+    found: true,
+    date,
+    content: row.content,
+    generatedAt: row.generatedAt,
+    isRead: !!row.readAt,
+  });
 });
 
 // Get list of dates that have briefings (for navigation)
 app.get('/api/briefings/dates', mainAuth, async (req, res) => {
-  try {
-    const result = await db.query(
-      'SELECT date FROM briefings WHERE user_id = $1 ORDER BY date DESC',
-      [req.session.user]
-    );
-    res.json({ dates: result.rows.map(r => r.date.toISOString().slice(0, 10)) });
-  } catch (e) {
-    console.error('[briefings] Dates error:', e.message);
-    res.status(500).json({ error: 'Server error' });
+  if (db.pool) {
+    try {
+      const result = await db.query(
+        'SELECT date FROM briefings WHERE user_id = $1 ORDER BY date DESC',
+        [req.session.user]
+      );
+      return res.json({ dates: result.rows.map(r => r.date.toISOString().slice(0, 10)) });
+    } catch (e) {
+      console.error('[briefings] Dates error:', e.message);
+    }
   }
+  const all = readBriefingsJson();
+  const dates = Object.keys(all[req.session.user] || {}).sort().reverse();
+  res.json({ dates });
 });
 
 // Mark today's briefing as read
 app.post('/api/briefings/read', mainAuth, async (req, res) => {
-  const today = todayCentral();
-  try {
-    await db.query(
-      'UPDATE briefings SET read_at = NOW() WHERE user_id = $1 AND date = $2 AND read_at IS NULL',
-      [req.session.user, today]
-    );
-    res.json({ success: true });
-  } catch (e) {
-    console.error('[briefings] Read error:', e.message);
-    res.status(500).json({ error: 'Server error' });
+  const date = req.body.date || todayCentral();
+  if (db.pool) {
+    try {
+      await db.query(
+        'UPDATE briefings SET read_at = NOW() WHERE user_id = $1 AND date = $2 AND read_at IS NULL',
+        [req.session.user, date]
+      );
+      return res.json({ success: true });
+    } catch (e) {
+      console.error('[briefings] Read error:', e.message);
+    }
   }
+  const all = readBriefingsJson();
+  if (all[req.session.user] && all[req.session.user][date]) {
+    all[req.session.user][date].readAt = new Date().toISOString();
+    writeBriefingsJson(all);
+  }
+  res.json({ success: true });
 });
 
 // Fetch the most recent briefing before today for a given user (Cowork → Vault)
@@ -8971,10 +9005,9 @@ app.post('/k108/profiles/:id/surveillance/queue', async (req, res) => {
   await k108Log(username, 'surveillance_queue', { profileId, name: fullName }, req.ip);
   res.json({ success: true });
 
-  // Fire-and-forget internal runner (Claude + web_search)
-  // On failure, the queue row stays 'pending' so the legacy Cowork runner can still pick it up
-  runInternalSurveillance(queueId, profileId, fullName, username).catch(err => {
-    console.error('[surveillance] Internal runner error for queueId=' + queueId + ':', err && (err.message || err));
+  // Fire-and-forget Routine trigger — results arrive later via POST /api/archivist/results
+  fireRoutineSurveillance(queueId, profileId, fullName, username).catch(err => {
+    console.error('[surveillance] Routine trigger error for queueId=' + queueId + ':', err && (err.message || err));
   });
 });
 
@@ -8996,13 +9029,21 @@ app.delete('/k108/profiles/:id/surveillance/queue', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// K-108 INTERNAL SURVEILLANCE RUNNER
+// K-108 SURVEILLANCE — ROUTINE TRIGGER
 // ═══════════════════════════════════════════════════════════════════════════════
-// Replaces the external Cowork runner with an in-process Claude + web_search sweep.
-// The UI contract is preserved: pending flag, k108:surveillance_complete socket
-// event, and a plain-text `report` column that the profile page renders pre-wrap.
-// If ANTHROPIC_API_KEY is unset or the runner errors, the queue row is left alone
-// so the legacy Cowork runner can still pick it up as a fallback.
+// Fires an Anthropic Routine that runs the surveillance sweep externally.
+// Results land back via POST /api/archivist/results (BRIEFING_SECRET auth), the
+// same endpoint used by the legacy Cowork runner — no changes to that path.
+//
+// Required env vars:
+//   ROUTINE_SURVEILLANCE_ID    — Routine ID only (e.g. trig_01DU2wEKxxGjRH2GxurhYCHb).
+//                                The full fire URL is constructed as:
+//                                https://api.anthropic.com/v1/claude_code/routines/<ID>/fire
+//   ROUTINE_SURVEILLANCE_TOKEN — Anthropic bearer token (api key or rt_live_xxx)
+//
+// If either var is missing, or the POST returns non-2xx, the queue row is marked
+// status='failed' with an error message and a k108:surveillance_failed socket
+// event is emitted so the frontend can surface a visible error state.
 
 const SURVEILLANCE_DEFAULT_SCOPE = {
   primary: 'Gurnee, Illinois',
@@ -9049,170 +9090,33 @@ function surveillanceDetermineScope(profileAddress) {
   };
 }
 
-// Build a compact profile brief for the analyst prompt.
-function surveillanceBuildSubjectBrief(p) {
-  const lines = [];
-  const name = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').trim();
-  lines.push('FULL NAME: ' + (name || '(unknown)'));
-  const aliases = Array.isArray(p.aliases) ? p.aliases.filter(Boolean) : [];
-  if (aliases.length) lines.push('ALIASES: ' + aliases.join(', '));
-  if (p.age) lines.push('AGE: ' + p.age);
-  if (p.birthday) lines.push('DOB: ' + String(p.birthday).slice(0, 10));
-  if (p.relation) lines.push('RELATION TO OPERATOR: ' + p.relation);
-
-  const addr = p.address && typeof p.address === 'object' ? p.address : {};
-  const addrLine = [addr.street, addr.city, addr.state, addr.zip || addr.zipcode].filter(Boolean).join(', ');
-  if (addrLine) lines.push('KNOWN ADDRESS: ' + addrLine);
-
-  // Phones — accept either jsonb array of {number,label} or plain strings
-  const phones = Array.isArray(p.phones) ? p.phones : [];
-  if (phones.length) {
-    const phoneStrs = phones.map(ph => typeof ph === 'string' ? ph : (ph.number || '')).filter(Boolean);
-    if (phoneStrs.length) lines.push('KNOWN PHONES: ' + phoneStrs.join(', '));
+async function surveillanceMarkFailed(queueId, profileId, errorMsg) {
+  try {
+    await db.query(
+      `UPDATE surveillance_queue SET status='failed', error=$1 WHERE id=$2`,
+      [errorMsg, queueId]
+    );
+  } catch (e) {
+    console.error('[surveillance] Could not mark queueId=' + queueId + ' failed:', e.message);
   }
-
-  // Emails
-  const emails = Array.isArray(p.emails) ? p.emails : [];
-  if (emails.length) {
-    const emailStrs = emails.map(e => typeof e === 'string' ? e : (e.address || '')).filter(Boolean);
-    if (emailStrs.length) lines.push('KNOWN EMAILS: ' + emailStrs.join(', '));
-  }
-
-  // Social links
-  const socials = Array.isArray(p.social_links) ? p.social_links : [];
-  if (socials.length) {
-    const socialStrs = socials.map(s => {
-      if (typeof s === 'string') return s;
-      const platform = s.platform || s.type || '';
-      const handle = s.handle || s.url || s.username || '';
-      return (platform ? platform + ': ' : '') + handle;
-    }).filter(Boolean);
-    if (socialStrs.length) lines.push('SOCIAL HANDLES: ' + socialStrs.join(' | '));
-  }
-
-  // Employer
-  if (p.employer_info && typeof p.employer_info === 'object') {
-    const e = p.employer_info;
-    const emp = [e.company, e.title, e.industry].filter(Boolean).join(' — ');
-    if (emp) lines.push('EMPLOYMENT: ' + emp);
-  }
-
-  if (p.notes) lines.push('EXISTING NOTES: ' + String(p.notes).substring(0, 800));
-
-  return lines.join('\n');
+  io.emit('k108:surveillance_failed', { profileId, queueId, error: errorMsg });
 }
 
-// Build the analyst system prompt.
-function surveillanceSystemPrompt(scope) {
-  return `You are ORACLE, a senior K-108 intelligence analyst running a covert open-source web surveillance sweep on a subject of interest.
-
-# Geographic scope
-Primary search area: ${scope.focus}
-Operational region: ${scope.region}
-${scope.deviation ? '⚠ GEOGRAPHIC DEVIATION — subject appears to be outside the default Cook/Lake County IL area. Retarget the sweep to the subject actual location and note the deviation in the report.' : 'Default K-108 operational area. Focus queries on Gurnee, Waukegan, Zion, North Chicago, Libertyville, Mundelein, Round Lake, Cook County and Lake County Illinois, plus Kenosha on the Wisconsin border.'}
-
-IMPORTANT: Every web_search query you issue MUST include location context (city, county, or state) pinned to the scope above. Example queries:
-- "<full name> Gurnee Illinois"
-- "<full name> Lake County IL"
-- "<full name> Waukegan"
-- "<handle> Illinois"
-
-# Your job
-Use the web_search tool to collect open-source intelligence on the subject: social media presence, public records, news mentions, professional history, affiliations, recent activity. Do multiple passes with different query angles. Cross-reference findings. Prefer primary sources.
-
-# Output format — CRITICAL
-After you finish searching, produce a single structured intelligence report as PLAIN TEXT (no markdown symbols like **, #, or backticks — the UI renders plain text with pre-wrapped whitespace). Use section headers with a line of dashes underneath. Format exactly like this:
-
-K-108 SURVEILLANCE REPORT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-EXECUTIVE SUMMARY
-─────────────────
-[2-4 sentence analyst-grade assessment of who the subject is and the most important findings]
-
-
-IDENTITY
-─────────────────
-• [CONFIRMED] Full legal name — Marcus Thane (source: Cook County Clerk)
-• [PROBABLE] Age ~34 (source: LinkedIn, crosschecked against public records)
-• [UNVERIFIED] No middle name on file
-
-
-LOCATION
-─────────────────
-• [CONFIRMED] Current address: 123 Oak St, Gurnee IL (source: Lake County property records)
-• [PROBABLE] Secondary address in Waukegan (source: voter registration)
-• [UNVERIFIED] Travel pattern to Chicago loop weekly (source: LinkedIn check-ins)
-
-
-SOCIAL PRESENCE
-─────────────────
-• [CONFIRMED] LinkedIn: linkedin.com/in/marcusthane — active, 500+ connections
-• [PROBABLE] Instagram: @m_thane_73 — private account, ~200 followers
-• [UNVERIFIED] Twitter/X handle — no confirmed match
-
-
-ASSOCIATIONS
-─────────────────
-• [CONFIRMED] Employer: Northbrook Consulting Group (source: LinkedIn + company website)
-• [PROBABLE] Affiliated with Lake Forest Business Alliance (source: membership directory)
-
-
-FINANCIAL
-─────────────────
-• [CONFIRMED] Registered business: Thane Consulting LLC, filed 2022 (source: IL Secretary of State)
-• [UNVERIFIED] No public bankruptcy or lien filings found
-
-
-FLAGS
-─────────────────
-• [PROBABLE] Name appeared in 2023 Daily Herald article about Lake County zoning dispute
-• [UNVERIFIED] Possible second LinkedIn profile under variant spelling — needs manual review
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-END OF REPORT
-
-# Rules
-1. Every finding MUST start with a confidence tag in square brackets: [CONFIRMED], [PROBABLE], or [UNVERIFIED]
-2. Every finding MUST cite a source in parentheses at the end
-3. If a section has no findings, write: "• [UNVERIFIED] No open-source intelligence surfaced for this category."
-4. NEVER invent findings. If web_search returns nothing, say so.
-5. NO markdown (no **, #, \`, [links](url)). Plain text only.
-6. Keep each finding to ONE line, under 200 characters.
-7. Do NOT include your reasoning, chain of thought, or any text outside the report body.
-8. Begin the report with "K-108 SURVEILLANCE REPORT" and end with "END OF REPORT".`;
-}
-
-// Build the user prompt — just the subject brief and the instruction to run.
-function surveillanceUserPrompt(subjectBrief, scope) {
-  return `Run a full K-108 web surveillance sweep on the following subject. Search the web aggressively using multiple query angles. Structure the final report exactly per the format in the system prompt.
-
-# SUBJECT BRIEF
-${subjectBrief}
-
-# SCOPE
-${scope.detail}
-
-Begin the sweep now. Do at least 4-6 web_search calls with different query angles before writing the report.`;
-}
-
-// Extract the final text block from a Claude response (ignoring tool_use blocks).
-function surveillanceExtractReport(resp) {
-  const blocks = (resp && resp.content) || [];
-  const textChunks = blocks.filter(b => b.type === 'text').map(b => b.text || '');
-  const joined = textChunks.join('\n\n').trim();
-  return joined;
-}
-
-// Main runner.
-async function runInternalSurveillance(queueId, profileId, fullName, requestedBy) {
+async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy) {
   if (!db.pool) return;
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.log('[surveillance] ANTHROPIC_API_KEY not set — leaving queueId=' + queueId + ' for legacy runner');
+
+  const routineId    = process.env.ROUTINE_SURVEILLANCE_ID;
+  const routineToken = process.env.ROUTINE_SURVEILLANCE_TOKEN;
+  if (!routineId || !routineToken) {
+    const msg = 'ROUTINE_SURVEILLANCE_ID or ROUTINE_SURVEILLANCE_TOKEN not configured';
+    console.error('[surveillance] ' + msg + ' — queueId=' + queueId);
+    await surveillanceMarkFailed(queueId, profileId, msg);
     return;
   }
 
-  // Verify the queue row is still pending (guards against race with cancellation / legacy runner)
+  const routineUrl = 'https://api.anthropic.com/v1/claude_code/routines/' + routineId + '/fire';
+
+  // Verify the queue row is still pending (guard against race with cancellation)
   const check = await db.query(`SELECT id, status FROM surveillance_queue WHERE id = $1`, [queueId]);
   if (!check.rows.length || check.rows[0].status !== 'pending') {
     console.log('[surveillance] queueId=' + queueId + ' no longer pending — skipping');
@@ -9222,12 +9126,14 @@ async function runInternalSurveillance(queueId, profileId, fullName, requestedBy
   // Load full profile context
   const pr = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [profileId]);
   if (!pr.rows.length) {
-    console.error('[surveillance] profile ' + profileId + ' not found');
+    const msg = 'Profile ' + profileId + ' not found';
+    console.error('[surveillance] ' + msg);
+    await surveillanceMarkFailed(queueId, profileId, msg);
     return;
   }
   const p = pr.rows[0];
 
-  // Load known associates (relations) for the context brief
+  // Load known associates
   let relations = [];
   try {
     const relRows = await db.query(
@@ -9239,109 +9145,65 @@ async function runInternalSurveillance(queueId, profileId, fullName, requestedBy
     relations = relRows.rows;
   } catch (e) {}
 
-  const subjectBrief = surveillanceBuildSubjectBrief(p);
-  const assocLine = relations.length
-    ? '\nKNOWN ASSOCIATES: ' + relations.map(r => [r.first_name, r.last_name].filter(Boolean).join(' ') + (r.label ? ' (' + r.label + ')' : '')).join(' | ')
-    : '';
-
   const scope = surveillanceDetermineScope(p.address);
-  const systemPrompt = surveillanceSystemPrompt(scope);
-  const userPrompt = surveillanceUserPrompt(subjectBrief + assocLine, scope);
+  const submitUrl = K108_BASE_URL + '/api/archivist/results';
 
-  console.log('[surveillance] Starting internal sweep for "' + fullName + '" (queueId=' + queueId + ', profileId=' + profileId + ') scope=' + scope.focus);
+  const payloadObject = {
+    queueId,
+    profileId,
+    name: fullName,
+    requestedBy,
+    profile: p,
+    relations,
+    scope: {
+      focus: scope.focus,
+      region: scope.region,
+      deviation: scope.deviation,
+      detail: scope.detail,
+      counties: SURVEILLANCE_DEFAULT_SCOPE.counties,
+      state: 'IL',
+    },
+    submitUrl,
+    briefingSecret: process.env.BRIEFING_SECRET,
+  };
 
-  const Anthropic = require('@anthropic-ai/sdk');
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  // The Routine API accepts a single "text" field; embed the full payload as a
+  // natural-language message with the JSON block inside it.
+  const messageText =
+    'New surveillance request.\n\n' +
+    'Parse the JSON block below and execute your instructions.\n\n' +
+    'PAYLOAD:\n' +
+    JSON.stringify(payloadObject, null, 2);
 
-  let report;
+  console.log('[surveillance] Firing Routine for "' + fullName + '" (queueId=' + queueId + ') scope=' + scope.focus);
+
+  let statusCode;
   try {
-    const resp = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8192,
-      system: systemPrompt,
-      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 10 }],
-      messages: [{ role: 'user', content: userPrompt }],
+    const resp = await fetch(routineUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + routineToken,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'experimental-cc-routine-2026-04-01',
+      },
+      body: JSON.stringify({ text: messageText }),
     });
-    report = surveillanceExtractReport(resp);
-    if (!report || report.length < 60) {
-      throw new Error('Claude returned empty or malformed report');
+    statusCode = resp.status;
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '');
+      throw new Error('HTTP ' + statusCode + (body ? ': ' + body.slice(0, 200) : ''));
     }
+    // Successful fire: { "type": "routine_fire", "claude_code_session_id": "...", "claude_code_session_url": "..." }
+    let fireResult = {};
+    try { fireResult = await resp.json(); } catch (_) {}
+    const sessionUrl = fireResult.claude_code_session_url || '(no session URL in response)';
+    console.log('[surveillance] Routine accepted queueId=' + queueId + ' (HTTP ' + statusCode + ') session=' + sessionUrl);
   } catch (e) {
-    // Fallback: call once more without web_search (model or account may not have access)
-    console.warn('[surveillance] Primary call failed (' + e.message + ') — retrying without web_search tool');
-    try {
-      const resp2 = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt + '\n\n[web_search tool unavailable — produce the report using only what you can infer from the subject brief, and mark every non-briefed finding as UNVERIFIED]' }],
-      });
-      report = surveillanceExtractReport(resp2);
-    } catch (e2) {
-      console.error('[surveillance] Fallback call also failed:', e2.message);
-      return; // leave the queue row for the legacy runner
-    }
+    const msg = 'Routine POST failed: ' + e.message;
+    console.error('[surveillance] ' + msg + ' (queueId=' + queueId + ')');
+    await surveillanceMarkFailed(queueId, profileId, msg);
   }
-
-  if (!report) return;
-
-  // Re-check the queue row right before commit (in case it was cancelled or already processed)
-  const recheck = await db.query(`SELECT id FROM surveillance_queue WHERE id = $1 AND status = 'pending'`, [queueId]);
-  if (!recheck.rows.length) {
-    console.log('[surveillance] queueId=' + queueId + ' was cancelled/processed during run — discarding result');
-    return;
-  }
-
-  // Insert the completed report
-  await db.query(
-    `INSERT INTO surveillance_results (profile_id, queue_id, name, requested_by, report, searched_at) VALUES ($1,$2,$3,$4,$5,NOW())`,
-    [profileId, queueId, fullName, requestedBy, report]
-  );
-
-  // Delete the queue row (matches legacy archivist/results behavior)
-  await db.query('DELETE FROM surveillance_queue WHERE id = $1', [queueId]);
-
-  // Mirror the archivist completion logic: if the profile is linked to an open case, drop the report into the case timeline
-  try {
-    const entityRows = await db.query(
-      `SELECT ce.case_id FROM k108_case_entities ce
-       JOIN k108_cases c ON c.id = ce.case_id
-       WHERE ce.entity_type = 'person' AND ce.source = 'intel_profile'
-         AND ce.detail::jsonb->>'profileId' = $1
-         AND c.status != 'closed'
-       LIMIT 1`,
-      [String(profileId)]
-    );
-    if (entityRows.rows[0]) {
-      const caseId = entityRows.rows[0].case_id;
-      await db.query(
-        `INSERT INTO k108_case_timeline (case_id, entry_type, title, body, created_by) VALUES ($1,'surveillance',$2,$3,'system')`,
-        [caseId, 'Surveillance report: ' + fullName, report]
-      );
-    }
-  } catch (e) {
-    console.error('[surveillance] Case timeline insert error:', e.message);
-  }
-
-  // Brrr push notification (preserved from archivist/results)
-  try {
-    const webhookSecret = requestedBy === 'kathrine' ? process.env.BRRR_WEBHOOK_KATHRINE : process.env.BRRR_WEBHOOK_KALIPH;
-    if (webhookSecret) {
-      fetch(`https://api.brrr.now/v1/${webhookSecret}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'K-108 Surveillance', message: 'Surveillance report ready for ' + fullName, sound: 'bubble_ding', 'interruption-level': 'active' }),
-      }).catch(err => console.error('[brrr] surveillance notification error:', err.message));
-    }
-  } catch (e) {}
-
-  // Activity log
-  try { await k108Log(requestedBy, 'surveillance_complete', { profileId, name: fullName, source: 'internal' }, ''); } catch(e) {}
-
-  // Emit socket event — EXACTLY matches legacy behavior so the profile page UI updates as before
-  io.emit('k108:surveillance_complete', { profileId, name: fullName });
-
-  console.log('[surveillance] Completed sweep for "' + fullName + '" (queueId=' + queueId + ') — report length ' + report.length);
 }
 
 // ── K-108 Daily Briefing ─────────────────────────────────────────────────────

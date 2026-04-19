@@ -503,6 +503,7 @@ async function createK108Tables() {
   try { await query(`ALTER TABLE k108_surveillance_results ADD COLUMN IF NOT EXISTS source_name TEXT`); } catch(e) {}
   try { await query(`ALTER TABLE k108_surveillance_results ADD COLUMN IF NOT EXISTS confidence TEXT DEFAULT 'unverified'`); } catch(e) {}
   try { await query(`ALTER TABLE k108_surveillance_results ADD COLUMN IF NOT EXISTS read BOOLEAN DEFAULT FALSE`); } catch(e) {}
+  try { await query(`ALTER TABLE surveillance_queue ADD COLUMN IF NOT EXISTS error TEXT`); } catch(e) {}
 
   // ── Surveillance Queue (external Cowork integration) ──
   await query(`
