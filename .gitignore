@@ -4,6 +4,9 @@ data/*.json
 data/sessions/
 public/uploads/*
 !public/uploads/.gitkeep
+public/vault/uploads/
+uploads/
+vault-desktop/dist/
 *.log
 .DS_Store
 .claude/
