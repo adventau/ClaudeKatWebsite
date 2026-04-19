@@ -86,40 +86,21 @@ The embedded JSON block (pretty-printed via `JSON.stringify(payload, null, 2)`) 
 
 ```json
 {
-  "queueId": 123,
-  "profileId": 456,
+  "requestId": 123,
+  "personId": 456,
   "name": "Marcus Thane",
   "requestedBy": "kaliph",
-  "profile": {
-    "id": 456,
-    "first_name": "Marcus",
-    "middle_name": null,
-    "last_name": "Thane",
-    "aliases": [],
-    "age": 34,
-    "birthday": "1991-03-15",
-    "address": { "street": "123 Oak St", "city": "Gurnee", "state": "IL", "zip": "60031" },
-    "phones": [{ "number": "847-555-0100", "label": "mobile" }],
-    "emails": [{ "address": "m.thane@example.com" }],
-    "social_links": [{ "platform": "LinkedIn", "url": "linkedin.com/in/marcusthane" }],
-    "employer_info": { "company": "Northbrook Consulting", "title": "Senior Analyst", "industry": "Finance" },
-    "notes": "..."
-  },
-  "relations": [
-    { "label": "associate", "first_name": "Dana", "last_name": "Osei" }
-  ],
-  "scope": {
-    "focus": "Gurnee, Illinois",
-    "region": "Cook/Lake County, Illinois",
-    "deviation": false,
-    "detail": "Default K-108 operational area — Gurnee, Waukegan, Zion...",
-    "counties": ["Lake County, IL", "Cook County, IL"],
+  "location": {
+    "city": "Gurnee",
+    "counties": ["Cook", "Lake"],
     "state": "IL"
   },
-  "submitUrl": "https://royalkvault.up.railway.app/api/archivist/results",
-  "briefingSecret": "<value of BRIEFING_SECRET>"
+  "aliases": null,
+  "notes": "Known to frequent Waukegan area. Handle with discretion."
 }
 ```
+
+`counties` and `state` are always hardcoded to `["Cook", "Lake"]` and `"IL"`. `city` is pulled from the profile's address field (`null` if not set). `aliases` and `notes` are included when present on the profile, otherwise `null`.
 
 ### Successful Response
 
@@ -203,9 +184,8 @@ Response {success:true} → button → "Surveillance Pending"
 fireRoutineFamilyResearch()
   ├─ Check ROUTINE_SURVEILLANCE_ID + ROUTINE_SURVEILLANCE_TOKEN
   ├─ Verify queue row still pending
-  ├─ Load k108_profiles + k108_profile_relations
-  ├─ Determine scope via familyResearchDetermineScope()
-  ├─ Build message string with embedded JSON payload
+  ├─ Load k108_profiles (address, aliases, notes)
+  ├─ Build slim payload (requestId, personId, name, requestedBy, location, aliases, notes)
   └─ POST https://api.anthropic.com/v1/claude_code/routines/<ID>/fire
        Headers: Authorization, anthropic-version, anthropic-beta
        Body: { "text": "New family background research request.\n\n..." }

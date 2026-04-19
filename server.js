@@ -9123,7 +9123,7 @@ async function fireRoutineFamilyResearch(queueId, profileId, fullName, requested
     return;
   }
 
-  // Load full profile context
+  // Load profile — only need address, aliases, and notes
   const pr = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [profileId]);
   if (!pr.rows.length) {
     const msg = 'Profile ' + profileId + ' not found';
@@ -9133,41 +9133,21 @@ async function fireRoutineFamilyResearch(queueId, profileId, fullName, requested
   }
   const p = pr.rows[0];
 
-  // Load known associates
-  let relations = [];
-  try {
-    const relRows = await db.query(
-      `SELECT DISTINCT ON (r.related_profile_id) r.label, p.first_name, p.last_name
-       FROM k108_profile_relations r JOIN k108_profiles p ON p.id = r.related_profile_id
-       WHERE r.profile_id = $1 ORDER BY r.related_profile_id, r.id DESC LIMIT 10`,
-      [profileId]
-    );
-    relations = relRows.rows;
-  } catch (e) {}
-
-  const scope = familyResearchDetermineScope(p.address);
-  const submitUrl = K108_BASE_URL + '/api/archivist/results';
-
   const payloadObject = {
-    queueId,
-    profileId,
+    requestId: queueId,
+    personId: profileId,
     name: fullName,
     requestedBy,
-    profile: p,
-    relations,
-    scope: {
-      focus: scope.focus,
-      region: scope.region,
-      deviation: scope.deviation,
-      detail: scope.detail,
-      counties: FAMILY_RESEARCH_DEFAULT_SCOPE.counties,
+    location: {
+      city: (p.address && p.address.city) || null,
+      counties: ['Cook', 'Lake'],
       state: 'IL',
     },
-    submitUrl,
-    briefingSecret: process.env.BRIEFING_SECRET,
+    aliases: p.aliases || null,
+    notes: p.notes || null,
   };
 
-  // The Routine API accepts a single "text" field; embed the full payload as a
+  // The Routine API accepts a single "text" field; embed the slim payload as a
   // natural-language message with the JSON block inside it.
   const messageText =
     'New family background research request.\n\n' +
@@ -9175,7 +9155,7 @@ async function fireRoutineFamilyResearch(queueId, profileId, fullName, requested
     'PAYLOAD:\n' +
     JSON.stringify(payloadObject, null, 2);
 
-  console.log('[family-research] Firing Routine for "' + fullName + '" (queueId=' + queueId + ') scope=' + scope.focus);
+  console.log('[family-research] Firing Routine for "' + fullName + '" (queueId=' + queueId + ') city=' + (payloadObject.location.city || 'unknown'));
 
   let statusCode;
   try {
