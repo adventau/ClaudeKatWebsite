@@ -9006,8 +9006,8 @@ app.post('/k108/profiles/:id/surveillance/queue', async (req, res) => {
   res.json({ success: true });
 
   // Fire-and-forget Routine trigger — results arrive later via POST /api/archivist/results
-  fireRoutineSurveillance(queueId, profileId, fullName, username).catch(err => {
-    console.error('[surveillance] Routine trigger error for queueId=' + queueId + ':', err && (err.message || err));
+  fireRoutineFamilyResearch(queueId, profileId, fullName, username).catch(err => {
+    console.error('[family-research] Routine trigger error for queueId=' + queueId + ':', err && (err.message || err));
   });
 });
 
@@ -9029,9 +9029,9 @@ app.delete('/k108/profiles/:id/surveillance/queue', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// K-108 SURVEILLANCE — ROUTINE TRIGGER
+// K-108 FAMILY BACKGROUND RESEARCH — ROUTINE TRIGGER
 // ═══════════════════════════════════════════════════════════════════════════════
-// Fires an Anthropic Routine that runs the surveillance sweep externally.
+// Fires an Anthropic Routine that runs the family background research externally.
 // Results land back via POST /api/archivist/results (BRIEFING_SECRET auth), the
 // same endpoint used by the legacy Cowork runner — no changes to that path.
 //
@@ -9045,18 +9045,18 @@ app.delete('/k108/profiles/:id/surveillance/queue', async (req, res) => {
 // status='failed' with an error message and a k108:surveillance_failed socket
 // event is emitted so the frontend can surface a visible error state.
 
-const SURVEILLANCE_DEFAULT_SCOPE = {
+const FAMILY_RESEARCH_DEFAULT_SCOPE = {
   primary: 'Gurnee, Illinois',
   counties: ['Lake County, IL', 'Cook County, IL'],
   nearby: ['Waukegan', 'Zion', 'North Chicago', 'Libertyville', 'Mundelein', 'Round Lake', 'Kenosha (WI border)'],
   region: 'Cook/Lake County, Illinois',
 };
 
-// Heuristic: given a profile's address field, determine the search scope.
-function surveillanceDetermineScope(profileAddress) {
+// Heuristic: given a profile's address field, determine the research scope.
+function familyResearchDetermineScope(profileAddress) {
   const defaultScope = {
-    focus: SURVEILLANCE_DEFAULT_SCOPE.primary,
-    region: SURVEILLANCE_DEFAULT_SCOPE.region,
+    focus: FAMILY_RESEARCH_DEFAULT_SCOPE.primary,
+    region: FAMILY_RESEARCH_DEFAULT_SCOPE.region,
     deviation: false,
     detail: 'Default K-108 operational area — Gurnee, Waukegan, Zion, North Chicago, Libertyville, Mundelein, Round Lake, Lake County & Cook County Illinois, Kenosha WI border.',
   };
@@ -9074,9 +9074,9 @@ function surveillanceDetermineScope(profileAddress) {
   if (inIllinoisDefault || inWisconsinBorder) {
     return {
       focus: (city + (state ? ', ' + state : '')).trim(),
-      region: SURVEILLANCE_DEFAULT_SCOPE.region,
+      region: FAMILY_RESEARCH_DEFAULT_SCOPE.region,
       deviation: false,
-      detail: 'Subject address is within the default K-108 operational area (' + SURVEILLANCE_DEFAULT_SCOPE.region + ').',
+      detail: 'Subject address is within the default K-108 operational area (' + FAMILY_RESEARCH_DEFAULT_SCOPE.region + ').',
     };
   }
 
@@ -9086,31 +9086,31 @@ function surveillanceDetermineScope(profileAddress) {
     focus,
     region: focus,
     deviation: true,
-    detail: 'GEOGRAPHIC DEVIATION — subject address "' + focus + '" is outside the default Cook/Lake County Illinois scope. Sweep has been retargeted.',
+    detail: 'GEOGRAPHIC DEVIATION — subject address "' + focus + '" is outside the default Cook/Lake County Illinois scope. Research has been retargeted.',
   };
 }
 
-async function surveillanceMarkFailed(queueId, profileId, errorMsg) {
+async function familyResearchMarkFailed(queueId, profileId, errorMsg) {
   try {
     await db.query(
       `UPDATE surveillance_queue SET status='failed', error=$1 WHERE id=$2`,
       [errorMsg, queueId]
     );
   } catch (e) {
-    console.error('[surveillance] Could not mark queueId=' + queueId + ' failed:', e.message);
+    console.error('[family-research] Could not mark queueId=' + queueId + ' failed:', e.message);
   }
   io.emit('k108:surveillance_failed', { profileId, queueId, error: errorMsg });
 }
 
-async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy) {
+async function fireRoutineFamilyResearch(queueId, profileId, fullName, requestedBy) {
   if (!db.pool) return;
 
   const routineId    = process.env.ROUTINE_SURVEILLANCE_ID;
   const routineToken = process.env.ROUTINE_SURVEILLANCE_TOKEN;
   if (!routineId || !routineToken) {
     const msg = 'ROUTINE_SURVEILLANCE_ID or ROUTINE_SURVEILLANCE_TOKEN not configured';
-    console.error('[surveillance] ' + msg + ' — queueId=' + queueId);
-    await surveillanceMarkFailed(queueId, profileId, msg);
+    console.error('[family-research] ' + msg + ' — queueId=' + queueId);
+    await familyResearchMarkFailed(queueId, profileId, msg);
     return;
   }
 
@@ -9119,7 +9119,7 @@ async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy
   // Verify the queue row is still pending (guard against race with cancellation)
   const check = await db.query(`SELECT id, status FROM surveillance_queue WHERE id = $1`, [queueId]);
   if (!check.rows.length || check.rows[0].status !== 'pending') {
-    console.log('[surveillance] queueId=' + queueId + ' no longer pending — skipping');
+    console.log('[family-research] queueId=' + queueId + ' no longer pending — skipping');
     return;
   }
 
@@ -9127,8 +9127,8 @@ async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy
   const pr = await db.query('SELECT * FROM k108_profiles WHERE id = $1', [profileId]);
   if (!pr.rows.length) {
     const msg = 'Profile ' + profileId + ' not found';
-    console.error('[surveillance] ' + msg);
-    await surveillanceMarkFailed(queueId, profileId, msg);
+    console.error('[family-research] ' + msg);
+    await familyResearchMarkFailed(queueId, profileId, msg);
     return;
   }
   const p = pr.rows[0];
@@ -9145,7 +9145,7 @@ async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy
     relations = relRows.rows;
   } catch (e) {}
 
-  const scope = surveillanceDetermineScope(p.address);
+  const scope = familyResearchDetermineScope(p.address);
   const submitUrl = K108_BASE_URL + '/api/archivist/results';
 
   const payloadObject = {
@@ -9160,7 +9160,7 @@ async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy
       region: scope.region,
       deviation: scope.deviation,
       detail: scope.detail,
-      counties: SURVEILLANCE_DEFAULT_SCOPE.counties,
+      counties: FAMILY_RESEARCH_DEFAULT_SCOPE.counties,
       state: 'IL',
     },
     submitUrl,
@@ -9170,12 +9170,12 @@ async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy
   // The Routine API accepts a single "text" field; embed the full payload as a
   // natural-language message with the JSON block inside it.
   const messageText =
-    'New surveillance request.\n\n' +
+    'New family background research request.\n\n' +
     'Parse the JSON block below and execute your instructions.\n\n' +
     'PAYLOAD:\n' +
     JSON.stringify(payloadObject, null, 2);
 
-  console.log('[surveillance] Firing Routine for "' + fullName + '" (queueId=' + queueId + ') scope=' + scope.focus);
+  console.log('[family-research] Firing Routine for "' + fullName + '" (queueId=' + queueId + ') scope=' + scope.focus);
 
   let statusCode;
   try {
@@ -9198,11 +9198,11 @@ async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy
     let fireResult = {};
     try { fireResult = await resp.json(); } catch (_) {}
     const sessionUrl = fireResult.claude_code_session_url || '(no session URL in response)';
-    console.log('[surveillance] Routine accepted queueId=' + queueId + ' (HTTP ' + statusCode + ') session=' + sessionUrl);
+    console.log('[family-research] Routine accepted queueId=' + queueId + ' (HTTP ' + statusCode + ') session=' + sessionUrl);
   } catch (e) {
     const msg = 'Routine POST failed: ' + e.message;
-    console.error('[surveillance] ' + msg + ' (queueId=' + queueId + ')');
-    await surveillanceMarkFailed(queueId, profileId, msg);
+    console.error('[family-research] ' + msg + ' (queueId=' + queueId + ')');
+    await familyResearchMarkFailed(queueId, profileId, msg);
   }
 }
 
