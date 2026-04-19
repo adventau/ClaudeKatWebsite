@@ -157,6 +157,42 @@ async function createBriefingsTable() {
       created_at      TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
+  // Migration: add context + topic classification columns
+  await query(`ALTER TABLE briefing_feedback ADD COLUMN IF NOT EXISTS context_before TEXT`);
+  await query(`ALTER TABLE briefing_feedback ADD COLUMN IF NOT EXISTS context_after TEXT`);
+  await query(`ALTER TABLE briefing_feedback ADD COLUMN IF NOT EXISTS topic_key TEXT`);
+
+  // Standing preferences: persisted distilled rules that briefing generator must follow.
+  // Sources: 'highlight_never' (immediate), 'consolidation' (weekly LLM pass), 'manual'.
+  await query(`
+    CREATE TABLE IF NOT EXISTS briefing_standing_preferences (
+      id           SERIAL PRIMARY KEY,
+      user_id      TEXT      NOT NULL,
+      rule_text    TEXT      NOT NULL,
+      source       TEXT      NOT NULL DEFAULT 'consolidation',
+      source_ref   TEXT,
+      active       BOOLEAN   NOT NULL DEFAULT TRUE,
+      created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at   TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_briefing_std_prefs_user ON briefing_standing_preferences (user_id, active)`);
+
+  // Topic log per briefing: deterministic dedup across days.
+  await query(`
+    CREATE TABLE IF NOT EXISTS briefing_topics (
+      id            SERIAL PRIMARY KEY,
+      briefing_id   INT       REFERENCES briefings(id) ON DELETE CASCADE,
+      user_id       TEXT      NOT NULL,
+      briefing_date DATE      NOT NULL,
+      topic_key     TEXT      NOT NULL,
+      summary       TEXT,
+      section       TEXT,
+      created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_briefing_topics_user_date ON briefing_topics (user_id, briefing_date DESC)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_briefing_topics_key ON briefing_topics (user_id, topic_key)`);
 }
 
 // ── K-108 tables ─────────────────────────────────────────────────────────────

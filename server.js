@@ -711,18 +711,37 @@ app.post('/api/briefings/submit', async (req, res) => {
   if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const { user, content } = req.body;
+  const { user, content, topics } = req.body;
   if (!['kaliph', 'kathrine'].includes(user) || !content) {
     return res.status(400).json({ error: 'Invalid payload' });
   }
   const today = todayCentral(); // YYYY-MM-DD
   try {
-    await db.query(`
+    const ins = await db.query(`
       INSERT INTO briefings (user_id, content, date, generated_at, read_at)
       VALUES ($1, $2, $3, NOW(), NULL)
       ON CONFLICT (user_id, date) DO UPDATE
         SET content = $2, generated_at = NOW(), read_at = NULL
+      RETURNING id
     `, [user, content, today]);
+    const briefingId = ins.rows[0].id;
+
+    // Store topic log if provided — structured dedup source for future briefings.
+    // Expected shape: [{ key, summary, section }] or ["topic-key", ...]
+    if (Array.isArray(topics) && topics.length) {
+      await db.query(`DELETE FROM briefing_topics WHERE briefing_id = $1`, [briefingId]);
+      for (const t of topics) {
+        const key = (typeof t === 'string' ? t : t.key || '').trim().toLowerCase().slice(0, 120);
+        if (!key) continue;
+        const summary = (typeof t === 'object' && t.summary) ? String(t.summary).slice(0, 300) : null;
+        const section = (typeof t === 'object' && t.section) ? String(t.section).slice(0, 80) : null;
+        await db.query(
+          `INSERT INTO briefing_topics (briefing_id, user_id, briefing_date, topic_key, summary, section)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [briefingId, user, today, key, summary, section]
+        );
+      }
+    }
 
     // Push notification via existing Brrr system
     const users = rd(F.users) || {};
@@ -834,23 +853,132 @@ app.get('/api/briefings/recent', async (req, res) => {
   if (!user || !['kaliph', 'kathrine'].includes(user)) {
     return res.status(400).json({ error: 'Invalid or missing user param' });
   }
-  const limit = Math.min(Math.max(parseInt(req.query.limit) || 7, 1), 10);
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 7, 1), 14);
   try {
     const result = await db.query(
-      `SELECT id, user_id AS "user", content, created_at FROM briefings
+      `SELECT id, user_id AS "user", content, date, created_at FROM briefings
        WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
       [user, limit]
     );
-    res.json(result.rows);
+    const ids = result.rows.map(r => r.id);
+    let topicsByBriefing = {};
+    if (ids.length) {
+      const t = await db.query(
+        `SELECT briefing_id, topic_key, summary, section FROM briefing_topics WHERE briefing_id = ANY($1)`,
+        [ids]
+      );
+      for (const row of t.rows) {
+        if (!topicsByBriefing[row.briefing_id]) topicsByBriefing[row.briefing_id] = [];
+        topicsByBriefing[row.briefing_id].push({ key: row.topic_key, summary: row.summary, section: row.section });
+      }
+    }
+    res.json(result.rows.map(r => ({ ...r, topics: topicsByBriefing[r.id] || [] })));
   } catch (e) {
     console.error('[briefings] Recent error:', e.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
+// Deduped list of topics covered in the last N days — deterministic dedup source
+app.get('/api/briefings/topics', async (req, res) => {
+  const secret = req.headers['x-briefing-secret'];
+  if (!process.env.BRIEFING_SECRET || secret !== process.env.BRIEFING_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const user = req.query.user;
+  if (!user || !['kaliph', 'kathrine'].includes(user)) {
+    return res.status(400).json({ error: 'Invalid or missing user param' });
+  }
+  const days = Math.min(Math.max(parseInt(req.query.days) || 14, 1), 90);
+  try {
+    const result = await db.query(
+      `SELECT topic_key, section,
+              MAX(briefing_date) AS last_covered,
+              COUNT(*)::int AS times_covered,
+              (array_agg(summary ORDER BY briefing_date DESC))[1] AS latest_summary
+       FROM briefing_topics
+       WHERE user_id = $1 AND briefing_date >= CURRENT_DATE - ($2 || ' days')::interval
+       GROUP BY topic_key, section
+       ORDER BY last_covered DESC`,
+      [user, String(days)]
+    );
+    // Render as a prompt-friendly plaintext table
+    let out = `TOPICS ALREADY COVERED (last ${days} days — do not repeat unless a specific, concrete new development):\n`;
+    for (const row of result.rows) {
+      const d = new Date(row.last_covered).toISOString().slice(0, 10);
+      const parts = [`- ${row.topic_key}`];
+      if (row.section) parts.push(`[${row.section}]`);
+      parts.push(`last: ${d}`);
+      if (row.times_covered > 1) parts.push(`×${row.times_covered}`);
+      if (row.latest_summary) parts.push(`— ${row.latest_summary}`);
+      out += parts.join(' ') + '\n';
+    }
+    if (!result.rows.length) out = 'No topics on record yet — proceed normally.\n';
+    res.type('text/plain').send(out);
+  } catch (e) {
+    console.error('[briefings] Topics error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// List active standing preferences for the logged-in user (for "Manage Preferences" UI)
+app.get('/api/briefings/preferences', mainAuth, async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT id, rule_text, source, created_at, updated_at
+       FROM briefing_standing_preferences
+       WHERE user_id = $1 AND active = TRUE
+       ORDER BY created_at DESC`,
+      [req.session.user]
+    );
+    res.json({ preferences: result.rows });
+  } catch (e) {
+    console.error('[briefings] Prefs list error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Add a manual standing preference
+app.post('/api/briefings/preferences', mainAuth, async (req, res) => {
+  const { rule_text } = req.body;
+  if (!rule_text || typeof rule_text !== 'string' || !rule_text.trim()) {
+    return res.status(400).json({ error: 'rule_text required' });
+  }
+  try {
+    const ins = await db.query(
+      `INSERT INTO briefing_standing_preferences (user_id, rule_text, source) VALUES ($1, $2, 'manual') RETURNING id`,
+      [req.session.user, rule_text.trim()]
+    );
+    res.json({ success: true, id: ins.rows[0].id });
+  } catch (e) {
+    console.error('[briefings] Prefs add error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Deactivate (undo) a standing preference
+app.delete('/api/briefings/preferences/:id', mainAuth, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ error: 'Invalid id' });
+  try {
+    const r = await db.query(
+      `UPDATE briefing_standing_preferences
+       SET active = FALSE, updated_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING id`,
+      [id, req.session.user]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[briefings] Prefs delete error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Save briefing feedback from the app
 app.post('/api/briefings/feedback', mainAuth, async (req, res) => {
-  const { feedback_type, section, highlighted_text, note, permanent } = req.body;
+  const { feedback_type, section, highlighted_text, note, permanent, context_before, context_after } = req.body;
   const validTypes = ['thumbs_up', 'thumbs_down', 'highlight_positive', 'highlight_negative', 'highlight_never', 'free_text'];
   if (!feedback_type || !validTypes.includes(feedback_type)) {
     return res.status(400).json({ error: 'Invalid feedback_type' });
@@ -858,11 +986,21 @@ app.post('/api/briefings/feedback', mainAuth, async (req, res) => {
   const isPermanent = feedback_type === 'highlight_never' ? true : !!permanent;
   const today = todayCentral();
   try {
-    await db.query(`
-      INSERT INTO briefing_feedback (user_id, briefing_date, feedback_type, section, highlighted_text, note, permanent)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [req.session.user, today, feedback_type, section || null, highlighted_text || null, note || null, isPermanent]);
-    res.json({ success: true });
+    const ins = await db.query(`
+      INSERT INTO briefing_feedback (user_id, briefing_date, feedback_type, section, highlighted_text, note, permanent, context_before, context_after)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id
+    `, [req.session.user, today, feedback_type, section || null, highlighted_text || null, note || null, isPermanent, context_before || null, context_after || null]);
+
+    // highlight_never → immediately mirror as a standing preference so UI can show/undo it
+    if (feedback_type === 'highlight_never' && highlighted_text) {
+      const ruleText = `Never include: "${highlighted_text}"` + (section ? ` (seen in ${section})` : '');
+      await db.query(`
+        INSERT INTO briefing_standing_preferences (user_id, rule_text, source, source_ref, active)
+        VALUES ($1, $2, 'highlight_never', $3, TRUE)
+      `, [req.session.user, ruleText, String(ins.rows[0].id)]);
+    }
+    res.json({ success: true, id: ins.rows[0].id });
   } catch (e) {
     console.error('[briefings] Feedback save error:', e.message);
     res.status(500).json({ error: 'Server error' });
@@ -878,56 +1016,79 @@ app.get('/api/briefings/feedback', async (req, res) => {
   const user = req.query.user;
   if (!user) return res.status(400).json({ error: 'Missing user param' });
   try {
-    // Permanent preferences
-    const permResult = await db.query(
-      `SELECT feedback_type, section, highlighted_text, note, created_at
-       FROM briefing_feedback WHERE user_id = $1 AND permanent = TRUE
+    // Active standing preferences (highlight_never + consolidation + manual)
+    const standingResult = await db.query(
+      `SELECT rule_text, source, created_at
+       FROM briefing_standing_preferences
+       WHERE user_id = $1 AND active = TRUE
        ORDER BY created_at ASC`,
       [user]
     );
-    // Recent non-permanent, non-consolidated feedback from last 7 days
+    // Recent non-permanent, non-consolidated feedback from last 14 days
     const recentResult = await db.query(
-      `SELECT feedback_type, section, highlighted_text, note, briefing_date, created_at
+      `SELECT feedback_type, section, highlighted_text, note, context_before, context_after, briefing_date, created_at
        FROM briefing_feedback
        WHERE user_id = $1 AND permanent = FALSE AND consolidated = FALSE
-         AND created_at >= NOW() - INTERVAL '7 days'
+         AND created_at >= NOW() - INTERVAL '14 days'
        ORDER BY created_at ASC`,
       [user]
     );
 
-    if (!permResult.rows.length && !recentResult.rows.length) {
+    if (!standingResult.rows.length && !recentResult.rows.length) {
       return res.json({ feedback: null });
     }
 
     let output = '';
 
-    if (permResult.rows.length) {
-      output += 'PERMANENT PREFERENCES (apply every day, no exceptions):\n';
-      for (const row of permResult.rows) {
-        const parts = [];
-        if (row.feedback_type === 'highlight_never' && row.highlighted_text) {
-          parts.push(`Never include: "${row.highlighted_text}"`);
-        } else {
-          parts.push(row.feedback_type.replace(/_/g, ' '));
-          if (row.section) parts.push(`[${row.section}]`);
-          if (row.highlighted_text) parts.push(`"${row.highlighted_text}"`);
-          if (row.note) parts.push(`- ${row.note}`);
-        }
-        output += `- ${parts.join(' ')}\n`;
+    if (standingResult.rows.length) {
+      output += 'STANDING PREFERENCES (apply every day, no exceptions — these are distilled rules from past feedback):\n';
+      for (const row of standingResult.rows) {
+        output += `- ${row.rule_text}\n`;
       }
     }
 
     if (recentResult.rows.length) {
-      if (output) output += '\n';
-      output += 'RECENT FEEDBACK (last 7 days — reader\'s actual reactions to delivered briefings):\n';
+      // Weight by repetition: group similar feedback (same type + section/highlighted_text)
+      const groups = new Map();
       for (const row of recentResult.rows) {
+        const key = `${row.feedback_type}|${row.section || ''}|${(row.highlighted_text || '').slice(0, 60)}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(row);
+      }
+
+      if (output) output += '\n';
+      output += "RECENT FEEDBACK (last 14 days — reader's actual reactions; items marked [REPEATED Nx] are patterns, not one-offs):\n";
+
+      // Emit strong patterns first (>=2 occurrences), then singles chronologically
+      const strong = [];
+      const singles = [];
+      for (const [, rows] of groups) {
+        if (rows.length >= 2) strong.push(rows);
+        else singles.push(rows[0]);
+      }
+      strong.sort((a, b) => b.length - a.length);
+      singles.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+      const fmt = (row, countTag) => {
         const dateStr = new Date(row.briefing_date).toISOString().slice(0, 10);
         const parts = [dateStr];
+        if (countTag) parts.push(countTag);
         if (row.section) parts.push(`[${row.section}]`);
         parts.push(row.feedback_type.replace(/_/g, ' '));
         if (row.highlighted_text) parts.push(`"${row.highlighted_text}"`);
+        if (row.context_before || row.context_after) {
+          const ctx = [row.context_before, row.context_after].filter(Boolean).join(' … ');
+          if (ctx) parts.push(`(context: ${ctx})`);
+        }
         if (row.note) parts.push(`- ${row.note}`);
-        output += `- ${parts.join(' ')}\n`;
+        return `- ${parts.join(' ')}`;
+      };
+
+      for (const rows of strong) {
+        output += fmt(rows[rows.length - 1], `[REPEATED ${rows.length}x]`) + '\n';
+      }
+      for (const row of singles) {
+        output += fmt(row, null) + '\n';
       }
     }
 
@@ -972,16 +1133,57 @@ app.post('/api/briefings/consolidate', async (req, res) => {
       rawSummary += '\n';
     }
 
+    // Fetch existing active standing preferences so the LLM can dedupe / refine against them
+    const existingPrefs = await db.query(
+      `SELECT rule_text FROM briefing_standing_preferences WHERE user_id = $1 AND active = TRUE ORDER BY created_at ASC`,
+      [user]
+    );
+    const existingText = existingPrefs.rows.map(r => `- ${r.rule_text}`).join('\n') || '(none yet)';
+
     // Use Anthropic SDK to summarize
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const resp = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 1024,
-      system: 'You are a briefing preference analyst. Given raw feedback items from a user about their daily briefing, produce concise standing instructions that a briefing-generation AI should follow going forward. Output only the instructions, one per line, as bullet points. Be specific and actionable.',
-      messages: [{ role: 'user', content: `Summarize these feedback items into standing briefing preferences:\n\n${rawSummary}` }],
+      system: "You are a briefing preference analyst. Given raw feedback items from a user about their daily briefing, produce concise standing instructions that a briefing-generation AI should follow going forward. Output ONLY the rules, one per line, each starting with '- '. No preamble, no headers, no explanation. Each rule must be specific, actionable, and written as a directive (e.g. 'Never cover X', 'Keep Y short', 'Always include Z when it happens'). If an existing rule already covers something, do not restate it. If new feedback contradicts or refines an existing rule, write the refined version and prefix it with 'REPLACES: <old rule quoted>' on the line above.",
+      messages: [{ role: 'user', content: `EXISTING STANDING PREFERENCES:\n${existingText}\n\nNEW RAW FEEDBACK (older than 7 days, not yet consolidated):\n${rawSummary}\n\nProduce new or refined standing rules.` }],
     });
-    const summary = resp.content[0].text;
+    const summary = resp.content[0]?.text || '';
+
+    // Parse the LLM output into rule lines and persist each as a standing preference
+    const lines = summary.split('\n').map(l => l.trim()).filter(Boolean);
+    let pendingReplace = null;
+    let persisted = 0;
+    for (const line of lines) {
+      if (line.startsWith('REPLACES:')) {
+        pendingReplace = line.slice('REPLACES:'.length).trim().replace(/^["']|["']$/g, '');
+        continue;
+      }
+      const rule = line.replace(/^-\s*/, '').trim();
+      if (!rule) { pendingReplace = null; continue; }
+
+      if (pendingReplace) {
+        await db.query(
+          `UPDATE briefing_standing_preferences SET active = FALSE, updated_at = NOW()
+           WHERE user_id = $1 AND rule_text = $2 AND active = TRUE`,
+          [user, pendingReplace]
+        );
+        pendingReplace = null;
+      }
+      // Dedupe: skip if an identical active rule already exists
+      const dup = await db.query(
+        `SELECT id FROM briefing_standing_preferences WHERE user_id = $1 AND rule_text = $2 AND active = TRUE LIMIT 1`,
+        [user, rule]
+      );
+      if (!dup.rows.length) {
+        await db.query(
+          `INSERT INTO briefing_standing_preferences (user_id, rule_text, source) VALUES ($1, $2, 'consolidation')`,
+          [user, rule]
+        );
+        persisted++;
+      }
+    }
 
     // Mark all processed rows as consolidated
     const ids = result.rows.map(r => r.id);
@@ -990,7 +1192,7 @@ app.post('/api/briefings/consolidate', async (req, res) => {
       [ids]
     );
 
-    res.type('text/plain').send(summary);
+    res.type('text/plain').send(`Consolidated ${result.rows.length} feedback items → ${persisted} new standing preferences.\n\n${summary}`);
   } catch (e) {
     console.error('[briefings] Consolidate error:', e.message);
     res.status(500).json({ error: 'Server error' });
@@ -10529,6 +10731,7 @@ app.post('/api/k108/oracle/embed', async (req, res) => {
 app.get('/k108',     (_, res) => res.sendFile(path.join(__dirname, 'public', 'k108.html')));
 app.get('/debrief',  (_, res) => res.sendFile(path.join(__dirname, 'public', 'debrief.html')));
 app.get('/app',      (_, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
+app.get('/vault',    (_, res) => res.sendFile(path.join(__dirname, 'public', 'vault', 'index.html')));
 app.get('/guest',    (_, res) => res.sendFile(path.join(__dirname, 'public', 'guest.html')));
 app.get('/backdoor', (_, res) => res.sendFile(path.join(__dirname, 'public', 'backdoor.html')));
 app.get('/eval',     (_, res) => res.sendFile(path.join(__dirname, 'public', 'eval.html')));
