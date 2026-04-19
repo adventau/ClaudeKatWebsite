@@ -132,6 +132,20 @@ const THEMES = [
   { id: 'applemusic',name:'Apple Music',        preview: 'linear-gradient(135deg,#000000,#fa2d48,#ff6482)' },
 ];
 
+// ── Site Systems ──────────────────────────────────────────────────────
+// Each system has its own curated theme list. Switching a system
+// swaps the entire visual treatment of /app (fonts, surfaces, accents).
+const VAULT_THEMES = [
+  { id: 'royal-vault', name: 'Royal Vault', preview: 'linear-gradient(135deg,oklch(0.155 0.014 70),oklch(0.40 0.12 72),oklch(0.82 0.16 72))' },
+];
+
+const SITE_SYSTEMS = {
+  original: { label: 'Original Release', themes: THEMES,       defaultTheme: 'dark'        },
+  vault:    { label: 'Modified Vault',   themes: VAULT_THEMES, defaultTheme: 'royal-vault' },
+};
+
+let currentSiteSystem = 'original';
+
 // ── Socket ────────────────────────────────────────────────────────────
 const socket = io({ reconnection: true, reconnectionDelay: 1000, reconnectionAttempts: Infinity });
 
@@ -182,6 +196,7 @@ async function init() {
 
 
   applyUserData(usersRes[currentUser], usersRes[otherUser]);
+  applySiteSystem(usersRes[currentUser].siteSystem || localStorage.getItem('rkk-site-system') || 'original', { silent: true });
   applyTheme(usersRes[currentUser].theme || 'dark');
   buildThemeGrid();
   populateEmojiGrid();
@@ -467,9 +482,10 @@ function applyUserData(me, other) {
 
 function applyTheme(themeId) {
   const body = document.body;
-  // Fallback if saved theme no longer exists
-  if (themeId && !THEMES.find(t => t.id === themeId)) themeId = 'dark';
-  const id = themeId || 'dark';
+  // Fallback if saved theme isn't in the active site system's list
+  const sys = SITE_SYSTEMS[currentSiteSystem] || SITE_SYSTEMS.original;
+  if (themeId && !sys.themes.find(t => t.id === themeId)) themeId = sys.defaultTheme;
+  const id = themeId || sys.defaultTheme;
 
   // Suppress per-element transitions so nothing animates piecemeal
   body.classList.add('theme-switching');
@@ -478,8 +494,8 @@ function applyTheme(themeId) {
   body.style.opacity = '0';
 
   requestAnimationFrame(() => {
-    // All changes happen in one frame while body is invisible
-    THEMES.forEach(t => body.classList.remove('theme-' + t.id));
+    // Clear any theme class from any known system so we never stack
+    [...THEMES, ...VAULT_THEMES].forEach(t => body.classList.remove('theme-' + t.id));
     body.classList.add('theme-' + id);
     try { localStorage.setItem('rkk-theme', id); } catch {}
     SoundSystem.setTheme(id);
@@ -532,12 +548,23 @@ function repositionSearchForTheme() {
 function buildThemeGrid() {
   const grid = document.getElementById('theme-grid');
   if (!grid) return;
-  grid.innerHTML = THEMES.map(t => `
+  const sys = SITE_SYSTEMS[currentSiteSystem] || SITE_SYSTEMS.original;
+  grid.innerHTML = sys.themes.map(t => `
     <div class="theme-card" data-theme="${t.id}" onclick="selectTheme('${t.id}')">
       <div class="theme-preview" style="background:${t.preview}"></div>
       <div class="theme-preview-name">${t.name}</div>
     </div>
   `).join('');
+  // Reflect the current site system in the settings dropdown too
+  const sel = document.getElementById('site-system-select');
+  if (sel) sel.value = currentSiteSystem;
+  // Mark the current theme as active in the rebuilt grid
+  const current = localStorage.getItem('rkk-theme');
+  if (current) {
+    document.querySelectorAll('.theme-card').forEach(c => {
+      c.classList.toggle('active', c.dataset.theme === current);
+    });
+  }
 }
 
 async function selectTheme(themeId) {
@@ -549,6 +576,79 @@ async function selectTheme(themeId) {
   });
   showToast('🎨 Theme updated!');
 }
+
+// ── Site System switcher ─────────────────────────────────────────────
+// 'original' renders the classic /app DOM; 'vault' replaces the viewport
+// with the Royal Vault shell served at /vault. The shell is a full React
+// app; we mount it as a full-bleed iframe so its internal routing, theme,
+// React tree, etc., stay isolated from the classic app.
+function applySiteSystem(systemId, opts = {}) {
+  if (!SITE_SYSTEMS[systemId]) systemId = 'original';
+  currentSiteSystem = systemId;
+  const body = document.body;
+  body.classList.toggle('site-vault', systemId === 'vault');
+  body.classList.toggle('site-original', systemId !== 'vault');
+  try { localStorage.setItem('rkk-site-system', systemId); } catch {}
+  const sel = document.getElementById('site-system-select');
+  if (sel) sel.value = systemId;
+  mountVaultShell(systemId === 'vault');
+  if (!opts.silent) buildThemeGrid();
+}
+
+function mountVaultShell(on) {
+  const appEl = document.getElementById('app');
+  let frame = document.getElementById('rv-vault-frame');
+  if (on) {
+    if (appEl) appEl.style.visibility = 'hidden';
+    if (!frame) {
+      frame = document.createElement('iframe');
+      frame.id = 'rv-vault-frame';
+      frame.src = '/vault';
+      frame.title = 'Modified Vault';
+      frame.style.cssText = [
+        'position:fixed','inset:0','width:100vw','height:100vh','height:100dvh',
+        'border:0','margin:0','padding:0','z-index:9999','background:#0f0d0a',
+      ].join(';');
+      document.body.appendChild(frame);
+    }
+  } else {
+    if (frame) frame.remove();
+    if (appEl) appEl.style.visibility = '';
+  }
+}
+
+async function selectSiteSystem(systemId) {
+  if (!SITE_SYSTEMS[systemId] || systemId === currentSiteSystem) return;
+  const sys = SITE_SYSTEMS[systemId];
+  applySiteSystem(systemId);
+  applyTheme(sys.defaultTheme);
+  try {
+    await fetch(`/api/users/${currentUser}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ siteSystem: systemId, theme: sys.defaultTheme })
+    });
+  } catch {}
+  if (typeof showToast === 'function') showToast(`🧭 Site system → ${sys.label}`);
+}
+
+// The vault shell handles its own data, messages, and views. Parent gets
+// involved for two things only:
+//   1. System switch (the dropdown in vault Settings)
+//   2. Starting a call — the WebRTC overlay is a full-bleed system UI that
+//      lives on the host page, but the signalling still flows through the
+//      same socket both sides share.
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.type === '__rv_site_system_switch' && SITE_SYSTEMS[d.systemId]) {
+    selectSiteSystem(d.systemId);
+    return;
+  }
+  if (d.type === '__rv_start_call' && typeof startCall === 'function') {
+    startCall(d.callType === 'video' ? 'video' : 'audio');
+    return;
+  }
+});
 
 // ── Navigation ────────────────────────────────────────────────────────
 let currentSection = 'chat';
@@ -1098,9 +1198,59 @@ async function submitSectionReaction(btn, type) {
 
 // Highlight popover for text selection
 let briefingSelectedText = '';
+let briefingSelectedSection = null;
+let briefingSelectedContextBefore = null;
+let briefingSelectedContextAfter = null;
 
 document.addEventListener('mouseup', handleBriefingSelection);
 document.addEventListener('touchend', handleBriefingSelection);
+
+function briefingFindSection(node) {
+  // Walk up to the nearest preceding <h2>/<h3> heading inside the briefing container
+  let el = node;
+  if (el && el.nodeType === 3) el = el.parentNode;
+  while (el && el.id !== 'briefing-content') {
+    let sib = el.previousElementSibling;
+    while (sib) {
+      const tag = (sib.tagName || '').toUpperCase();
+      if (tag === 'H1' || tag === 'H2' || tag === 'H3' || tag === 'H4' || (sib.querySelector && sib.querySelector('h1,h2,h3,h4'))) {
+        const header = (tag.startsWith('H') ? sib : sib.querySelector('h1,h2,h3,h4'));
+        return (header?.textContent || '').trim().slice(0, 80) || null;
+      }
+      sib = sib.previousElementSibling;
+    }
+    el = el.parentNode;
+  }
+  return null;
+}
+
+function briefingCaptureContext(sel) {
+  // Grab ±1 sentence worth of text around the selection's paragraph
+  try {
+    const range = sel.getRangeAt(0);
+    let para = range.startContainer;
+    if (para.nodeType === 3) para = para.parentNode;
+    while (para && !['P', 'LI', 'BLOCKQUOTE', 'DIV'].includes((para.tagName || '').toUpperCase())) {
+      para = para.parentNode;
+      if (!para || para.id === 'briefing-content') break;
+    }
+    if (!para || !para.textContent) return { before: null, after: null };
+    const full = para.textContent;
+    const sel_text = sel.toString();
+    const idx = full.indexOf(sel_text);
+    if (idx < 0) return { before: null, after: null };
+    const raw_before = full.slice(0, idx);
+    const raw_after = full.slice(idx + sel_text.length);
+    // Trim to last sentence before / first sentence after (sentence boundary = . ! ? followed by space)
+    const beforeMatch = raw_before.match(/[^.!?]*$/);
+    const afterMatch = raw_after.match(/^[^.!?]*[.!?]?/);
+    const before = (beforeMatch ? beforeMatch[0] : raw_before).trim().slice(-200) || null;
+    const after = (afterMatch ? afterMatch[0] : raw_after).trim().slice(0, 200) || null;
+    return { before, after };
+  } catch (_) {
+    return { before: null, after: null };
+  }
+}
 
 function handleBriefingSelection(e) {
   const popover = document.getElementById('briefing-highlight-popover');
@@ -1117,6 +1267,9 @@ function handleBriefingSelection(e) {
   if (!text || text.length < 3) {
     popover.style.display = 'none';
     briefingSelectedText = '';
+    briefingSelectedSection = null;
+    briefingSelectedContextBefore = null;
+    briefingSelectedContextAfter = null;
     return;
   }
 
@@ -1124,10 +1277,17 @@ function handleBriefingSelection(e) {
   if (!sel.anchorNode || !container.contains(sel.anchorNode)) {
     popover.style.display = 'none';
     briefingSelectedText = '';
+    briefingSelectedSection = null;
+    briefingSelectedContextBefore = null;
+    briefingSelectedContextAfter = null;
     return;
   }
 
   briefingSelectedText = text;
+  briefingSelectedSection = briefingFindSection(sel.anchorNode);
+  const ctx = briefingCaptureContext(sel);
+  briefingSelectedContextBefore = ctx.before;
+  briefingSelectedContextAfter = ctx.after;
 
   // Position the popover near the selection
   const range = sel.getRangeAt(0);
@@ -1154,11 +1314,23 @@ async function submitHighlightFeedback(type) {
   if (popover) popover.style.display = 'none';
 
   const text = briefingSelectedText;
+  const section = briefingSelectedSection;
+  const ctxBefore = briefingSelectedContextBefore;
+  const ctxAfter = briefingSelectedContextAfter;
   briefingSelectedText = '';
+  briefingSelectedSection = null;
+  briefingSelectedContextBefore = null;
+  briefingSelectedContextAfter = null;
   window.getSelection()?.removeAllRanges();
 
   try {
-    const body = { feedback_type: type, highlighted_text: text };
+    const body = {
+      feedback_type: type,
+      highlighted_text: text,
+      section: section || null,
+      context_before: ctxBefore || null,
+      context_after: ctxAfter || null,
+    };
     if (type === 'highlight_never') body.permanent = true;
     const res = await fetch('/api/briefings/feedback', {
       method: 'POST',
@@ -1168,6 +1340,7 @@ async function submitHighlightFeedback(type) {
     if (!res.ok) throw new Error('Failed');
     const labels = { highlight_positive: 'Preference saved', highlight_negative: 'Preference saved', highlight_never: 'Permanently excluded' };
     showToast(labels[type] || 'Feedback saved');
+    if (typeof refreshBriefingPreferences === 'function') refreshBriefingPreferences();
   } catch (e) {
     console.error('[briefing] Highlight feedback error:', e);
     showToast('Could not save feedback');
@@ -1192,6 +1365,77 @@ async function submitBriefingFreeText() {
   } catch (e) {
     console.error('[briefing] Free text error:', e);
     showToast('Could not save feedback');
+  }
+}
+
+// ── Briefing preferences ─────────────────────────────────────────────
+function openBriefingPreferencesModal() {
+  openModal('briefing-preferences-modal');
+  refreshBriefingPreferences();
+}
+
+async function refreshBriefingPreferences() {
+  const list = document.getElementById('briefing-prefs-list');
+  if (!list) return;
+  try {
+    const r = await fetch('/api/briefings/preferences');
+    if (!r.ok) throw new Error('Failed');
+    const data = await r.json();
+    const prefs = data.preferences || [];
+    if (!prefs.length) {
+      list.innerHTML = '<div class="briefing-pref-empty" style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:16px">No standing preferences yet. Highlight text in a briefing and tap "Never again", or add one manually below.</div>';
+      return;
+    }
+    list.innerHTML = prefs.map(p => {
+      const srcLabel = { highlight_never: 'from highlight', consolidation: 'auto-learned', manual: 'added by you' }[p.source] || p.source;
+      const date = new Date(p.created_at).toLocaleDateString();
+      const safeRule = String(p.rule_text).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      return `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:0.85rem;color:var(--text-primary);line-height:1.4;word-wrap:break-word">${safeRule}</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px">${srcLabel} · ${date}</div>
+          </div>
+          <button class="btn-icon" onclick="deleteBriefingPreference(${p.id})" title="Remove rule" style="flex:0 0 auto">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
+          </button>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    console.error('[briefing] Prefs load error:', e);
+    list.innerHTML = '<div class="briefing-pref-empty" style="color:var(--danger,#ef4444);font-size:0.85rem;text-align:center;padding:16px">Could not load preferences.</div>';
+  }
+}
+
+async function addBriefingPreference() {
+  const input = document.getElementById('briefing-pref-new');
+  const rule = input ? input.value.trim() : '';
+  if (!rule) return;
+  try {
+    const r = await fetch('/api/briefings/preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rule_text: rule }),
+    });
+    if (!r.ok) throw new Error('Failed');
+    input.value = '';
+    showToast('Rule added');
+    refreshBriefingPreferences();
+  } catch (e) {
+    console.error('[briefing] Prefs add error:', e);
+    showToast('Could not add rule');
+  }
+}
+
+async function deleteBriefingPreference(id) {
+  try {
+    const r = await fetch('/api/briefings/preferences/' + id, { method: 'DELETE' });
+    if (!r.ok) throw new Error('Failed');
+    showToast('Rule removed');
+    refreshBriefingPreferences();
+  } catch (e) {
+    console.error('[briefing] Prefs delete error:', e);
+    showToast('Could not remove rule');
   }
 }
 

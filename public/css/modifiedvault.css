@@ -1,0 +1,353 @@
+/* ═══════════════════════════════════════════════════════════════════
+   MODIFIED VAULT — Site System Override
+   Activated by `body.site-vault`. Currently ships one theme:
+   Royal Vault (warm ivory + amber, oklch). Sourced from the
+   Royal Vault Chat design bundle.
+═══════════════════════════════════════════════════════════════════ */
+
+body.site-vault {
+  /* Royal Vault design tokens — warm-black base, ivory foreground, amber accent */
+  --rv-accent-hue: 72;
+  --rv-bg:              oklch(0.155 0.014 70);
+  --rv-sidebar-bg:      oklch(0.135 0.012 70);
+  --rv-rail-bg:         oklch(0.145 0.011 60);
+  --rv-text:            oklch(0.96 0.015 80);
+  --rv-text-dim:        oklch(0.72 0.014 70);
+  --rv-text-faint:      oklch(0.52 0.012 70);
+  --rv-border:          oklch(0.26 0.012 60);
+  --rv-input-bg:        oklch(0.18 0.013 60);
+  --rv-hover:           oklch(0.20 0.013 60);
+  --rv-card-bg:         oklch(0.18 0.012 60);
+  --rv-pill-bg:         oklch(0.19 0.012 60);
+  --rv-bubble-them:      oklch(0.195 0.012 60);
+  --rv-bubble-them-dark: oklch(0.165 0.011 60);
+  --rv-bubble-them-border: oklch(0.27 0.012 60);
+  --rv-bubble-me:        oklch(0.78 0.13 var(--rv-accent-hue));
+  --rv-bubble-me-dark:   oklch(0.70 0.14 var(--rv-accent-hue));
+  --rv-bubble-me-fg:     oklch(0.18 0.03 var(--rv-accent-hue));
+  --rv-accent:           oklch(0.82 0.16 var(--rv-accent-hue));
+  --rv-accent-2:         oklch(0.68 0.15 calc(var(--rv-accent-hue) + 20));
+  --rv-accent-soft:      oklch(0.82 0.16 var(--rv-accent-hue) / 0.15);
+  --rv-accent-line:      oklch(0.82 0.16 var(--rv-accent-hue) / 0.35);
+  --rv-accent-glow:      oklch(0.82 0.16 var(--rv-accent-hue) / 0.45);
+  --rv-accent-beam:      oklch(0.88 0.16 var(--rv-accent-hue));
+
+  /* Remap the app's shared tokens onto the vault palette so the
+     existing stylesheet cascades into the new look without
+     rewriting every rule. */
+  --bg-main:        var(--rv-bg);
+  --bg-sidebar:     var(--rv-sidebar-bg);
+  --bg-card:        var(--rv-card-bg);
+  --bg-input:       var(--rv-input-bg);
+  --bg-hover:       var(--rv-hover);
+  --bg-active:      var(--rv-accent-soft);
+  --border:         var(--rv-border);
+  --border-strong:  var(--rv-border);
+  --text-primary:   var(--rv-text);
+  --text:           var(--rv-text);
+  --text-muted:     var(--rv-text-dim);
+  --text-faint:     var(--rv-text-faint);
+  --accent:         var(--rv-accent);
+  --accent2:        var(--rv-accent-2);
+  --accent-soft:    var(--rv-accent-soft);
+  --accent-hover:   var(--rv-accent-2);
+  --glow:           var(--rv-accent-glow);
+  --shadow:         0 4px 24px rgba(0,0,0,0.45);
+
+  /* Editorial-calm typography, per the design bundle */
+  --font-main:      'Inter Tight', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-heading:   'Inter Tight', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:      'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+  background: var(--rv-bg);
+  color: var(--rv-text);
+  font-family: var(--font-main);
+  font-feature-settings: "ss01", "cv11";
+}
+
+body.site-vault #app {
+  background: var(--rv-bg);
+}
+
+/* Subtle top-to-bottom aurora on the main surface, pulled from the
+   design's variation A ambient texture. Kept very low opacity so it
+   reads as atmosphere, not decoration. */
+body.site-vault #app::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 20% 0%, oklch(0.45 0.08 72 / 0.12), transparent 55%),
+    radial-gradient(ellipse at 85% 100%, oklch(0.40 0.05 40 / 0.10), transparent 60%);
+  z-index: 0;
+}
+
+body.site-vault #app > * { position: relative; z-index: 1; }
+
+/* ── Typography accents ────────────────────────────────────────── */
+body.site-vault .time,
+body.site-vault .msg-timestamp,
+body.site-vault .timestamp,
+body.site-vault .meta-mono,
+body.site-vault code,
+body.site-vault kbd,
+body.site-vault .kbd { font-family: var(--font-mono); letter-spacing: 0.02em; }
+
+body.site-vault .site-title {
+  background: linear-gradient(135deg, var(--rv-accent), var(--rv-accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 0.22em;
+  font-weight: 700;
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────── */
+body.site-vault #sidebar,
+body.site-vault .sidebar {
+  background: var(--rv-sidebar-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 18px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.03);
+}
+
+body.site-vault .sidebar-nav .nav-item,
+body.site-vault #sidebar .nav-item {
+  border-radius: 10px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+body.site-vault .sidebar-nav .nav-item:hover {
+  background: var(--rv-hover);
+}
+
+body.site-vault .sidebar-nav .nav-item.active,
+body.site-vault #sidebar .nav-item.active {
+  background: var(--rv-accent-soft);
+  color: var(--rv-accent);
+  box-shadow: inset 2px 0 0 var(--rv-accent);
+}
+
+/* ── Header bar ────────────────────────────────────────────────── */
+body.site-vault #app-header,
+body.site-vault .chat-header {
+  background: oklch(0.16 0.012 60 / 0.85);
+  border: 1px solid var(--rv-border);
+  border-radius: 16px;
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+
+/* ── Message bubbles — softer radius, gradient fill ───────────── */
+body.site-vault .msg-bubble {
+  border-radius: 18px;
+  font-family: var(--font-main);
+  line-height: 1.42;
+  letter-spacing: 0.005em;
+}
+
+body.site-vault .msg-bubble-other {
+  background: linear-gradient(180deg, var(--rv-bubble-them), var(--rv-bubble-them-dark));
+  border: 1px solid var(--rv-bubble-them-border);
+  color: var(--rv-text);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 4px 14px rgba(0,0,0,0.25);
+}
+
+body.site-vault .msg-bubble-self {
+  background: linear-gradient(180deg, var(--rv-bubble-me), var(--rv-bubble-me-dark));
+  border: 1px solid oklch(0.72 0.14 var(--rv-accent-hue));
+  color: var(--rv-bubble-me-fg);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.18) inset,
+    0 6px 18px oklch(0.50 0.14 var(--rv-accent-hue) / 0.35);
+}
+
+body.site-vault .msg-bubble.ai-bubble {
+  background: linear-gradient(180deg, var(--rv-card-bg), var(--rv-bubble-them-dark));
+  border: 1px solid var(--rv-accent-line);
+  color: var(--rv-text);
+}
+
+/* ── Composer — rotating conic border beam ────────────────────── */
+body.site-vault .msg-input-wrap {
+  position: relative;
+  background: var(--rv-input-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 22px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.03);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+body.site-vault .msg-input-wrap::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 300deg,
+    var(--rv-accent-beam) 340deg,
+    var(--rv-accent) 355deg,
+    transparent 360deg
+  );
+  animation: rv-beam-spin 9s linear infinite;
+  opacity: 0.85;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body.site-vault .msg-input-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  background: var(--rv-input-bg);
+  border-radius: 21px;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body.site-vault .msg-input-wrap:focus-within {
+  border-color: transparent;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 36px oklch(0.50 0.14 var(--rv-accent-hue) / 0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+body.site-vault .msg-input-wrap:focus-within::before {
+  opacity: 1;
+  animation-duration: 5s;
+}
+
+@keyframes rv-beam-spin {
+  to { transform: rotate(360deg); }
+}
+
+body.perf-mode.site-vault .msg-input-wrap::before { animation: none; opacity: 0.35; }
+
+/* ── Inputs / pills / chips ────────────────────────────────────── */
+body.site-vault input,
+body.site-vault textarea,
+body.site-vault select {
+  font-family: var(--font-main);
+  color: var(--rv-text);
+}
+
+body.site-vault .input,
+body.site-vault .text-input {
+  background: var(--rv-input-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 10px;
+}
+
+body.site-vault .pill,
+body.site-vault .chip,
+body.site-vault .badge {
+  background: var(--rv-pill-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 999px;
+  color: var(--rv-text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+body.site-vault .btn-primary,
+body.site-vault button.primary {
+  background: linear-gradient(180deg, var(--rv-accent), var(--rv-accent-2));
+  color: var(--rv-bubble-me-fg);
+  border: 1px solid oklch(0.72 0.14 var(--rv-accent-hue));
+  box-shadow: 0 6px 18px oklch(0.50 0.14 var(--rv-accent-hue) / 0.35);
+}
+
+body.site-vault .btn-ghost,
+body.site-vault .btn-secondary {
+  background: var(--rv-pill-bg);
+  border: 1px solid var(--rv-border);
+  color: var(--rv-text);
+}
+
+body.site-vault .btn-ghost:hover,
+body.site-vault .btn-secondary:hover {
+  background: var(--rv-hover);
+  border-color: var(--rv-accent-line);
+}
+
+/* ── Cards / sections ─────────────────────────────────────────── */
+body.site-vault .card,
+body.site-vault .settings-section,
+body.site-vault .panel,
+body.site-vault .modal-card,
+body.site-vault .settings-panel {
+  background: var(--rv-card-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 14px;
+}
+
+/* Settings modal surface keeps a warmer edge */
+body.site-vault .modal-backdrop { background: oklch(0.08 0.01 60 / 0.72); }
+body.site-vault .modal,
+body.site-vault #settings-modal .modal-content {
+  background: var(--rv-sidebar-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+}
+
+/* ── Theme card selection ring ─────────────────────────────────── */
+body.site-vault .theme-card {
+  background: var(--rv-card-bg);
+  border: 1px solid var(--rv-border);
+  border-radius: 12px;
+}
+body.site-vault .theme-card.active {
+  border-color: var(--rv-accent);
+  box-shadow: 0 0 0 2px var(--rv-accent-soft);
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────── */
+body.site-vault ::-webkit-scrollbar { width: 8px; height: 8px; }
+body.site-vault ::-webkit-scrollbar-track { background: transparent; }
+body.site-vault ::-webkit-scrollbar-thumb { background: var(--rv-border); border-radius: 4px; }
+body.site-vault ::-webkit-scrollbar-thumb:hover { background: var(--rv-text-faint); }
+
+/* ── Site System dropdown (settings) ──────────────────────────── */
+.site-system-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 12px 14px;
+  margin-bottom: 1rem;
+  background: var(--bg-card, var(--bg-input, #1a1a1f));
+  border: 1px solid var(--border, #2a2a33);
+  border-radius: 12px;
+}
+.site-system-row .site-system-label {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.site-system-row .site-system-title {
+  font-size: 0.9rem; font-weight: 600; color: var(--text-primary, var(--text));
+}
+.site-system-row .site-system-sub {
+  font-size: 0.76rem; color: var(--text-muted);
+}
+.site-system-row select {
+  background: var(--bg-input);
+  color: var(--text-primary, var(--text));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  min-width: 180px;
+  cursor: pointer;
+}
+body.site-vault .site-system-row select {
+  background: var(--rv-input-bg);
+  border-color: var(--rv-border);
+  color: var(--rv-text);
+  font-family: var(--font-main);
+}

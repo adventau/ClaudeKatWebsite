@@ -6,9 +6,10 @@
   <title>The Royal Kat & Kai Vault</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@400;700&family=Inter:wght@300;400;500;600&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Josefin+Sans:wght@300;400&family=Space+Grotesk:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/themes.css?v=totp10">
   <link rel="stylesheet" href="/css/app.css?v=sr2">
+  <link rel="stylesheet" href="/css/modifiedvault.css?v=1">
   <link rel="stylesheet" href="/css/censor.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
   <script src="/js/lucide.min.js" defer></script>
@@ -16,10 +17,12 @@
 </head>
 <body class="theme-dark">
 <script>
-  // Apply cached theme immediately to prevent flash
+  // Apply cached theme + site system immediately to prevent flash
   try {
     var t = localStorage.getItem('rkk-theme');
-    if (t) document.body.className = 'theme-' + t;
+    var sys = localStorage.getItem('rkk-site-system') || 'original';
+    var cls = t ? ('theme-' + t) : 'theme-dark';
+    document.body.className = cls + (sys === 'vault' ? ' site-vault' : ' site-original');
   } catch(e) {}
 </script>
 <style>
@@ -557,6 +560,10 @@
             <i data-lucide="message-square"></i>
             <span>Notes for tomorrow</span>
           </button>
+          <button class="sr-footer-btn" onclick="openBriefingPreferencesModal()">
+            <i data-lucide="sliders-horizontal"></i>
+            <span>Manage preferences</span>
+          </button>
         </div>
       </div>
     </section>
@@ -874,6 +881,16 @@
         <!-- Themes tab -->
         <div class="settings-panel" id="tab-themes">
           <div class="settings-section">
+            <div class="site-system-row">
+              <div class="site-system-label">
+                <span class="site-system-title">Site System</span>
+                <span class="site-system-sub">Switches the entire visual system of /app. Each system has its own themes.</span>
+              </div>
+              <select id="site-system-select" onchange="selectSiteSystem(this.value)">
+                <option value="original">Original Release</option>
+                <option value="vault">Modified Vault</option>
+              </select>
+            </div>
             <h3>Choose Theme</h3>
             <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem">Your theme is personal — each user can have their own.</p>
             <div class="theme-grid" id="theme-grid">
@@ -2314,6 +2331,32 @@
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal('briefing-feedback-modal')">Cancel</button>
       <button class="btn-primary" onclick="submitBriefingFreeText()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Briefing preferences modal -->
+<div class="modal-overlay" id="briefing-preferences-modal" onclick="if(event.target===this)closeModal('briefing-preferences-modal')">
+  <div class="modal" style="max-width:560px;width:100%">
+    <div class="modal-header">
+      <span class="modal-title">Briefing Preferences</span>
+      <button class="btn-icon" onclick="closeModal('briefing-preferences-modal')"><i data-lucide="x"></i></button>
+    </div>
+    <div style="padding:16px 20px;max-height:60vh;overflow-y:auto">
+      <p style="color:var(--text-muted);font-size:0.8rem;margin:0 0 12px">Standing rules your briefing generator follows every day. Remove anything that no longer fits.</p>
+      <div id="briefing-prefs-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+        <div class="briefing-pref-empty" style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:16px">Loading…</div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px">
+        <label style="display:block;font-size:0.8rem;color:var(--text-muted);margin-bottom:6px">Add a rule manually</label>
+        <div style="display:flex;gap:8px">
+          <input id="briefing-pref-new" class="input" type="text" placeholder="e.g. Never cover celebrity gossip" style="flex:1;font-size:0.85rem" />
+          <button class="btn-primary" onclick="addBriefingPreference()">Add</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('briefing-preferences-modal')">Close</button>
     </div>
   </div>
 </div>
