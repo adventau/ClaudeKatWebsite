@@ -8,7 +8,7 @@
 
 ## What Changed
 
-The in-process Claude API runner (`runInternalSurveillance`) has been replaced with a lightweight Routine webhook trigger (`fireRoutineSurveillance`). The server now fires a single `POST` to the Routine's hook URL and returns immediately. The Routine does the work (Claude + web_search) and posts the completed report back via the existing `POST /api/archivist/results` endpoint — the same path the legacy Cowork runner uses.
+The in-process Claude API runner (`runInternalSurveillance`) has been replaced with a lightweight Routine trigger (`fireRoutineSurveillance`). The server fires a single `POST` to the Anthropic Routine fire endpoint and returns immediately. The Routine does the work (Claude + web_search) and posts the completed report back via the existing `POST /api/archivist/results` endpoint — the same path the legacy Cowork runner uses.
 
 ### Files modified
 
@@ -25,11 +25,11 @@ The in-process Claude API runner (`runInternalSurveillance`) has been replaced w
 - `surveillanceUserPrompt()` — user-turn prompt (now lives in the Routine)
 - `surveillanceExtractReport()` — Claude response parser (no longer needed server-side)
 
-`surveillanceDetermineScope()` and `SURVEILLANCE_DEFAULT_SCOPE` are kept — the scope is computed server-side and sent to the Routine in the payload.
+`surveillanceDetermineScope()` and `SURVEILLANCE_DEFAULT_SCOPE` are kept — scope is computed server-side and sent to the Routine in the payload.
 
 ### What was added / changed
 
-- `fireRoutineSurveillance(queueId, profileId, fullName, requestedBy)` — POSTs payload to `ROUTINE_SURVEILLANCE_URL`
+- `fireRoutineSurveillance(queueId, profileId, fullName, requestedBy)` — POSTs the surveillance payload to the Anthropic Routine fire URL
 - `surveillanceMarkFailed(queueId, profileId, errorMsg)` — sets `status='failed'` + `error=<message>` on the queue row and emits `k108:surveillance_failed` via Socket.IO
 - `surveillance_queue.error TEXT` column — stores the failure reason when the Routine trigger fails
 
@@ -41,8 +41,8 @@ Add both to Railway > Service > Variables:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `ROUTINE_SURVEILLANCE_URL` | Routine API hook URL. Found in the Routine's Settings → Trigger. | `https://hooks.routines.dev/r/surveillance-abc123` |
-| `ROUTINE_SURVEILLANCE_TOKEN` | Bearer token for the Routine (the `rt_live_xxx` key shown at creation). | `rt_live_xxxxxxxxxxxxxxxx` |
+| `ROUTINE_SURVEILLANCE_ID` | The Routine's ID only — **not** the full URL. Found in the Routine's Settings page. The server constructs the full fire URL as `https://api.anthropic.com/v1/claude_code/routines/<ID>/fire`. | `trig_01DU2wEKxxGjRH2GxurhYCHb` |
+| `ROUTINE_SURVEILLANCE_TOKEN` | Anthropic bearer token used to authenticate the fire request. | `sk-ant-...` or `rt_live_xxx` |
 
 **Existing vars that must remain set:**
 
@@ -55,9 +55,34 @@ Add both to Railway > Service > Variables:
 
 ---
 
-## Payload Shape
+## Routine Fire Request
 
-The server POSTs this JSON body to `ROUTINE_SURVEILLANCE_URL`:
+### URL
+
+```
+POST https://api.anthropic.com/v1/claude_code/routines/{ROUTINE_SURVEILLANCE_ID}/fire
+```
+
+### Required Headers
+
+```
+Authorization: Bearer <ROUTINE_SURVEILLANCE_TOKEN>
+anthropic-version: 2023-06-01
+anthropic-beta: experimental-cc-routine-2026-04-01
+Content-Type: application/json
+```
+
+### Body Shape
+
+The Routine API accepts a **single `text` field**. The entire payload is serialized into a natural-language message string and sent inside it:
+
+```json
+{
+  "text": "New surveillance request.\n\nParse the JSON block below and execute your instructions.\n\nPAYLOAD:\n{ ... }"
+}
+```
+
+The embedded JSON block (pretty-printed via `JSON.stringify(payload, null, 2)`) contains:
 
 ```json
 {
@@ -96,48 +121,65 @@ The server POSTs this JSON body to `ROUTINE_SURVEILLANCE_URL`:
 }
 ```
 
-The `Authorization` header is `Bearer <ROUTINE_SURVEILLANCE_TOKEN>`.
+### Successful Response
+
+A successful fire returns HTTP 200 with:
+
+```json
+{
+  "type": "routine_fire",
+  "claude_code_session_id": "sess_...",
+  "claude_code_session_url": "https://claude.ai/claude-code/sessions/sess_..."
+}
+```
+
+The server logs `claude_code_session_url` so you can click through to watch the run in progress:
+
+```
+[surveillance] Routine accepted queueId=123 (HTTP 200) session=https://claude.ai/claude-code/sessions/sess_...
+```
 
 ---
 
 ## What the Routine Needs to Do
 
-The Routine should be configured in the Anthropic Routines dashboard as follows:
+Configure the Routine in the Anthropic dashboard as follows:
 
 ### Trigger
-HTTP POST — use the generated hook URL as `ROUTINE_SURVEILLANCE_URL`.
+HTTP trigger — copy the Routine ID into `ROUTINE_SURVEILLANCE_ID`. The server constructs and fires to the full URL automatically.
 
 ### Model
 Claude Sonnet (latest). Enable the `web_search` tool.
 
 ### System prompt
-Act as ORACLE, a senior K-108 intelligence analyst. Geographic scope is provided in the input payload under `scope`. Use the same report format as previously — plain text, section headers, `[CONFIRMED]` / `[PROBABLE]` / `[UNVERIFIED]` confidence tags, source citations. See the previous `surveillanceSystemPrompt()` function body in git history for the exact prompt text to use.
+Act as ORACLE, a senior K-108 intelligence analyst. Geographic scope is provided in the input payload under `scope`. Use plain-text report format — section headers with dashes, `[CONFIRMED]` / `[PROBABLE]` / `[UNVERIFIED]` confidence tags, source citations in parentheses. No markdown (`**`, `#`, backticks forbidden). Max 200 characters per finding line. See git history for the previous `surveillanceSystemPrompt()` function for the exact prompt text.
 
 ### Input mapping
-The Routine receives the full payload above. Use `profile`, `relations`, and `scope` to build the subject brief and search scope. Run 4–6 `web_search` calls with different query angles pinned to `scope.focus` and `scope.region`.
+Parse the `PAYLOAD` JSON block from the incoming `text` field. Use `profile`, `relations`, and `scope` to build the subject brief and geographic anchor. Run 4–6 `web_search` calls with different query angles pinned to `scope.focus` and `scope.region`.
 
 ### Output / callback
-When the report is complete, POST to `submitUrl` with:
+When the report is complete, POST to `submitUrl` from the payload:
 
 ```
-Header: x-briefing-secret: <briefingSecret from payload>
+POST <submitUrl>
+x-briefing-secret: <briefingSecret from payload>
 Content-Type: application/json
 
 {
-  "id": <queueId from payload>,
-  "name": <name from payload>,
-  "requested_by": <requestedBy from payload>,
+  "id": <queueId>,
+  "name": <name>,
+  "requested_by": <requestedBy>,
   "report": "<plain-text K-108 report string>"
 }
 ```
 
-This hits `POST /api/archivist/results` on the server, which handles the rest: inserts into `surveillance_results`, links to case timeline if applicable, sends push notification, and emits `k108:surveillance_complete` via Socket.IO.
+This hits `POST /api/archivist/results` on the server, which: inserts into `surveillance_results`, deletes the queue row, links to case timeline if applicable, sends Brrr push notification, and emits `k108:surveillance_complete` via Socket.IO.
 
 ---
 
 ## Error Handling
 
-If `ROUTINE_SURVEILLANCE_URL` or `ROUTINE_SURVEILLANCE_TOKEN` is missing, or if the POST to the Routine returns a non-2xx status:
+If `ROUTINE_SURVEILLANCE_ID` or `ROUTINE_SURVEILLANCE_TOKEN` is missing, or if the POST to the Routine returns a non-2xx status:
 
 1. `surveillance_queue` row is updated: `status='failed'`, `error='<reason>'`
 2. Socket.IO emits `k108:surveillance_failed` → `{ profileId, queueId, error }`
@@ -159,14 +201,18 @@ INSERT surveillance_queue (status='pending')
 Response {success:true} → button → "Surveillance Pending"
   ↓ [fire-and-forget]
 fireRoutineSurveillance()
-  ├─ Check ROUTINE_SURVEILLANCE_URL + ROUTINE_SURVEILLANCE_TOKEN
+  ├─ Check ROUTINE_SURVEILLANCE_ID + ROUTINE_SURVEILLANCE_TOKEN
   ├─ Verify queue row still pending
   ├─ Load k108_profiles + k108_profile_relations
-  ├─ Determine scope
-  └─ POST to Routine URL  →  HTTP 2xx = accepted
-         (server returns immediately; Routine works async)
+  ├─ Determine scope via surveillanceDetermineScope()
+  ├─ Build message string with embedded JSON payload
+  └─ POST https://api.anthropic.com/v1/claude_code/routines/<ID>/fire
+       Headers: Authorization, anthropic-version, anthropic-beta
+       Body: { "text": "<message + JSON>" }
+       →  HTTP 200 = accepted; log claude_code_session_url
+       →  non-2xx = mark failed, emit k108:surveillance_failed
 
-[...later, when Routine finishes...]
+[...later, when Routine finishes its sweep...]
 
 POST /api/archivist/results  (x-briefing-secret auth)
   ├─ INSERT surveillance_results
@@ -175,5 +221,5 @@ POST /api/archivist/results  (x-briefing-secret auth)
   ├─ POST Brrr push notification
   └─ io.emit('k108:surveillance_complete', { profileId, name })
          ↓
-Frontend updates — report card rendered in profile view
+Frontend Socket.IO listener fires → profile re-fetched → report card rendered
 ```

@@ -9031,13 +9031,15 @@ app.delete('/k108/profiles/:id/surveillance/queue', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // K-108 SURVEILLANCE — ROUTINE TRIGGER
 // ═══════════════════════════════════════════════════════════════════════════════
-// Fires an Anthropic Routine webhook that runs the surveillance sweep externally.
+// Fires an Anthropic Routine that runs the surveillance sweep externally.
 // Results land back via POST /api/archivist/results (BRIEFING_SECRET auth), the
 // same endpoint used by the legacy Cowork runner — no changes to that path.
 //
 // Required env vars:
-//   ROUTINE_SURVEILLANCE_URL   — Routine API hook URL
-//   ROUTINE_SURVEILLANCE_TOKEN — Routine bearer token (rt_live_xxx)
+//   ROUTINE_SURVEILLANCE_ID    — Routine ID only (e.g. trig_01DU2wEKxxGjRH2GxurhYCHb).
+//                                The full fire URL is constructed as:
+//                                https://api.anthropic.com/v1/claude_code/routines/<ID>/fire
+//   ROUTINE_SURVEILLANCE_TOKEN — Anthropic bearer token (api key or rt_live_xxx)
 //
 // If either var is missing, or the POST returns non-2xx, the queue row is marked
 // status='failed' with an error message and a k108:surveillance_failed socket
@@ -9103,14 +9105,16 @@ async function surveillanceMarkFailed(queueId, profileId, errorMsg) {
 async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy) {
   if (!db.pool) return;
 
-  const routineUrl = process.env.ROUTINE_SURVEILLANCE_URL;
+  const routineId    = process.env.ROUTINE_SURVEILLANCE_ID;
   const routineToken = process.env.ROUTINE_SURVEILLANCE_TOKEN;
-  if (!routineUrl || !routineToken) {
-    const msg = 'ROUTINE_SURVEILLANCE_URL or ROUTINE_SURVEILLANCE_TOKEN not configured';
+  if (!routineId || !routineToken) {
+    const msg = 'ROUTINE_SURVEILLANCE_ID or ROUTINE_SURVEILLANCE_TOKEN not configured';
     console.error('[surveillance] ' + msg + ' — queueId=' + queueId);
     await surveillanceMarkFailed(queueId, profileId, msg);
     return;
   }
+
+  const routineUrl = 'https://api.anthropic.com/v1/claude_code/routines/' + routineId + '/fire';
 
   // Verify the queue row is still pending (guard against race with cancellation)
   const check = await db.query(`SELECT id, status FROM surveillance_queue WHERE id = $1`, [queueId]);
@@ -9144,7 +9148,7 @@ async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy
   const scope = surveillanceDetermineScope(p.address);
   const submitUrl = K108_BASE_URL + '/api/archivist/results';
 
-  const payload = {
+  const payloadObject = {
     queueId,
     profileId,
     name: fullName,
@@ -9163,6 +9167,14 @@ async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy
     briefingSecret: process.env.BRIEFING_SECRET,
   };
 
+  // The Routine API accepts a single "text" field; embed the full payload as a
+  // natural-language message with the JSON block inside it.
+  const messageText =
+    'New surveillance request.\n\n' +
+    'Parse the JSON block below and execute your instructions.\n\n' +
+    'PAYLOAD:\n' +
+    JSON.stringify(payloadObject, null, 2);
+
   console.log('[surveillance] Firing Routine for "' + fullName + '" (queueId=' + queueId + ') scope=' + scope.focus);
 
   let statusCode;
@@ -9172,15 +9184,21 @@ async function fireRoutineSurveillance(queueId, profileId, fullName, requestedBy
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + routineToken,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'experimental-cc-routine-2026-04-01',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ text: messageText }),
     });
     statusCode = resp.status;
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
       throw new Error('HTTP ' + statusCode + (body ? ': ' + body.slice(0, 200) : ''));
     }
-    console.log('[surveillance] Routine accepted queueId=' + queueId + ' (HTTP ' + statusCode + ') — awaiting callback');
+    // Successful fire: { "type": "routine_fire", "claude_code_session_id": "...", "claude_code_session_url": "..." }
+    let fireResult = {};
+    try { fireResult = await resp.json(); } catch (_) {}
+    const sessionUrl = fireResult.claude_code_session_url || '(no session URL in response)';
+    console.log('[surveillance] Routine accepted queueId=' + queueId + ' (HTTP ' + statusCode + ') session=' + sessionUrl);
   } catch (e) {
     const msg = 'Routine POST failed: ' + e.message;
     console.error('[surveillance] ' + msg + ' (queueId=' + queueId + ')');
