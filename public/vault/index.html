@@ -1,0 +1,1147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Royal Vault — Chat</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  /* ========== DESIGN SYSTEM ==========
+     Royal Vault — executive/assistant command center.
+     Person-to-person chat (not AI).
+     Four variations switch via [data-variant="A|B|C|D"] on <html>.
+     Accent hue drives via --rv-accent-hue.
+  */
+
+  :root {
+    --rv-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --rv-sans: 'Inter Tight', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+    /* Defaults — overridden per variation */
+    --rv-accent-hue: 72;
+    --rv-bg: oklch(0.155 0.012 60);
+    --rv-sidebar-bg: oklch(0.135 0.010 60);
+    --rv-rail-bg: oklch(0.145 0.011 60);
+    --rv-chat-header-bg: oklch(0.16 0.012 60 / 0.85);
+    --rv-text: oklch(0.96 0.015 80);
+    --rv-text-dim: oklch(0.72 0.014 70);
+    --rv-text-faint: oklch(0.52 0.012 70);
+    --rv-border: oklch(0.26 0.012 60);
+    --rv-input-bg: oklch(0.18 0.013 60);
+    --rv-input-border: oklch(0.28 0.013 60);
+    --rv-pill-bg: oklch(0.19 0.012 60);
+    --rv-card-bg: oklch(0.18 0.012 60);
+    --rv-hover: oklch(0.20 0.013 60);
+    --rv-active: oklch(0.22 0.015 var(--rv-accent-hue) / 0.4);
+    --rv-badge-bg: oklch(0.22 0.012 60);
+    --rv-avatar-bg: oklch(0.24 0.013 60);
+    --rv-crest-bg: oklch(0.19 0.012 60);
+    --rv-bubble-them: oklch(0.195 0.012 60);
+    --rv-bubble-them-dark: oklch(0.165 0.011 60);
+    --rv-bubble-them-border: oklch(0.27 0.012 60);
+    --rv-bubble-me: oklch(0.78 0.13 var(--rv-accent-hue));
+    --rv-bubble-me-dark: oklch(0.70 0.14 var(--rv-accent-hue));
+    --rv-bubble-me-fg: oklch(0.18 0.03 var(--rv-accent-hue));
+    --rv-bubble-me-border: oklch(0.72 0.14 var(--rv-accent-hue));
+    --rv-tag-bg: oklch(0.22 0.05 var(--rv-accent-hue) / 0.25);
+    --rv-accent: oklch(0.82 0.16 var(--rv-accent-hue));
+    --rv-accent-2: oklch(0.68 0.15 calc(var(--rv-accent-hue) + 20));
+    --rv-accent-soft: oklch(0.82 0.16 var(--rv-accent-hue) / 0.15);
+    --rv-accent-line: oklch(0.82 0.16 var(--rv-accent-hue) / 0.35);
+    --rv-accent-glow: oklch(0.82 0.16 var(--rv-accent-hue) / 0.45);
+    --rv-accent-beam: oklch(0.88 0.16 var(--rv-accent-hue));
+    --rv-ok: oklch(0.80 0.14 150);
+  }
+
+  /* Variation A — Ivory & Amber (warm, default) */
+  [data-variant="A"] {
+    --rv-accent-hue: 72;
+    --rv-bg: oklch(0.155 0.014 70);
+    --rv-sidebar-bg: oklch(0.135 0.012 70);
+  }
+  /* Variation B — Steel & Azure (cool, operator) */
+  [data-variant="B"] {
+    --rv-accent-hue: 240;
+    --rv-bg: oklch(0.16 0.010 250);
+    --rv-sidebar-bg: oklch(0.14 0.009 250);
+    --rv-rail-bg: oklch(0.15 0.010 250);
+    --rv-border: oklch(0.26 0.011 250);
+    --rv-input-bg: oklch(0.185 0.011 250);
+    --rv-bubble-them: oklch(0.20 0.012 250);
+    --rv-bubble-them-dark: oklch(0.17 0.012 250);
+    --rv-bubble-them-border: oklch(0.28 0.012 250);
+    --rv-text: oklch(0.96 0.010 250);
+    --rv-text-dim: oklch(0.72 0.012 250);
+  }
+  /* Variation C — Obsidian Aurora (deep, iridescent) */
+  [data-variant="C"] {
+    --rv-accent-hue: 290;
+    --rv-bg: oklch(0.12 0.012 290);
+    --rv-sidebar-bg: oklch(0.10 0.010 290);
+    --rv-rail-bg: oklch(0.12 0.011 290);
+    --rv-border: oklch(0.24 0.013 290);
+    --rv-input-bg: oklch(0.15 0.013 290);
+    --rv-bubble-them: oklch(0.17 0.013 290);
+    --rv-bubble-them-dark: oklch(0.14 0.013 290);
+    --rv-bubble-them-border: oklch(0.26 0.013 290);
+    --rv-text: oklch(0.97 0.010 290);
+    --rv-text-dim: oklch(0.72 0.012 290);
+  }
+  /* Variation D — Graphite & Teal (signature release, brand aqua #00D8BB) */
+  [data-variant="D"] {
+    --rv-accent-hue: 180;
+    --rv-bg: oklch(0.135 0.008 200);
+    --rv-sidebar-bg: oklch(0.115 0.007 200);
+    --rv-rail-bg: oklch(0.125 0.008 200);
+    --rv-chat-header-bg: oklch(0.14 0.008 200 / 0.85);
+    --rv-border: oklch(0.24 0.010 200);
+    --rv-input-bg: oklch(0.165 0.010 200);
+    --rv-input-border: oklch(0.26 0.011 200);
+    --rv-pill-bg: oklch(0.18 0.010 200);
+    --rv-card-bg: oklch(0.17 0.010 200);
+    --rv-hover: oklch(0.19 0.011 200);
+    --rv-badge-bg: oklch(0.22 0.010 200);
+    --rv-avatar-bg: oklch(0.24 0.011 200);
+    --rv-crest-bg: oklch(0.19 0.010 200);
+    --rv-bubble-them: oklch(0.185 0.010 200);
+    --rv-bubble-them-dark: oklch(0.155 0.010 200);
+    --rv-bubble-them-border: oklch(0.27 0.011 200);
+    --rv-text: oklch(0.96 0.009 200);
+    --rv-text-dim: oklch(0.72 0.011 200);
+    --rv-text-faint: oklch(0.52 0.011 200);
+    /* Brand teal — #00D8BB locked as accent + "me" bubble for this theme */
+    --rv-accent: #00D8BB;
+    --rv-accent-2: #1BE9C9;
+    --rv-accent-beam: #00D8BB;
+    --rv-bubble-me: #00D8BB;
+    --rv-bubble-me-dark: #00BFA4;
+    --rv-bubble-me-fg: #00231E;
+    --rv-bubble-me-border: #00D8BB;
+    --rv-accent-soft: rgba(0, 216, 187, 0.15);
+    --rv-accent-line: rgba(0, 216, 187, 0.35);
+    --rv-accent-glow: rgba(0, 216, 187, 0.45);
+    --rv-tag-bg: rgba(0, 216, 187, 0.22);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--rv-bg);
+    color: var(--rv-text);
+    font-family: var(--rv-sans);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  #root { height: 100vh; }
+
+  /* Scrollbars */
+  .rv-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .rv-scroll::-webkit-scrollbar-track { background: transparent; }
+  .rv-scroll::-webkit-scrollbar-thumb {
+    background: var(--rv-border);
+    border-radius: 4px;
+  }
+  .rv-scroll::-webkit-scrollbar-thumb:hover { background: var(--rv-text-faint); }
+
+  /* Beam mask background — matches the input fill so the beam appears only on border */
+  .beam-host { --beam-mask-bg: var(--rv-input-bg); }
+
+  @keyframes typingDot {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-3px); opacity: 1; }
+  }
+
+  /* Ambient background texture — subtle aurora for C, hairline grid for B, nothing for A */
+  [data-variant="B"] body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, oklch(0.26 0.011 250 / 0.25) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(0.26 0.011 250 / 0.25) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
+    opacity: 0.35;
+    z-index: 0;
+  }
+  [data-variant="C"] body::before {
+    content: "";
+    position: fixed;
+    inset: -10%;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 20% 30%, oklch(0.55 0.18 290 / 0.18), transparent 45%),
+      radial-gradient(circle at 85% 20%, oklch(0.60 0.16 200 / 0.15), transparent 50%),
+      radial-gradient(circle at 60% 90%, oklch(0.55 0.17 150 / 0.12), transparent 55%);
+    filter: blur(40px);
+    z-index: 0;
+    animation: auroraShift 18s ease-in-out infinite alternate;
+  }
+  @keyframes auroraShift {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(-4%, 2%) scale(1.08); }
+  }
+
+  .rv-msg-flash {
+    animation: rv-msg-flash 1.5s ease-out;
+  }
+  @keyframes rv-msg-flash {
+    0%, 30%   { background: var(--rv-accent-soft); border-radius: 10px; }
+    100%      { background: transparent; }
+  }
+
+  /* Message bubbles animate in when added to the thread */
+  .rv-msg-in {
+    animation: rv-msg-in 240ms cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes rv-msg-in {
+    0%   { opacity: 0; transform: translateY(8px) scale(0.97); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* Briefing masthead pulsing dot */
+  @keyframes srPulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--rv-accent); opacity: 1; }
+    50%      { box-shadow: 0 0 0 6px transparent; opacity: 0.6; }
+  }
+  @keyframes srRise {
+    0%   { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .rv-sr-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--rv-accent);
+    box-shadow: 0 0 0 0 var(--rv-accent);
+    animation: srPulse 2.2s ease-in-out infinite;
+    display: inline-block;
+  }
+  .rv-sr-chapter {
+    animation: srRise 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .rv-sr-chapter:nth-child(1) { animation-delay: 0.10s; }
+  .rv-sr-chapter:nth-child(2) { animation-delay: 0.20s; }
+  .rv-sr-chapter:nth-child(3) { animation-delay: 0.30s; }
+  .rv-sr-chapter:nth-child(4) { animation-delay: 0.40s; }
+  .rv-sr-chapter:nth-child(5) { animation-delay: 0.50s; }
+  .rv-sr-chapter:nth-child(n+6) { animation-delay: 0.60s; }
+
+  /* Rendered markdown inside each briefing chapter body */
+  .rv-sr-body > :first-child { margin-top: 0; }
+  .rv-sr-body > :last-child { margin-bottom: 0; }
+  .rv-sr-body p {
+    margin: 0 0 12px;
+    line-height: 1.65;
+    color: var(--rv-text);
+  }
+  .rv-sr-body strong {
+    color: var(--rv-text);
+    font-weight: 600;
+  }
+  .rv-sr-body em { color: var(--rv-text); }
+  .rv-sr-body a {
+    color: var(--rv-accent);
+    text-decoration: none;
+    border-bottom: 1px solid oklch(0.82 0.16 var(--rv-accent-hue) / 0.35);
+  }
+  .rv-sr-body a:hover {
+    border-bottom-color: var(--rv-accent);
+  }
+  .rv-sr-body ul,
+  .rv-sr-body ol {
+    margin: 6px 0 14px;
+    padding-left: 22px;
+    color: var(--rv-text);
+  }
+  .rv-sr-body li {
+    margin: 4px 0;
+    line-height: 1.6;
+  }
+  .rv-sr-body ul li::marker { color: var(--rv-accent); }
+  .rv-sr-body ol li::marker { color: var(--rv-accent); font-family: var(--rv-mono); }
+  .rv-sr-body blockquote {
+    margin: 10px 0;
+    padding: 8px 14px;
+    border-left: 3px solid var(--rv-accent);
+    background: var(--rv-accent-soft);
+    border-radius: 0 8px 8px 0;
+    color: var(--rv-text-dim);
+    font-style: italic;
+  }
+  .rv-sr-body code {
+    font-family: var(--rv-mono);
+    font-size: 12.5px;
+    background: var(--rv-input-bg);
+    border: 1px solid var(--rv-border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--rv-accent);
+  }
+  .rv-sr-body pre {
+    background: var(--rv-input-bg);
+    border: 1px solid var(--rv-border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    margin: 10px 0;
+  }
+  .rv-sr-body pre code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: var(--rv-text);
+  }
+  .rv-sr-body hr {
+    border: none;
+    border-top: 1px solid var(--rv-border);
+    margin: 16px 0;
+  }
+  .rv-sr-body h1, .rv-sr-body h2, .rv-sr-body h3 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    color: var(--rv-text);
+    margin: 18px 0 8px;
+    line-height: 1.2;
+  }
+  .rv-sr-body h3 { font-size: 17px; font-weight: 700; }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--rv-border);
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--rv-accent);
+    cursor: pointer;
+    border: 2px solid var(--rv-bg);
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+  // The vault shell is only meant to render inside /app as an iframe — it's
+  // the same app with a different visual system, not a separate URL. If
+  // someone lands on /vault directly, kick them over to /app so the URL bar
+  // reflects the one and only canonical route.
+  (function enforceAppMount() {
+    const inIframe = window.parent && window.parent !== window;
+    if (!inIframe) {
+      window.location.replace('/app');
+    }
+  })();
+
+  // System switching lives in Settings (Appearance).
+  window.__rvSwitchSystem = function(systemId) {
+    try { localStorage.setItem('rkk-site-system', systemId); } catch(e) {}
+    const inIframe = window.parent && window.parent !== window;
+    if (inIframe) {
+      window.parent.postMessage({ type: '__rv_site_system_switch', systemId: systemId }, '*');
+    } else {
+      window.location.href = '/app';
+    }
+  };
+</script>
+
+<!-- Editable tweak defaults — persisted by host -->
+<script>
+  window.__TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "variation": "A",
+    "accentHue": 72,
+    "beamEnabled": true,
+    "beamIntensity": 0.6,
+    "beamSpeed": 9,
+    "beamScope": 1
+  }/*EDITMODE-END*/;
+</script>
+
+<!-- Socket.io — shared with /app, same session cookie -->
+<script src="/socket.io/socket.io.js"></script>
+
+<!-- marked.js — used by BriefingView to render the same markdown as /app -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="components/BorderBeam.jsx?v=31"></script>
+<script type="text/babel" src="components/Icons.jsx?v=31"></script>
+<script type="text/babel" src="components/Sidebar.jsx?v=31"></script>
+<script type="text/babel" src="components/ChatThread.jsx?v=31"></script>
+<script type="text/babel" src="components/ContextRail.jsx?v=31"></script>
+<script type="text/babel" src="components/Composer.jsx?v=31"></script>
+<script type="text/babel" src="components/TabViews.jsx?v=31"></script>
+<script type="text/babel" src="components/Tweaks.jsx?v=31"></script>
+
+<script type="text/babel">
+  // ── Live data adapters ──────────────────────────────────────────────
+  // The vault shell runs in an iframe on the same origin as /app, so the
+  // session cookie is shared and these fetches return the logged-in user's
+  // real data.
+
+  const INITIALS = (s) => {
+    if (!s) return "?";
+    const parts = String(s).trim().split(/\s+/);
+    return parts.length >= 2
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+      : parts[0].slice(0, 2).toUpperCase();
+  };
+
+  const fmtTime = (ts) => {
+    if (!ts) return "";
+    const d = new Date(ts);
+    let h = d.getHours(), m = d.getMinutes();
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return `${h}:${String(m).padStart(2, "0")} ${ap}`;
+  };
+
+  const fmtLastSeen = (ts, presence) => {
+    if (presence === "online") return "now";
+    if (!ts) return "recently";
+    const mins = Math.floor((Date.now() - ts) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  };
+
+  const fmtMemberSince = (ts) => {
+    if (!ts) return null;
+    const d = new Date(ts);
+    const month = d.toLocaleString(undefined, { month: "long" });
+    const days = Math.floor((Date.now() - ts) / (1000 * 60 * 60 * 24));
+    return `${month} ${d.getFullYear()} · ${days} days`;
+  };
+
+  // Map a messages-server message to the vault's thread message shape.
+  const mapMessage = (m, currentUser) => ({
+    id: m.id,
+    from: m.sender === currentUser ? "me" : "them",
+    time: fmtTime(m.timestamp),
+    timestamp: m.timestamp,
+    text: m.text || "",
+    files: Array.isArray(m.files) ? m.files : undefined,
+    gifUrl: m.type === "gif" ? m.gifUrl : undefined,
+    voiceUrl: m.type === "voice" ? m.voiceUrl : undefined,
+    priority: !!m.priority,
+    replyTo: m.replyTo || null,
+    reactions: m.reactions,
+    formatting: m.formatting || undefined,
+    edited: m.edited,
+    editedAt: m.editedAt,
+    read: m.read,
+    readAt: m.readAt,
+    // Derived delivery status for "my" messages — ChatThread renders
+    // "✓ DELIVERED" / "✓✓ READ" under the last message in a group.
+    status: (m.sender === currentUser) ? (m.read ? "read" : "delivered") : null,
+    pinnedAt: m.pinnedAt,
+    pinnedBy: m.pinnedBy,
+  });
+
+  // Subtle sound effects for send/receive (Web Audio API, no file assets)
+  let __audioCtx = null;
+  function playTone(freq, duration = 0.08, volume = 0.08) {
+    try {
+      if (!__audioCtx) __audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = __audioCtx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.value = volume;
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+      osc.stop(ctx.currentTime + duration);
+    } catch { /* audio blocked until first interaction — fine */ }
+  }
+  const playSend = () => { playTone(880); setTimeout(() => playTone(1175, 0.06), 60); };
+  const playReceive = () => { playTone(660, 0.08); setTimeout(() => playTone(523, 0.12), 80); };
+
+  // Build a vault-thread contact from the other user's profile.
+  const mapContact = (u) => {
+    if (!u) return null;
+    const name = u.displayName || u.name || "";
+    const hasImg = !!u.avatar && typeof u.avatar === "string" && u.avatar.startsWith("/");
+    return {
+      name,
+      handle: (u.name || "").toLowerCase(),
+      role: u.customStatus || u.role || "",
+      status: u._presence === "online" ? "online" : null,
+      presence: u._presence || "offline",
+      avatar: INITIALS(name),
+      avatarSrc: hasImg ? u.avatar : null,
+      bannerSrc: u.banner && u.banner.startsWith("/") ? u.banner : null,
+      lastSeen: fmtLastSeen(u.lastSeen, u._presence),
+      memberSince: fmtMemberSince(u.createdAt || u.joined),
+      about: u.bio || "",
+      pronouns: u.pronouns || "",
+    };
+  };
+
+  // ── In-app dialog (replaces window.prompt / confirm / alert) ────────
+  function RVDialog({ req, onResolve }) {
+    const [value, setValue] = React.useState(req.defaultValue || "");
+    const inputRef = React.useRef(null);
+    React.useEffect(() => { if (req.type === "prompt" && inputRef.current) inputRef.current.focus(); }, [req.type]);
+    React.useEffect(() => {
+      const h = (e) => {
+        if (e.key === "Escape") onResolve(req.type === "confirm" ? false : null);
+        if (e.key === "Enter" && req.type === "prompt") onResolve(value);
+      };
+      document.addEventListener("keydown", h);
+      return () => document.removeEventListener("keydown", h);
+    }, [value, req.type, onResolve]);
+    const primaryLabel = req.primaryLabel
+      || (req.type === "confirm" ? "Confirm" : req.type === "prompt" ? "OK" : "OK");
+    const primaryStyle = req.danger
+      ? { background: "oklch(0.65 0.22 25)", color: "#1a1510", border: "1px solid oklch(0.65 0.22 25)" }
+      : { background: "var(--rv-accent)", color: "#1a1510", border: "1px solid var(--rv-accent)" };
+    return (
+      <div
+        onClick={() => onResolve(req.type === "confirm" ? false : null)}
+        style={{
+          position: "fixed", inset: 0, zIndex: 9000,
+          background: "oklch(0.08 0.01 60 / 0.72)",
+          backdropFilter: "blur(4px)",
+          display: "grid", placeItems: "center", padding: 20,
+        }}
+      >
+        <div onClick={(e) => e.stopPropagation()} style={{
+          width: "100%", maxWidth: 420,
+          background: "var(--rv-sidebar-bg)",
+          border: "1px solid var(--rv-border)",
+          borderRadius: 16,
+          padding: 22,
+          boxShadow: "0 30px 80px rgba(0,0,0,0.6)",
+          animation: "rv-msg-in 180ms ease-out",
+        }}>
+          {req.title && (
+            <div style={{ fontSize: 15, color: "var(--rv-text)", fontWeight: 600, marginBottom: 8 }}>
+              {req.title}
+            </div>
+          )}
+          <div style={{
+            fontSize: 13.5, color: req.title ? "var(--rv-text-dim)" : "var(--rv-text)",
+            lineHeight: 1.5, marginBottom: req.type === "prompt" ? 14 : 18,
+          }}>
+            {req.message}
+          </div>
+          {req.type === "prompt" && (
+            <input
+              ref={inputRef}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={req.placeholder || ""}
+              style={{
+                width: "100%", boxSizing: "border-box",
+                padding: "10px 14px", borderRadius: 10,
+                background: "var(--rv-input-bg)",
+                border: "1px solid var(--rv-input-border)",
+                color: "var(--rv-text)", fontSize: 14,
+                fontFamily: "inherit", outline: "none",
+              }}
+            />
+          )}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 18 }}>
+            {req.type !== "alert" && (
+              <button
+                onClick={() => onResolve(req.type === "confirm" ? false : null)}
+                style={{
+                  all: "unset", cursor: "pointer",
+                  padding: "8px 16px", borderRadius: 8,
+                  fontSize: 13,
+                  background: "var(--rv-input-bg)",
+                  border: "1px solid var(--rv-input-border)",
+                  color: "var(--rv-text)",
+                }}
+              >Cancel</button>
+            )}
+            <button
+              onClick={() => onResolve(req.type === "confirm" ? true : req.type === "prompt" ? value : true)}
+              style={{
+                all: "unset", cursor: "pointer",
+                padding: "8px 18px", borderRadius: 8,
+                fontSize: 13, fontWeight: 500,
+                ...primaryStyle,
+              }}
+            >{primaryLabel}</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function SearchResultsDropdown({ results, currentUser, onPick, onClose }) {
+    return (
+      <div style={{
+        position: "absolute", top: 68, right: 24,
+        width: 360, maxHeight: 420, overflowY: "auto",
+        background: "oklch(0.12 0.01 60 / 0.97)",
+        backdropFilter: "blur(16px)",
+        border: "1px solid var(--rv-border)",
+        borderRadius: 12, padding: 6,
+        boxShadow: "0 20px 50px rgba(0,0,0,0.55)",
+        zIndex: 40,
+      }}>
+        <div style={{
+          padding: "8px 10px 6px",
+          fontFamily: "var(--rv-mono)", fontSize: 10, letterSpacing: 1.2,
+          color: "var(--rv-text-faint)", textTransform: "uppercase",
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span>{results.length} match{results.length === 1 ? "" : "es"}</span>
+          <div style={{ flex: 1 }} />
+          <button onClick={onClose} style={{ all: "unset", cursor: "pointer", color: "var(--rv-text-faint)", fontSize: 14 }}>×</button>
+        </div>
+        {results.map(m => (
+          <button key={m.id} onClick={() => onPick(m)} style={{
+            all: "unset", cursor: "pointer", display: "block",
+            width: "100%", boxSizing: "border-box",
+            padding: "8px 10px", borderRadius: 8, marginBottom: 2,
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.background = "var(--rv-hover)")}
+          onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <div style={{ fontFamily: "var(--rv-mono)", fontSize: 10, color: "var(--rv-text-faint)", marginBottom: 3 }}>
+              {m.sender === currentUser ? "You" : m.sender} · {new Date(m.timestamp).toLocaleDateString()}
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--rv-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {m.text || (m.gifUrl ? "[GIF]" : m.files?.length ? "[File]" : "")}
+            </div>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  function App() {
+    const [state, setStateRaw] = React.useState(window.__TWEAK_DEFAULTS);
+    const [active, setActive] = React.useState("chat");
+    const [railOpen, setRailOpen] = React.useState(false);
+    const [tweaksOpen, setTweaksOpen] = React.useState(false);
+
+    // Live thread state — populated from real server data on mount
+    const [currentUser, setCurrentUser] = React.useState(null);
+    const [myProfile, setMyProfile] = React.useState(null);
+    const [thread, setThread] = React.useState({ contact: null, messages: [] });
+    const [loadError, setLoadError] = React.useState(null);
+    const [reloadKey, setReloadKey] = React.useState(0);
+    const [searchQuery, setSearchQuery] = React.useState("");
+    const [replyTo, setReplyTo] = React.useState(null);
+    const [dialogReq, setDialogReq] = React.useState(null); // { type, message, ... , resolver }
+    // Expose promise-based replacements for window.prompt/confirm/alert
+    React.useEffect(() => {
+      window.rvConfirm = (message, opts = {}) => new Promise((resolve) => {
+        setDialogReq({ type: "confirm", message, ...opts, resolver: resolve });
+      });
+      window.rvPrompt = (message, defaultValue = "", opts = {}) => new Promise((resolve) => {
+        setDialogReq({ type: "prompt", message, defaultValue, ...opts, resolver: resolve });
+      });
+      window.rvAlert = (message, opts = {}) => new Promise((resolve) => {
+        setDialogReq({ type: "alert", message, ...opts, resolver: resolve });
+      });
+    }, []);
+    const [partnerTyping, setPartnerTyping] = React.useState(false);
+    const [guestUnread, setGuestUnread] = React.useState(0);
+    const [remindersUnread, setRemindersUnread] = React.useState(0);
+    const [briefingUnread, setBriefingUnread] = React.useState(false);
+    const [hasMoreMessages, setHasMoreMessages] = React.useState(false);
+    const [jumpToId, setJumpToId] = React.useState(null);
+    const [searchResults, setSearchResults] = React.useState(null);
+    const soundOn = (myProfile?.soundEnabled !== false);
+    const soundOnRef = React.useRef(true);
+    React.useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
+    const typingTimeout = React.useRef(null);
+    const socketRef = React.useRef(null);
+    const currentUserRef = React.useRef(null);
+    React.useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
+
+    const setState = React.useCallback((patch) => {
+      setStateRaw((prev) => {
+        const next = { ...prev, ...patch };
+        window.parent.postMessage({ type: "__edit_mode_set_keys", edits: patch }, "*");
+        return next;
+      });
+    }, []);
+
+    // Apply variation + accent to <html>. A user-chosen theme on the profile
+    // (Settings → Appearance → Theme) takes precedence over the dev Tweaks
+    // variation so real users land on the theme they picked.
+    React.useEffect(() => {
+      const themeId = myProfile?.vaultTheme;
+      const map = window.VAULT_THEME_VARIATION || {};
+      const hueMap = window.VAULT_THEME_HUE || {};
+      const variant = (themeId && map[themeId]) || state.variation;
+      const hue = (themeId && hueMap[themeId]) || state.accentHue;
+      document.documentElement.setAttribute("data-variant", variant);
+      document.documentElement.style.setProperty("--rv-accent-hue", hue);
+    }, [state.variation, state.accentHue, myProfile?.vaultTheme]);
+
+    // Active beam hue — derived from theme (so border beam matches the picked
+    // theme's accent) with Tweaks accent as fallback.
+    const activeBeamHue = React.useMemo(() => {
+      const themeId = myProfile?.vaultTheme;
+      const hueMap = window.VAULT_THEME_HUE || {};
+      return (themeId && hueMap[themeId]) || state.accentHue;
+    }, [myProfile?.vaultTheme, state.accentHue]);
+
+    // Edit mode protocol
+    React.useEffect(() => {
+      const handler = (e) => {
+        if (!e.data || typeof e.data !== "object") return;
+        if (e.data.type === "__activate_edit_mode") setTweaksOpen(true);
+        if (e.data.type === "__deactivate_edit_mode") setTweaksOpen(false);
+      };
+      window.addEventListener("message", handler);
+      window.parent.postMessage({ type: "__edit_mode_available" }, "*");
+      return () => window.removeEventListener("message", handler);
+    }, []);
+
+    // Load real session, users, and messages
+    React.useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          // `reloadKey` is in the dep list so profile edits can refresh the shell
+          void reloadKey;
+          const session = await fetch("/api/auth/session", { credentials: "same-origin" }).then(r => r.json());
+          if (!session.authenticated || !session.user) {
+            if (!cancelled) setLoadError("not-authed");
+            return;
+          }
+          const me = session.user;
+          if (!cancelled) setCurrentUser(me);
+
+          const [users, messages] = await Promise.all([
+            fetch("/api/users", { credentials: "same-origin" }).then(r => r.json()),
+            fetch("/api/messages?limit=50", { credentials: "same-origin" }).then(r => r.json()),
+          ]);
+
+          if (cancelled) return;
+
+          const otherUserName = Object.keys(users).find(u => u !== me);
+          const other = otherUserName ? users[otherUserName] : null;
+          const contact = mapContact(other);
+          const msgs = Array.isArray(messages)
+            ? messages
+                .filter(m => m.text && !m.systemMessage && m.sender !== "ai")
+                .map(m => mapMessage(m, me))
+            : [];
+
+          setMyProfile(users[me] || null);
+          setThread({ contact, messages: msgs, rawMessages: Array.isArray(messages) ? messages : [] });
+          setHasMoreMessages(Array.isArray(messages) && messages.length >= 50);
+          setBriefingUnread(!!session.briefingUnread);
+
+          // Badges — fetch in parallel, quietly
+          fetch("/api/guest-messages", { credentials: "same-origin" })
+            .then(r => r.ok ? r.json() : []).then(arr => {
+              if (!Array.isArray(arr)) return;
+              const total = arr.reduce((n, g) => n + Object.values(g.messageCount || {}).reduce((a, b) => a + (b || 0), 0), 0);
+              setGuestUnread(total);
+            }).catch(() => {});
+          fetch("/api/reminders", { credentials: "same-origin" })
+            .then(r => r.ok ? r.json() : []).then(arr => {
+              if (!Array.isArray(arr)) return;
+              const due = arr.filter(r => !r.completed && r.datetime && new Date(r.datetime).getTime() <= Date.now() + 24 * 3600 * 1000).length;
+              setRemindersUnread(due);
+            }).catch(() => {});
+        } catch (err) {
+          if (!cancelled) setLoadError(err.message || "load-failed");
+        }
+      })();
+      return () => { cancelled = true; };
+    }, [reloadKey]);
+
+    // Open a socket for live message updates. Same origin so the session cookie
+    // applies automatically.
+    React.useEffect(() => {
+      if (!currentUser || !window.io || socketRef.current) return;
+      const socket = window.io({ reconnection: true });
+      socketRef.current = socket;
+      const onNewMessage = (m) => {
+        if (!m || !m.id) return;
+        if (m.type === "call-event" || m.sender === "ai") return;
+        setThread(prev => {
+          if (prev.messages.some(x => x.id === m.id)) return prev;
+          return {
+            ...prev,
+            messages: [...prev.messages, mapMessage(m, currentUserRef.current)],
+            rawMessages: [...(prev.rawMessages || []), m],
+          };
+        });
+        if (m.sender !== currentUserRef.current && soundOnRef.current) playReceive();
+      };
+      const onReaction = ({ id, reactions }) => {
+        setThread(prev => ({
+          ...prev,
+          messages: prev.messages.map(m => m.id === id ? { ...m, reactions } : m),
+          rawMessages: (prev.rawMessages || []).map(m => m.id === id ? { ...m, reactions } : m),
+        }));
+      };
+      const onUnsent = (id) => {
+        setThread(prev => ({
+          ...prev,
+          messages: prev.messages.filter(m => m.id !== id),
+          rawMessages: (prev.rawMessages || []).filter(m => m.id !== id),
+        }));
+      };
+      const onEdited = ({ id, text, editedAt }) => {
+        setThread(prev => ({
+          ...prev,
+          messages: prev.messages.map(m => m.id === id ? { ...m, text, edited: true, editedAt } : m),
+          rawMessages: (prev.rawMessages || []).map(m => m.id === id ? { ...m, text, edited: true, editedAt } : m),
+        }));
+      };
+      const onRead = ({ id, readAt }) => {
+        setThread(prev => ({
+          ...prev,
+          messages: prev.messages.map(m => m.id === id ? { ...m, read: true, readAt } : m),
+        }));
+      };
+      const onPinned = ({ id, pinnedBy, pinnedAt }) => {
+        setThread(prev => ({
+          ...prev,
+          messages: prev.messages.map(m => m.id === id ? { ...m, pinnedAt, pinnedBy } : m),
+          rawMessages: (prev.rawMessages || []).map(m => m.id === id ? { ...m, pinnedAt, pinnedBy } : m),
+        }));
+      };
+      const onUnpinned = (id) => {
+        setThread(prev => ({
+          ...prev,
+          messages: prev.messages.map(m => m.id === id ? { ...m, pinnedAt: null, pinnedBy: null } : m),
+          rawMessages: (prev.rawMessages || []).map(m => m.id === id ? { ...m, pinnedAt: null, pinnedBy: null } : m),
+        }));
+      };
+      const onTyping = ({ user }) => {
+        if (user === currentUserRef.current) return;
+        setPartnerTyping(true);
+        clearTimeout(typingTimeout.current);
+        typingTimeout.current = setTimeout(() => setPartnerTyping(false), 3500);
+      };
+      const onStopTyping = () => setPartnerTyping(false);
+      const onUserUpdated = ({ user, data }) => {
+        if (user !== currentUserRef.current) {
+          setThread(prev => prev.contact ? { ...prev, contact: mapContact(data) } : prev);
+        } else {
+          setMyProfile(data);
+        }
+      };
+
+      socket.on("new-message", onNewMessage);
+      socket.on("msg-reaction", onReaction);
+      socket.on("msg-unsent", onUnsent);
+      socket.on("msg-edited", onEdited);
+      socket.on("msg-read", onRead);
+      socket.on("msg-pinned", onPinned);
+      socket.on("msg-unpinned", onUnpinned);
+      socket.on("user-typing", onTyping);
+      socket.on("user-stop-typing", onStopTyping);
+      socket.on("user-updated", onUserUpdated);
+      socket.emit("user-online", { user: currentUser });
+      return () => {
+        socket.off();
+        socket.disconnect();
+        socketRef.current = null;
+      };
+    }, [currentUser]);
+
+    // Real send — matches the classic /app's /api/messages contract
+    const sendMessage = React.useCallback(async ({ text, files, gifUrl, priority, formatting, voice }) => {
+      const fd = new FormData();
+      fd.append("text", text || "");
+      fd.append("type", gifUrl ? "gif" : voice ? "voice" : "text");
+      fd.append("priority", priority ? "true" : "false");
+      if (gifUrl) fd.append("gifUrl", gifUrl);
+      if (formatting) fd.append("formatting", JSON.stringify(formatting));
+      if (replyTo?.id) fd.append("replyTo", replyTo.id);
+      if (Array.isArray(files)) files.forEach(f => fd.append("files", f));
+      try {
+        const r = await fetch("/api/messages", { method: "POST", credentials: "same-origin", body: fd });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const result = await r.json();
+        if (result?.message) {
+          const mapped = mapMessage(result.message, currentUserRef.current);
+          setThread(prev => {
+            if (prev.messages.some(x => x.id === mapped.id)) return prev;
+            return {
+              ...prev,
+              messages: [...prev.messages, mapped],
+              rawMessages: [...(prev.rawMessages || []), result.message],
+            };
+          });
+          if (soundOn) playSend();
+        }
+        setReplyTo(null);
+        return true;
+      } catch (e) {
+        console.error("Send failed:", e);
+        return false;
+      }
+    }, [replyTo]);
+
+    // Chat message action handlers — all hit the same endpoints /app uses.
+    const onReact = React.useCallback(async (message, emoji) => {
+      await fetch(`/api/messages/${message.id}/react`, {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji }),
+      });
+    }, []);
+    const onPin = React.useCallback(async (message) => {
+      const url = message.pinnedAt ? `/api/messages/${message.id}/unpin` : `/api/messages/${message.id}/pin`;
+      await fetch(url, { method: "POST", credentials: "same-origin" });
+    }, []);
+    const onUnsend = React.useCallback(async (message) => {
+      const ok = await (window.rvConfirm ? window.rvConfirm("Unsend this message? It'll disappear for both of you.", { title: "Unsend message", primaryLabel: "Unsend", danger: true }) : Promise.resolve(true));
+      if (!ok) return;
+      await fetch(`/api/messages/${message.id}`, { method: "DELETE", credentials: "same-origin" });
+    }, []);
+    const onEdit = React.useCallback(async (message, newText) => {
+      if (!newText || newText.trim() === (message.text || "").trim()) return;
+      await fetch(`/api/messages/${message.id}`, {
+        method: "PUT", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: newText.trim() }),
+      });
+    }, []);
+    const onReply = React.useCallback((message) => {
+      setReplyTo({ id: message.id, from: message.from, text: message.text || "", sender: message.from === "me" ? currentUserRef.current : (thread.contact?.handle || "partner") });
+    }, [thread.contact]);
+
+    // Typing: emit over socket on keystroke
+    const emitTyping = React.useCallback((isTyping) => {
+      const s = socketRef.current;
+      if (!s || !currentUserRef.current) return;
+      s.emit(isTyping ? "typing" : "stop-typing", { user: currentUserRef.current });
+    }, []);
+
+    // Load older messages (pagination)
+    const loadOlderMessages = React.useCallback(async () => {
+      const oldest = thread.messages[0];
+      if (!oldest?.timestamp) return;
+      try {
+        const r = await fetch(`/api/messages?limit=50&before=${oldest.timestamp}`, { credentials: "same-origin" });
+        const older = await r.json();
+        if (!Array.isArray(older) || older.length === 0) { setHasMoreMessages(false); return; }
+        setThread(prev => {
+          const existing = new Set(prev.messages.map(m => m.id));
+          const newMapped = older.filter(m => m.text || m.files?.length || m.gifUrl).filter(m => !existing.has(m.id)).map(m => mapMessage(m, currentUserRef.current));
+          return {
+            ...prev,
+            messages: [...newMapped, ...prev.messages],
+            rawMessages: [...older, ...(prev.rawMessages || [])],
+          };
+        });
+        if (older.length < 50) setHasMoreMessages(false);
+      } catch {}
+    }, [thread.messages]);
+
+    // Server-side search across full history for jump-to
+    const runSearch = React.useCallback(async (q) => {
+      if (!q || q.trim().length < 2) { setSearchResults(null); return; }
+      try {
+        const r = await fetch(`/api/messages?q=${encodeURIComponent(q)}&limit=20`, { credentials: "same-origin" });
+        const rows = await r.json();
+        if (Array.isArray(rows)) setSearchResults(rows);
+      } catch {}
+    }, []);
+    const jumpToMessage = React.useCallback(async (msg) => {
+      // Ensure the message is in the current thread; if not, fetch context
+      setThread(prev => {
+        if (prev.messages.some(m => m.id === msg.id)) return prev;
+        return prev;
+      });
+      if (!thread.messages.some(m => m.id === msg.id)) {
+        try {
+          const r = await fetch(`/api/messages?around=${msg.timestamp}&limit=30`, { credentials: "same-origin" });
+          const rows = await r.json();
+          if (Array.isArray(rows)) {
+            setThread(prev => {
+              const existing = new Set(prev.messages.map(m => m.id));
+              const mapped = rows.filter(m => !existing.has(m.id)).map(m => mapMessage(m, currentUserRef.current));
+              const combined = [...mapped, ...prev.messages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+              return { ...prev, messages: combined, rawMessages: [...rows, ...(prev.rawMessages || [])] };
+            });
+          }
+        } catch {}
+      }
+      setSearchResults(null);
+      setSearchQuery("");
+      setJumpToId(msg.id);
+      setTimeout(() => setJumpToId(null), 100);
+    }, [thread.messages]);
+
+    // Mark incoming messages as read when viewing the chat
+    React.useEffect(() => {
+      if (active !== "chat") return;
+      const unread = thread.messages.filter(m => m.from === "them" && !m.read);
+      unread.forEach(m => {
+        fetch(`/api/messages/${m.id}/read`, { method: "POST", credentials: "same-origin" }).catch(() => {});
+      });
+    }, [active, thread.messages]);
+
+    // Run server search when query changes (debounced)
+    React.useEffect(() => {
+      const q = searchQuery.trim();
+      if (!q) { setSearchResults(null); return; }
+      const t = setTimeout(() => runSearch(q), 280);
+      return () => clearTimeout(t);
+    }, [searchQuery, runSearch]);
+
+    // Call + video — use the same socket + WebRTC system as the classic /app.
+    // Signalling is identical; WebRTC overlay also lives on the parent page
+    // because it's a full-bleed system modal. We emit call-offer here; if we're
+    // in an iframe, also tell the host to show the call UI.
+    const startCall = React.useCallback((type) => {
+      const target = (window.parent && window.parent !== window) ? window.parent : window;
+      target.postMessage({ type: "__rv_start_call", callType: type }, "*");
+    }, []);
+
+    // Beam scoping: 0 = input only, 1 = + active nav + contact header, 2 = signature (everywhere)
+    const scope = state.beamScope;
+    const hasThread = thread.contact && thread.messages;
+
+    return (
+      <div style={{ display: "flex", height: "100vh", position: "relative", zIndex: 1 }}>
+        <Sidebar active={active} onSelect={setActive} me={myProfile}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          badges={{
+          chat: active !== "chat" ? thread.messages.filter(m => m.from === "them" && !m.read).length : 0,
+          guest: guestUnread,
+          reminders: remindersUnread,
+          briefing: briefingUnread ? 1 : 0,
+        }} onStatusChange={async (status) => {
+          await fetch(`/api/users/${currentUser}/status`, {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status }),
+          });
+          setMyProfile(prev => ({ ...(prev || {}), status }));
+        }} />
+
+        {/* Center column */}
+        <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, position: "relative" }}>
+          {active === "chat" && hasThread && (
+            <>
+              <ChatHeader
+                contact={thread.contact}
+                variant={state.variation}
+                railOpen={railOpen}
+                onToggleRail={() => setRailOpen(!railOpen)}
+                onCall={() => startCall("audio")}
+                onVideo={() => startCall("video")}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+              />
+              <MessageList
+                thread={thread}
+                variant={state.variation}
+                searchQuery={searchQuery}
+                currentUser={currentUser}
+                onReply={onReply}
+                onReact={onReact}
+                onPin={onPin}
+                onUnsend={onUnsend}
+                onEdit={onEdit}
+                onJump={(id) => { setJumpToId(id); setTimeout(() => setJumpToId(null), 100); }}
+                typing={partnerTyping}
+                wallpaper={myProfile?.wallpaperEnabled && myProfile?.wallpaper ? myProfile.wallpaper : null}
+                onLoadOlder={loadOlderMessages}
+                hasMore={hasMoreMessages}
+                jumpToId={jumpToId}
+              />
+              {searchResults && searchResults.length > 0 && (
+                <SearchResultsDropdown
+                  results={searchResults}
+                  currentUser={currentUser}
+                  onPick={jumpToMessage}
+                  onClose={() => { setSearchResults(null); setSearchQuery(""); }}
+                />
+              )}
+              <div className="beam-host">
+                <Composer
+                  beamEnabled={state.beamEnabled && scope >= 0}
+                  beamIntensity={state.beamIntensity}
+                  beamSpeed={state.beamSpeed}
+                  beamHue={activeBeamHue}
+                  contactName={thread.contact?.name}
+                  onSend={sendMessage}
+                  onTyping={emitTyping}
+                  replyTo={replyTo}
+                  onCancelReply={() => setReplyTo(null)}
+                />
+              </div>
+            </>
+          )}
+          {active === "chat" && !hasThread && (
+            <div style={{
+              flex: 1, display: "grid", placeItems: "center",
+              color: "var(--rv-text-faint)", fontFamily: "var(--rv-mono)",
+              fontSize: 12, letterSpacing: 0.4, textTransform: "uppercase",
+            }}>
+              {loadError === "not-authed"
+                ? <span>Not signed in — please log in at /app</span>
+                : loadError
+                  ? <span>Load failed · {loadError}</span>
+                  : <span>Loading thread…</span>}
+            </div>
+          )}
+          {active === "briefing" && <BriefingView />}
+          {active === "notes" && <NotesView />}
+          {active === "calendar" && <CalendarView />}
+          {active === "locker" && <LockerView />}
+          {active === "contacts" && <ContactsView />}
+          {active === "guest" && <GuestView currentUser={currentUser} />}
+          {active === "reminders" && <RemindersView />}
+          {active === "money" && <MoneyView currentUser={currentUser} />}
+          {active === "auth" && <AuthView />}
+          {active === "k108" && <IntelView />}
+          {active === "settings" && <SettingsView
+            currentUser={currentUser}
+            contact={thread.contact}
+            onProfileSaved={() => setReloadKey(k => k + 1)}
+          />}
+        </main>
+
+        {active === "chat" && railOpen && hasThread && (
+          <ContextRail thread={thread} onClose={() => setRailOpen(false)} onJump={jumpToMessage} />
+        )}
+
+        {tweaksOpen && (
+          <TweaksPanel state={state} setState={setState} onClose={() => setTweaksOpen(false)} />
+        )}
+
+        {dialogReq && (
+          <RVDialog
+            req={dialogReq}
+            onResolve={(v) => { dialogReq.resolver(v); setDialogReq(null); }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  const root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(<App />);
+</script>
+</body>
+</html>
