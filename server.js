@@ -2062,6 +2062,86 @@ app.get('/api/gif-trending', mainAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// PUBLIC EVENTS API  (for external dashboard — API key auth, CORS enabled)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const DASHBOARD_API_KEY = process.env.DASHBOARD_API_KEY || '';
+const DASHBOARD_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:4173',
+  ...(process.env.DASHBOARD_ORIGIN ? [process.env.DASHBOARD_ORIGIN] : []),
+];
+
+function dashboardCors(req, res, next) {
+  const origin = req.headers.origin;
+  if (origin && DASHBOARD_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'X-API-Key, Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+}
+
+function dashboardAuth(req, res, next) {
+  if (!DASHBOARD_API_KEY) return res.status(503).json({ error: 'Dashboard API not configured' });
+  if (req.headers['x-api-key'] !== DASHBOARD_API_KEY) return res.status(401).json({ error: 'Unauthorized' });
+  next();
+}
+
+// Map internal event → public schema
+function toPublicEvent(ev) {
+  const startRaw = ev.start || ev.date || '';
+  const endRaw   = ev.end   || ev.start || ev.date || '';
+  const extractDate = s => (s || '').slice(0, 10);
+  const extractTime = s => {
+    if (!s) return undefined;
+    const t = s.length > 10 ? new Date(s).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'America/Chicago' }) : undefined;
+    return t === '24:00' ? '00:00' : t;
+  };
+  const out = { id: ev.id, title: ev.title, date: extractDate(startRaw) };
+  const t = extractTime(startRaw); if (t) out.time = t;
+  const et = extractTime(endRaw);  if (et && et !== out.time) out.endTime = et;
+  if (ev.description) out.description = ev.description;
+  if (ev.tag) out.tag = ev.tag;
+  return out;
+}
+
+app.options('/api/events', dashboardCors, (_, res) => res.sendStatus(204));
+app.get('/api/events', dashboardCors, dashboardAuth, (req, res) => {
+  const cal = rd(F.calendar) || {};
+  let events = [
+    ...(cal.shared    || []),
+    ...(cal.kaliph    || []),
+    ...(cal.kathrine  || []),
+  ];
+
+  // Deduplicate by id (shared may overlap per-user lists)
+  const seen = new Set();
+  events = events.filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; });
+
+  // Date-range filtering via ?start=YYYY-MM-DD&end=YYYY-MM-DD
+  const { start, end } = req.query;
+  if (start || end) {
+    events = events.filter(e => {
+      const d = (e.start || e.date || '').slice(0, 10);
+      if (start && d < start) return false;
+      if (end   && d > end)   return false;
+      return true;
+    });
+  }
+
+  events.sort((a, b) => {
+    const da = a.start || a.date || '';
+    const db = b.start || b.date || '';
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+
+  res.json({ events: events.map(toPublicEvent) });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // CALENDAR
 // ═══════════════════════════════════════════════════════════════════════════════
 
