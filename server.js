@@ -2070,6 +2070,7 @@ const DASHBOARD_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:4173',
   'https://kaliph-os-production.up.railway.app',
+  'https://kaliphos.up.railway.app',
   ...(process.env.DASHBOARD_ORIGIN ? [process.env.DASHBOARD_ORIGIN] : []),
 ];
 
