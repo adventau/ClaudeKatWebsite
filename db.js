@@ -178,6 +178,32 @@ async function createBriefingsTable() {
   `);
   await query(`CREATE INDEX IF NOT EXISTS idx_briefing_std_prefs_user ON briefing_standing_preferences (user_id, active)`);
 
+  // One-time backfill: migrate old highlight_never rows (permanent = TRUE) into standing_preferences
+  // so existing rules keep applying and show up in the Manage Preferences UI.
+  await query(`
+    INSERT INTO briefing_standing_preferences (user_id, rule_text, source, source_ref, active, created_at)
+    SELECT
+      bf.user_id,
+      CASE
+        WHEN bf.highlighted_text IS NOT NULL AND bf.highlighted_text <> ''
+          THEN 'Never include: "' || bf.highlighted_text || '"'
+               || CASE WHEN bf.section IS NOT NULL AND bf.section <> '' THEN ' (seen in ' || bf.section || ')' ELSE '' END
+        WHEN bf.note IS NOT NULL AND bf.note <> ''
+          THEN bf.note
+        ELSE 'Never include content flagged on ' || to_char(bf.briefing_date, 'YYYY-MM-DD')
+      END AS rule_text,
+      'highlight_never' AS source,
+      bf.id::text AS source_ref,
+      TRUE AS active,
+      bf.created_at
+    FROM briefing_feedback bf
+    WHERE bf.permanent = TRUE
+      AND NOT EXISTS (
+        SELECT 1 FROM briefing_standing_preferences sp
+        WHERE sp.source = 'highlight_never' AND sp.source_ref = bf.id::text
+      )
+  `);
+
   // Topic log per briefing: deterministic dedup across days.
   await query(`
     CREATE TABLE IF NOT EXISTS briefing_topics (
