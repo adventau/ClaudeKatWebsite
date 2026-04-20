@@ -2141,6 +2141,40 @@ app.get('/api/events', dashboardCors, dashboardAuth, (req, res) => {
   res.json({ events: events.map(toPublicEvent) });
 });
 
+app.options('/api/bell-schedule/:userId', dashboardCors, (_, res) => res.sendStatus(204));
+app.get('/api/bell-schedule/:userId', dashboardCors, dashboardAuth, (req, res) => {
+  const userId = req.params.userId.toLowerCase();
+  const s = rd(F.settings) || {};
+  const bs = s.bellSchedule || {};
+  const userData = bs[userId];
+  if (!userData) return res.status(404).json({ error: `No bell schedule found for "${userId}"` });
+
+  const skips = s._scheduleSkips || {};
+  const now = new Date(Date.now() + (global._siteTimeOffsetMs || 0));
+  const todayISO = now.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const dayName = now.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long' }).toLowerCase();
+
+  const todaySkipped = skips[userId] === todayISO;
+  const isWeekend = dayName === 'saturday' || dayName === 'sunday';
+
+  let todaySchedule;
+  if (todaySkipped || isWeekend) {
+    todaySchedule = 'none';
+  } else if (userData.lateStartDay && userData.lateStartDay === dayName) {
+    todaySchedule = 'lateStart';
+  } else {
+    todaySchedule = 'regular';
+  }
+
+  res.json({
+    regular:      userData.regular      || [],
+    lateStart:    userData.lateStart    || [],
+    lateStartDay: userData.lateStartDay || '',
+    todaySkipped,
+    todaySchedule,
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // CALENDAR
 // ═══════════════════════════════════════════════════════════════════════════════
