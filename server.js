@@ -1051,19 +1051,21 @@ app.get('/api/briefings/feedback', async (req, res) => {
   if (!user) return res.status(400).json({ error: 'Missing user param' });
   try {
     // Active standing preferences (highlight_never + consolidation + manual)
+    // Cap at 40 most recent to avoid flooding the prompt with stale noise.
     const standingResult = await db.query(
       `SELECT rule_text, source, created_at
        FROM briefing_standing_preferences
        WHERE user_id = $1 AND active = TRUE
-       ORDER BY created_at ASC`,
+       ORDER BY created_at DESC
+       LIMIT 40`,
       [user]
     );
-    // Recent non-permanent, non-consolidated feedback from last 14 days
+    // Recent non-permanent, non-consolidated feedback from last 7 days (narrower window = less noise)
     const recentResult = await db.query(
       `SELECT feedback_type, section, highlighted_text, note, context_before, context_after, briefing_date, created_at
        FROM briefing_feedback
        WHERE user_id = $1 AND permanent = FALSE AND consolidated = FALSE
-         AND created_at >= NOW() - INTERVAL '14 days'
+         AND created_at >= NOW() - INTERVAL '7 days'
        ORDER BY created_at ASC`,
       [user]
     );
@@ -1074,55 +1076,53 @@ app.get('/api/briefings/feedback', async (req, res) => {
 
     let output = '';
 
+    // Use header "PERMANENT PREFERENCES" for backward compatibility with existing Cowork prompts.
     if (standingResult.rows.length) {
-      output += 'STANDING PREFERENCES (apply every day, no exceptions — these are distilled rules from past feedback):\n';
+      // Dedupe identical rule_text (backfill + manual may repeat)
+      const seen = new Set();
+      const unique = [];
       for (const row of standingResult.rows) {
+        const k = row.rule_text.trim().toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        unique.push(row);
+      }
+      // Show newest first so the most recent preferences get the top of the prompt
+      output += 'PERMANENT PREFERENCES (apply every day, no exceptions):\n';
+      for (const row of unique) {
         output += `- ${row.rule_text}\n`;
       }
     }
 
     if (recentResult.rows.length) {
-      // Weight by repetition: group similar feedback (same type + section/highlighted_text)
-      const groups = new Map();
+      // Count repetitions for tagging, but DO NOT reorder — emit chronologically like before.
+      const countKey = r => `${r.feedback_type}|${r.section || ''}|${(r.highlighted_text || '').slice(0, 60)}`;
+      const counts = new Map();
       for (const row of recentResult.rows) {
-        const key = `${row.feedback_type}|${row.section || ''}|${(row.highlighted_text || '').slice(0, 60)}`;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(row);
+        const k = countKey(row);
+        counts.set(k, (counts.get(k) || 0) + 1);
       }
+      // Only emit each group's LATEST occurrence when count >= 2, so the model doesn't see duplicates.
+      const emitted = new Set();
 
       if (output) output += '\n';
-      output += "RECENT FEEDBACK (last 14 days — reader's actual reactions; items marked [REPEATED Nx] are patterns, not one-offs):\n";
+      output += "RECENT FEEDBACK (last 7 days — reader's actual reactions to delivered briefings):\n";
 
-      // Emit strong patterns first (>=2 occurrences), then singles chronologically
-      const strong = [];
-      const singles = [];
-      for (const [, rows] of groups) {
-        if (rows.length >= 2) strong.push(rows);
-        else singles.push(rows[0]);
-      }
-      strong.sort((a, b) => b.length - a.length);
-      singles.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-      const fmt = (row, countTag) => {
+      for (const row of recentResult.rows) {
+        const k = countKey(row);
+        const count = counts.get(k);
+        if (count >= 2) {
+          if (emitted.has(k)) continue;
+          emitted.add(k);
+        }
         const dateStr = new Date(row.briefing_date).toISOString().slice(0, 10);
         const parts = [dateStr];
-        if (countTag) parts.push(countTag);
+        if (count >= 2) parts.push(`(repeated ${count}x)`);
         if (row.section) parts.push(`[${row.section}]`);
         parts.push(row.feedback_type.replace(/_/g, ' '));
         if (row.highlighted_text) parts.push(`"${row.highlighted_text}"`);
-        if (row.context_before || row.context_after) {
-          const ctx = [row.context_before, row.context_after].filter(Boolean).join(' … ');
-          if (ctx) parts.push(`(context: ${ctx})`);
-        }
         if (row.note) parts.push(`- ${row.note}`);
-        return `- ${parts.join(' ')}`;
-      };
-
-      for (const rows of strong) {
-        output += fmt(rows[rows.length - 1], `[REPEATED ${rows.length}x]`) + '\n';
-      }
-      for (const row of singles) {
-        output += fmt(row, null) + '\n';
+        output += `- ${parts.join(' ')}\n`;
       }
     }
 
@@ -2069,6 +2069,7 @@ const DASHBOARD_API_KEY = process.env.DASHBOARD_API_KEY || '';
 const DASHBOARD_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:4173',
+  'https://kaliph-os-production.up.railway.app',
   ...(process.env.DASHBOARD_ORIGIN ? [process.env.DASHBOARD_ORIGIN] : []),
 ];
 
