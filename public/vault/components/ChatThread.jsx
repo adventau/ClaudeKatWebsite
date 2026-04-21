@@ -766,26 +766,57 @@ function MessageList({ thread, onReply, onReact, onPin, onUnsend, onEdit, onJump
   const scrollerRef = React.useRef(null);
   const lastCount = React.useRef(0);
   const initialScrollDone = React.useRef(false);
+  const userScrolledRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!scrollerRef.current) return;
     const el = scrollerRef.current;
+
+    const pinToBottom = () => {
+      if (!scrollerRef.current) return;
+      scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
+    };
+
     if (!initialScrollDone.current && msgs.length > 0) {
-      // First load: always jump to bottom regardless of position
-      el.scrollTop = el.scrollHeight;
+      // First load: jump to bottom, then keep re-pinning while async content
+      // (avatars, GIFs, attachments, wallpaper) loads and reflows the container.
       initialScrollDone.current = true;
+      pinToBottom();
+      requestAnimationFrame(pinToBottom);
+
+      const ro = typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => { if (!userScrolledRef.current) pinToBottom(); })
+        : null;
+      if (ro && el.firstElementChild) ro.observe(el.firstElementChild);
+
+      const imgs = el.querySelectorAll('img');
+      const onMedia = () => { if (!userScrolledRef.current) pinToBottom(); };
+      imgs.forEach((img) => {
+        if (!img.complete) {
+          img.addEventListener('load', onMedia, { once: true });
+          img.addEventListener('error', onMedia, { once: true });
+        }
+      });
+
+      // Stop pinning after ~1.5s — by then content has settled and we don't
+      // want to fight the user if they start scrolling.
+      setTimeout(() => { if (ro) ro.disconnect(); }, 1500);
     } else if (msgs.length > lastCount.current) {
-      // Subsequent new messages: only scroll if already near bottom
+      // Subsequent new messages: only scroll if already near bottom.
       const nearBottom = el.scrollHeight - (el.scrollTop + el.clientHeight) < 400;
-      if (nearBottom) el.scrollTop = el.scrollHeight;
+      if (nearBottom) pinToBottom();
     }
     lastCount.current = msgs.length;
   }, [msgs.length]);
 
-  // Top-scroll to load older
+  // Top-scroll to load older + track user-initiated scroll so the
+  // initial-load pin-to-bottom stops fighting with real user scrolls.
   const onScroll = React.useCallback((e) => {
-    if (e.target.scrollTop < 80 && hasMore && onLoadOlder) {
-      const before = e.target.scrollHeight;
+    const el = e.target;
+    const atBottom = el.scrollHeight - (el.scrollTop + el.clientHeight) < 8;
+    if (!atBottom && initialScrollDone.current) userScrolledRef.current = true;
+    if (el.scrollTop < 80 && hasMore && onLoadOlder) {
+      const before = el.scrollHeight;
       onLoadOlder().then(() => {
         requestAnimationFrame(() => {
           if (scrollerRef.current) {

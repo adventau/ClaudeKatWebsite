@@ -4429,6 +4429,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
       [`  Custom:    ${u.customStatus || '(none)'}`, 'data'],
       [`  Site:      ${u.siteSystem || 'original'}${u.siteSystem === 'vault' ? ' (Modified Vault)' : ''}`, 'data'],
       [`  Theme:     ${u.theme}`, 'data'],
+      [`  Classic:   ${u.classicTheme || '(none)'}`, 'data'],
       [`  VaultThm:  ${u.vaultTheme || '(none)'}`, 'data'],
       [`  Bio:       ${u.bio || '(none)'}`, 'data'],
       [`  Pronouns:  ${u.pronouns || '(none)'}`, 'data'],
@@ -4497,23 +4498,29 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
       return lines(`${user} custom status → ${msg === 'clear' || !msg ? '(cleared)' : `"${msg}"`}`, 'success');
     }
 
+    // Theme catalogs (shared by theme / site-system / vault-theme commands).
+    const CLASSIC_THEMES = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'neon', 'noir', 'rosewood', 'ocean', 'forest', 'arctic', 'obsidian', 'applemusic'];
+    const VAULT_THEMES = ['royal-vault', 'graphite-teal'];
+    const isClassicTheme = (t) => CLASSIC_THEMES.includes(t);
+    const isVaultTheme = (t) => VAULT_THEMES.includes(t);
+
     if (prop === 'theme') {
       const user = parts[2]?.toLowerCase();
       const theme = parts[3]?.toLowerCase();
       if (!user || !theme) return lines('Usage: set theme <user> <theme>', 'warn');
-      // Classic (Original Release) themes
-      const classicThemes = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'neon', 'noir', 'rosewood', 'ocean', 'forest', 'arctic', 'obsidian', 'applemusic'];
-      // Modified Vault themes — setting one of these flips the user's site system to 'vault'
-      // so the theme actually takes effect (on 'original', vault theme ids fall back to default).
-      const vaultThemes = ['royal-vault', 'graphite-teal'];
-      const valid = [...classicThemes, ...vaultThemes];
+      const valid = [...CLASSIC_THEMES, ...VAULT_THEMES];
       if (!valid.includes(theme)) return lines(`Invalid theme. Options: ${valid.join(', ')}`, 'error');
       const users = rd(F.users);
       if (!users[user]) return lines(`User "${user}" not found`, 'error');
-      const isVault = vaultThemes.includes(theme);
+      const isVault = isVaultTheme(theme);
+      // Preserve last-known classic theme so switching sites can restore it.
+      if (isVault && isClassicTheme(users[user].theme)) {
+        users[user].classicTheme = users[user].theme;
+      }
       users[user].theme = theme;
       users[user].siteSystem = isVault ? 'vault' : 'original';
       if (isVault) users[user].vaultTheme = theme;
+      else users[user].classicTheme = theme;
       wd(F.users, users);
       io.emit('user-updated', { user, data: users[user] });
       io.emit('force-reload');
@@ -4527,28 +4534,37 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
       if (!['original', 'vault'].includes(sys)) return lines('Invalid site system. Options: original, vault', 'error');
       const users = rd(F.users);
       if (!users[user]) return lines(`User "${user}" not found`, 'error');
-      users[user].siteSystem = sys;
-      if (sys === 'vault' && !users[user].vaultTheme) {
-        users[user].vaultTheme = 'royal-vault';
-        users[user].theme = 'royal-vault';
-      } else if (sys === 'original') {
-        const classicThemes = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'neon', 'noir', 'rosewood', 'ocean', 'forest', 'arctic', 'obsidian', 'applemusic'];
-        if (!classicThemes.includes(users[user].theme)) users[user].theme = 'dark';
+      const u = users[user];
+      u.siteSystem = sys;
+      if (sys === 'vault') {
+        // Save the current classic theme so we can restore it later.
+        if (isClassicTheme(u.theme)) u.classicTheme = u.theme;
+        u.vaultTheme = isVaultTheme(u.vaultTheme) ? u.vaultTheme : 'royal-vault';
+        u.theme = u.vaultTheme;
+      } else {
+        // Restore the user's last classic theme, or fall back to their name-default / dark.
+        const fallback = isClassicTheme(user) ? user : 'dark';
+        const restored = isClassicTheme(u.classicTheme) ? u.classicTheme
+                       : isClassicTheme(u.theme) ? u.theme
+                       : fallback;
+        u.theme = restored;
+        u.classicTheme = restored;
       }
       wd(F.users, users);
-      io.emit('user-updated', { user, data: users[user] });
+      io.emit('user-updated', { user, data: u });
       io.emit('force-reload');
-      return lines(`${user} site system → ${sys}`, 'success');
+      return lines(`${user} site system → ${sys} (theme → ${u.theme})`, 'success');
     }
 
     if (prop === 'vault-theme' || prop === 'vaulttheme') {
       const user = parts[2]?.toLowerCase();
       const theme = parts[3]?.toLowerCase();
       if (!user || !theme) return lines('Usage: set vault-theme <user> <royal-vault|graphite-teal>', 'warn');
-      const vaultThemes = ['royal-vault', 'graphite-teal'];
-      if (!vaultThemes.includes(theme)) return lines(`Invalid vault theme. Options: ${vaultThemes.join(', ')}`, 'error');
+      if (!isVaultTheme(theme)) return lines(`Invalid vault theme. Options: ${VAULT_THEMES.join(', ')}`, 'error');
       const users = rd(F.users);
       if (!users[user]) return lines(`User "${user}" not found`, 'error');
+      // Preserve the last classic theme before flipping.
+      if (isClassicTheme(users[user].theme)) users[user].classicTheme = users[user].theme;
       users[user].vaultTheme = theme;
       users[user].theme = theme;
       users[user].siteSystem = 'vault';
@@ -5456,7 +5472,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     const defaults = {
       kaliph: {
         name: 'Kaliph', displayName: 'Kaliph', theme: 'kaliph',
-        siteSystem: 'original', vaultTheme: null,
+        siteSystem: 'original', vaultTheme: null, classicTheme: 'kaliph',
         status: 'online', customStatus: '', avatar: null, email: '',
         nameStyle: { color: '#7c3aed', gradient: true, font: 'Orbitron' },
         gifEnabled: true, wallpaperEnabled: true, wallpaper: null,
@@ -5464,7 +5480,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
       },
       kathrine: {
         name: 'Kathrine', displayName: 'Kathrine', theme: 'kathrine',
-        siteSystem: 'original', vaultTheme: null,
+        siteSystem: 'original', vaultTheme: null, classicTheme: 'kathrine',
         status: 'online', customStatus: '', avatar: null, email: '',
         nameStyle: { color: '#c084fc', gradient: true, font: 'Cormorant Garamond' },
         gifEnabled: true, wallpaperEnabled: true, wallpaper: null,
