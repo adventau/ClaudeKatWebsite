@@ -4427,7 +4427,9 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
       [`── ${u.displayName || u.name} ──`, 'header'],
       [`  Status:    ${u.status || 'online'}  (presence: ${presence})`, 'data'],
       [`  Custom:    ${u.customStatus || '(none)'}`, 'data'],
+      [`  Site:      ${u.siteSystem || 'original'}${u.siteSystem === 'vault' ? ' (Modified Vault)' : ''}`, 'data'],
       [`  Theme:     ${u.theme}`, 'data'],
+      [`  VaultThm:  ${u.vaultTheme || '(none)'}`, 'data'],
       [`  Bio:       ${u.bio || '(none)'}`, 'data'],
       [`  Pronouns:  ${u.pronouns || '(none)'}`, 'data'],
       [`  Font:      ${u.font || 'default'}`, 'data'],
@@ -4499,15 +4501,61 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
       const user = parts[2]?.toLowerCase();
       const theme = parts[3]?.toLowerCase();
       if (!user || !theme) return lines('Usage: set theme <user> <theme>', 'warn');
-      const valid = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'neon', 'noir', 'rosewood', 'ocean', 'forest', 'arctic', 'obsidian', 'applemusic'];
+      // Classic (Original Release) themes
+      const classicThemes = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'neon', 'noir', 'rosewood', 'ocean', 'forest', 'arctic', 'obsidian', 'applemusic'];
+      // Modified Vault themes — setting one of these flips the user's site system to 'vault'
+      // so the theme actually takes effect (on 'original', vault theme ids fall back to default).
+      const vaultThemes = ['royal-vault', 'graphite-teal'];
+      const valid = [...classicThemes, ...vaultThemes];
       if (!valid.includes(theme)) return lines(`Invalid theme. Options: ${valid.join(', ')}`, 'error');
       const users = rd(F.users);
       if (!users[user]) return lines(`User "${user}" not found`, 'error');
+      const isVault = vaultThemes.includes(theme);
       users[user].theme = theme;
+      users[user].siteSystem = isVault ? 'vault' : 'original';
+      if (isVault) users[user].vaultTheme = theme;
       wd(F.users, users);
       io.emit('user-updated', { user, data: users[user] });
       io.emit('force-reload');
-      return lines(`${user} theme → ${theme}`, 'success');
+      return lines(`${user} theme → ${theme}${isVault ? ' (siteSystem → vault)' : ''}`, 'success');
+    }
+
+    if (prop === 'site-system' || prop === 'sitesystem') {
+      const user = parts[2]?.toLowerCase();
+      const sys = parts[3]?.toLowerCase();
+      if (!user || !sys) return lines('Usage: set site-system <user> <original|vault>', 'warn');
+      if (!['original', 'vault'].includes(sys)) return lines('Invalid site system. Options: original, vault', 'error');
+      const users = rd(F.users);
+      if (!users[user]) return lines(`User "${user}" not found`, 'error');
+      users[user].siteSystem = sys;
+      if (sys === 'vault' && !users[user].vaultTheme) {
+        users[user].vaultTheme = 'royal-vault';
+        users[user].theme = 'royal-vault';
+      } else if (sys === 'original') {
+        const classicThemes = ['kaliph', 'kathrine', 'royal', 'dark', 'light', 'neon', 'noir', 'rosewood', 'ocean', 'forest', 'arctic', 'obsidian', 'applemusic'];
+        if (!classicThemes.includes(users[user].theme)) users[user].theme = 'dark';
+      }
+      wd(F.users, users);
+      io.emit('user-updated', { user, data: users[user] });
+      io.emit('force-reload');
+      return lines(`${user} site system → ${sys}`, 'success');
+    }
+
+    if (prop === 'vault-theme' || prop === 'vaulttheme') {
+      const user = parts[2]?.toLowerCase();
+      const theme = parts[3]?.toLowerCase();
+      if (!user || !theme) return lines('Usage: set vault-theme <user> <royal-vault|graphite-teal>', 'warn');
+      const vaultThemes = ['royal-vault', 'graphite-teal'];
+      if (!vaultThemes.includes(theme)) return lines(`Invalid vault theme. Options: ${vaultThemes.join(', ')}`, 'error');
+      const users = rd(F.users);
+      if (!users[user]) return lines(`User "${user}" not found`, 'error');
+      users[user].vaultTheme = theme;
+      users[user].theme = theme;
+      users[user].siteSystem = 'vault';
+      wd(F.users, users);
+      io.emit('user-updated', { user, data: users[user] });
+      io.emit('force-reload');
+      return lines(`${user} vault theme → ${theme}`, 'success');
     }
 
     if (prop === 'pronouns') {
@@ -5408,6 +5456,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     const defaults = {
       kaliph: {
         name: 'Kaliph', displayName: 'Kaliph', theme: 'kaliph',
+        siteSystem: 'original', vaultTheme: null,
         status: 'online', customStatus: '', avatar: null, email: '',
         nameStyle: { color: '#7c3aed', gradient: true, font: 'Orbitron' },
         gifEnabled: true, wallpaperEnabled: true, wallpaper: null,
@@ -5415,6 +5464,7 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
       },
       kathrine: {
         name: 'Kathrine', displayName: 'Kathrine', theme: 'kathrine',
+        siteSystem: 'original', vaultTheme: null,
         status: 'online', customStatus: '', avatar: null, email: '',
         nameStyle: { color: '#c084fc', gradient: true, font: 'Cormorant Garamond' },
         gifEnabled: true, wallpaperEnabled: true, wallpaper: null,
@@ -5425,7 +5475,8 @@ async function handleEvalCommand(raw, parts, cmd, mode, previewUser, req) {
     users[user] = defaults[user];
     wd(F.users, users);
     io.emit('user-updated', { user, data: users[user] });
-    return lines(`${user} profile reset to defaults`, 'success');
+    io.emit('force-reload');
+    return lines(`${user} profile reset to defaults (site → original, theme → ${defaults[user].theme})`, 'success');
   }
 
   // ── TOGGLE FEATURES ──

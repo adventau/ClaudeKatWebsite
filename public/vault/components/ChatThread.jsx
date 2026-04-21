@@ -765,6 +765,14 @@ function MessageList({ thread, onReply, onReact, onPin, onUnsend, onEdit, onJump
   // Auto-scroll to bottom on new messages (except when loading older)
   const scrollerRef = React.useRef(null);
   const lastCount = React.useRef(msgs.length);
+
+  // Scroll to bottom on initial mount
+  React.useEffect(() => {
+    if (scrollerRef.current) {
+      scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight;
+    }
+  }, []);
+
   React.useEffect(() => {
     if (!scrollerRef.current) return;
     if (msgs.length > lastCount.current) {

@@ -136,7 +136,8 @@ const THEMES = [
 // Each system has its own curated theme list. Switching a system
 // swaps the entire visual treatment of /app (fonts, surfaces, accents).
 const VAULT_THEMES = [
-  { id: 'royal-vault', name: 'Royal Vault', preview: 'linear-gradient(135deg,oklch(0.155 0.014 70),oklch(0.40 0.12 72),oklch(0.82 0.16 72))' },
+  { id: 'royal-vault',   name: 'Royal Vault',   preview: 'linear-gradient(135deg,oklch(0.155 0.014 70),oklch(0.40 0.12 72),oklch(0.82 0.16 72))' },
+  { id: 'graphite-teal', name: 'Graphite Teal', preview: 'linear-gradient(135deg,oklch(0.18 0.014 220),oklch(0.46 0.10 200),oklch(0.80 0.14 195))' },
 ];
 
 const SITE_SYSTEMS = {

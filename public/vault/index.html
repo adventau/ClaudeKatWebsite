@@ -845,6 +845,18 @@
           setMyProfile(data);
         }
       };
+      const onForceReload = () => { try { window.location.reload(); } catch {} };
+      const onForceLogout = () => { try { window.location.href = "/logout"; } catch {} };
+      const onMessagesUpdated = () => setReloadKey(k => k + 1);
+      const onShowUpdateLog = () => setReloadKey(k => k + 1);
+      const onCensorMode = (payload) => {
+        try {
+          const on = payload && (payload.enabled ?? payload.on ?? payload === true);
+          document.body.classList.toggle("vault-censor-mode", !!on);
+        } catch {}
+      };
+      const onMoneyUpdated = () => setReloadKey(k => k + 1);
+      const onGuestChanged = () => setReloadKey(k => k + 1);
 
       socket.on("new-message", onNewMessage);
       socket.on("msg-reaction", onReaction);
@@ -856,6 +868,15 @@
       socket.on("user-typing", onTyping);
       socket.on("user-stop-typing", onStopTyping);
       socket.on("user-updated", onUserUpdated);
+      socket.on("force-reload", onForceReload);
+      socket.on("force-logout", onForceLogout);
+      socket.on("messages-updated", onMessagesUpdated);
+      socket.on("show-update-log", onShowUpdateLog);
+      socket.on("show-custom-update-log", onShowUpdateLog);
+      socket.on("censor-mode", onCensorMode);
+      socket.on("money:updated", onMoneyUpdated);
+      socket.on("guest-created", onGuestChanged);
+      socket.on("guest-revoked", onGuestChanged);
       socket.emit("user-online", { user: currentUser });
       return () => {
         socket.off();
