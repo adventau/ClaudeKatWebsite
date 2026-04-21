@@ -325,9 +325,75 @@
     cursor: pointer;
     border: 2px solid var(--rv-bg);
   }
+
+  /* ========== CENSOR / DEMO MODE (Modified Vault) ==========
+     Toggled by the eval `censor on|off` command, which emits
+     socket `censor-mode { active }`. Mirrors classic /app behavior
+     but keyed to the vault's rv-* component tree. */
+  body.censor-active [data-msg-id],
+  body.censor-active [data-msg-id] * {
+    filter: blur(8px) !important;
+    user-select: none;
+    pointer-events: none;
+  }
+  body.censor-active textarea,
+  body.censor-active [contenteditable="true"] {
+    filter: blur(6px) !important;
+    user-select: none;
+  }
+  body.censor-active input[type="text"],
+  body.censor-active input[type="search"],
+  body.censor-active input:not([type]) {
+    filter: blur(4px) !important;
+  }
+  /* Blur contact / partner / self name displays. These are the
+     avatar+name blocks that appear in the sidebar, chat header,
+     and context rail. */
+  body.censor-active .rv-name,
+  body.censor-active .rv-display-name,
+  body.censor-active .rv-contact-name,
+  body.censor-active .rv-header-name,
+  body.censor-active .rv-sidebar-name,
+  body.censor-active [data-censor="name"],
+  body.censor-active [data-censor="value"] {
+    filter: blur(5px) !important;
+    user-select: none;
+  }
+  /* Money / balance chips */
+  body.censor-active [data-censor="money"],
+  body.censor-active .rv-money-value,
+  body.censor-active .rv-balance {
+    filter: blur(6px) !important;
+    user-select: none;
+  }
+  /* Subtle "DEMO" marker so the operator knows censor mode is active */
+  body.censor-active::before {
+    content: "DEMO";
+    position: fixed;
+    top: 8px;
+    right: 12px;
+    z-index: 99999;
+    font-family: var(--rv-mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: oklch(0.78 0.14 30);
+    padding: 3px 8px;
+    border: 1px solid oklch(0.78 0.14 30 / 0.4);
+    border-radius: 4px;
+    background: oklch(0.15 0.02 30 / 0.8);
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
+<script>
+  // Restore censor mode across reloads (mirrors classic /app behavior).
+  try {
+    if (sessionStorage.getItem("rkk-censor-mode") === "1") {
+      document.body.classList.add("censor-active");
+    }
+  } catch {}
+</script>
 <div id="root"></div>
 
 <script>
@@ -851,8 +917,9 @@
       const onShowUpdateLog = () => setReloadKey(k => k + 1);
       const onCensorMode = (payload) => {
         try {
-          const on = payload && (payload.enabled ?? payload.on ?? payload === true);
-          document.body.classList.toggle("vault-censor-mode", !!on);
+          const on = !!(payload && (payload.active ?? payload.enabled ?? payload.on ?? payload === true));
+          document.body.classList.toggle("censor-active", on);
+          try { sessionStorage.setItem("rkk-censor-mode", on ? "1" : ""); } catch {}
         } catch {}
       };
       const onMoneyUpdated = () => setReloadKey(k => k + 1);
