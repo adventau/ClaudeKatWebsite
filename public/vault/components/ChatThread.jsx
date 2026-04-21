@@ -529,13 +529,16 @@ function Bubble({ mine, isLastInGroup, priority, formatting, children }) {
 function HoverMenu({ mine, onReply, onReact, onMore, moreOpen }) {
   const QUICK = ["👍", "✅", "❤️", "🎯"];
   const [emojiOpen, setEmojiOpen] = React.useState(false);
+  // Anchor to the TOP edge of the bubble and lift with a translate so the
+  // menu's vertical offset doesn't depend on bubble height (fixes cases
+  // where the menu appeared to shift/overlap neighbors on tall messages).
   return (
     <div
       style={{
         position: "absolute",
-        top: -18,
-        [mine ? "left" : "right"]: 0,
-        transform: mine ? "translateX(-6px)" : "translateX(6px)",
+        top: 0,
+        [mine ? "left" : "right"]: 6,
+        transform: "translateY(-55%)",
         display: "flex", alignItems: "center",
         background: "oklch(0.12 0.01 60 / 0.92)",
         backdropFilter: "blur(14px)",
@@ -543,8 +546,9 @@ function HoverMenu({ mine, onReply, onReact, onMore, moreOpen }) {
         borderRadius: 999,
         padding: 3,
         boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-        zIndex: 20,
+        zIndex: 40,
         gap: 1,
+        pointerEvents: "auto",
       }}
     >
       {QUICK.map((e, i) => (
@@ -745,11 +749,11 @@ function DateDivider({ label }) {
   );
 }
 
-function MessageList({ thread, onReply, onReact, onPin, onUnsend, onEdit, onJump, currentUser, searchQuery, typing, wallpaper, onLoadOlder, hasMore, jumpToId }) {
-  const q = (searchQuery || "").trim().toLowerCase();
-  const msgs = q
-    ? thread.messages.filter(m => (m.text || "").toLowerCase().includes(q))
-    : thread.messages;
+function MessageList({ thread, onReply, onReact, onPin, onUnsend, onEdit, onJump, currentUser, typing, wallpaper, onLoadOlder, hasMore, jumpToId }) {
+  // Search results are rendered in a separate dropdown (see SearchResultsDropdown);
+  // the main chat always shows the full thread so the view doesn't jump around
+  // as the user types.
+  const msgs = thread.messages;
   const withGroupInfo = msgs.map((m, i) => {
     const prev = msgs[i - 1];
     const next = msgs[i + 1];

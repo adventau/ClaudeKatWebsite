@@ -13,7 +13,7 @@
   /* ========== DESIGN SYSTEM ==========
      Royal Vault — executive/assistant command center.
      Person-to-person chat (not AI).
-     Four variations switch via [data-variant="A|B|C|D"] on <html>.
+     Five variations switch via [data-variant="A|B|C|D|E"] on <html>.
      Accent hue drives via --rv-accent-hue.
   */
 
@@ -125,6 +125,55 @@
     --rv-accent-line: rgba(0, 216, 187, 0.35);
     --rv-accent-glow: rgba(0, 216, 187, 0.45);
     --rv-tag-bg: rgba(0, 216, 187, 0.22);
+  }
+  /* Variation E — Apple Music (deep black w/ crimson-pink signature #fa2d48) */
+  [data-variant="E"] {
+    --rv-accent-hue: 17;
+    --rv-bg: oklch(0.06 0.004 20);
+    --rv-sidebar-bg: oklch(0.04 0.003 20);
+    --rv-rail-bg: oklch(0.07 0.004 20);
+    --rv-chat-header-bg: oklch(0.09 0.006 20 / 0.85);
+    --rv-border: oklch(0.20 0.012 20);
+    --rv-input-bg: oklch(0.12 0.008 20);
+    --rv-input-border: oklch(0.22 0.012 20);
+    --rv-pill-bg: oklch(0.13 0.008 20);
+    --rv-card-bg: oklch(0.11 0.008 20);
+    --rv-hover: oklch(0.15 0.010 20);
+    --rv-badge-bg: oklch(0.16 0.010 20);
+    --rv-avatar-bg: oklch(0.18 0.012 20);
+    --rv-crest-bg: oklch(0.13 0.010 20);
+    --rv-bubble-them: oklch(0.14 0.010 20);
+    --rv-bubble-them-dark: oklch(0.11 0.008 20);
+    --rv-bubble-them-border: oklch(0.22 0.012 20);
+    --rv-text: oklch(0.98 0.004 20);
+    --rv-text-dim: oklch(0.72 0.008 20);
+    --rv-text-faint: oklch(0.50 0.008 20);
+    /* Apple Music pink-red — #fa2d48 locked as accent */
+    --rv-accent: #fa2d48;
+    --rv-accent-2: #ff6482;
+    --rv-accent-beam: #fa2d48;
+    --rv-bubble-me: #fa2d48;
+    --rv-bubble-me-dark: #d41c3a;
+    --rv-bubble-me-fg: #ffffff;
+    --rv-bubble-me-border: #fa2d48;
+    --rv-accent-soft: rgba(250, 45, 72, 0.14);
+    --rv-accent-line: rgba(250, 45, 72, 0.38);
+    --rv-accent-glow: rgba(250, 45, 72, 0.5);
+    --rv-tag-bg: rgba(250, 45, 72, 0.22);
+    --rv-active: rgba(250, 45, 72, 0.2);
+  }
+  /* Apple Music ambient — soft pink aurora wash behind the surface */
+  [data-variant="E"] body::before {
+    content: "";
+    position: fixed;
+    inset: -10%;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(250, 45, 72, 0.14), transparent 45%),
+      radial-gradient(circle at 85% 80%, rgba(255, 100, 130, 0.10), transparent 55%);
+    filter: blur(50px);
+    z-index: 0;
+    animation: auroraShift 22s ease-in-out infinite alternate;
   }
 
   * { box-sizing: border-box; }
@@ -1001,7 +1050,32 @@
     const onUnsend = React.useCallback(async (message) => {
       const ok = await (window.rvConfirm ? window.rvConfirm("Unsend this message? It'll disappear for both of you.", { title: "Unsend message", primaryLabel: "Unsend", danger: true }) : Promise.resolve(true));
       if (!ok) return;
-      await fetch(`/api/messages/${message.id}`, { method: "DELETE", credentials: "same-origin" });
+      // Optimistically remove locally so the user sees immediate feedback;
+      // if the server rejects (expired unsend window), we restore it.
+      const snapshot = message;
+      setThread(prev => ({
+        ...prev,
+        messages: prev.messages.filter(m => m.id !== message.id),
+        rawMessages: (prev.rawMessages || []).filter(m => m.id !== message.id),
+      }));
+      try {
+        const r = await fetch(`/api/messages/${message.id}`, { method: "DELETE", credentials: "same-origin" });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          // Restore and inform
+          setThread(prev => ({
+            ...prev,
+            messages: [...prev.messages, snapshot].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)),
+          }));
+          if (window.rvAlert) window.rvAlert(j.error || "Couldn't unsend this message.", { title: "Unsend failed" });
+        }
+      } catch (e) {
+        setThread(prev => ({
+          ...prev,
+          messages: [...prev.messages, snapshot].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)),
+        }));
+        if (window.rvAlert) window.rvAlert("Network error. Please try again.", { title: "Unsend failed" });
+      }
     }, []);
     const onEdit = React.useCallback(async (message, newText) => {
       if (!newText || newText.trim() === (message.text || "").trim()) return;
@@ -1144,7 +1218,6 @@
               <MessageList
                 thread={thread}
                 variant={state.variation}
-                searchQuery={searchQuery}
                 currentUser={currentUser}
                 onReply={onReply}
                 onReact={onReact}
@@ -1198,7 +1271,6 @@
           {active === "notes" && <NotesView />}
           {active === "calendar" && <CalendarView />}
           {active === "locker" && <LockerView />}
-          {active === "contacts" && <ContactsView />}
           {active === "guest" && <GuestView currentUser={currentUser} />}
           {active === "reminders" && <RemindersView />}
           {active === "money" && <MoneyView currentUser={currentUser} />}

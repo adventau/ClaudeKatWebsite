@@ -236,7 +236,7 @@ function classifyChapter(title) {
 // classic renderBriefingChapters() algorithm. Content before the first heading
 // becomes the greeting (line 1) + standfirst (line 2) of the masthead.
 function parseBriefing(raw) {
-  if (!raw) return { greeting: "", standfirst: "", chapters: [] };
+  if (!raw) return { greeting: "", standfirst: "", chapters: [], topics: [] };
   const html = (typeof window !== "undefined" && window.marked)
     ? window.marked.parse(raw, { breaks: true })
     : escapeForHtml(raw);
@@ -289,7 +289,24 @@ function parseBriefing(raw) {
     return { title: c.title, html: wrap.innerHTML };
   });
 
-  return { greeting, standfirst, chapters: withHtml };
+  // Extract the top 3 headline topics — first three list items found across
+  // all chapters. These populate the structured header cards above the body.
+  const topics = [];
+  for (const ch of kept) {
+    if (topics.length >= 3) break;
+    for (const n of ch.nodes) {
+      if (topics.length >= 3) break;
+      if (n.nodeType === 1 && (n.tagName === "UL" || n.tagName === "OL")) {
+        for (const li of Array.from(n.querySelectorAll(":scope > li"))) {
+          if (topics.length >= 3) break;
+          const text = (li.textContent || "").trim();
+          if (text) topics.push({ text, kind: classifyChapter(ch.title) });
+        }
+      }
+    }
+  }
+
+  return { greeting, standfirst, chapters: withHtml, topics };
 }
 
 function escapeForHtml(s) {
@@ -445,6 +462,11 @@ function BriefingView() {
               }} />
             </div>
 
+            {/* Top 3 Topics — structured scannable summary above the chapters */}
+            {found && parsed?.topics?.length > 0 && (
+              <BriefingTopTopics topics={parsed.topics} />
+            )}
+
             {/* Chapters */}
             {error || !found || !parsed?.chapters?.length ? (
               <div style={{
@@ -504,13 +526,98 @@ function BriefingView() {
   );
 }
 
+// Top 3 headline topics — a structured scannable summary card rendered above
+// the full chapters. Matches the Original Release's 3-topic top layout.
+function BriefingTopTopics({ topics }) {
+  return (
+    <div
+      className="rv-sr-topics"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gap: 10,
+        padding: "2px 0",
+      }}
+    >
+      {topics.slice(0, 3).map((t, i) => {
+        const kind = t.kind || "memo";
+        const accent = `var(--rv-accent)`;
+        return (
+          <article
+            key={i}
+            style={{
+              position: "relative",
+              padding: "14px 14px 14px 18px",
+              background: "var(--rv-card-bg)",
+              border: "1px solid var(--rv-border)",
+              borderRadius: 12,
+              display: "flex", flexDirection: "column", gap: 8,
+              minHeight: 96,
+              animation: "srRise 0.55s cubic-bezier(.2,.8,.2,1) both",
+              animationDelay: `${0.08 + i * 0.07}s`,
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                position: "absolute", left: 0, top: 14, bottom: 14, width: 3,
+                borderRadius: 3,
+                background: accent,
+                boxShadow: `0 0 14px var(--rv-accent-glow)`,
+                opacity: 0.8,
+              }}
+            />
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              fontFamily: "var(--rv-mono)", fontSize: 9.5,
+              letterSpacing: 2, textTransform: "uppercase",
+              color: accent, opacity: 0.9,
+            }}>
+              <span style={{
+                padding: "2px 6px",
+                border: "1px solid var(--rv-accent-line)",
+                borderRadius: 3,
+                background: "var(--rv-accent-soft)",
+                lineHeight: 1, letterSpacing: 1.5,
+              }}>№ {String(i + 1).padStart(2, "0")}</span>
+              <span>{SR_KICKERS[kind] || "MEMO"}</span>
+            </div>
+            <div style={{
+              fontSize: 13.5, lineHeight: 1.5,
+              color: "var(--rv-text)",
+              display: "-webkit-box",
+              WebkitLineClamp: 4,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}>{t.text}</div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 function BriefingChapter({ chapter, idx }) {
   const kind = classifyChapter(chapter.title);
   const Ico = SR_ICONS[kind] || SR_ICONS.memo;
-  const accentHues = { intel: 200, schedule: 140, money: 150, watch: 50, action: 280, memo: 72 };
-  const accent = `oklch(0.82 0.16 ${accentHues[kind] || 72})`;
-  const accentSoft = `oklch(0.82 0.16 ${accentHues[kind] || 72} / 0.14)`;
-  const accentLine = `oklch(0.82 0.16 ${accentHues[kind] || 72} / 0.35)`;
+  // `memo` is the generic kind — it inherits the active theme's accent so the
+  // briefing re-colors as the user switches themes. The named kinds keep
+  // category-specific hues (intel=blue, schedule=green, etc.) for semantic
+  // clarity across themes.
+  const isMemo = kind === "memo";
+  const accentHues = { intel: 200, schedule: 140, money: 150, watch: 50, action: 280 };
+  const accent = isMemo
+    ? "var(--rv-accent)"
+    : `oklch(0.82 0.16 ${accentHues[kind] || 72})`;
+  const accentSoft = isMemo
+    ? "var(--rv-accent-soft)"
+    : `oklch(0.82 0.16 ${accentHues[kind] || 72} / 0.14)`;
+  const accentLine = isMemo
+    ? "var(--rv-accent-line)"
+    : `oklch(0.82 0.16 ${accentHues[kind] || 72} / 0.35)`;
+  const accentGlow = isMemo
+    ? "var(--rv-accent-glow)"
+    : `oklch(0.82 0.16 ${accentHues[kind] || 72} / 0.4)`;
   return (
     <article
       className="rv-sr-chapter rv-sr-body-wrap"
@@ -529,7 +636,7 @@ function BriefingChapter({ chapter, idx }) {
           position: "absolute", left: 0, top: 18, bottom: 18, width: 3,
           borderRadius: 3,
           background: accent,
-          boxShadow: `0 0 16px ${accent}`,
+          boxShadow: `0 0 16px ${accentGlow}`,
           opacity: 0.85,
         }}
       />
@@ -1543,163 +1650,6 @@ function LockerContent({ passcode, onLock }) {
   );
 }
 
-/* ============ CONTACTS ============ */
-function ContactsView() {
-  const { data, loading, error, reload } = useApi("/api/contacts");
-  const contacts = Array.isArray(data) ? data : Array.isArray(data?.contacts) ? data.contacts : [];
-  const grouped = React.useMemo(() => {
-    const map = {};
-    contacts.forEach(c => {
-      const letter = (c.name || "?")[0].toUpperCase();
-      (map[letter] = map[letter] || []).push(c);
-    });
-    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [contacts]);
-  const [creating, setCreating] = React.useState(false);
-  return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
-      <PageHeader
-        title="Contacts"
-        meta={!loading && !error ? `${contacts.length} contact${contacts.length === 1 ? "" : "s"}` : undefined}
-        actions={<button style={pgBtnPrimary} onClick={() => setCreating(true)}><IconPlus size={12} /> New contact</button>}
-      />
-      {creating && <NewContactForm onDone={() => { setCreating(false); reload(); }} onCancel={() => setCreating(false)} />}
-      <PageBody>
-        {loading ? <Spinner />
-          : error ? <Empty title="Couldn't load contacts" subtitle={error} />
-          : contacts.length === 0 ? <Empty title="No contacts yet" subtitle="Add your first contact to get started." />
-          : grouped.map(([letter, items]) => (
-              <div key={letter} style={{ marginBottom: 24 }}>
-                <div style={{
-                  fontFamily: "var(--rv-mono)", fontSize: 11, letterSpacing: 1.4,
-                  color: "var(--rv-text-faint)", marginBottom: 8,
-                  paddingBottom: 6, borderBottom: "1px solid var(--rv-border)",
-                }}>{letter}</div>
-                {items.map((c) => <ContactRow key={c.id} contact={c} onChanged={reload} />)}
-              </div>
-            ))
-        }
-      </PageBody>
-    </div>
-  );
-}
-
-function ContactRow({ contact: c, onChanged }) {
-  const [editing, setEditing] = React.useState(false);
-  const [name, setName] = React.useState(c.name || "");
-  const [phone, setPhone] = React.useState(c.phone || "");
-  const [email, setEmail] = React.useState(c.email || "");
-  const [notes, setNotes] = React.useState(c.notes || "");
-  const fileRef = React.useRef(null);
-  const save = async () => {
-    const fd = new FormData();
-    fd.append("name", name);
-    fd.append("phone", phone);
-    fd.append("email", email);
-    fd.append("notes", notes);
-    await fetch(`/api/contacts/${c.id}`, { method: "PUT", credentials: "same-origin", body: fd });
-    setEditing(false);
-    onChanged && onChanged();
-  };
-  const uploadPhoto = async (file) => {
-    const fd = new FormData();
-    fd.append("name", c.name);
-    fd.append("phone", c.phone || "");
-    fd.append("email", c.email || "");
-    fd.append("notes", c.notes || "");
-    fd.append("photo", file);
-    await fetch(`/api/contacts/${c.id}`, { method: "PUT", credentials: "same-origin", body: fd });
-    onChanged && onChanged();
-  };
-  if (editing) {
-    return (
-      <div style={{ padding: "12px 6px", display: "grid", gridTemplateColumns: "auto 1fr 1fr 1fr 1fr auto auto", gap: 10, alignItems: "center" }}>
-        <div onClick={() => fileRef.current?.click()} style={{
-          width: 36, height: 36, borderRadius: "50%", cursor: "pointer",
-          background: "var(--rv-avatar-bg)", border: "1px solid var(--rv-border)",
-          display: "grid", placeItems: "center",
-          fontSize: 13, fontWeight: 600, color: "var(--rv-text)",
-          overflow: "hidden",
-        }}>
-          {c.photo
-            ? <img src={c.photo} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            : (c.name || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()}
-        </div>
-        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
-          onChange={(e) => { if (e.target.files?.[0]) uploadPhoto(e.target.files[0]); e.target.value = ""; }} />
-        <TextInput value={name} onChange={setName} placeholder="Name" onEnter={save} />
-        <TextInput value={phone} onChange={setPhone} placeholder="Phone" onEnter={save} />
-        <TextInput value={email} onChange={setEmail} placeholder="Email" onEnter={save} />
-        <TextInput value={notes} onChange={setNotes} placeholder="Notes" onEnter={save} />
-        <button style={pgBtnPrimary} onClick={save}>Save</button>
-        <button style={pgBtn} onClick={() => setEditing(false)}>Cancel</button>
-      </div>
-    );
-  }
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 14,
-      padding: "12px 6px", borderRadius: 8,
-    }}>
-      <div style={{
-        width: 36, height: 36, borderRadius: "50%",
-        background: "var(--rv-avatar-bg)", border: "1px solid var(--rv-border)",
-        display: "grid", placeItems: "center",
-        fontSize: 13, fontWeight: 600, color: "var(--rv-text)",
-        overflow: "hidden",
-      }}>
-        {c.photo
-          ? <img src={c.photo} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          : (c.name || "?").split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, color: "var(--rv-text)" }}>{c.name}</div>
-        <div style={{ fontSize: 11.5, color: "var(--rv-text-faint)" }}>
-          {[c.phone, c.email].filter(Boolean).join(" · ")}
-        </div>
-      </div>
-      <button style={{ ...pgBtn, height: 28, padding: "0 10px", fontSize: 11 }} onClick={() => setEditing(true)}>Edit</button>
-      <button style={{ ...pgBtn, height: 28, padding: "0 10px", fontSize: 11 }} onClick={async () => {
-        const ok = await window.rvConfirm(`Delete ${c.name}? This can't be undone.`, { title: "Delete contact", primaryLabel: "Delete", danger: true });
-        if (!ok) return;
-        await fetch(`/api/contacts/${c.id}`, { method: "DELETE", credentials: "same-origin" });
-        onChanged && onChanged();
-      }}>Delete</button>
-    </div>
-  );
-}
-
-function NewContactForm({ onDone, onCancel }) {
-  const [name, setName] = React.useState("");
-  const [phone, setPhone] = React.useState("");
-  const [email, setEmail] = React.useState("");
-  const [notes, setNotes] = React.useState("");
-  const submit = async () => {
-    if (!name.trim()) return;
-    const fd = new FormData();
-    fd.append("name", name);
-    fd.append("phone", phone);
-    fd.append("email", email);
-    fd.append("notes", notes);
-    await fetch("/api/contacts", { method: "POST", credentials: "same-origin", body: fd });
-    onDone();
-  };
-  return (
-    <div style={{
-      padding: "14px 28px", borderBottom: "1px solid var(--rv-border)",
-      background: "var(--rv-card-bg)", display: "grid",
-      gridTemplateColumns: "1fr 1fr 1fr 1fr auto auto", gap: 10, alignItems: "center",
-    }}>
-      <TextInput value={name} onChange={setName} placeholder="Name" autoFocus onEnter={submit} />
-      <TextInput value={phone} onChange={setPhone} placeholder="Phone" />
-      <TextInput value={email} onChange={setEmail} placeholder="Email" />
-      <TextInput value={notes} onChange={setNotes} placeholder="Notes" />
-      <button style={pgBtnPrimary} onClick={submit}>Add</button>
-      <button style={pgBtn} onClick={onCancel}>Cancel</button>
-    </div>
-  );
-}
-
 /* ============ GUEST MESSAGES (with in-vault thread view) ============ */
 function GuestView({ currentUser }) {
   const { data, loading, error, reload } = useApi("/api/guest-messages");
@@ -2195,10 +2145,33 @@ function MoneyView({ currentUser }) {
   const [showTxn, setShowTxn] = React.useState(false);
   const [showGoal, setShowGoal] = React.useState(false);
   const [showRec, setShowRec] = React.useState(false);
+  const [showInv, setShowInv] = React.useState(false);
+  const [txnFilter, setTxnFilter] = React.useState("week"); // week | month | all
 
   if (!loading && !error && !setup) return <MoneySetup onDone={reload} />;
 
   const totalBalance = Object.values(balances).reduce((a, b) => a + (b?.amount || 0), 0);
+  const totalGoalsSaved = goals.reduce((a, g) => a + (g.currentAmount || 0), 0);
+  const portfolioValue = (investments.holdings || []).reduce(
+    (a, h) => a + (h.value || (h.shares || 0) * (h.currentPrice || h.avgPrice || 0)), 0);
+  const netWorth = totalBalance + totalGoalsSaved + portfolioValue;
+
+  // Period filter for transactions
+  const now = Date.now();
+  const periodMs = txnFilter === "week" ? 7 * 86400000
+    : txnFilter === "month" ? 30 * 86400000
+    : Infinity;
+  const filteredTxns = transactions.filter(t => {
+    if (periodMs === Infinity) return true;
+    const ts = t.date ? new Date(t.date).getTime() : (t.createdAt || 0);
+    return (now - ts) <= periodMs;
+  });
+  const periodIn = filteredTxns
+    .filter(t => t.type === "income" || t.type === "deposit")
+    .reduce((a, t) => a + (t.amount || 0), 0);
+  const periodOut = filteredTxns
+    .filter(t => !(t.type === "income" || t.type === "deposit"))
+    .reduce((a, t) => a + (t.amount || 0), 0);
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
@@ -2208,17 +2181,38 @@ function MoneyView({ currentUser }) {
         actions={<>
           <button style={pgBtn} onClick={() => setShowGoal(true)}><IconPlus size={12} /> Goal</button>
           <button style={pgBtn} onClick={() => setShowRec(true)}><IconPlus size={12} /> Recurring</button>
+          <button style={pgBtn} onClick={() => setShowInv(true)}><IconPlus size={12} /> Investment</button>
           <button style={pgBtnPrimary} onClick={() => setShowTxn(true)}><IconPlus size={12} /> Transaction</button>
         </>}
       />
       {showTxn && <NewTxnForm currentUser={currentUser} onDone={() => { setShowTxn(false); reload(); }} onCancel={() => setShowTxn(false)} />}
       {showGoal && <NewGoalForm onDone={() => { setShowGoal(false); reload(); }} onCancel={() => setShowGoal(false)} />}
       {showRec && <NewRecurringForm currentUser={currentUser} onDone={() => { setShowRec(false); reload(); }} onCancel={() => setShowRec(false)} />}
+      {showInv && <NewInvestmentForm onDone={() => { setShowInv(false); reload(); }} onCancel={() => setShowInv(false)} />}
       <PageBody>
         {loading ? <Spinner />
           : error ? <Empty title="Couldn't load money data" subtitle={error} />
           : (
             <>
+              {/* Net Worth Snapshot */}
+              <Section title="Snapshot">
+                <Card padding={20}>
+                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 20 }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontFamily: "var(--rv-mono)", color: "var(--rv-text-faint)", letterSpacing: 1.2, textTransform: "uppercase" }}>Net Worth</div>
+                      <div style={{ fontSize: 34, fontWeight: 600, fontFamily: "var(--rv-mono)", color: "var(--rv-text)", marginTop: 6, letterSpacing: -0.5 }}>
+                        {money$(netWorth)}
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(120px, 1fr))", gap: 20 }}>
+                      <SnapStat label="Cash" value={money$(totalBalance)} />
+                      <SnapStat label="Saved" value={money$(totalGoalsSaved)} />
+                      <SnapStat label="Portfolio" value={money$(portfolioValue)} />
+                    </div>
+                  </div>
+                </Card>
+              </Section>
+
               {/* Balances */}
               <Section title="Balances">
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
@@ -2288,35 +2282,50 @@ function MoneyView({ currentUser }) {
                 </Section>
               )}
 
-              {/* Investments */}
-              {Array.isArray(investments.holdings) && investments.holdings.length > 0 && (
-                <Section title="Investments">
-                  <div style={{ border: "1px solid var(--rv-border)", borderRadius: 12, overflow: "hidden", background: "var(--rv-card-bg)" }}>
-                    {investments.holdings.map((h, i) => (
-                      <div key={h.id || i} style={{
-                        display: "grid", gridTemplateColumns: "90px 1fr 120px 120px",
-                        alignItems: "center", gap: 14, padding: "13px 18px",
-                        borderTop: i === 0 ? "none" : "1px solid var(--rv-border)",
-                      }}>
-                        <div style={{ fontFamily: "var(--rv-mono)", fontSize: 12, color: "var(--rv-accent)", fontWeight: 600 }}>{h.symbol || h.ticker}</div>
-                        <div style={{ fontSize: 13, color: "var(--rv-text)" }}>{h.name || h.symbol}</div>
-                        <div style={{ fontFamily: "var(--rv-mono)", fontSize: 11, color: "var(--rv-text-faint)" }}>{h.shares} shares</div>
-                        <div style={{ fontFamily: "var(--rv-mono)", fontSize: 13, textAlign: "right", color: "var(--rv-text)" }}>
-                          {money$(h.value || (h.shares || 0) * (h.currentPrice || h.avgPrice || 0))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Section>
-              )}
-
-              {/* Transactions */}
-              <Section title="Transactions" meta={transactions.length > 0 ? `${transactions.length} total` : undefined}>
-                {transactions.length === 0
-                  ? <div style={{ fontSize: 12, color: "var(--rv-text-faint)" }}>No transactions yet. Click "+ Transaction" to add one.</div>
+              {/* Investments / Portfolio */}
+              <Section
+                title="Portfolio"
+                meta={portfolioValue > 0 ? money$(portfolioValue) : undefined}
+              >
+                {(!Array.isArray(investments.holdings) || investments.holdings.length === 0)
+                  ? <div style={{ fontSize: 12, color: "var(--rv-text-faint)" }}>No holdings yet. Click "+ Investment" to track a position.</div>
                   : (
                     <div style={{ border: "1px solid var(--rv-border)", borderRadius: 12, overflow: "hidden", background: "var(--rv-card-bg)" }}>
-                      {[...transactions].reverse().slice(0, 40).map((t, i) => <TxnRow key={t.id} txn={t} isFirst={i === 0} onChanged={reload} />)}
+                      {investments.holdings.map((h, i) => <HoldingRow key={h.id || h.symbol || i} holding={h} isFirst={i === 0} onChanged={reload} />)}
+                    </div>
+                  )
+                }
+              </Section>
+
+              {/* Transactions with period filter */}
+              <Section
+                title="Activity"
+                meta={filteredTxns.length > 0
+                  ? `${filteredTxns.length} · +${money$(periodIn)} / −${money$(periodOut)}`
+                  : undefined}
+                right={
+                  <div style={{ display: "flex", gap: 4, padding: 3, background: "var(--rv-input-bg)", border: "1px solid var(--rv-border)", borderRadius: 8 }}>
+                    {["week", "month", "all"].map(p => (
+                      <button key={p} onClick={() => setTxnFilter(p)} style={{
+                        height: 24, padding: "0 10px", fontSize: 11, borderRadius: 6,
+                        border: "none", cursor: "pointer", fontFamily: "var(--rv-mono)",
+                        background: txnFilter === p ? "var(--rv-accent)" : "transparent",
+                        color: txnFilter === p ? "var(--rv-bg)" : "var(--rv-text-faint)",
+                        textTransform: "uppercase", letterSpacing: 1,
+                      }}>{p}</button>
+                    ))}
+                  </div>
+                }
+              >
+                {filteredTxns.length === 0
+                  ? <div style={{ fontSize: 12, color: "var(--rv-text-faint)" }}>
+                      {transactions.length === 0
+                        ? 'No transactions yet. Click "+ Transaction" to add one.'
+                        : `No transactions in the last ${txnFilter === "week" ? "week" : txnFilter === "month" ? "month" : "period"}.`}
+                    </div>
+                  : (
+                    <div style={{ border: "1px solid var(--rv-border)", borderRadius: 12, overflow: "hidden", background: "var(--rv-card-bg)" }}>
+                      {[...filteredTxns].reverse().slice(0, 80).map((t, i) => <TxnRow key={t.id} txn={t} isFirst={i === 0} onChanged={reload} />)}
                     </div>
                   )
                 }
@@ -2328,6 +2337,116 @@ function MoneyView({ currentUser }) {
           )
         }
       </PageBody>
+    </div>
+  );
+}
+
+function SnapStat({ label, value }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10.5, fontFamily: "var(--rv-mono)", color: "var(--rv-text-faint)", letterSpacing: 1, textTransform: "uppercase" }}>{label}</div>
+      <div style={{ fontSize: 16, fontWeight: 500, fontFamily: "var(--rv-mono)", color: "var(--rv-text)", marginTop: 4 }}>{value}</div>
+    </div>
+  );
+}
+
+function HoldingRow({ holding: h, isFirst, onChanged }) {
+  const [trading, setTrading] = React.useState(false);
+  const [tradeMode, setTradeMode] = React.useState("buy");
+  const [shares, setShares] = React.useState("");
+  const [price, setPrice] = React.useState("");
+  const value = h.value || (h.shares || 0) * (h.currentPrice || h.avgPrice || 0);
+  const cost = (h.shares || 0) * (h.avgPrice || 0);
+  const gain = value - cost;
+  const gainPct = cost > 0 ? (gain / cost) * 100 : 0;
+  const trade = async () => {
+    const s = parseFloat(shares);
+    const p = parseFloat(price);
+    if (!s || !p) return;
+    await fetch(`/api/money/investments/${h.id}/${tradeMode}`, {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shares: s, price: p }),
+    });
+    setShares(""); setPrice(""); setTrading(false);
+    onChanged && onChanged();
+  };
+  if (trading) {
+    return (
+      <div style={{
+        padding: "12px 18px",
+        borderTop: isFirst ? "none" : "1px solid var(--rv-border)",
+        background: "var(--rv-input-bg)",
+        display: "grid", gridTemplateColumns: "90px 100px 140px 140px auto auto", gap: 10, alignItems: "center",
+      }}>
+        <div style={{ fontFamily: "var(--rv-mono)", fontSize: 12, color: "var(--rv-accent)", fontWeight: 600 }}>{h.symbol || h.ticker}</div>
+        <select value={tradeMode} onChange={(e) => setTradeMode(e.target.value)} style={selectStyle}>
+          <option value="buy">Buy</option>
+          <option value="sell">Sell</option>
+        </select>
+        <TextInput value={shares} onChange={setShares} placeholder="Shares" type="number" onEnter={trade} />
+        <TextInput value={price} onChange={setPrice} placeholder="Price per share" type="number" onEnter={trade} />
+        <button style={pgBtnPrimary} onClick={trade}>Confirm</button>
+        <button style={pgBtn} onClick={() => setTrading(false)}>Cancel</button>
+      </div>
+    );
+  }
+  return (
+    <div style={{
+      display: "grid", gridTemplateColumns: "90px 1fr 120px 140px 120px auto auto",
+      alignItems: "center", gap: 14, padding: "13px 18px",
+      borderTop: isFirst ? "none" : "1px solid var(--rv-border)",
+    }}>
+      <div style={{ fontFamily: "var(--rv-mono)", fontSize: 12, color: "var(--rv-accent)", fontWeight: 600 }}>{h.symbol || h.ticker}</div>
+      <div style={{ fontSize: 13, color: "var(--rv-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name || h.symbol}</div>
+      <div style={{ fontFamily: "var(--rv-mono)", fontSize: 11, color: "var(--rv-text-faint)" }}>{h.shares} sh @ {money$(h.avgPrice || 0)}</div>
+      <div style={{ fontFamily: "var(--rv-mono)", fontSize: 13, textAlign: "right", color: "var(--rv-text)" }}>{money$(value)}</div>
+      <div style={{
+        fontFamily: "var(--rv-mono)", fontSize: 11, textAlign: "right",
+        color: gain >= 0 ? "oklch(0.85 0.14 150)" : "oklch(0.75 0.18 30)",
+      }}>
+        {gain >= 0 ? "+" : ""}{money$(gain)} ({gainPct >= 0 ? "+" : ""}{gainPct.toFixed(1)}%)
+      </div>
+      <button style={{ ...pgBtn, height: 26, padding: "0 10px", fontSize: 11 }} onClick={() => setTrading(true)}>Trade</button>
+      <button style={{ ...pgBtn, height: 26, padding: "0 10px", fontSize: 11 }} onClick={async () => {
+        const ok = await window.rvConfirm(`Remove ${h.symbol || "this holding"} from your portfolio?`, { title: "Remove holding", primaryLabel: "Remove", danger: true });
+        if (!ok) return;
+        await fetch(`/api/money/investments/${h.id}`, { method: "DELETE", credentials: "same-origin" });
+        onChanged && onChanged();
+      }}>×</button>
+    </div>
+  );
+}
+
+function NewInvestmentForm({ onDone, onCancel }) {
+  const [symbol, setSymbol] = React.useState("");
+  const [name, setName] = React.useState("");
+  const [shares, setShares] = React.useState("");
+  const [price, setPrice] = React.useState("");
+  const submit = async () => {
+    const sym = symbol.trim().toUpperCase();
+    const s = parseFloat(shares);
+    const p = parseFloat(price);
+    if (!sym || !s || !p) return;
+    await fetch("/api/money/investments", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol: sym, ticker: sym, name: name || sym, shares: s, avgPrice: p, costBasis: s * p }),
+    });
+    onDone();
+  };
+  return (
+    <div style={{
+      padding: "14px 28px", borderBottom: "1px solid var(--rv-border)",
+      background: "var(--rv-card-bg)", display: "grid",
+      gridTemplateColumns: "120px 1fr 120px 140px auto auto", gap: 10, alignItems: "center",
+    }}>
+      <TextInput value={symbol} onChange={setSymbol} placeholder="Ticker" autoFocus onEnter={submit} />
+      <TextInput value={name} onChange={setName} placeholder="Company name (optional)" onEnter={submit} />
+      <TextInput value={shares} onChange={setShares} placeholder="Shares" type="number" onEnter={submit} />
+      <TextInput value={price} onChange={setPrice} placeholder="Cost per share" type="number" onEnter={submit} />
+      <button style={pgBtnPrimary} onClick={submit}>Add</button>
+      <button style={pgBtn} onClick={onCancel}>Cancel</button>
     </div>
   );
 }
@@ -2841,6 +2960,9 @@ function TOTPCard({ account: a, now, period, secondsLeft, onChanged, onRemove })
   const [editing, setEditing] = React.useState(false);
   const [name, setName] = React.useState(a.name || "");
   const [issuer, setIssuer] = React.useState(a.issuer || "");
+  const [copied, setCopied] = React.useState(false);
+  const copyTimerRef = React.useRef(null);
+  React.useEffect(() => () => clearTimeout(copyTimerRef.current), []);
   const save = async () => {
     await fetch(`/api/totp/accounts/${a.id}`, {
       method: "PUT", credentials: "same-origin",
@@ -2849,6 +2971,24 @@ function TOTPCard({ account: a, now, period, secondsLeft, onChanged, onRemove })
     });
     setEditing(false);
     onChanged && onChanged();
+  };
+  const rawCode = generateTOTP(a.secret, now, period);
+  const copyCode = async () => {
+    if (!rawCode) return;
+    try {
+      await navigator.clipboard.writeText(rawCode);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = rawCode;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } catch {}
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 1400);
   };
   return (
     <Card padding={18}>
@@ -2878,13 +3018,21 @@ function TOTPCard({ account: a, now, period, secondsLeft, onChanged, onRemove })
           </>
         )}
       </div>
-      <div style={{
-        fontFamily: "var(--rv-mono)", fontSize: 26, color: "var(--rv-accent)",
-        letterSpacing: 3, marginTop: 10,
-        textShadow: "0 0 16px var(--rv-accent-glow)",
-      }}>
-        {generateTOTP(a.secret, now, period).match(/.{1,3}/g)?.join(" ") || "— — —"}
-      </div>
+      <button
+        type="button"
+        onClick={copyCode}
+        title={copied ? "Copied to clipboard" : "Click to copy"}
+        style={{
+          all: "unset", display: "block", width: "100%",
+          fontFamily: "var(--rv-mono)", fontSize: 26,
+          color: copied ? "oklch(0.85 0.14 150)" : "var(--rv-accent)",
+          letterSpacing: 3, marginTop: 10, cursor: "pointer",
+          textShadow: copied ? "none" : "0 0 16px var(--rv-accent-glow)",
+          transition: "color 180ms ease",
+        }}
+      >
+        {copied ? "Copied ✓" : (rawCode.match(/.{1,3}/g)?.join(" ") || "— — —")}
+      </button>
       <div style={{ marginTop: 10, height: 3, borderRadius: 2, background: "var(--rv-input-bg)", overflow: "hidden" }}>
         <div style={{
           height: "100%", width: `${(secondsLeft / period) * 100}%`,
@@ -2997,6 +3145,7 @@ function IntelView() {
 const VAULT_THEME_LIST = [
   { id: "royal-vault",    name: "Royal Vault",     swatch: "linear-gradient(135deg,#1a1510,#7a5a2e,#e8b24a)" },
   { id: "graphite-teal",  name: "Graphite & Teal", swatch: "linear-gradient(135deg,#0f1718,#123234,#00D8BB)" },
+  { id: "apple-music",    name: "Apple Music",     swatch: "linear-gradient(135deg,#000000,#fa2d48,#ff6482)" },
 ];
 
 // Map a user-facing vault theme id → the internal variation letter that
@@ -3004,12 +3153,14 @@ const VAULT_THEME_LIST = [
 const VAULT_THEME_VARIATION = {
   "royal-vault":   "A",
   "graphite-teal": "D",
+  "apple-music":   "E",
 };
 // Map a user-facing vault theme id → the hue used by hue-driven components
-// (e.g. Composer's border beam). Teal ≈ 180°, royal amber ≈ 72°.
+// (e.g. Composer's border beam). Teal ≈ 180°, royal amber ≈ 72°, Apple pink ≈ 17°.
 const VAULT_THEME_HUE = {
   "royal-vault":   72,
   "graphite-teal": 180,
+  "apple-music":   17,
 };
 Object.assign(window, { VAULT_THEME_VARIATION, VAULT_THEME_HUE });
 
@@ -3685,6 +3836,6 @@ function ProfilePasscodeEditor({ me, onFlash, onSaved }) {
 
 Object.assign(window, {
   BriefingView, NotesView, CalendarView, LockerView,
-  ContactsView, GuestView, RemindersView, MoneyView,
+  GuestView, RemindersView, MoneyView,
   AuthView, IntelView, SettingsView,
 });

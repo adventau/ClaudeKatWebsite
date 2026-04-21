@@ -631,7 +631,11 @@ function GifPicker({ onPick, onClose }) {
   const [tab, setTab] = React.useState("trending");
   const [gifs, setGifs] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
+  const [loadingMore, setLoadingMore] = React.useState(false);
   const [err, setErr] = React.useState(null);
+  const [visible, setVisible] = React.useState(18);   // how many of `gifs` to render (lazy reveal)
+  const scrollRef = React.useRef(null);
+  const PAGE = 18;
 
   // Fetch trending / category / search depending on state
   React.useEffect(() => {
@@ -641,18 +645,19 @@ function GifPicker({ onPick, onClose }) {
       setLoading(true); setErr(null);
       try {
         const query = q.trim();
+        // Request a large pool so we have plenty to progressively reveal as the user scrolls.
+        const POOL = 60;
         let results = [];
         if (query) {
-          const data = await fetch(`/api/gif-search?q=${encodeURIComponent(query)}&limit=30`, { credentials: "same-origin", signal: controller.signal }).then(r => r.json());
+          const data = await fetch(`/api/gif-search?q=${encodeURIComponent(query)}&limit=${POOL}`, { credentials: "same-origin", signal: controller.signal }).then(r => r.json());
           results = data.results || [];
         } else {
           const t = GIF_TABS.find(x => x.id === tab) || GIF_TABS[0];
           if (t.type === "trending") {
-            const data = await fetch(`/api/gif-trending?limit=30`, { credentials: "same-origin", signal: controller.signal }).then(r => r.json());
+            const data = await fetch(`/api/gif-trending?limit=${POOL}`, { credentials: "same-origin", signal: controller.signal }).then(r => r.json());
             results = data.results || [];
           } else if (Array.isArray(t.query)) {
-            // Multi-query category — combine, dedupe by id
-            const per = Math.ceil(30 / t.query.length);
+            const per = Math.ceil(POOL / t.query.length);
             const all = await Promise.all(t.query.map(qq =>
               fetch(`/api/gif-search?q=${encodeURIComponent(qq)}&limit=${per}`, { credentials: "same-origin", signal: controller.signal })
                 .then(r => r.json())
@@ -661,11 +666,15 @@ function GifPicker({ onPick, onClose }) {
             const seen = new Set();
             all.flat().forEach(g => { if (!seen.has(g.id)) { seen.add(g.id); results.push(g); } });
           } else {
-            const data = await fetch(`/api/gif-search?q=${encodeURIComponent(t.query)}&limit=30`, { credentials: "same-origin", signal: controller.signal }).then(r => r.json());
+            const data = await fetch(`/api/gif-search?q=${encodeURIComponent(t.query)}&limit=${POOL}`, { credentials: "same-origin", signal: controller.signal }).then(r => r.json());
             results = data.results || [];
           }
         }
-        if (!cancelled) setGifs(results);
+        if (!cancelled) {
+          setGifs(results);
+          setVisible(PAGE);
+          if (scrollRef.current) scrollRef.current.scrollTop = 0;
+        }
       } catch (e) {
         if (!cancelled && e.name !== "AbortError") setErr("Couldn't load GIFs");
       } finally {
@@ -675,6 +684,24 @@ function GifPicker({ onPick, onClose }) {
     const t = setTimeout(run, q.trim() ? 280 : 0);
     return () => { cancelled = true; controller.abort(); clearTimeout(t); };
   }, [q, tab]);
+
+  // Infinite-scroll: reveal more items as the user nears the bottom.
+  const onScroll = React.useCallback((e) => {
+    const el = e.currentTarget;
+    if (loading || loadingMore) return;
+    if (visible >= gifs.length) return;
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 200;
+    if (nearBottom) {
+      setLoadingMore(true);
+      // Small delay so loading state is visible and we don't thrash on fast scrolls.
+      setTimeout(() => {
+        setVisible(v => Math.min(gifs.length, v + PAGE));
+        setLoadingMore(false);
+      }, 120);
+    }
+  }, [gifs.length, visible, loading, loadingMore]);
+
+  const shown = gifs.slice(0, visible);
 
   return (
     <div style={{ ...pickerShell, width: 360, height: 460 }}>
@@ -699,7 +726,7 @@ function GifPicker({ onPick, onClose }) {
 
       {/* Category tabs — hidden while typing a search */}
       {!q.trim() && (
-        <div style={{ display: "flex", gap: 6, padding: "4px 12px 6px", overflowX: "auto", scrollbarWidth: "none" }}>
+        <div style={{ display: "flex", gap: 6, padding: "4px 12px 6px", overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
           {GIF_TABS.map(t => {
             const active = t.id === tab;
             return (
@@ -718,27 +745,39 @@ function GifPicker({ onPick, onClose }) {
         </div>
       )}
 
-      <div className="rv-scroll" style={{
-        flex: 1, overflowY: "auto", padding: "8px 12px 12px",
-        columnCount: 2, columnGap: 6,
-      }}>
+      {/* Grid: 2 columns that flow top-to-bottom (not CSS multi-column which
+          creates left-to-right paging under fixed-height containers). */}
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="rv-scroll"
+        style={{
+          flex: 1, overflowY: "auto", overflowX: "hidden",
+          padding: "8px 12px 12px",
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gridAutoRows: "min-content",
+          gap: 6,
+          alignContent: "start",
+        }}
+      >
         {loading && gifs.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--rv-text-faint)", fontFamily: "var(--rv-mono)", fontSize: 11 }}>Loading…</div>
+          <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 0", color: "var(--rv-text-faint)", fontFamily: "var(--rv-mono)", fontSize: 11 }}>Loading…</div>
         )}
         {err && !loading && (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "oklch(0.75 0.18 30)", fontSize: 12 }}>{err}</div>
+          <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 0", color: "oklch(0.75 0.18 30)", fontSize: 12 }}>{err}</div>
         )}
         {!loading && !err && gifs.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--rv-text-faint)", fontSize: 12 }}>No GIFs found.</div>
+          <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px 0", color: "var(--rv-text-faint)", fontSize: 12 }}>No GIFs found.</div>
         )}
-        {gifs.map((g) => (
+        {shown.map((g) => (
           <button
             key={g.id}
             onClick={() => onPick(g)}
             style={{
               all: "unset", cursor: "pointer",
-              display: "block", width: "100%", marginBottom: 6,
-              breakInside: "avoid", borderRadius: 8,
+              display: "block", width: "100%",
+              borderRadius: 8,
               overflow: "hidden", position: "relative",
               border: "1px solid var(--rv-border)",
               background: "var(--rv-input-bg)",
@@ -752,9 +791,15 @@ function GifPicker({ onPick, onClose }) {
               alt=""
               style={{ width: "100%", display: "block" }}
               loading="lazy"
+              decoding="async"
             />
           </button>
         ))}
+        {!loading && visible < gifs.length && (
+          <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "10px 0", color: "var(--rv-text-faint)", fontFamily: "var(--rv-mono)", fontSize: 10.5 }}>
+            {loadingMore ? "Loading more…" : "Scroll for more"}
+          </div>
+        )}
       </div>
       <div style={pickerFooter}>
         <span style={{ fontFamily: "var(--rv-mono)", fontSize: 10, color: "var(--rv-text-faint)", letterSpacing: 0.4 }}>

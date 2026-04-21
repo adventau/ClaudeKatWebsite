@@ -7,6 +7,7 @@ function TweaksPanel({ state, setState, onClose }) {
     { id: "B", name: "Steel & Azure", sub: "Cool / operator" },
     { id: "C", name: "Obsidian Aurora", sub: "Iridescent beam" },
     { id: "D", name: "Graphite & Teal", sub: "Signature / aqua" },
+    { id: "E", name: "Apple Music", sub: "Pink-red / onyx" },
   ];
 
   const accents = {
@@ -16,6 +17,8 @@ function TweaksPanel({ state, setState, onClose }) {
     // D uses the locked brand color #00D8BB — swatch list is cosmetic only,
     // variation D's --rv-accent is hard-pinned to that hex regardless of hue.
     D: [{ hue: 180, name: "Teal" }, { hue: 172, name: "Aqua" }, { hue: 200, name: "Cyan" }, { hue: 160, name: "Mint" }],
+    // E uses the locked brand color #fa2d48 — swatch list cosmetic.
+    E: [{ hue: 17, name: "Crimson" }, { hue: 350, name: "Rose" }, { hue: 30, name: "Orange" }, { hue: 0, name: "Red" }],
   };
 
   return (

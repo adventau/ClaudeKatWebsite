@@ -85,8 +85,8 @@ let isSending = false;
 let inactivityTimer = null;
 let warningTimer = null;
 let lastActivity = Date.now();
-const TIMEOUT_MS = 30 * 60 * 1000;
-const WARNING_MS = 29 * 60 * 1000;
+const TIMEOUT_MS = 5 * 60 * 1000;       // 5 min → auto-logout
+const WARNING_MS = 4.5 * 60 * 1000;      // 4:30 → countdown warning
 
 // ── Unread tracking ──────────────────────────────────────────────────
 let unreadCount = 0;
@@ -138,6 +138,7 @@ const THEMES = [
 const VAULT_THEMES = [
   { id: 'royal-vault',   name: 'Royal Vault',   preview: 'linear-gradient(135deg,oklch(0.155 0.014 70),oklch(0.40 0.12 72),oklch(0.82 0.16 72))' },
   { id: 'graphite-teal', name: 'Graphite Teal', preview: 'linear-gradient(135deg,oklch(0.18 0.014 220),oklch(0.46 0.10 200),oklch(0.80 0.14 195))' },
+  { id: 'apple-music',   name: 'Apple Music',   preview: 'linear-gradient(135deg,#000000,#fa2d48,#ff6482)' },
 ];
 
 const SITE_SYSTEMS = {
@@ -240,8 +241,8 @@ async function init() {
   // Reveal chat immediately — don't wait for secondary data
   document.body.classList.add('app-loaded');
 
-  // Load everything else in background — notes, contacts, guests
-  Promise.all([loadNotes(), loadContacts(), loadGuestMessages()])
+  // Load everything else in background — notes, guests
+  Promise.all([loadNotes(), loadGuestMessages()])
     .catch(console.error);
   if (!stealthMode) requestNotificationPermission();
 
@@ -498,7 +499,11 @@ function applyTheme(themeId) {
     // Clear any theme class from any known system so we never stack
     [...THEMES, ...VAULT_THEMES].forEach(t => body.classList.remove('theme-' + t.id));
     body.classList.add('theme-' + id);
-    try { localStorage.setItem('rkk-theme', id); } catch {}
+    try {
+      localStorage.setItem('rkk-theme', id);
+      // Track per-system so a user's choice in each site is restored when they switch back
+      localStorage.setItem('rkk-theme-' + currentSiteSystem, id);
+    } catch {}
     SoundSystem.setTheme(id);
     document.querySelectorAll('.theme-card').forEach(c => {
       c.classList.toggle('active', c.dataset.theme === id);
@@ -621,12 +626,25 @@ function mountVaultShell(on) {
 async function selectSiteSystem(systemId) {
   if (!SITE_SYSTEMS[systemId] || systemId === currentSiteSystem) return;
   const sys = SITE_SYSTEMS[systemId];
+  // Remember the theme we're leaving behind under the outgoing system's key
+  // so the user's selection is restored on return (fixes the "switching to
+  // Original always forces dark" bug).
+  try {
+    const leaving = localStorage.getItem('rkk-theme');
+    if (leaving) localStorage.setItem('rkk-theme-' + currentSiteSystem, leaving);
+  } catch {}
   applySiteSystem(systemId);
-  applyTheme(sys.defaultTheme);
+  // Restore the incoming system's last-used theme, falling back to its default
+  let nextTheme = sys.defaultTheme;
+  try {
+    const saved = localStorage.getItem('rkk-theme-' + systemId);
+    if (saved && sys.themes.find(t => t.id === saved)) nextTheme = saved;
+  } catch {}
+  applyTheme(nextTheme);
   try {
     await fetch(`/api/users/${currentUser}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ siteSystem: systemId, theme: sys.defaultTheme })
+      body: JSON.stringify({ siteSystem: systemId, theme: nextTheme })
     });
   } catch {}
   if (typeof showToast === 'function') showToast(`🧭 Site system → ${sys.label}`);
@@ -690,7 +708,6 @@ function showSection(name, el) {
 
   if (name === 'notes')     loadNotes();
   if (name === 'calendar')  renderCalendar();
-  if (name === 'contacts')  loadContacts();
   if (name === 'vault')     { if (!vaultPasscode) resetVault(); else refreshVault(); }
   if (name === 'briefing') loadBriefing();
   if (name === 'reminders') loadReminders();
@@ -4676,183 +4693,6 @@ function getFileIcon(mime = '') {
   if (mime.includes('pdf')) return `<i data-lucide="file-text" style="${s}"></i>`;
   if (mime.includes('word') || mime.includes('document')) return `<i data-lucide="file-pen" style="${s}"></i>`;
   return `<i data-lucide="file" style="${s}"></i>`;
-}
-
-// ── Contacts ──────────────────────────────────────────────────────────
-let allContactsCache = [];
-
-async function loadContacts() {
-  try {
-    allContactsCache = await fetch('/api/contacts').then(r => r.json());
-    if (!Array.isArray(allContactsCache)) allContactsCache = [];
-    renderContactsList(allContactsCache);
-  } catch (err) {
-    console.error('Failed to load contacts:', err);
-  }
-}
-
-function filterContacts(q) {
-  const lower = q.toLowerCase();
-  const filtered = lower
-    ? allContactsCache.filter(c =>
-        (c.name||'').toLowerCase().includes(lower) ||
-        (c.phone||'').includes(lower) ||
-        (c.email||'').toLowerCase().includes(lower))
-    : allContactsCache;
-  renderContactsList(filtered);
-}
-
-function renderContactsList(contacts) {
-  const grid = document.getElementById('contacts-grid');
-  if (!contacts.length) {
-    grid.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="contact" style="width:48px;height:48px;opacity:0.4"></i></div><div class="empty-state-text">No contacts found</div></div>';if(window.lucide)lucide.createIcons();
-    return;
-  }
-
-  // Sort
-  const sortBy = getCustomSelectValue('contacts-sort') || 'name-asc';
-  const sorted = [...contacts].sort((a, b) => {
-    if (sortBy === 'name-asc') return (a.name||'').localeCompare(b.name||'');
-    if (sortBy === 'name-desc') return (b.name||'').localeCompare(a.name||'');
-    if (sortBy === 'newest') return (b.createdAt||0) - (a.createdAt||0);
-    if (sortBy === 'oldest') return (a.createdAt||0) - (b.createdAt||0);
-    return 0;
-  });
-
-  // Group by first letter for alphabetical sorting
-  let html = '';
-  if (sortBy === 'name-asc' || sortBy === 'name-desc') {
-    let currentLetter = '';
-    sorted.forEach(c => {
-      const letter = (c.name||'?')[0].toUpperCase();
-      if (letter !== currentLetter) {
-        currentLetter = letter;
-        html += `<div class="contact-group-letter">${letter}</div>`;
-      }
-      html += renderContactCard(c);
-    });
-  } else {
-    sorted.forEach(c => { html += renderContactCard(c); });
-  }
-
-  grid.innerHTML = html;
-  if (window.lucide) lucide.createIcons();
-}
-
-function renderContactCard(c) {
-  const avatar = c.photo ? `<img src="${c.photo}">` : (c.name ? c.name[0].toUpperCase() : '?');
-  return `
-    <div class="contact-card" onclick="viewContact('${c.id}')">
-      <div class="contact-avatar">${avatar}</div>
-      <div class="contact-info">
-        <div class="contact-name">${c.name || 'Unknown'}</div>
-        ${c.phone ? `<div class="contact-detail">${c.phone}</div>` : ''}
-      </div>
-      <i data-lucide="chevron-right" style="width:16px;height:16px;opacity:0.3;flex-shrink:0"></i>
-    </div>`;
-}
-
-function viewContact(id) {
-  const c = allContactsCache.find(x => x.id === id);
-  if (!c) return;
-  const avatar = c.photo ? `<img src="${c.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : `<span style="font-size:2.5rem;font-weight:700">${(c.name||'?')[0].toUpperCase()}</span>`;
-  const modal = document.getElementById('contact-detail-modal');
-  if (!modal) return;
-  document.getElementById('contact-detail-content').innerHTML = `
-    <div style="text-align:center;margin-bottom:1.5rem">
-      <div style="width:80px;height:80px;border-radius:50%;background:var(--bg-btn);display:inline-flex;align-items:center;justify-content:center;color:#fff;overflow:hidden;margin-bottom:12px">${avatar}</div>
-      <div style="font-size:1.3rem;font-weight:700">${c.name || 'Unknown'}</div>
-    </div>
-    <div class="contact-detail-rows">
-      ${c.phone ? `<div class="contact-detail-row" onclick="navigator.clipboard.writeText('${c.phone}');showToast('📋 Copied!')">
-        <i data-lucide="phone" style="width:18px;height:18px;color:var(--accent)"></i>
-        <div><div style="font-size:0.72rem;color:var(--text-muted)">Phone</div><div style="font-weight:500">${c.phone}</div></div>
-      </div>` : ''}
-      ${c.email ? `<div class="contact-detail-row" onclick="navigator.clipboard.writeText('${c.email}');showToast('📋 Copied!')">
-        <i data-lucide="mail" style="width:18px;height:18px;color:var(--accent)"></i>
-        <div><div style="font-size:0.72rem;color:var(--text-muted)">Email</div><div style="font-weight:500">${c.email}</div></div>
-      </div>` : ''}
-      ${c.notes ? `<div class="contact-detail-row">
-        <i data-lucide="file-text" style="width:18px;height:18px;color:var(--accent)"></i>
-        <div><div style="font-size:0.72rem;color:var(--text-muted)">Notes</div><div style="font-size:0.85rem">${c.notes}</div></div>
-      </div>` : ''}
-    </div>
-    <div style="display:flex;gap:8px;margin-top:1.5rem">
-      <button class="btn-primary" onclick="editContact('${c.id}')" style="flex:1;border-radius:10px"><i data-lucide="pencil"></i> Edit</button>
-      <button class="btn-danger" onclick="deleteContact('${c.id}');closeModal('contact-detail-modal')" style="flex:1;border-radius:10px"><i data-lucide="trash-2"></i> Delete</button>
-      <button class="btn-ghost" onclick="closeModal('contact-detail-modal')" style="flex:1;border-radius:10px">Close</button>
-    </div>`;
-  if (window.lucide) lucide.createIcons();
-  openModal('contact-detail-modal');
-}
-
-function formatPhoneInput(input) {
-  let v = input.value.replace(/\D/g, '');
-  if (v.length > 10) v = v.slice(0, 10);
-  if (v.length >= 7) input.value = `(${v.slice(0,3)}) ${v.slice(3,6)}-${v.slice(6)}`;
-  else if (v.length >= 4) input.value = `(${v.slice(0,3)}) ${v.slice(3)}`;
-  else if (v.length >= 1) input.value = `(${v}`;
-  else input.value = '';
-}
-
-async function saveContact() {
-  const name = document.getElementById('contact-name').value.trim();
-  if (!name) return showToast('Name required');
-  const fd = new FormData();
-  fd.append('name', name);
-  fd.append('phone', document.getElementById('contact-phone').value.trim());
-  fd.append('email', document.getElementById('contact-email').value.trim());
-  fd.append('notes', document.getElementById('contact-notes').value.trim());
-  const photoFile = document.getElementById('contact-photo-input').files[0];
-  if (photoFile) fd.append('photo', photoFile);
-  const modal = document.getElementById('new-contact-modal');
-  const editId = modal.dataset.editId;
-  try {
-    const url = editId ? `/api/contacts/${editId}` : '/api/contacts';
-    const method = editId ? 'PUT' : 'POST';
-    const resp = await fetch(url, { method, body: fd });
-    const result = await resp.json();
-    if (!result.success) { showToast('Failed to save contact'); return; }
-    // Clear form
-    document.getElementById('contact-name').value = '';
-    document.getElementById('contact-phone').value = '';
-    document.getElementById('contact-email').value = '';
-    document.getElementById('contact-notes').value = '';
-    document.getElementById('contact-photo-input').value = '';
-    closeModal('new-contact-modal');
-    delete modal.dataset.editId;
-    modal.querySelector('.modal-title').innerHTML = '<i data-lucide="user-plus" style="width:16px;height:16px"></i> New Contact';
-    await loadContacts();
-    showToast('Contact saved!');
-  } catch (err) {
-    showToast('Error saving contact');
-  }
-}
-
-async function deleteContact(id) {
-  const ok = await showConfirmDialog({ icon: '📇', title: 'Delete contact?', msg: 'This contact will be permanently removed.', okText: 'Delete' });
-  if (!ok) return;
-  await fetch(`/api/contacts/${id}`, { method: 'DELETE' });
-  await loadContacts();
-}
-
-async function editContact(id) {
-  const c = allContactsCache.find(x => x.id === id);
-  if (!c) return;
-  closeModal('contact-detail-modal');
-  // Populate the new contact modal with existing data for editing
-  setTimeout(() => {
-    document.getElementById('contact-name').value = c.name || '';
-    document.getElementById('contact-phone').value = c.phone || '';
-    document.getElementById('contact-email').value = c.email || '';
-    document.getElementById('contact-notes').value = c.notes || '';
-    // Change modal to edit mode
-    const modal = document.getElementById('new-contact-modal');
-    modal.dataset.editId = id;
-    modal.querySelector('.modal-title').innerHTML = '<i data-lucide="pencil" style="width:16px;height:16px"></i> Edit Contact';
-    if (window.lucide) lucide.createIcons();
-    openModal('new-contact-modal');
-  }, 200);
 }
 
 // ── Guest Messages ────────────────────────────────────────────────────

@@ -21,7 +21,6 @@ function Sidebar({ active = "chat", onSelect, me, badges = {}, onStatusChange, s
         { id: "notes",     label: "Notes & Todos",    icon: IconNotes },
         { id: "calendar",  label: "Calendar",         icon: IconCalendar },
         { id: "locker",    label: "Document Locker",  icon: IconLocker },
-        { id: "contacts",  label: "Contacts",         icon: IconContacts },
         { id: "guest",     label: "Guest Messages",   icon: IconGuest,      badge: badges.guest },
         { id: "reminders", label: "Reminders",        icon: IconReminder,   badge: badges.reminders },
         { id: "money",     label: "Money",            icon: IconMoney },

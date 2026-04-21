@@ -110,9 +110,6 @@
       <div class="nav-item" data-section="vault" onclick="showSection('vault',this)">
         <span class="nav-icon"><i data-lucide="lock"></i></span><span class="nav-label">Document Locker</span>
       </div>
-      <div class="nav-item" data-section="contacts" onclick="showSection('contacts',this)">
-        <span class="nav-icon"><i data-lucide="users"></i></span><span class="nav-label">Contacts</span>
-      </div>
       <div class="nav-item" data-section="guest-messages" onclick="showSection('guest-messages',this)">
         <span class="nav-icon"><i data-lucide="message-square-plus"></i></span><span class="nav-label">Guest Messages</span>
       </div>
@@ -418,42 +415,6 @@
           <div class="empty-state" style="grid-column:1/-1">
             <div class="empty-state-icon"><i data-lucide="folder-lock" style="width:48px;height:48px;opacity:0.4"></i></div>
             <div class="empty-state-text">No files yet</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ── CONTACTS ──────────────────────────────────────────── -->
-    <section id="section-contacts" class="section">
-      <div class="section-header">
-        <span class="section-title">Contacts</span>
-        <button class="btn-primary" onclick="openModal('new-contact-modal')">+ Add Contact</button>
-      </div>
-      <div style="padding:0 1rem">
-        <div class="contacts-toolbar">
-          <div class="contacts-search-wrap">
-            <i data-lucide="search" style="width:15px;height:15px;opacity:0.4"></i>
-            <input type="text" id="contacts-search" placeholder="Search contacts…" oninput="filterContacts(this.value)">
-          </div>
-          <div class="custom-select-wrap contacts-sort-select" id="contacts-sort-wrap" data-value="name-asc">
-            <button type="button" class="input custom-select-btn" onclick="toggleCustomSelect('contacts-sort')" style="display:flex;align-items:center;gap:6px;cursor:pointer;text-align:left;font-size:0.8rem;padding:6px 10px">
-              <span class="custom-select-text">Name A–Z</span>
-              <i data-lucide="chevron-down" style="width:12px;height:12px;opacity:0.5"></i>
-            </button>
-            <div class="custom-select-dropdown" id="contacts-sort-dropdown" style="display:none">
-              <div class="custom-select-option selected" data-value="name-asc" onclick="setCustomSelectValue('contacts-sort','name-asc','Name A–Z');closeAllCustomSelects();loadContacts()">Name A–Z</div>
-              <div class="custom-select-option" data-value="name-desc" onclick="setCustomSelectValue('contacts-sort','name-desc','Name Z–A');closeAllCustomSelects();loadContacts()">Name Z–A</div>
-              <div class="custom-select-option" data-value="newest" onclick="setCustomSelectValue('contacts-sort','newest','Newest first');closeAllCustomSelects();loadContacts()">Newest first</div>
-              <div class="custom-select-option" data-value="oldest" onclick="setCustomSelectValue('contacts-sort','oldest','Oldest first');closeAllCustomSelects();loadContacts()">Oldest first</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div style="flex:1;overflow-y:auto;padding:0 1rem 1rem">
-        <div id="contacts-grid">
-          <div class="empty-state">
-            <div class="empty-state-icon"><i data-lucide="contact" style="width:48px;height:48px;opacity:0.4"></i></div>
-            <div class="empty-state-text">No contacts yet</div>
           </div>
         </div>
       </div>
@@ -1660,39 +1621,6 @@
     </div>
     <div class="vault-preview-body" id="vault-preview-body">
       <!-- preview content injected here -->
-    </div>
-  </div>
-</div>
-
-<!-- Contact Detail -->
-<div class="modal-overlay" id="contact-detail-modal">
-  <div class="modal modal-sm" style="max-width:380px">
-    <div id="contact-detail-content"></div>
-  </div>
-</div>
-
-<!-- New Contact -->
-<div class="modal-overlay" id="new-contact-modal">
-  <div class="modal modal-sm">
-    <div class="modal-header">
-      <span class="modal-title"><i data-lucide="user-plus" style="width:16px;height:16px"></i> New Contact</span>
-      <button class="btn-icon" onclick="closeModal('new-contact-modal')">✕</button>
-    </div>
-    <div class="form-row"><label>Name *</label><input type="text" id="contact-name" placeholder="Full name"></div>
-    <div class="form-row"><label>Phone</label><input type="tel" id="contact-phone" placeholder="(555) 000-0000" oninput="formatPhoneInput(this)"></div>
-    <div class="form-row"><label>Email</label><input type="email" id="contact-email" placeholder="contact@email.com"></div>
-    <div class="form-row"><label>Notes</label><textarea id="contact-notes" rows="2" placeholder="Additional notes"></textarea></div>
-    <div class="form-row">
-      <label>Photo</label>
-      <div style="display:flex;align-items:center;gap:8px">
-        <button class="btn-ghost" onclick="document.getElementById('contact-photo-input').click()">Choose Photo</button>
-        <span id="contact-photo-name" style="font-size:0.78rem;color:var(--text-muted)">No file chosen</span>
-      </div>
-      <input type="file" id="contact-photo-input" accept="image/*" style="display:none" onchange="document.getElementById('contact-photo-name').textContent=this.files[0]?.name||'No file chosen'">
-    </div>
-    <div style="display:flex;gap:8px;margin-top:1rem">
-      <button class="btn-primary" onclick="saveContact()">Save Contact</button>
-      <button class="btn-ghost" onclick="closeModal('new-contact-modal')">Cancel</button>
     </div>
   </div>
 </div>
