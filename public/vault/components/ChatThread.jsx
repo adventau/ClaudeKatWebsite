@@ -27,7 +27,7 @@ function ChatHeader({ contact, onToggleRail, railOpen, onCall, onVideo }) {
           {contact.role && <span style={{ fontSize: 11, color: "var(--rv-text-faint)", fontFamily: "var(--rv-mono)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>· {contact.role}</span>}
         </div>
         <div style={{ fontSize: 11, color: "var(--rv-text-faint)", fontFamily: "var(--rv-mono)", marginTop: 2, letterSpacing: 0.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          <span style={{ color: contact.status === "online" ? "var(--rv-ok)" : "var(--rv-text-faint)" }}>●</span> {contact.status === "online" ? "online" : (contact.presence || "offline")} · last seen {contact.lastSeen}
+          <span style={{ color: contact.status === "online" ? "var(--rv-ok)" : "var(--rv-text-faint)" }}>●</span> {(s => s.charAt(0).toUpperCase() + s.slice(1))(contact.status === "online" ? "online" : (contact.presence || "offline"))} · Last Seen {contact.lastSeen}
         </div>
       </div>
       <button style={iconBtnStyle} title="Voice call" onClick={onCall}><IconPhone size={16} /></button>
