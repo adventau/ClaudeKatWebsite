@@ -5,7 +5,7 @@
   <link rel="icon" type="image/png" href="/images/logo.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>K-108</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
   <style>
@@ -1539,15 +1539,453 @@
 
 
     /* ═══ K-108 Briefing ═══ */
-    .briefing-content { font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.7; color:var(--text-secondary); }
-    .briefing-content h1,.briefing-content h2,.briefing-content h3 { color:var(--accent-cyan); font-family:'Orbitron',sans-serif; letter-spacing:0.08em; }
-    .briefing-content h1 { font-size:16px; margin-bottom:12px; } .briefing-content h2 { font-size:14px; margin:16px 0 8px; } .briefing-content h3 { font-size:12px; margin:12px 0 6px; }
-    .briefing-content strong { color:var(--text-primary); }
-    .briefing-content ul { padding-left:20px; }
-    .briefing-content li { margin-bottom:4px; }
-    .briefing-card { background:var(--bg-card); border:1px solid var(--border-main); border-radius:12px; padding:24px; margin-bottom:16px; cursor:pointer; transition:border-color 0.2s; }
-    .briefing-card:hover { border-color:rgba(34,211,238,0.2); }
-    .briefing-date { font-family:'JetBrains Mono'; font-size:10px; color:var(--text-dim); letter-spacing:0.08em; }
+    /* ═══════════════════════════════════════════════════════
+       Intel Briefing — Editorial Redesign
+       ═══════════════════════════════════════════════════════ */
+    .brf-cls-routine  { --cls: #64748b; --cls-soft: rgba(100,116,139,0.18); --cls-glow: rgba(100,116,139,0.32); }
+    .brf-cls-priority { --cls: #fbbf24; --cls-soft: rgba(251,191,36,0.18);  --cls-glow: rgba(251,191,36,0.32); }
+    .brf-cls-flash    { --cls: #f87171; --cls-soft: rgba(248,113,113,0.18); --cls-glow: rgba(248,113,113,0.32); }
+    .brf-cls-routine { --card-accent: #64748b; --card-accent-soft: rgba(100,116,139,0.18); }
+    .brf-cls-priority { --card-accent: #fbbf24; --card-accent-soft: rgba(251,191,36,0.18); }
+    .brf-cls-flash { --card-accent: #f87171; --card-accent-soft: rgba(248,113,113,0.18); }
+
+    /* ─── Hero panel (featured latest briefing) ─── */
+    .brf-hero {
+      position: relative;
+      background: linear-gradient(135deg, rgba(16,24,42,0.96), rgba(8,14,28,0.92));
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 30px 36px 26px 40px;
+      margin-bottom: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.25s cubic-bezier(0.22,0.61,0.36,1), box-shadow 0.3s, border-color 0.25s;
+    }
+    .brf-hero::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse 420px 260px at 88% 20%, var(--cls-soft), transparent 60%);
+      pointer-events: none;
+    }
+    .brf-hero::after {
+      content: ''; position: absolute; left: 0; top: 14%; bottom: 14%; width: 3px;
+      background: var(--cls); box-shadow: 0 0 14px var(--cls-glow);
+    }
+    .brf-hero:hover {
+      transform: translateY(-2px);
+      border-color: var(--cls-soft);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px var(--cls-soft);
+    }
+    .brf-hero-strip {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.2em;
+      color: var(--cls);
+      margin-bottom: 22px;
+      text-transform: uppercase;
+      position: relative; z-index: 1;
+    }
+    .brf-hero-strip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cls); box-shadow: 0 0 8px var(--cls-glow); }
+    .brf-hero-strip .divider { opacity: 0.35; }
+    .brf-hero-strip .brf-id { color: var(--text-dim); letter-spacing: 0.14em; margin-left: auto; }
+    .brf-hero-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.32em; text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      position: relative; z-index: 1;
+    }
+    .brf-hero-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 30px; font-weight: 500;
+      line-height: 1.15; letter-spacing: -0.015em;
+      color: var(--text-primary);
+      margin-bottom: 20px;
+      font-variation-settings: "SOFT" 30, "opsz" 40;
+      max-width: 640px;
+      position: relative; z-index: 1;
+    }
+    .brf-hero-rule {
+      width: 42px; height: 1px;
+      background: var(--cls); opacity: 0.55;
+      margin-bottom: 18px;
+      position: relative; z-index: 1;
+    }
+    .brf-hero-quote {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 15.5px; font-weight: 400; font-style: italic;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      margin-bottom: 26px;
+      max-width: 660px;
+      padding-left: 16px;
+      border-left: 2px solid var(--cls-soft);
+      font-variation-settings: "opsz" 14;
+      position: relative; z-index: 1;
+    }
+    .brf-hero-quote.empty { display: none; }
+    .brf-hero-meta {
+      display: flex; align-items: center; gap: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; letter-spacing: 0.14em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      position: relative; z-index: 1;
+    }
+    .brf-hero-meta .sep { opacity: 0.4; }
+    .brf-hero-cta {
+      display: inline-flex; align-items: center; gap: 10px;
+      margin-top: 24px;
+      padding: 11px 20px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--cls-soft);
+      color: var(--cls);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.22em; text-transform: uppercase;
+      border-radius: 4px;
+      position: relative; z-index: 1;
+      transition: background 0.2s, border-color 0.2s, transform 0.2s;
+    }
+    .brf-hero:hover .brf-hero-cta {
+      background: var(--cls-soft);
+      border-color: var(--cls);
+      transform: translateX(2px);
+    }
+    .brf-hero-cta svg { transition: transform 0.2s; }
+    .brf-hero:hover .brf-hero-cta svg { transform: translateX(3px); }
+
+    /* ─── Archive rail ─── */
+    .brf-archive-header {
+      display: flex; align-items: center; gap: 14px;
+      margin: 40px 0 6px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.32em; text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .brf-archive-header .line { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.1), transparent); }
+    .brf-archive-header .count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; color: var(--text-dim); letter-spacing: 0.14em;
+    }
+    .brf-archive { border-top: 1px solid rgba(255,255,255,0.04); }
+    .brf-row {
+      display: grid;
+      grid-template-columns: 68px 92px 1fr auto 16px;
+      align-items: center;
+      gap: 14px;
+      padding: 15px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      cursor: pointer;
+      transition: background 0.15s, transform 0.15s, padding-left 0.2s;
+    }
+    .brf-row:hover {
+      background: rgba(255,255,255,0.02);
+      padding-left: 18px;
+    }
+    .brf-row-date {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; letter-spacing: 0.12em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .brf-row-cls {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; font-weight: 600;
+      letter-spacing: 0.16em;
+      color: var(--cls);
+      text-transform: uppercase;
+    }
+    .brf-row-cls .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--cls); box-shadow: 0 0 6px var(--cls-glow); }
+    .brf-row-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 15px; font-weight: 400;
+      color: var(--text-primary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      font-variation-settings: "opsz" 18;
+    }
+    .brf-row:hover .brf-row-title { color: var(--cls); }
+    .brf-row-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: 0.12em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      text-align: right;
+    }
+    .brf-row-arrow {
+      color: var(--text-dim); opacity: 0;
+      transition: opacity 0.15s, transform 0.15s, color 0.15s;
+      display: flex; align-items: center;
+    }
+    .brf-row:hover .brf-row-arrow {
+      opacity: 1; transform: translateX(3px); color: var(--cls);
+    }
+
+    /* ─── Reader view ─── */
+    .brf-reader { animation: viewFadeIn 0.35s ease forwards; }
+    .brf-reader-back {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-bottom: 28px;
+      padding: 8px 14px;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--text-secondary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; letter-spacing: 0.16em;
+      text-transform: uppercase;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .brf-reader-back:hover {
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+      background: rgba(34,211,238,0.04);
+    }
+    .brf-reader-masthead {
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      margin-bottom: 32px;
+      position: relative;
+    }
+    .brf-reader-masthead::before {
+      content: ''; position: absolute; left: 0; top: 0; width: 42px; height: 2px;
+      background: var(--cls); box-shadow: 0 0 10px var(--cls-glow);
+    }
+    .brf-reader-strip {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.2em;
+      color: var(--cls);
+      margin: 20px 0 18px;
+      text-transform: uppercase;
+    }
+    .brf-reader-strip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cls); box-shadow: 0 0 8px var(--cls-glow); }
+    .brf-reader-strip .brf-id,
+    .brf-reader-strip .brf-date { color: var(--text-dim); letter-spacing: 0.14em; }
+    .brf-reader-strip .divider { opacity: 0.3; }
+    .brf-reader-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.32em; text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .brf-reader-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 34px; font-weight: 500;
+      line-height: 1.1; letter-spacing: -0.015em;
+      color: var(--text-primary);
+      font-variation-settings: "SOFT" 30, "opsz" 48;
+    }
+    .brf-reader-meta {
+      display: flex; align-items: center; gap: 14px;
+      margin-top: 18px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; letter-spacing: 0.14em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .brf-reader-meta .sep { opacity: 0.4; }
+
+    /* Editorial body */
+    .brf-body {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 15.5px; line-height: 1.75;
+      color: var(--text-secondary);
+      max-width: 680px;
+      font-variation-settings: "opsz" 16;
+    }
+    .brf-body > *:first-child { margin-top: 0; }
+    .brf-body h1, .brf-body h2, .brf-body h3, .brf-body h4 {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 600; text-transform: uppercase;
+      color: var(--cls);
+      margin: 36px 0 14px;
+    }
+    .brf-body h1 { font-size: 12px; letter-spacing: 0.24em; }
+    .brf-body h2 { font-size: 11px; letter-spacing: 0.22em; padding-left: 14px; border-left: 2px solid var(--cls); }
+    .brf-body h3 { font-size: 10px; letter-spacing: 0.2em; color: var(--text-muted); }
+    .brf-body h4 { font-size: 10px; letter-spacing: 0.2em; color: var(--text-dim); }
+    .brf-body p { margin-bottom: 18px; }
+    .brf-body strong { color: var(--text-primary); font-weight: 600; }
+    .brf-body em { color: var(--text-primary); font-style: italic; }
+    .brf-body a {
+      color: var(--cls); text-decoration: none;
+      border-bottom: 1px solid var(--cls-soft);
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .brf-body a:hover { border-color: var(--cls); }
+    .brf-body ul, .brf-body ol { padding-left: 4px; margin: 0 0 18px; list-style: none; }
+    .brf-body ul li, .brf-body ol li { position: relative; padding-left: 24px; margin-bottom: 10px; }
+    .brf-body ul li::before {
+      content: ''; position: absolute; left: 2px; top: 12px;
+      width: 8px; height: 1px; background: var(--cls);
+    }
+    .brf-body ol { counter-reset: brf-li; }
+    .brf-body ol li { counter-increment: brf-li; padding-left: 34px; }
+    .brf-body ol li::before {
+      content: counter(brf-li, decimal-leading-zero);
+      position: absolute; left: 0; top: 3px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 500;
+      color: var(--cls); letter-spacing: 0.1em;
+    }
+    .brf-body blockquote {
+      margin: 26px 0; padding: 18px 22px;
+      border-left: 2px solid var(--cls);
+      background: var(--cls-soft);
+      border-radius: 0 8px 8px 0;
+      font-style: italic;
+      color: var(--text-primary);
+    }
+    .brf-body blockquote p:last-child { margin-bottom: 0; }
+    .brf-body code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px; padding: 2px 7px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 3px;
+      color: var(--accent-cyan);
+    }
+    .brf-body pre {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 22px 0;
+      overflow-x: auto;
+    }
+    .brf-body pre code { background: transparent; padding: 0; color: var(--text-secondary); font-size: 11.5px; line-height: 1.7; }
+    .brf-body hr {
+      border: none; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+      margin: 36px 0;
+    }
+    .brf-body table {
+      width: 100%; border-collapse: collapse;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      margin: 22px 0;
+    }
+    .brf-body th, .brf-body td {
+      padding: 11px 14px; text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .brf-body th {
+      color: var(--cls);
+      letter-spacing: 0.14em; text-transform: uppercase; font-size: 10px;
+      font-weight: 600;
+    }
+    .brf-body td { color: var(--text-secondary); }
+
+    .brf-reader-footer {
+      margin-top: 44px; padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: center; gap: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: 0.16em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .brf-reader-footer .sep { opacity: 0.4; }
+
+    /* ─── Dashboard card redesign ─── */
+    .dc-briefing .dc-head,
+    .dc-briefing .dc-body,
+    .dc-briefing .dc-arrow { display: none !important; }
+    .dc-briefing { padding: 0; }
+    .dc-brf-card {
+      position: relative; z-index: 2;
+      padding: 16px 18px 16px 20px;
+      display: flex; flex-direction: column;
+      flex: 1;
+      min-height: 172px;
+    }
+    .dc-brf-card::before {
+      content: ''; position: absolute; left: 0; top: 20%; bottom: 20%; width: 2px;
+      background: var(--cls, var(--accent-cyan));
+      box-shadow: 0 0 10px var(--cls-glow, rgba(34,211,238,0.3));
+    }
+    .dc-brf-strip {
+      display: flex; align-items: center; gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8.5px; font-weight: 500;
+      letter-spacing: 0.2em;
+      color: var(--cls, var(--accent-cyan));
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .dc-brf-strip .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--cls, var(--accent-cyan)); box-shadow: 0 0 6px var(--cls-glow, rgba(34,211,238,0.4)); }
+    .dc-brf-strip .brf-id { color: var(--text-dim); letter-spacing: 0.14em; margin-left: auto; }
+    .dc-brf-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 9px; font-weight: 600;
+      letter-spacing: 0.28em; text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .dc-brf-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 17px; font-weight: 500;
+      line-height: 1.22; letter-spacing: -0.01em;
+      color: var(--text-primary);
+      font-variation-settings: "opsz" 20;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden; margin-bottom: 10px;
+    }
+    .dc-brf-meta {
+      margin-top: auto;
+      display: flex; align-items: center; gap: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px; letter-spacing: 0.14em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .dc-brf-meta .sep { opacity: 0.4; }
+    .dc-brf-empty {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; letter-spacing: 0.14em;
+      color: var(--text-dim); text-transform: uppercase;
+      margin-top: auto;
+    }
+
+    /* Briefing empty state */
+    .brf-empty {
+      text-align: center;
+      padding: 72px 24px;
+      border: 1px dashed rgba(255,255,255,0.08);
+      border-radius: 16px;
+    }
+    .brf-empty-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.3em; text-transform: uppercase;
+      color: var(--accent-cyan);
+      margin-bottom: 10px;
+    }
+    .brf-empty-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 20px; color: var(--text-primary); font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .brf-empty-sub {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; letter-spacing: 0.14em;
+      color: var(--text-dim); text-transform: uppercase;
+    }
+
+    @media (max-width: 640px) {
+      .brf-hero { padding: 22px 20px 20px 26px; }
+      .brf-hero-title { font-size: 24px; }
+      .brf-hero-strip .brf-id { margin-left: 0; width: 100%; }
+      .brf-row { grid-template-columns: 56px 78px 1fr 14px; gap: 10px; padding: 12px 10px; }
+      .brf-row-time { display: none; }
+      .brf-reader-title { font-size: 26px; }
+    }
 
     /* Custom Dropdown (replaces native select) */
     .k-dropdown { position:relative; display:inline-block; }
@@ -2844,25 +3282,18 @@
           </div>
 
           <!-- Intel Briefing -->
-          <div class="dash-card dc-briefing" onclick="navigateTo('#/briefing')">
-            <div class="dc-head">
-              <div class="dc-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+          <div class="dash-card dc-briefing brf-cls-routine" id="dash-briefing-card" onclick="navigateTo('#/briefing')">
+            <div class="dc-brf-card">
+              <div class="dc-brf-strip">
+                <span class="dot"></span>
+                <span id="dash-brf-cls">CLASSIFIED · ROUTINE</span>
+                <span id="briefing-new-badge" style="display:none;font-family:'Orbitron';font-size:8px;font-weight:700;letter-spacing:0.18em;color:var(--accent-cyan);padding:2px 6px;border:1px solid var(--accent-cyan);border-radius:3px;margin-left:6px">NEW</span>
+                <span class="brf-id" id="dash-brf-id">K108-BRF-0000</span>
               </div>
-              <div class="dc-head-text">
-                <div class="dc-title" style="display:flex;align-items:center;gap:8px">
-                  Intel Briefing
-                  <span id="briefing-new-badge" style="display:none;width:7px;height:7px;border-radius:50%;background:var(--accent-cyan);box-shadow:0 0 8px var(--accent-cyan)"></span>
-                </div>
-                <div class="dc-sub">Daily intelligence report</div>
-              </div>
-            </div>
-            <div class="dc-arrow">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-            </div>
-            <div class="dc-body">
-              <div class="dc-preview-lines" id="dash-briefing-preview">
-                <div class="dc-pline"><div class="dc-pline-dot" style="background:var(--text-dim)"></div><div class="dc-pline-text" style="color:var(--text-dim)">No briefings yet</div></div>
+              <div class="dc-brf-label">Intel Briefing</div>
+              <div class="dc-brf-title" id="dash-brf-title">Daily intelligence report</div>
+              <div class="dc-brf-meta" id="dash-brf-meta">
+                <div class="dc-brf-empty" style="margin:0">Awaiting first briefing</div>
               </div>
             </div>
           </div>
@@ -3045,7 +3476,12 @@
 
       <!-- Intel Briefing -->
       <div class="k108-view" id="view-briefing">
-        <div class="section-header"><h2 class="section-title neon-title neon-cyan" style="font-size:18px;color:var(--accent-cyan);text-shadow:0 0 20px rgba(34,211,238,0.5)">Intel Briefing</h2></div>
+        <div class="section-header" style="margin-bottom:18px">
+          <div>
+            <div style="font-family:'Orbitron';font-size:9px;font-weight:600;letter-spacing:0.32em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">K-108 · ORACLE</div>
+            <h2 class="section-title" style="font-family:'Fraunces',Georgia,serif;font-size:26px;font-weight:500;letter-spacing:-0.015em;color:var(--text-primary);font-variation-settings:'opsz' 36">Intelligence Briefings</h2>
+          </div>
+        </div>
         <div id="briefing-list"></div>
         <div id="briefing-detail" style="display:none"></div>
       </div>
@@ -7286,47 +7722,188 @@ document.addEventListener('click', function(e) {
 });
 
 
-// ═══ Briefings ═══
+// ═══ Briefings — Editorial redesign ═══
+function brfClassify(content) {
+  const c = (content || '').toUpperCase();
+  const m = c.match(/CLASSIFICATION\s*[:\-]\s*(FLASH|PRIORITY|ROUTINE)/);
+  if (m) return m[1];
+  if (/\b(FLASH|URGENT|CRITICAL|IMMEDIATE|BREAKING)\b/.test(c)) return 'FLASH';
+  if (/\b(PRIORITY|ELEVATED|HEIGHTENED|AMBER|ALERT)\b/.test(c)) return 'PRIORITY';
+  return 'ROUTINE';
+}
+function brfClsClass(cls) { return 'brf-cls-' + (cls || 'ROUTINE').toLowerCase(); }
+function brfId(id) { return 'K108-BRF-' + String(id || 0).padStart(4, '0'); }
+function brfReadTime(content) {
+  const w = (content || '').split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(w / 220)) + ' min read';
+}
+function brfExtractTitle(content) {
+  const lines = (content || '').split('\n').map(s => s.trim()).filter(Boolean);
+  for (const line of lines) {
+    const h = line.match(/^#{1,3}\s+(.+)$/);
+    if (h) return h[1].replace(/[*_`]/g, '').trim();
+  }
+  if (!lines.length) return 'Untitled briefing';
+  return lines[0].replace(/^[>\-*#\d.]+\s*/, '').replace(/[*_`]/g, '').substring(0, 140).trim() || 'Untitled briefing';
+}
+function brfExtractQuote(content) {
+  const lines = (content || '').split('\n').map(s => s.trim()).filter(Boolean);
+  let idx = 0;
+  if (lines[0] && /^#{1,3}\s+/.test(lines[0])) idx = 1;
+  for (let i = idx; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^[#>\-*|]/.test(line) || /^\d+\.\s/.test(line)) continue;
+    const clean = line.replace(/[*_`]/g, '').trim();
+    if (clean.length >= 40) return clean.length > 200 ? clean.substring(0, 197).trim() + '…' : clean;
+  }
+  return '';
+}
+function brfFmtFullDate(ts) {
+  return new Date(ts).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+function brfFmtShortDate(ts) {
+  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: '2-digit' }).toUpperCase();
+}
+function brfFmtTime(ts) {
+  return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '') + 'H';
+}
+function brfArrowIcon() {
+  return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
+}
+
 async function loadBriefings() {
   const el = document.getElementById('briefing-list');
   const detail = document.getElementById('briefing-detail');
   detail.style.display = 'none';
   el.style.display = 'block';
   const d = await kAuthFetch('/api/k108/briefing/latest');
-  if (!d || !d.briefings || !d.briefings.length) { el.innerHTML = '<div class="k-empty" style="padding:60px 20px;text-align:center"><div style="font-size:14px;color:var(--text-muted)">No briefings yet</div><div style="font-size:11px;color:var(--text-dim);margin-top:6px">Intelligence briefings will appear here when generated</div></div>'; return; }
-  el.innerHTML = d.briefings.map(b => {
-    const date = new Date(b.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-    const preview = (b.content || '').substring(0, 200).replace(/[#*_]/g, '');
-    return '<div class="briefing-card" onclick="viewBriefing('+b.id+')"><div class="briefing-date">'+esc(date)+'</div><div style="font-size:12px;color:var(--text-muted);margin-top:6px">'+esc(preview)+'...</div></div>';
-  }).join('');
+  const briefings = (d && d.briefings) || [];
+  if (!briefings.length) {
+    el.innerHTML = '<div class="brf-empty"><div class="brf-empty-label">No transmissions</div><div class="brf-empty-title">Awaiting first intelligence briefing</div><div class="brf-empty-sub">Briefings will be posted here as they are compiled</div></div>';
+    return;
+  }
+  const latest = briefings[0];
+  const rest = briefings.slice(1);
+  const latestCls = brfClassify(latest.content);
+  const latestTitle = brfExtractTitle(latest.content);
+  const latestQuote = brfExtractQuote(latest.content);
+  const latestDate = brfFmtFullDate(latest.created_at);
+  const latestTime = brfFmtTime(latest.created_at);
+
+  let html = '';
+  html += '<div class="brf-hero '+brfClsClass(latestCls)+'" onclick="viewBriefing('+latest.id+')">';
+  html +=   '<div class="brf-hero-strip">';
+  html +=     '<span class="dot"></span>';
+  html +=     '<span>Classified</span><span class="divider">·</span>';
+  html +=     '<span>'+latestCls+'</span><span class="divider">·</span>';
+  html +=     '<span>Latest</span>';
+  html +=     '<span class="brf-id">'+brfId(latest.id)+'</span>';
+  html +=   '</div>';
+  html +=   '<div class="brf-hero-label">Daily Intelligence Brief</div>';
+  html +=   '<div class="brf-hero-title">'+esc(latestTitle)+'</div>';
+  html +=   '<div class="brf-hero-rule"></div>';
+  if (latestQuote) {
+    html += '<div class="brf-hero-quote">'+esc(latestQuote)+'</div>';
+  }
+  html +=   '<div class="brf-hero-meta">';
+  html +=     '<span>'+esc(latestDate)+'</span><span class="sep">·</span>';
+  html +=     '<span>'+latestTime+'</span><span class="sep">·</span>';
+  html +=     '<span>'+brfReadTime(latest.content)+'</span>';
+  html +=   '</div>';
+  html +=   '<div class="brf-hero-cta">Read full brief '+brfArrowIcon()+'</div>';
+  html += '</div>';
+
+  if (rest.length) {
+    html += '<div class="brf-archive-header"><span>Archive</span><span class="line"></span><span class="count">'+String(rest.length).padStart(2,'0')+' entries</span></div>';
+    html += '<div class="brf-archive">';
+    rest.forEach(b => {
+      const cls = brfClassify(b.content);
+      const title = brfExtractTitle(b.content);
+      html += '<div class="brf-row '+brfClsClass(cls)+'" onclick="viewBriefing('+b.id+')">';
+      html +=   '<div class="brf-row-date">'+brfFmtShortDate(b.created_at)+'</div>';
+      html +=   '<div class="brf-row-cls"><span class="dot"></span>'+cls+'</div>';
+      html +=   '<div class="brf-row-title">'+esc(title)+'</div>';
+      html +=   '<div class="brf-row-time">'+brfReadTime(b.content)+'</div>';
+      html +=   '<div class="brf-row-arrow">'+brfArrowIcon()+'</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  el.innerHTML = html;
 }
 
 async function viewBriefing(id) {
   document.getElementById('briefing-list').style.display = 'none';
   const detail = document.getElementById('briefing-detail');
   detail.style.display = 'block';
+  detail.innerHTML = '<div class="k-empty" style="padding:40px;color:var(--text-dim)">Loading briefing…</div>';
   const d = await kAuthFetch('/api/k108/briefing/latest');
   const b = d?.briefings?.find(br => br.id === id);
   if (!b) { detail.innerHTML = '<div class="k-empty">Briefing not found</div>'; return; }
-  const date = new Date(b.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const cls = brfClassify(b.content);
+  const title = brfExtractTitle(b.content);
+  const date = brfFmtFullDate(b.created_at);
+  const time = brfFmtTime(b.created_at);
+  // Strip leading heading from body since we display it as masthead title
+  let body = b.content || '';
+  body = body.replace(/^\s*#{1,3}\s+.+\n+/, '');
   let content = '';
   if (typeof marked !== 'undefined' && marked.parse) {
-    content = marked.parse(b.content || '');
+    content = marked.parse(body);
   } else {
-    content = esc(b.content || '').replace(/\n/g, '<br>');
+    content = esc(body).replace(/\n/g, '<br>');
   }
-  detail.innerHTML = '<button class="k-btn k-btn-sm" onclick="loadBriefings()" style="margin-bottom:16px">&larr; Back</button><div class="briefing-date" style="margin-bottom:12px">'+esc(date)+'</div><div class="briefing-content">'+content+'</div>';
+  const sha = 'SHA-' + String(b.id).padStart(4, '0') + (b.updated_at ? ('·' + String(Date.parse(b.updated_at)||0).slice(-6)) : '');
+  let html = '';
+  html += '<div class="brf-reader '+brfClsClass(cls)+'">';
+  html +=   '<button class="brf-reader-back" onclick="loadBriefings()">&larr; Back to archive</button>';
+  html +=   '<div class="brf-reader-masthead">';
+  html +=     '<div class="brf-reader-strip">';
+  html +=       '<span class="dot"></span>';
+  html +=       '<span>Classified</span><span class="divider">·</span>';
+  html +=       '<span>'+cls+'</span><span class="divider">·</span>';
+  html +=       '<span class="brf-id">'+brfId(b.id)+'</span><span class="divider">·</span>';
+  html +=       '<span class="brf-date">'+time+'</span>';
+  html +=     '</div>';
+  html +=     '<div class="brf-reader-label">Daily Intelligence Brief</div>';
+  html +=     '<div class="brf-reader-title">'+esc(title)+'</div>';
+  html +=     '<div class="brf-reader-meta">';
+  html +=       '<span>'+esc(date)+'</span><span class="sep">·</span>';
+  html +=       '<span>'+brfReadTime(b.content)+'</span>';
+  html +=     '</div>';
+  html +=   '</div>';
+  html +=   '<div class="brf-body">'+content+'</div>';
+  html +=   '<div class="brf-reader-footer">';
+  html +=     '<span>Compiled by ORACLE</span><span class="sep">·</span>';
+  html +=     '<span>K-108</span><span class="sep">·</span>';
+  html +=     '<span>'+sha+'</span>';
+  html +=   '</div>';
+  html += '</div>';
+  detail.innerHTML = html;
 }
 
-// ═══ Dashboard data for new cards ═══
+// ═══ Dashboard data ═══
 async function loadDashboardBriefings() {
   try {
     const d = await kAuthFetch('/api/k108/briefing/latest');
+    const card = document.getElementById('dash-briefing-card');
+    if (!card) return;
     if (d && d.briefings && d.briefings.length) {
-      const pp = document.getElementById('dash-briefing-preview');
       const b = d.briefings[0];
-      const date = new Date(b.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric' });
-      pp.innerHTML = '<div class="dc-pline"><div class="dc-pline-dot" style="background:var(--accent-cyan)"></div><div class="dc-pline-text">'+esc(date)+' — Latest briefing</div></div>';
+      const cls = brfClassify(b.content);
+      const title = brfExtractTitle(b.content);
+      card.classList.remove('brf-cls-routine','brf-cls-priority','brf-cls-flash');
+      card.classList.add(brfClsClass(cls));
+      const clsEl = document.getElementById('dash-brf-cls');
+      const idEl = document.getElementById('dash-brf-id');
+      const titleEl = document.getElementById('dash-brf-title');
+      const metaEl = document.getElementById('dash-brf-meta');
+      if (clsEl) clsEl.textContent = 'CLASSIFIED · ' + cls;
+      if (idEl) idEl.textContent = brfId(b.id);
+      if (titleEl) titleEl.textContent = title;
+      if (metaEl) {
+        metaEl.innerHTML = '<span>'+brfFmtShortDate(b.created_at)+'</span><span class="sep">·</span><span>'+brfFmtTime(b.created_at)+'</span><span class="sep">·</span><span>'+brfReadTime(b.content)+'</span>';
+      }
     }
   } catch(e){}
 }
