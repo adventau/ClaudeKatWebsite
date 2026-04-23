@@ -1,5 +1,83 @@
 // Composer — priority star, GIF picker, emoji picker, attach, voice, send.
 
+// Discord-style shortcode → emoji map used for :name: autocomplete.
+const VAULT_EMOJI = {
+  'grinning':'😀','smiley':'😃','smile':'😄','grin':'😁','joy':'😂','rofl':'🤣',
+  'sweat_smile':'😅','blush':'😊','innocent':'😇','smiling_face_with_hearts':'🥰',
+  'heart_eyes':'😍','star_struck':'🤩','kissing_heart':'😘','kissing':'😗',
+  'yum':'😋','stuck_out_tongue':'😛','stuck_out_tongue_winking_eye':'😜',
+  'zany_face':'🤪','stuck_out_tongue_closed_eyes':'😝','money_mouth':'🤑',
+  'hugging':'🤗','hand_over_mouth':'🤭','shushing_face':'🤫','thinking':'🤔',
+  'saluting_face':'🫡','zipper_mouth':'🤐','raised_eyebrow':'🤨','neutral_face':'😐',
+  'expressionless':'😑','no_mouth':'😶','smirk':'😏','unamused':'😒',
+  'rolling_eyes':'🙄','grimacing':'😬','lying_face':'🤥','melting_face':'🫠',
+  'relieved':'😌','pensive':'😔','sleepy':'😪','drooling_face':'🤤','sleeping':'😴',
+  'mask':'😷','face_with_thermometer':'🤒','head_bandage':'🤕','nauseated_face':'🤢',
+  'face_vomiting':'🤮','hot_face':'🥵','cold_face':'🥶','woozy_face':'🥴',
+  'dizzy_face':'😵','exploding_head':'🤯','cowboy':'🤠','partying_face':'🥳',
+  'sunglasses':'😎','nerd':'🤓','monocle_face':'🧐',
+  'confused':'😕','worried':'😟','slightly_frowning_face':'🙁','frowning':'☹️',
+  'open_mouth':'😮','hushed':'😯','astonished':'😲','flushed':'😳',
+  'pleading_face':'🥺','face_holding_back_tears':'🥹','cry':'😢','sob':'😭',
+  'scream':'😱','confounded':'😖','persevere':'😣','disappointed':'😞',
+  'sweat':'😓','weary':'😩','tired_face':'😫','yawning_face':'🥱',
+  'triumph':'😤','rage':'😡','cursing_face':'🤬','smiling_imp':'😈','imp':'👿',
+  'skull':'💀','skull_crossbones':'☠️','poop':'💩','clown':'🤡','ghost':'👻',
+  'alien':'👽','space_invader':'👾','robot':'🤖',
+  'wave':'👋','raised_back_of_hand':'🤚','raised_hand':'✋','vulcan':'🖖',
+  'ok_hand':'👌','pinched_fingers':'🤌','v':'✌️','crossed_fingers':'🤞',
+  'love_you_gesture':'🤟','metal':'🤘','call_me':'🤙',
+  'point_left':'👈','point_right':'👉','point_up_2':'👆','middle_finger':'🖕',
+  'point_down':'👇','point_up':'☝️','thumbsup':'👍','thumbs_up':'👍','+1':'👍',
+  'thumbsdown':'👎','thumbs_down':'👎','-1':'👎','fist':'✊','punch':'👊',
+  'clap':'👏','raised_hands':'🙌','heart_hands':'🫶','open_hands':'👐',
+  'handshake':'🤝','pray':'🙏','muscle':'💪','writing_hand':'✍️','nail_care':'💅',
+  'heart':'❤️','red_heart':'❤️','orange_heart':'🧡','yellow_heart':'💛',
+  'green_heart':'💚','blue_heart':'💙','purple_heart':'💜','black_heart':'🖤',
+  'white_heart':'🤍','brown_heart':'🤎','broken_heart':'💔','two_hearts':'💕',
+  'revolving_hearts':'💞','heartbeat':'💓','sparkling_heart':'💖','cupid':'💘',
+  'sparkles':'✨','star':'⭐','star2':'🌟','dizzy':'💫','fire':'🔥','boom':'💥',
+  'rainbow':'🌈','sunny':'☀️','crescent_moon':'🌙','zap':'⚡','snowflake':'❄️',
+  'ocean':'🌊','cherry_blossom':'🌸','hibiscus':'🌺','four_leaf_clover':'🍀',
+  'butterfly':'🦋','rose':'🌹','musical_note':'🎵','notes':'🎶','microphone':'🎤',
+  'headphones':'🎧','crown':'👑','gem':'💎','crystal_ball':'🔮','dart':'🎯',
+  'bulb':'💡','brain':'🧠','rocket':'🚀','trophy':'🏆','tada':'🎉',
+  'confetti_ball':'🎊','gift':'🎁','ribbon':'🎀','medal':'🏅','first_place':'🥇',
+  'moneybag':'💰','money_with_wings':'💸','iphone':'📱','computer':'💻',
+  'bell':'🔔','white_check_mark':'✅','x':'❌','100':'💯',
+  'pizza':'🍕','hamburger':'🍔','fries':'🍟','hotdog':'🌭','taco':'🌮',
+  'ice_cream':'🍦','doughnut':'🍩','cookie':'🍪','cake':'🎂',
+  'coffee':'☕','tea':'🍵','beer':'🍺','wine_glass':'🍷','cocktail':'🍸',
+  'dog':'🐶','cat':'🐱','rabbit':'🐰','fox':'🦊','bear':'🐻','panda_face':'🐼',
+  'koala':'🐨','lion_face':'🦁','cow':'🐮','pig':'🐷','frog':'🐸',
+  'monkey_face':'🐵','chicken':'🐔','penguin':'🐧','bird':'🐦','eagle':'🦅',
+  'owl':'🦉','bat':'🦇','wolf':'🐺','horse':'🐴','unicorn':'🦄','bee':'🐝',
+  'snake':'🐍','turtle':'🐢','octopus':'🐙','shark':'🦈','whale':'🐳',
+  'eyes':'👀','eye':'👁️','tongue':'👅','lips':'👄','kiss':'💋',
+  'droplet':'💧','sweat_drops':'💦','dash':'💨','zzz':'💤',
+  'speech_balloon':'💬','thought_balloon':'💭','anger':'💢',
+  'no_entry':'⛔','warning':'⚠️','radioactive':'☢️','biohazard':'☣️',
+  'heavy_plus_sign':'➕','heavy_minus_sign':'➖','question':'❓','exclamation':'❗',
+  'recycle':'♻️','infinity':'♾️','peace':'☮️','yin_yang':'☯️','beginner':'🔰',
+  'trident':'🔱','rainbow_flag':'🏳️‍🌈','checkered_flag':'🏁',
+};
+
+function getColonQuery(val, pos) {
+  let i = pos - 1;
+  while (i >= 0 && val[i] !== ':' && val[i] !== ' ' && val[i] !== '\n') i--;
+  if (i < 0 || val[i] !== ':') return null;
+  const query = val.slice(i + 1, pos);
+  if (query.length < 2) return null;
+  return { start: i, end: pos, query: query.toLowerCase() };
+}
+
+function convertColonEmojis(text) {
+  return text.replace(/:([a-z0-9_+\-]+):/gi, (match, name) => {
+    const emoji = VAULT_EMOJI[name.toLowerCase()];
+    return emoji ? emoji.trim() : match;
+  });
+}
+
 function Composer({ beamIntensity, beamSpeed, beamEnabled, beamHue, contactName, onSend, onKeystroke, onTyping, replyTo, onCancelReply }) {
   const typingTimeoutRef = React.useRef(null);
   const [value, setValue] = React.useState("");
@@ -18,6 +96,8 @@ function Composer({ beamIntensity, beamSpeed, beamEnabled, beamHue, contactName,
   const recIntervalRef = React.useRef(null);
   const taRef = React.useRef(null);
   const fileInputRef = React.useRef(null);
+  const [emojiAC, setEmojiAC] = React.useState({ open: false, results: [], index: 0 });
+  const emojiACTimerRef = React.useRef(null);
 
   React.useEffect(() => {
     if (!taRef.current) return;
@@ -38,11 +118,27 @@ function Composer({ beamIntensity, beamSpeed, beamEnabled, beamHue, contactName,
     requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(start + text.length, start + text.length); });
   };
 
+  const selectEmojiAC = React.useCallback((idx) => {
+    const result = emojiAC.results[idx];
+    if (!result || !taRef.current) return;
+    const ta = taRef.current;
+    const match = getColonQuery(ta.value, ta.selectionStart);
+    if (!match) return;
+    const newVal = ta.value.slice(0, match.start) + result.emoji + ta.value.slice(match.end);
+    setValue(newVal);
+    setEmojiAC({ open: false, results: [], index: 0 });
+    requestAnimationFrame(() => {
+      ta.selectionStart = ta.selectionEnd = match.start + result.emoji.length;
+      ta.focus();
+    });
+  }, [emojiAC.results]);
+
   const handleSend = async () => {
     if (sending) return;
     if (!value.trim() && pendingFiles.length === 0) return;
     if (!onSend) { setValue(""); return; }
-    const snapshot = { text: value.trim(), priority, files: pendingFiles, formatting };
+    setEmojiAC({ open: false, results: [], index: 0 });
+    const snapshot = { text: convertColonEmojis(value.trim()), priority, files: pendingFiles, formatting };
     setSending(true);
     try {
       const ok = await onSend(snapshot);
@@ -165,6 +261,37 @@ function Composer({ beamIntensity, beamSpeed, beamEnabled, beamHue, contactName,
       <div style={{ width: "100%", margin: "0 auto", position: "relative" }}>
         {emojiOpen && <EmojiPicker onPick={(e) => { insertAtCursor(e); setEmojiOpen(false); }} onClose={() => setEmojiOpen(false)} />}
         {gifOpen && <GifPicker onPick={(gif) => sendGif(gif.url)} onClose={() => setGifOpen(false)} />}
+        {emojiAC.open && (
+          <div style={{
+            position: "absolute", bottom: "100%", left: 0, right: 0,
+            marginBottom: 6, zIndex: 200,
+            background: "var(--rv-sidebar-bg)",
+            border: "1px solid var(--rv-border)",
+            borderRadius: 12, overflow: "hidden",
+            boxShadow: "0 8px 28px rgba(0,0,0,0.45)",
+          }}>
+            {emojiAC.results.map((r, i) => (
+              <div
+                key={r.name}
+                onMouseDown={(e) => { e.preventDefault(); selectEmojiAC(i); }}
+                onMouseEnter={() => setEmojiAC(prev => ({ ...prev, index: i }))}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "7px 14px", cursor: "pointer",
+                  background: i === emojiAC.index ? "var(--rv-hover, oklch(1 0 0 / 0.07))" : "transparent",
+                  transition: "background 0.1s",
+                }}
+              >
+                <span style={{ fontSize: "1.25rem", width: 28, textAlign: "center", lineHeight: 1 }}>{r.emoji}</span>
+                <span style={{
+                  fontSize: 12, fontFamily: "var(--rv-mono)",
+                  color: i === emojiAC.index ? "var(--rv-text)" : "var(--rv-text-dim, var(--rv-text-faint))",
+                  fontWeight: i === emojiAC.index ? 500 : 400,
+                }}>:{r.name}:</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div
           style={{
             position: "relative",
@@ -240,14 +367,34 @@ function Composer({ beamIntensity, beamSpeed, beamEnabled, beamHue, contactName,
                   clearTimeout(typingTimeoutRef.current);
                   typingTimeoutRef.current = setTimeout(() => onTyping(false), 2500);
                 }
+                clearTimeout(emojiACTimerRef.current);
+                const ta = e.target;
+                emojiACTimerRef.current = setTimeout(() => {
+                  const match = getColonQuery(ta.value, ta.selectionStart);
+                  if (!match) { setEmojiAC({ open: false, results: [], index: 0 }); return; }
+                  const results = Object.entries(VAULT_EMOJI)
+                    .filter(([name]) => name.includes(match.query))
+                    .slice(0, 8)
+                    .map(([name, emoji]) => ({ name, emoji: emoji.trim() }));
+                  setEmojiAC(results.length
+                    ? { open: true, results, index: 0 }
+                    : { open: false, results: [], index: 0 });
+                }, 80);
               }}
               onFocus={() => setFocused(true)}
               onBlur={() => {
                 setFocused(false);
                 onTyping && onTyping(false);
                 clearTimeout(typingTimeoutRef.current);
+                setTimeout(() => setEmojiAC({ open: false, results: [], index: 0 }), 150);
               }}
               onKeyDown={(e) => {
+                if (emojiAC.open) {
+                  if (e.key === "ArrowDown") { e.preventDefault(); setEmojiAC(prev => ({ ...prev, index: (prev.index + 1) % prev.results.length })); return; }
+                  if (e.key === "ArrowUp") { e.preventDefault(); setEmojiAC(prev => ({ ...prev, index: (prev.index - 1 + prev.results.length) % prev.results.length })); return; }
+                  if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) { e.preventDefault(); selectEmojiAC(emojiAC.index); return; }
+                  if (e.key === "Escape") { e.preventDefault(); setEmojiAC({ open: false, results: [], index: 0 }); return; }
+                }
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   onTyping && onTyping(false);
