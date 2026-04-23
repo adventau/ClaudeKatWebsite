@@ -501,6 +501,101 @@
 <script type="text/babel" src="components/TabViews.jsx?v=31"></script>
 <script type="text/babel" src="components/Tweaks.jsx?v=31"></script>
 
+<script>
+// ── Modified Vault Sound System ──────────────────────────────────────
+// Triangle-wave warmth + descending-send / ascending-receive feel —
+// intentionally distinct from the classic-release sine-based tones.
+window.RVSounds = (function () {
+  var _ctx = null, _enabled = true, _ksLast = 0;
+  function ctx() {
+    if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)();
+    return _ctx;
+  }
+  function tone(freq, dur, vol, type, delayMs) {
+    setTimeout(function () {
+      try {
+        var c = ctx(), osc = c.createOscillator(), g = c.createGain();
+        osc.type = type || "triangle";
+        osc.frequency.value = freq;
+        g.gain.setValueAtTime(0, c.currentTime);
+        g.gain.linearRampToValueAtTime(vol, c.currentTime + 0.009);
+        g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
+        osc.connect(g).connect(c.destination);
+        osc.start(); osc.stop(c.currentTime + dur);
+      } catch (e) {}
+    }, delayMs || 0);
+  }
+  return {
+    setEnabled: function (v) { _enabled = !!v; },
+    isEnabled: function () { return _enabled; },
+    // Descending triangle doublet — "dispatched"
+    send: function () {
+      if (!_enabled) return;
+      tone(1320, 0.055, 0.050, "triangle", 0);
+      tone(880,  0.085, 0.040, "triangle", 48);
+    },
+    // Warm ascending triad — intel incoming
+    receive: function () {
+      if (!_enabled) return;
+      tone(440, 0.11, 0.055, "triangle", 0);
+      tone(550, 0.09, 0.044, "triangle", 68);
+      tone(660, 0.07, 0.033, "triangle", 136);
+    },
+    // Near-silent crisp tick, throttled 40 ms
+    keystroke: function () {
+      if (!_enabled) return;
+      var now = Date.now(); if (now - _ksLast < 40) return; _ksLast = now;
+      tone(3100, 0.018, 0.019, "sine", 0);
+    },
+    // Soft mid sweep on tab switch
+    navigate: function () {
+      if (!_enabled) return;
+      tone(528, 0.10, 0.040, "triangle", 0);
+      tone(627, 0.08, 0.030, "triangle", 58);
+    },
+    // Two-part square click for toggles
+    toggle: function () {
+      if (!_enabled) return;
+      tone(720, 0.028, 0.036, "square", 0);
+      tone(940, 0.022, 0.027, "square", 38);
+    },
+    // C-E-G sparkle for reactions
+    react: function () {
+      if (!_enabled) return;
+      tone(1047, 0.07, 0.035, "sine", 0);
+      tone(1319, 0.06, 0.028, "sine", 52);
+      tone(1568, 0.05, 0.021, "sine", 104);
+    },
+    // Mechanical lock-click doublet for pin
+    pin: function () {
+      if (!_enabled) return;
+      tone(880, 0.048, 0.040, "triangle", 0);
+      tone(660, 0.065, 0.032, "triangle", 46);
+    },
+    // Low descending thud for delete/unsend
+    delete: function () {
+      if (!_enabled) return;
+      tone(310, 0.10, 0.050, "triangle", 0);
+      tone(210, 0.13, 0.040, "triangle", 68);
+    },
+    // Upward breath for modal open
+    modalOpen: function () {
+      if (!_enabled) return;
+      tone(440, 0.11, 0.033, "triangle", 0);
+      tone(550, 0.09, 0.026, "triangle", 62);
+      tone(660, 0.07, 0.019, "triangle", 124);
+    },
+    // Downward breath for modal close
+    modalClose: function () {
+      if (!_enabled) return;
+      tone(660, 0.07, 0.033, "triangle", 0);
+      tone(550, 0.09, 0.026, "triangle", 56);
+      tone(440, 0.11, 0.019, "triangle", 112);
+    },
+  };
+})();
+</script>
+
 <script type="text/babel">
   // ── Live data adapters ──────────────────────────────────────────────
   // The vault shell runs in an iframe on the same origin as /app, so the
@@ -570,25 +665,6 @@
     pinnedBy: m.pinnedBy,
   });
 
-  // Subtle sound effects for send/receive (Web Audio API, no file assets)
-  let __audioCtx = null;
-  function playTone(freq, duration = 0.08, volume = 0.08) {
-    try {
-      if (!__audioCtx) __audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const ctx = __audioCtx;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.value = volume;
-      osc.connect(gain).connect(ctx.destination);
-      osc.start();
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
-      osc.stop(ctx.currentTime + duration);
-    } catch { /* audio blocked until first interaction — fine */ }
-  }
-  const playSend = () => { playTone(880); setTimeout(() => playTone(1175, 0.06), 60); };
-  const playReceive = () => { playTone(660, 0.08); setTimeout(() => playTone(523, 0.12), 80); };
 
   // Build a vault-thread contact from the other user's profile.
   const mapContact = (u) => {
@@ -615,15 +691,17 @@
   function RVDialog({ req, onResolve }) {
     const [value, setValue] = React.useState(req.defaultValue || "");
     const inputRef = React.useRef(null);
+    React.useEffect(() => { RVSounds.modalOpen(); }, []);
+    const resolve = React.useCallback((v) => { RVSounds.modalClose(); onResolve(v); }, [onResolve]);
     React.useEffect(() => { if (req.type === "prompt" && inputRef.current) inputRef.current.focus(); }, [req.type]);
     React.useEffect(() => {
       const h = (e) => {
-        if (e.key === "Escape") onResolve(req.type === "confirm" ? false : null);
-        if (e.key === "Enter" && req.type === "prompt") onResolve(value);
+        if (e.key === "Escape") resolve(req.type === "confirm" ? false : null);
+        if (e.key === "Enter" && req.type === "prompt") resolve(value);
       };
       document.addEventListener("keydown", h);
       return () => document.removeEventListener("keydown", h);
-    }, [value, req.type, onResolve]);
+    }, [value, req.type, resolve]);
     const primaryLabel = req.primaryLabel
       || (req.type === "confirm" ? "Confirm" : req.type === "prompt" ? "OK" : "OK");
     const primaryStyle = req.danger
@@ -631,7 +709,7 @@
       : { background: "var(--rv-accent)", color: "#1a1510", border: "1px solid var(--rv-accent)" };
     return (
       <div
-        onClick={() => onResolve(req.type === "confirm" ? false : null)}
+        onClick={() => resolve(req.type === "confirm" ? false : null)}
         style={{
           position: "fixed", inset: 0, zIndex: 9000,
           background: "oklch(0.08 0.01 60 / 0.72)",
@@ -678,7 +756,7 @@
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 18 }}>
             {req.type !== "alert" && (
               <button
-                onClick={() => onResolve(req.type === "confirm" ? false : null)}
+                onClick={() => resolve(req.type === "confirm" ? false : null)}
                 style={{
                   all: "unset", cursor: "pointer",
                   padding: "8px 16px", borderRadius: 8,
@@ -690,7 +768,7 @@
               >Cancel</button>
             )}
             <button
-              onClick={() => onResolve(req.type === "confirm" ? true : req.type === "prompt" ? value : true)}
+              onClick={() => resolve(req.type === "confirm" ? true : req.type === "prompt" ? value : true)}
               style={{
                 all: "unset", cursor: "pointer",
                 padding: "8px 18px", borderRadius: 8,
@@ -783,7 +861,7 @@
     const [searchResults, setSearchResults] = React.useState(null);
     const soundOn = (myProfile?.soundEnabled !== false);
     const soundOnRef = React.useRef(true);
-    React.useEffect(() => { soundOnRef.current = soundOn; }, [soundOn]);
+    React.useEffect(() => { soundOnRef.current = soundOn; RVSounds.setEnabled(soundOn); }, [soundOn]);
     const typingTimeout = React.useRef(null);
     const socketRef = React.useRef(null);
     const currentUserRef = React.useRef(null);
@@ -903,7 +981,7 @@
             rawMessages: [...(prev.rawMessages || []), m],
           };
         });
-        if (m.sender !== currentUserRef.current && soundOnRef.current) playReceive();
+        if (m.sender !== currentUserRef.current && soundOnRef.current) RVSounds.receive();
       };
       const onReaction = ({ id, reactions }) => {
         setThread(prev => ({
@@ -929,7 +1007,9 @@
       const onRead = ({ id, readAt }) => {
         setThread(prev => ({
           ...prev,
-          messages: prev.messages.map(m => m.id === id ? { ...m, read: true, readAt } : m),
+          messages: prev.messages.map(m => m.id === id
+            ? { ...m, read: true, readAt, status: m.from === "me" ? "read" : m.status }
+            : m),
         }));
       };
       const onPinned = ({ id, pinnedBy, pinnedAt }) => {
@@ -1025,7 +1105,7 @@
               rawMessages: [...(prev.rawMessages || []), result.message],
             };
           });
-          if (soundOn) playSend();
+          if (soundOn) RVSounds.send();
         }
         setReplyTo(null);
         return true;
@@ -1037,6 +1117,7 @@
 
     // Chat message action handlers — all hit the same endpoints /app uses.
     const onReact = React.useCallback(async (message, emoji) => {
+      RVSounds.react();
       await fetch(`/api/messages/${message.id}/react`, {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -1044,12 +1125,14 @@
       });
     }, []);
     const onPin = React.useCallback(async (message) => {
+      RVSounds.pin();
       const url = message.pinnedAt ? `/api/messages/${message.id}/unpin` : `/api/messages/${message.id}/pin`;
       await fetch(url, { method: "POST", credentials: "same-origin" });
     }, []);
     const onUnsend = React.useCallback(async (message) => {
       const ok = await (window.rvConfirm ? window.rvConfirm("Unsend this message? It'll disappear for both of you.", { title: "Unsend message", primaryLabel: "Unsend", danger: true }) : Promise.resolve(true));
       if (!ok) return;
+      RVSounds.delete();
       // Optimistically remove locally so the user sees immediate feedback;
       // if the server rejects (expired unsend window), we restore it.
       const snapshot = message;
@@ -1184,7 +1267,7 @@
 
     return (
       <div style={{ display: "flex", height: "100vh", position: "relative", zIndex: 1 }}>
-        <Sidebar active={active} onSelect={setActive} me={myProfile}
+        <Sidebar active={active} onSelect={(tab) => { if (tab !== active) RVSounds.navigate(); setActive(tab); }} me={myProfile}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           badges={{
@@ -1247,6 +1330,7 @@
                   beamHue={activeBeamHue}
                   contactName={thread.contact?.name}
                   onSend={sendMessage}
+                  onKeystroke={() => RVSounds.keystroke()}
                   onTyping={emitTyping}
                   replyTo={replyTo}
                   onCancelReply={() => setReplyTo(null)}

@@ -1,6 +1,6 @@
 // Composer — priority star, GIF picker, emoji picker, attach, voice, send.
 
-function Composer({ beamIntensity, beamSpeed, beamEnabled, beamHue, contactName, onSend, onTyping, replyTo, onCancelReply }) {
+function Composer({ beamIntensity, beamSpeed, beamEnabled, beamHue, contactName, onSend, onKeystroke, onTyping, replyTo, onCancelReply }) {
   const typingTimeoutRef = React.useRef(null);
   const [value, setValue] = React.useState("");
   const [focused, setFocused] = React.useState(false);
@@ -234,6 +234,7 @@ function Composer({ beamIntensity, beamSpeed, beamEnabled, beamHue, contactName,
               value={value}
               onChange={(e) => {
                 setValue(e.target.value);
+                if (onKeystroke) onKeystroke();
                 if (onTyping && e.target.value) {
                   onTyping(true);
                   clearTimeout(typingTimeoutRef.current);
