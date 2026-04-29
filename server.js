@@ -9376,7 +9376,14 @@ app.post('/api/k108/briefing/submit', async (req, res) => {
   if (!db.pool) return res.status(503).json({ error: 'Database required' });
   const { content } = req.body;
   if (!content) return res.status(400).json({ error: 'Content required' });
-  await db.query('INSERT INTO k108_briefings (content) VALUES ($1)', [content]);
+  // Normalize escape sequences submitted as literal characters (e.g. backslash+n
+  // instead of an actual newline) so downstream rendering sees real line breaks.
+  const normalized = String(content)
+    .replace(/\r\n/g, '\n')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t');
+  await db.query('INSERT INTO k108_briefings (content) VALUES ($1)', [normalized]);
   io.emit('k108:briefing:new', { timestamp: new Date().toISOString() });
   res.json({ ok: true });
 });

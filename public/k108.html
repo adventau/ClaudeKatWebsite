@@ -7733,6 +7733,17 @@ function brfClassify(content) {
 }
 function brfClsClass(cls) { return 'brf-cls-' + (cls || 'ROUTINE').toLowerCase(); }
 function brfId(id) { return 'K108-BRF-' + String(id || 0).padStart(4, '0'); }
+// Briefings are sometimes submitted with escape sequences as literal characters
+// (e.g. backslash+n instead of an actual newline). Normalize before processing
+// so title extraction and markdown rendering see real line breaks.
+function brfNormalize(content) {
+  if (!content) return '';
+  return String(content)
+    .replace(/\r\n/g, '\n')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t');
+}
 function brfReadTime(content) {
   const w = (content || '').split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.round(w / 220)) + ' min read';
@@ -7778,6 +7789,7 @@ async function loadBriefings() {
   el.style.display = 'block';
   const d = await kAuthFetch('/api/k108/briefing/latest');
   const briefings = (d && d.briefings) || [];
+  briefings.forEach(b => { b.content = brfNormalize(b.content); });
   if (!briefings.length) {
     el.innerHTML = '<div class="brf-empty"><div class="brf-empty-label">No transmissions</div><div class="brf-empty-title">Awaiting first intelligence briefing</div><div class="brf-empty-sub">Briefings will be posted here as they are compiled</div></div>';
     return;
@@ -7840,6 +7852,7 @@ async function viewBriefing(id) {
   const d = await kAuthFetch('/api/k108/briefing/latest');
   const b = d?.briefings?.find(br => br.id === id);
   if (!b) { detail.innerHTML = '<div class="k-empty">Briefing not found</div>'; return; }
+  b.content = brfNormalize(b.content);
   const cls = brfClassify(b.content);
   const title = brfExtractTitle(b.content);
   const date = brfFmtFullDate(b.created_at);
@@ -7890,6 +7903,7 @@ async function loadDashboardBriefings() {
     if (!card) return;
     if (d && d.briefings && d.briefings.length) {
       const b = d.briefings[0];
+      b.content = brfNormalize(b.content);
       const cls = brfClassify(b.content);
       const title = brfExtractTitle(b.content);
       card.classList.remove('brf-cls-routine','brf-cls-priority','brf-cls-flash');
